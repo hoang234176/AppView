@@ -143,6 +143,6 @@ Read `internal/httpapi/{server,task_handler,health_handler}.go` and `internal/se
 
 Read `docs/PROTOCOL.md`, `internal/protocol/*.go`, and the target worker's existing business-service boundary. Keep adapter code in that worker service; do not copy its business logic into coordinator.
 
-## Planned Integration
+## Integration Status
 
-Python Download connects outbound and advertises `resolve_download`. Go Storage connects outbound and advertises only `download_file`, backed by its existing archive job. Coordinator now chains them only for `POST /api/v1/download`; frontend migration to this API remains planned.
+Python Download connects outbound and advertises `resolve_download`. Go Storage connects outbound and advertises only `download_file`, backed by its existing archive job. Coordinator now chains them for `POST /api/v1/download`; Web and Mobile frontends use this API for normal downloads. Legacy direct download APIs remain for compatibility but are not the primary flow.
