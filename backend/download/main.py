@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import Config
-from logger import log_info, log_http, log_error
+from logger import log_event, log_info, log_http, log_error
 from models.download_task import (
     ArchiveDownloadRequest,
     TaskPasswordRequest,
@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
     task_manager.load_tasks_from_disk()
     await archive_service.restore_jobs_from_go()
     coordinator_worker_client.start()
+    log_event("INFO", "coordinator worker started", "DOWNLOAD SERVICE", workerId=Config.COORDINATOR_WORKER_ID)
     log_info("DOWNLOAD SERVICE", "==================================================")
     try:
         yield
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
         # hủy nhầm xuống Go. Process Python mới sẽ tự reconnect ngay sau đó.
         task_manager.set_service_stopping(True)
         await coordinator_worker_client.stop()
+        log_event("INFO", "download service stopped", "DOWNLOAD SERVICE")
 
 app = FastAPI(
     title="AppView Python Download Microservice",

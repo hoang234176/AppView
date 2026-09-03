@@ -2,7 +2,7 @@
 
 ## Current goal
 
-Migrate normal Web and Mobile download submission/status to Coordinator-owned in-memory orchestration while preserving legacy APIs.
+Improve backend observability and verify the end-to-end Coordinator download path with real workers.
 
 ## Completed
 
@@ -28,6 +28,8 @@ Migrate normal Web and Mobile download submission/status to Coordinator-owned in
 - Storage child creation is atomically gated by parent registry state, preventing duplicate `download_file` tasks.
 - Web now submits one parent job to `POST /api/v1/download`, retains its `id`, and polls `GET /api/v1/download/{id}` every second until terminal state. It maps only Coordinator-provided progress fields into the existing task UI and does not use the Python WebSocket for new submissions.
 - Mobile `DownloadProvider` now has equivalent runtime parent-job retention/polling with disposal cleanup and no post-dispose notifications. The add-download dialog submits through the provider instead of the legacy Python `/archive` route.
+- Added JSON-line structured logs in Coordinator, Download and Storage. `LOG_LEVEL` defaults to `INFO`; logging avoids passwords, task payloads, signed URL queries and credentials.
+- Storage media routes now read the original escaped route wildcard, decode each URL path segment exactly once, retain traversal checks, and stream the verified file handle. Focused tests cover spaces, `#`, `%`, `@`, Unicode, emoji, full-width punctuation, literal `%20`, video/thumbnail routes and traversal rejection.
 
 ## In progress
 
@@ -56,6 +58,8 @@ Migrate normal Web and Mobile download submission/status to Coordinator-owned in
 - `backend/coordinator/internal/service/download_orchestration_test.go`
 - `backend/coordinator/internal/httpapi/download_handler.go`
 - `backend/coordinator/internal/httpapi/{server.go}`
+- `backend/{coordinator,download,storage}/.env.example` and service logger files
+- `backend/storage/utils/{media_path,storage_utils,logger}.go`, `controllers/media_path_test.go`
 
 ## Important decisions
 
@@ -100,4 +104,4 @@ Migrate normal Web and Mobile download submission/status to Coordinator-owned in
 
 ## Next step
 
-Persist/recover Coordinator parent jobs across client and Coordinator restarts only when durable job storage is intentionally introduced.
+Run a non-destructive three-service E2E download with Coordinator, Python Download and Storage workers to verify structured trace correlation in a real environment.

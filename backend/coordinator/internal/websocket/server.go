@@ -2,11 +2,11 @@ package websocket
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"time"
 
 	"appview/coordinator/internal/config"
+	"appview/coordinator/internal/logging"
 	"appview/coordinator/internal/protocol"
 	"appview/coordinator/internal/service"
 	"github.com/gorilla/websocket"
@@ -25,6 +25,7 @@ func (s *Server) Register(mux *http.ServeMux) { mux.HandleFunc(s.config.WorkerWe
 func (s *Server) Handle(writer http.ResponseWriter, request *http.Request) {
 	socket, err := s.upgrader.Upgrade(writer, request, nil)
 	if err != nil {
+		logging.Event("WARN", "worker websocket upgrade failed", map[string]any{"error": err.Error()})
 		return
 	}
 	connection := NewConnection(socket)
@@ -32,16 +33,19 @@ func (s *Server) Handle(writer http.ResponseWriter, request *http.Request) {
 	workerID := ""
 	defer func() {
 		if workerID != "" {
+			logging.Event("INFO", "worker websocket disconnected", map[string]any{"workerId": workerID})
 			s.coordinator.WorkerDisconnected(workerID)
 		}
 	}()
 	for {
 		var message protocol.Message
 		if err := socket.ReadJSON(&message); err != nil {
+			logging.Event("DEBUG", "worker websocket read ended", map[string]any{"workerId": workerID, "error": err.Error()})
 			return
 		}
 		registeredID, err := s.handleMessage(connection, workerID, message)
 		if err != nil {
+			logging.Event("WARN", "worker protocol message rejected", map[string]any{"workerId": workerID, "error": err.Error()})
 			_ = connection.Send(protocol.NewError("INVALID_MESSAGE", err.Error()))
 			continue
 		}
@@ -102,5 +106,5 @@ type protocolError struct{ message string }
 
 func (e *protocolError) Error() string { return e.message }
 func (s *Server) LogStartup() {
-	log.Printf("coordinator worker websocket: %s", s.config.WorkerWebSocketPath)
+	logging.Event("INFO", "coordinator worker websocket ready", map[string]any{"path": s.config.WorkerWebSocketPath})
 }

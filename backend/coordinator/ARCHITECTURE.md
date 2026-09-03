@@ -95,8 +95,13 @@ Minimal standard-library HTTP API: task creation/query and health. Inspect for c
 | `COORDINATOR_HEARTBEAT_CHECK_INTERVAL` | `5s` | Offline sweep interval. |
 | `COORDINATOR_DEFAULT_MAX_ATTEMPTS` | `2` | Retryable task assignment limit. |
 | `PORT` | unset | Render-compatible fallback: listens on `0.0.0.0:<PORT>` when `COORDINATOR_HTTP_ADDR` is unset. |
+| `LOG_LEVEL` | `INFO` | Structured log threshold: `DEBUG`, `INFO`, `WARN`, `ERROR`. |
 
 The optional service-local `.env` is loaded for absent variables only; process environment values always take precedence. The root `.gitignore` keeps `.env` local while allowing `.env.example` documentation.
+
+## Logging
+
+Coordinator emits single-line JSON events to stdout with `timestamp`, `level`, `service`, `message` and relevant `jobId`, `taskId`, `workerId`, `action`, `state` or `failureStage` fields. Payloads are never logged because download payloads can contain passwords.
 
 ## Lifecycle and Disconnect Policy
 

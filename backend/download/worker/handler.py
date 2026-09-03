@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 from archive.contracts import DownloadResolver, ResolvedDownload
 from archive.service import archive_service
-from logger import log_error, log_warning
+from logger import log_error, log_event, log_warning
 from worker.protocol import (
     RESOLVE_DOWNLOAD,
     TASK_ACCEPTED,
@@ -47,6 +47,8 @@ class DownloadWorkerHandler:
             await self._fail(send, task_id, "UNSUPPORTED_ACTION", "Worker không hỗ trợ action được giao.")
             return
 
+        log_event("INFO", "resolve assignment received", "COORDINATOR WORKER", taskId=task_id, action=action)
+
         payload = envelope.get("payload")
         url = payload.get("url") if isinstance(payload, dict) else None
         if not isinstance(url, str) or not url.strip():
@@ -54,7 +56,9 @@ class DownloadWorkerHandler:
             return
 
         await send(message(TASK_ACCEPTED, taskId=task_id))
+        log_event("INFO", "resolve task accepted", "COORDINATOR WORKER", taskId=task_id)
         try:
+            log_event("INFO", "resolver started", "COORDINATOR WORKER", taskId=task_id)
             resolved = await self._resolver.resolve(url.strip())
         except Exception as error:
             # Provider errors are logged locally. The coordinator gets a
@@ -64,6 +68,7 @@ class DownloadWorkerHandler:
             return
 
         await send(message(TASK_COMPLETED, taskId=task_id, result=self._result(resolved)))
+        log_event("INFO", "resolver completed", "COORDINATOR WORKER", taskId=task_id, filename=resolved.filename)
 
     @staticmethod
     def _result(resolved: ResolvedDownload) -> dict[str, Any]:
@@ -77,4 +82,5 @@ class DownloadWorkerHandler:
 
     @staticmethod
     async def _fail(send: SendMessage, task_id: str, code: str, description: str) -> None:
+        log_event("ERROR", "resolve task failed", "COORDINATOR WORKER", taskId=task_id, errorCode=code)
         await send(message(TASK_FAILED, taskId=task_id, error={"code": code, "message": description}))

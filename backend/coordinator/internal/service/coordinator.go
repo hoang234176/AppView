@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"appview/coordinator/internal/downloadjob"
+	"appview/coordinator/internal/logging"
 	"appview/coordinator/internal/protocol"
 	"appview/coordinator/internal/scheduler"
 	"appview/coordinator/internal/task"
@@ -32,6 +33,7 @@ func (c *Coordinator) RegisterWorker(id string, capabilities []protocol.Capabili
 		return fmt.Errorf("worker id, capabilities, and connection are required")
 	}
 	if c.workers.Register(id, capabilities, sender, time.Now().UTC()) {
+		logging.Event("INFO", "worker registered", map[string]any{"workerId": id, "capability": capabilities})
 		c.tasks.RequeueForWorker(id)
 		c.syncFailedDownloadChildren()
 	}
@@ -62,6 +64,7 @@ func (c *Coordinator) createTask(action string, payload json.RawMessage, retryab
 	if err != nil {
 		return task.Task{}, err
 	}
+	logging.Event("INFO", "task created", map[string]any{"taskId": created.ID, "action": created.Action})
 	if beforeDispatch != nil {
 		if err := beforeDispatch(created); err != nil {
 			return task.Task{}, err
@@ -95,11 +98,13 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 	if err != nil {
 		return downloadjob.Job{}, err
 	}
+	logging.Event("INFO", "download job created", map[string]any{"jobId": created.ID, "state": downloadjob.Resolving, "destination": created.Destination})
 	createdTask, err := c.createTask(string(protocol.ResolveDownload), mustJSON(map[string]string{"url": request.URL}), true, 0, func(child task.Task) error {
 		return c.downloads.AttachResolve(created.ID, child.ID)
 	})
 	if err != nil {
 		c.downloads.FailJob(created.ID, downloadjob.FailureResolve, &protocol.ErrorPayload{Code: "RESOLVE_TASK_CREATE_FAILED", Message: "could not create resolve task"})
+		logging.Event("ERROR", "download job failed", map[string]any{"jobId": created.ID, "failureStage": downloadjob.FailureResolve, "errorCode": "RESOLVE_TASK_CREATE_FAILED"})
 		job, _ := c.downloads.Get(created.ID)
 		return job, err
 	}
@@ -112,6 +117,9 @@ func (c *Coordinator) GetDownload(id string) (downloadjob.Job, bool) { return c.
 
 func (c *Coordinator) TaskAccepted(workerID, taskID string) error {
 	_, err := c.tasks.Accept(taskID, workerID)
+	if err == nil {
+		logging.Event("INFO", "task accepted", map[string]any{"taskId": taskID, "workerId": workerID})
+	}
 	return err
 }
 func (c *Coordinator) TaskProgress(workerID, taskID string, progress json.RawMessage) error {
@@ -119,6 +127,7 @@ func (c *Coordinator) TaskProgress(workerID, taskID string, progress json.RawMes
 		return err
 	}
 	c.downloads.UpdateProgress(taskID, progress)
+	logging.Event("DEBUG", "task progress", map[string]any{"taskId": taskID, "workerId": workerID})
 	return nil
 }
 func (c *Coordinator) TaskCompleted(workerID, taskID string, result json.RawMessage) error {
@@ -127,6 +136,7 @@ func (c *Coordinator) TaskCompleted(workerID, taskID string, result json.RawMess
 		return err
 	}
 	c.workers.SetStatus(workerID, worker.Idle)
+	logging.Event("INFO", "task completed", map[string]any{"taskId": taskID, "workerId": workerID, "action": completed.Action})
 	c.handleDownloadCompletion(completed)
 	return c.dispatchQueued()
 }
@@ -136,6 +146,15 @@ func (c *Coordinator) TaskFailed(workerID, taskID string, failure *protocol.Erro
 	}
 	c.workers.SetStatus(workerID, worker.Idle)
 	c.downloads.FailChild(taskID, failure)
+	fields := map[string]any{"taskId": taskID, "workerId": workerID}
+	if job, ok := c.downloads.JobForChild(taskID); ok {
+		fields["jobId"] = job.ID
+		fields["failureStage"] = job.FailureStage
+	}
+	if failure != nil {
+		fields["errorCode"] = failure.Code
+	}
+	logging.Event("ERROR", "task failed", fields)
 	return c.dispatchQueued()
 }
 
@@ -143,6 +162,7 @@ func (c *Coordinator) WorkerDisconnected(workerID string) {
 	if _, ok := c.workers.Unregister(workerID); !ok {
 		return
 	}
+	logging.Event("WARN", "worker disconnected; requeueing eligible tasks", map[string]any{"workerId": workerID})
 	c.tasks.RequeueForWorker(workerID)
 	c.syncFailedDownloadChildren()
 	_ = c.dispatchQueued()
@@ -172,19 +192,28 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 		if !shouldCreate {
 			return
 		}
+		logging.Event("INFO", "download job transition", map[string]any{"jobId": job.ID, "state": downloadjob.Downloading, "resolveTaskId": completed.ID, "filename": storageRequest.Filename})
 		payload := mustJSON(map[string]string{
 			"url": storageRequest.URL, "filename": storageRequest.Filename,
 			"destination": storageRequest.Destination, "password": storageRequest.Password,
 		})
-		if _, err := c.createTask(string(protocol.DownloadFile), payload, true, 0, func(child task.Task) error {
+		if storageTask, err := c.createTask(string(protocol.DownloadFile), payload, true, 0, func(child task.Task) error {
 			return c.downloads.AttachStorage(job.ID, child.ID)
 		}); err != nil {
 			c.downloads.FailJob(job.ID, downloadjob.FailureStorage, &protocol.ErrorPayload{Code: "STORAGE_TASK_CREATE_FAILED", Message: "could not create storage task"})
+			logging.Event("ERROR", "download job failed", map[string]any{"jobId": job.ID, "failureStage": downloadjob.FailureStorage, "errorCode": "STORAGE_TASK_CREATE_FAILED"})
+		} else {
+			logging.Event("INFO", "storage child created", map[string]any{"jobId": job.ID, "storageTaskId": storageTask.ID, "filename": storageRequest.Filename})
 		}
 		return
 	}
 	if completed.Action == string(protocol.DownloadFile) {
 		c.downloads.CompleteStorage(completed.ID, completed.Result)
+		fields := map[string]any{"storageTaskId": completed.ID, "state": downloadjob.Completed}
+		if job, ok := c.downloads.JobForChild(completed.ID); ok {
+			fields["jobId"] = job.ID
+		}
+		logging.Event("INFO", "download job completed", fields)
 	}
 }
 
@@ -231,6 +260,7 @@ func (c *Coordinator) dispatch(taskID string) error {
 		c.WorkerDisconnected(candidate.ID)
 		return nil
 	}
+	logging.Event("INFO", "task assigned", map[string]any{"taskId": assigned.ID, "workerId": candidate.ID, "action": assigned.Action})
 	return nil
 }
 func newID() string {

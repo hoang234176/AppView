@@ -10,7 +10,7 @@ from typing import Any, Optional
 import websockets
 
 from config import Config
-from logger import log_error, log_info, log_warning
+from logger import log_error, log_event, log_info, log_warning
 from worker.handler import DownloadWorkerHandler
 from worker.protocol import (
     ERROR,
@@ -53,6 +53,7 @@ class CoordinatorWorkerClient:
         if self._run_task is None or self._run_task.done():
             self._stop_event.clear()
             self._run_task = asyncio.create_task(self._run(), name="coordinator-download-worker")
+            log_event("INFO", "coordinator worker starting", "COORDINATOR WORKER", workerId=self._worker_id)
 
     async def stop(self) -> None:
         self._stop_event.set()
@@ -123,6 +124,7 @@ class CoordinatorWorkerClient:
                 raise ConnectionError("Coordinator trả acknowledgement đăng ký không hợp lệ.")
 
             log_info("COORDINATOR WORKER", f"Đã kết nối coordinator: {self._url} ({self._worker_id})")
+            log_event("INFO", "coordinator worker registered", "COORDINATOR WORKER", workerId=self._worker_id, capability=RESOLVE_DOWNLOAD)
             heartbeat = asyncio.create_task(self._heartbeat_loop(), name="coordinator-download-heartbeat")
             try:
                 async for raw in websocket:
@@ -140,6 +142,7 @@ class CoordinatorWorkerClient:
                 await self._cancel_assignments()
 
     def _start_assignment(self, envelope: dict[str, Any]) -> None:
+        log_event("INFO", "coordinator assignment received", "COORDINATOR WORKER", workerId=self._worker_id, taskId=envelope.get("taskId"), action=envelope.get("action"))
         assignment = asyncio.create_task(self._handler.handle(envelope, self.send))
         self._assignment_tasks.add(assignment)
         assignment.add_done_callback(self._assignment_done)

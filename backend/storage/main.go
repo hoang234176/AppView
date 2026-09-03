@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
+	"time"
 
 	"backend/configs"
 	"backend/routes"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 func main() {
@@ -31,16 +29,16 @@ func main() {
 	// Enable CORS middleware
 	app.Use(cors.New())
 
-	// Poll archive mỗi giây là giao tiếp nội bộ Python -> Go, không phải log
-	// thao tác người dùng. Ẩn riêng endpoint này để log tiến độ Python dễ đọc.
-	app.Use(logger.New(logger.Config{
-		Format:     "[HTTP] ${time} | ${status} | ${latency} | ${ip} | ${method} ${path} ${queryParams}\n",
-		TimeFormat: "2006-01-02 15:04:05",
-		TimeZone:   "Local",
-		Next: func(c *fiber.Ctx) bool {
-			return c.Method() == fiber.MethodGet && strings.HasPrefix(c.Path(), "/api/v1/jobs/archive/")
-		},
-	}))
+	app.Use(func(c *fiber.Ctx) error {
+		started := time.Now()
+		err := c.Next()
+		// Archive polling is internal and high-frequency; progress is logged by
+		// the Python/Storage job layers instead of repeating HTTP lines.
+		if !(c.Method() == fiber.MethodGet && len(c.Path()) >= len("/api/v1/jobs/archive/") && c.Path()[:len("/api/v1/jobs/archive/")] == "/api/v1/jobs/archive/") {
+			utils.LogEvent("INFO", "http request", map[string]any{"method": c.Method(), "path": c.Path(), "status": c.Response().StatusCode(), "latencyMs": time.Since(started).Milliseconds()})
+		}
+		return err
+	})
 
 	// Setup routes
 	routes.SetupRoutes(app)
@@ -52,12 +50,10 @@ func main() {
 	}()
 
 	// Start the server
-	utils.LogInfo("==================================================")
-	utils.LogInfo("AppView Storage Server đang khởi chạy trên: http://0.0.0.0:8080")
-	utils.LogInfo("Mọi yêu cầu & thao tác tệp/thư mục sẽ được in log đầy đủ tại Terminal này")
-	utils.LogInfo("==================================================")
+	utils.LogEvent("INFO", "storage service starting", map[string]any{"listenAddress": "0.0.0.0:8080"})
 
 	if err := app.Listen("0.0.0.0:8080"); err != nil {
-		log.Printf("Storage HTTP server stopped: %v", err)
+		utils.LogEvent("ERROR", "storage HTTP server stopped", map[string]any{"error": err.Error()})
 	}
+	utils.LogEvent("INFO", "storage service stopped", nil)
 }

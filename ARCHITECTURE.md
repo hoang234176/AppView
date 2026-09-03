@@ -105,6 +105,8 @@ Important files:
 - `configs/config.go`: Storage root and SSD workspace configuration.
 - `configs/env.go`: optional service-local `.env` loader; OS/process values retain precedence.
 - `worker/client.go`, `worker/handler.go`, `worker/protocol.go`: outbound Coordinator lifecycle and the `download_file` adapter. It reuses `pythonapi.StartArchiveJob` and archive snapshots; it does not implement a separate downloader or filesystem pipeline.
+- `utils/logger.go`: JSON-line structured logging controlled by `LOG_LEVEL` (default `INFO`); worker and media-path events omit passwords, payloads and signed URLs.
+- Media routes use the original escaped wildcard and decode URL path segments exactly once before filesystem resolution. They stream the verified file handle rather than re-parsing a filesystem filename as a URI, preserving `%`, `#`, Unicode and emoji names.
 
 ### `backend/download`
 
@@ -122,6 +124,7 @@ Important files:
 - `models/download_task.py`: Download task and stage contract.
 - `worker/client.py`, `worker/handler.py`, `worker/protocol.py`: outbound Coordinator WebSocket lifecycle, `resolve_download` task adaptation, and protocol helpers. The handler reuses `archive_service.resolver` and does not start archive jobs.
 - `config.py`: service-local `.env` loader (OS values win), `GO_STORAGE_BASE_URL`, `PYTHON_DOWNLOAD_PORT`, `PYTHON_DOWNLOAD_HOST`, `COORDINATOR_WS_URL`, `COORDINATOR_WORKER_ID`. Render's `PORT` is used when `PYTHON_DOWNLOAD_PORT` is absent.
+- `logger.py`: JSON-line structured logger controlled by `LOG_LEVEL` (default `INFO`); HTTP query strings and worker payload secrets are not logged.
 
 ### `backend/coordinator`
 
@@ -275,6 +278,10 @@ Read first: `backend/download/worker/{client,handler,protocol}.py`, `archive/ser
 ### Environment or deployment connectivity
 
 Read first: root `.gitignore`, relevant service `.env.example`, Coordinator `internal/config/config.go`, Download `config.py`/`worker/client.py`, and frontend endpoint configuration. Keep production hostnames out of source and use only public frontend configuration values.
+
+### Backend logging or media serving paths
+
+Read first: each service logger, entrypoint and relevant worker/handler. Storage media routes must begin from `PathOriginal()`, decode each path segment once with URL-path semantics, retain traversal checks, and stream the resolved file handle without URL re-parsing.
 
 ### Download WebSocket contract/UI
 

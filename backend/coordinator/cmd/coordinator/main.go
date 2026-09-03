@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,6 +10,7 @@ import (
 
 	"appview/coordinator/internal/config"
 	"appview/coordinator/internal/httpapi"
+	"appview/coordinator/internal/logging"
 	"appview/coordinator/internal/scheduler"
 	"appview/coordinator/internal/service"
 	"appview/coordinator/internal/task"
@@ -25,6 +25,7 @@ func main() {
 	httpapi.Register(mux, coordinator)
 	workerWS := websocket.NewServer(coordinator, cfg)
 	workerWS.Register(mux)
+	workerWS.LogStartup()
 
 	server := &http.Server{Addr: cfg.HTTPAddress, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -36,8 +37,10 @@ func main() {
 		defer cancel()
 		_ = server.Shutdown(shutdown)
 	}()
-	log.Printf("coordinator listening on %s", cfg.HTTPAddress)
+	logging.Event("INFO", "coordinator starting", map[string]any{"listenAddress": cfg.HTTPAddress})
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+		logging.Event("ERROR", "coordinator server stopped unexpectedly", map[string]any{"error": err.Error()})
+		return
 	}
+	logging.Event("INFO", "coordinator stopped", nil)
 }

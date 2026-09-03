@@ -7,6 +7,8 @@ import (
 	_ "image/gif"
 	"image/jpeg"
 	_ "image/png"
+	"io"
+	"mime"
 	"net/url"
 	"os"
 	"os/exec"
@@ -27,8 +29,55 @@ import (
 )
 
 func ServeFileSafely(c *fiber.Ctx, fullPath string) error {
-	fasthttp.ServeFile(c.Context(), fullPath)
+	// SendFile/FastHTTP FS internally re-parses the supplied filename as a URI.
+	// A literal percent in a real filename is then mistaken for another escape
+	// sequence. Stream the verified filesystem handle instead, so this function
+	// never routes a local filename through URL parsing again.
+	file, err := os.Open(fullPath)
+	if err != nil {
+		return err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return err
+	}
+	if len(c.Response().Header.ContentType()) == 0 {
+		if contentType := mime.TypeByExtension(filepath.Ext(fullPath)); contentType != "" {
+			c.Set(fiber.HeaderContentType, contentType)
+		}
+	}
+	size := info.Size()
+	c.Set(fiber.HeaderAcceptRanges, "bytes")
+	c.Set(fiber.HeaderContentLength, strconv.FormatInt(size, 10))
+	if c.Method() == fiber.MethodHead {
+		_ = file.Close()
+		return nil
+	}
+	if byteRange := c.Get(fiber.HeaderRange); byteRange != "" {
+		start, end, rangeErr := fasthttp.ParseByteRange([]byte(byteRange), int(size))
+		if rangeErr != nil {
+			_ = file.Close()
+			c.Status(fiber.StatusRequestedRangeNotSatisfiable)
+			c.Set(fiber.HeaderContentRange, fmt.Sprintf("bytes */%d", size))
+			c.Set(fiber.HeaderContentLength, "0")
+			return nil
+		}
+		length := int64(end - start + 1)
+		c.Status(fiber.StatusPartialContent)
+		c.Response().Header.SetContentRange(start, end, int(size))
+		c.Set(fiber.HeaderContentLength, strconv.FormatInt(length, 10))
+		c.Context().Response.SetBodyStream(fileSection{Reader: io.NewSectionReader(file, int64(start), length), Closer: file}, int(length))
+		return nil
+	}
+	c.Context().Response.SetBodyStream(file, int(size))
 	return nil
+}
+
+// fileSection closes the verified source file after fasthttp sends a range.
+type fileSection struct {
+	io.Reader
+	io.Closer
 }
 
 func EncodePathSegments(rawPath string) string {
@@ -53,26 +102,19 @@ func sanitizeName(s string) string {
 	return sb.String()
 }
 
-func ResolveFilePath(rootPath string, relPath string) (string, string) {
-	cleanRel := filepath.ToSlash(filepath.Clean(relPath))
-	parts := strings.Split(cleanRel, "/")
-
-	decodedParts := make([]string, len(parts))
-	for i, p := range parts {
-		if unescaped, err := url.PathUnescape(p); err == nil && unescaped != "" {
-			decodedParts[i] = unescaped
-		} else {
-			decodedParts[i] = p
-		}
+// ResolveFilePath decodes an escaped URL path exactly once, segment by
+// segment. Callers must pass the request's original escaped wildcard, not a
+// framework-decoded route parameter. This preserves literal "%20" filenames
+// (sent as %2520) while rejecting decoded traversal/separator segments.
+func ResolveFilePath(rootPath string, escapedRelPath string) (string, string, error) {
+	decodedRel, err := DecodeRelativePath(escapedRelPath)
+	if err != nil {
+		return "", "", err
 	}
-	decodedRel := strings.Join(decodedParts, "/")
 
-	candidates := []string{decodedRel, cleanRel}
-	for _, cand := range candidates {
-		fullPath := filepath.Join(rootPath, cand)
-		if _, err := os.Stat(fullPath); err == nil {
-			return fullPath, cand
-		}
+	fullPath := filepath.Join(rootPath, filepath.FromSlash(decodedRel))
+	if _, err := os.Stat(fullPath); err == nil {
+		return fullPath, decodedRel, nil
 	}
 
 	dirRel := filepath.Dir(decodedRel)
@@ -86,7 +128,7 @@ func ResolveFilePath(rootPath string, relPath string) (string, string) {
 		for _, entry := range entries {
 			if strings.EqualFold(entry.Name(), fileName) {
 				matchedRel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
-				return filepath.Join(rootPath, matchedRel), matchedRel
+				return filepath.Join(rootPath, matchedRel), matchedRel, nil
 			}
 		}
 
@@ -95,7 +137,7 @@ func ResolveFilePath(rootPath string, relPath string) (string, string) {
 		for _, entry := range entries {
 			if !entry.IsDir() && sanitizeName(entry.Name()) == sanitizedTarget {
 				matchedRel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
-				return filepath.Join(rootPath, matchedRel), matchedRel
+				return filepath.Join(rootPath, matchedRel), matchedRel, nil
 			}
 		}
 
@@ -108,13 +150,38 @@ func ResolveFilePath(rootPath string, relPath string) (string, string) {
 			if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), strings.ToLower(ext)) {
 				if strings.Contains(strings.ToLower(entry.Name()), strings.ToLower(prefix)) {
 					matchedRel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
-					return filepath.Join(rootPath, matchedRel), matchedRel
+					return filepath.Join(rootPath, matchedRel), matchedRel, nil
 				}
 			}
 		}
 	}
 
-	return filepath.Join(rootPath, decodedRel), decodedRel
+	return fullPath, decodedRel, nil
+}
+
+func DecodeRelativePath(escapedRelPath string) (string, error) {
+	escapedRelPath = strings.TrimPrefix(escapedRelPath, "/")
+	if escapedRelPath == "" {
+		return "", fmt.Errorf("media path is required")
+	}
+	parts := strings.Split(escapedRelPath, "/")
+	decodedParts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		decoded, err := url.PathUnescape(part)
+		if err != nil {
+			return "", fmt.Errorf("invalid escaped path segment")
+		}
+		if decoded == "" || decoded == "." || decoded == ".." || strings.Contains(decoded, "/") {
+			return "", fmt.Errorf("invalid media path segment")
+		}
+		decodedParts = append(decodedParts, decoded)
+	}
+	decoded := strings.Join(decodedParts, "/")
+	clean := filepath.ToSlash(filepath.Clean(decoded))
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || filepath.IsAbs(clean) {
+		return "", fmt.Errorf("invalid media path")
+	}
+	return clean, nil
 }
 
 var (
@@ -617,5 +684,3 @@ func MoveItem(rootPath string, srcRel string, destRel string) error {
 	LogInfo("[STORAGE SERVICE] Đã di chuyển thành công %s đến %s", srcRel, destRel)
 	return nil
 }
-
-

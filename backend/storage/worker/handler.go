@@ -8,6 +8,7 @@ import (
 	"time"
 
 	pythonapi "backend/api/python"
+	"backend/utils"
 )
 
 // ArchiveOperations is the narrow existing-business boundary used by this
@@ -64,6 +65,7 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 		h.fail(send, task.TaskID, "INVALID_PAYLOAD", err.Error())
 		return
 	}
+	utils.LogEvent("INFO", "storage worker accepted download", map[string]any{"taskId": task.TaskID, "action": task.Action, "filename": request.Filename, "destination": request.Destination})
 	if err := send(Message{Type: TaskAccepted, TaskID: task.TaskID}); err != nil {
 		return
 	}
@@ -72,6 +74,7 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 	// already started that archive job, only reconnect monitoring; do not start
 	// a second download or cancel the existing one.
 	if _, exists := h.archive.Snapshot(task.TaskID); !exists {
+		utils.LogEvent("INFO", "storage archive start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
 		if err := h.archive.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.Password); err != nil {
 			h.fail(send, task.TaskID, "STORAGE_START_FAILED", "Storage không thể bắt đầu tác vụ tải.")
 			return
@@ -111,18 +114,23 @@ func (h *Handler) monitor(ctx context.Context, taskID string, send SendFunc) {
 
 		switch snapshot.State {
 		case "completed":
+			utils.LogEvent("INFO", "storage archive completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
 			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: completedResult(snapshot)})
 			return
 		case "cancelled":
+			utils.LogEvent("WARN", "storage archive cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ Storage đã bị hủy cục bộ.")
 			return
 		case "password_required":
+			utils.LogEvent("WARN", "storage archive requires password", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "PASSWORD_REQUIRED", "Archive yêu cầu mật khẩu để tiếp tục.")
 			return
 		case "error":
+			utils.LogEvent("ERROR", "storage archive failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải.")
 			return
 		default:
+			utils.LogEvent("DEBUG", "storage archive progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
 			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: progressResult(snapshot)}); err != nil {
 				return
 			}
@@ -168,5 +176,6 @@ func completedResult(snapshot pythonapi.ArchiveJobSnapshot) map[string]any {
 }
 
 func (h *Handler) fail(send SendFunc, taskID, code, description string) {
+	utils.LogEvent("ERROR", "storage worker task failed", map[string]any{"taskId": taskID, "errorCode": code})
 	_ = send(Message{Type: TaskFailed, TaskID: taskID, Error: &ErrorPayload{Code: code, Message: description}})
 }

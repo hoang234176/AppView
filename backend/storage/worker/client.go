@@ -72,9 +72,9 @@ func (c *Client) Run(ctx context.Context) {
 			return
 		}
 		if err != nil {
-			utils.LogInfo("[STORAGE WORKER] Coordinator chưa sẵn sàng (%v); thử lại sau %s.", err, delay)
+			utils.LogEvent("WARN", "storage worker coordinator reconnect", map[string]any{"workerId": c.config.WorkerID, "delay": delay.String(), "error": err.Error()})
 		} else {
-			utils.LogInfo("[STORAGE WORKER] Mất kết nối Coordinator; thử lại sau %s.", delay)
+			utils.LogEvent("WARN", "storage worker coordinator disconnected", map[string]any{"workerId": c.config.WorkerID, "delay": delay.String()})
 		}
 		if !waitContext(ctx, delay) {
 			return
@@ -115,7 +115,7 @@ func (c *Client) connectOnce(ctx context.Context) error {
 		return fmt.Errorf("Coordinator trả acknowledgement đăng ký không hợp lệ")
 	}
 
-	utils.LogInfo("[STORAGE WORKER] Đã kết nối Coordinator: %s (%s)", c.config.URL, c.config.WorkerID)
+	utils.LogEvent("INFO", "storage worker registered", map[string]any{"workerId": c.config.WorkerID, "capability": CapabilityDownloadFile})
 	connectionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	closeOnContextDone := make(chan struct{})
@@ -143,6 +143,7 @@ func (c *Client) connectOnce(ctx context.Context) error {
 		}
 		switch incoming.Type {
 		case TaskAssign:
+			utils.LogEvent("INFO", "storage worker received assignment", map[string]any{"workerId": c.config.WorkerID, "taskId": incoming.TaskID, "action": incoming.Action})
 			assignments.Add(1)
 			go func(task Message) {
 				defer assignments.Done()
@@ -150,7 +151,7 @@ func (c *Client) connectOnce(ctx context.Context) error {
 			}(incoming)
 		case ProtocolError:
 			if incoming.Error != nil {
-				utils.LogInfo("[STORAGE WORKER] Coordinator báo lỗi: %s", incoming.Error.Message)
+				utils.LogEvent("WARN", "storage worker coordinator protocol error", map[string]any{"workerId": c.config.WorkerID, "error": incoming.Error.Message})
 			}
 		}
 	}

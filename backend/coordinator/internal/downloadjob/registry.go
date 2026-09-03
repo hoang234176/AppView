@@ -175,6 +175,19 @@ func (r *Registry) ChildTaskIDs() []string {
 	return ids
 }
 
+// JobForChild returns the parent snapshot for structured trace logging. It
+// does not expose the private password field.
+func (r *Registry) JobForChild(taskID string) (Job, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	ref, ok := r.children[taskID]
+	if !ok {
+		return Job{}, false
+	}
+	job, ok := r.jobs[ref.JobID]
+	return job.Clone(), ok
+}
+
 func cloneError(failure *protocol.ErrorPayload) *protocol.ErrorPayload {
 	if failure == nil {
 		return &protocol.ErrorPayload{Code: "TASK_FAILED", Message: "worker reported task failure"}

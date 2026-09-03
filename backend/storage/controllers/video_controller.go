@@ -31,11 +31,24 @@ func GetVideos(c *fiber.Ctx) error {
 // StreamVideo is the main entry point dispatching video requests to format-specific handlers
 func StreamVideo(c *fiber.Ctx) error {
 	rootPath := configs.GetRootFolderPath(c)
-	relPath := c.Params("*")
-	fullPath, _ := utils.ResolveFilePath(rootPath, relPath)
+	escapedPath, err := utils.EscapedMediaPath(c, "/api/v1/videos/")
+	if err != nil {
+		return err
+	}
+	fullPath, relPath, err := utils.ResolveFilePath(rootPath, escapedPath)
+	if err != nil {
+		utils.LogEvent("WARN", "video path rejected", map[string]any{"action": "video_open", "requestPath": c.Path(), "rawPath": escapedPath, "error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Đường dẫn tệp video không hợp lệ"})
+	}
+	utils.LogEvent("DEBUG", "video path resolved", map[string]any{"action": "video_open", "requestPath": c.Path(), "rawPath": escapedPath, "decodedRelativePath": relPath, "rootPath": rootPath, "resolvedFilesystemPath": fullPath})
 
 	info, err := os.Stat(fullPath)
 	if err != nil || info.IsDir() {
+		fields := map[string]any{"action": "video_open", "requestPath": c.Path(), "decodedRelativePath": relPath, "rootPath": rootPath}
+		if err != nil {
+			fields["error"] = err.Error()
+		}
+		utils.LogEvent("WARN", "video file not found", fields)
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Tệp video không tồn tại hoặc đường dẫn không hợp lệ",
 		})
