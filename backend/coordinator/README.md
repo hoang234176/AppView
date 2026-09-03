@@ -11,8 +11,10 @@ go run ./cmd/coordinator
 Endpoints:
 
 - `GET /health`
-- `POST /api/tasks`
-- `GET /api/tasks/{id}`
+- `POST /api/v1/tasks`
+- `GET /api/v1/tasks/{id}`
+- `POST /api/v1/download`
+- `GET /api/v1/download/{id}`
 - `GET /ws/workers` (WebSocket)
 
 Read [ARCHITECTURE.md](ARCHITECTURE.md) and [docs/PROTOCOL.md](docs/PROTOCOL.md) before adding worker adapters.

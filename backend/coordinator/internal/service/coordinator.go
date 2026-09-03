@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
+	"appview/coordinator/internal/downloadjob"
 	"appview/coordinator/internal/protocol"
 	"appview/coordinator/internal/scheduler"
 	"appview/coordinator/internal/task"
@@ -18,10 +20,11 @@ type Coordinator struct {
 	tasks              *task.Registry
 	scheduler          *scheduler.Scheduler
 	defaultMaxAttempts int
+	downloads          *downloadjob.Registry
 }
 
 func New(workers *worker.Registry, tasks *task.Registry, scheduler *scheduler.Scheduler, defaultMaxAttempts int) *Coordinator {
-	return &Coordinator{workers: workers, tasks: tasks, scheduler: scheduler, defaultMaxAttempts: defaultMaxAttempts}
+	return &Coordinator{workers: workers, tasks: tasks, scheduler: scheduler, defaultMaxAttempts: defaultMaxAttempts, downloads: downloadjob.NewRegistry()}
 }
 
 func (c *Coordinator) RegisterWorker(id string, capabilities []protocol.Capability, sender worker.Sender) error {
@@ -30,6 +33,7 @@ func (c *Coordinator) RegisterWorker(id string, capabilities []protocol.Capabili
 	}
 	if c.workers.Register(id, capabilities, sender, time.Now().UTC()) {
 		c.tasks.RequeueForWorker(id)
+		c.syncFailedDownloadChildren()
 	}
 	return c.dispatchQueued()
 }
@@ -41,6 +45,10 @@ func (c *Coordinator) Heartbeat(id string) error {
 }
 
 func (c *Coordinator) CreateTask(action string, payload json.RawMessage, retryable bool, maxAttempts int) (task.Task, error) {
+	return c.createTask(action, payload, retryable, maxAttempts, nil)
+}
+
+func (c *Coordinator) createTask(action string, payload json.RawMessage, retryable bool, maxAttempts int, beforeDispatch func(task.Task) error) (task.Task, error) {
 	if action == "" {
 		return task.Task{}, fmt.Errorf("action is required")
 	}
@@ -54,6 +62,11 @@ func (c *Coordinator) CreateTask(action string, payload json.RawMessage, retryab
 	if err != nil {
 		return task.Task{}, err
 	}
+	if beforeDispatch != nil {
+		if err := beforeDispatch(created); err != nil {
+			return task.Task{}, err
+		}
+	}
 	if err := c.dispatch(created.ID); err != nil {
 		return task.Task{}, err
 	}
@@ -62,18 +75,59 @@ func (c *Coordinator) CreateTask(action string, payload json.RawMessage, retryab
 }
 func (c *Coordinator) GetTask(id string) (task.Task, bool) { return c.tasks.Get(id) }
 
+type DownloadRequest struct {
+	URL         string
+	Filename    string
+	Destination string
+	Password    string
+}
+
+func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, error) {
+	request.URL = strings.TrimSpace(request.URL)
+	request.Filename = strings.TrimSpace(request.Filename)
+	request.Destination = strings.TrimSpace(request.Destination)
+	if request.URL == "" {
+		return downloadjob.Job{}, fmt.Errorf("url is required")
+	}
+	created, err := c.downloads.Create(downloadjob.NewJob(newID(), downloadjob.CreateRequest{
+		URL: request.URL, Filename: request.Filename, Destination: request.Destination, Password: request.Password,
+	}))
+	if err != nil {
+		return downloadjob.Job{}, err
+	}
+	createdTask, err := c.createTask(string(protocol.ResolveDownload), mustJSON(map[string]string{"url": request.URL}), true, 0, func(child task.Task) error {
+		return c.downloads.AttachResolve(created.ID, child.ID)
+	})
+	if err != nil {
+		c.downloads.FailJob(created.ID, downloadjob.FailureResolve, &protocol.ErrorPayload{Code: "RESOLVE_TASK_CREATE_FAILED", Message: "could not create resolve task"})
+		job, _ := c.downloads.Get(created.ID)
+		return job, err
+	}
+	_ = createdTask
+	job, _ := c.downloads.Get(created.ID)
+	return job, nil
+}
+
+func (c *Coordinator) GetDownload(id string) (downloadjob.Job, bool) { return c.downloads.Get(id) }
+
 func (c *Coordinator) TaskAccepted(workerID, taskID string) error {
 	_, err := c.tasks.Accept(taskID, workerID)
 	return err
 }
 func (c *Coordinator) TaskProgress(workerID, taskID string, progress json.RawMessage) error {
-	return c.tasks.Progress(taskID, workerID, progress)
+	if err := c.tasks.Progress(taskID, workerID, progress); err != nil {
+		return err
+	}
+	c.downloads.UpdateProgress(taskID, progress)
+	return nil
 }
 func (c *Coordinator) TaskCompleted(workerID, taskID string, result json.RawMessage) error {
-	if _, err := c.tasks.Complete(taskID, workerID, result); err != nil {
+	completed, err := c.tasks.Complete(taskID, workerID, result)
+	if err != nil {
 		return err
 	}
 	c.workers.SetStatus(workerID, worker.Idle)
+	c.handleDownloadCompletion(completed)
 	return c.dispatchQueued()
 }
 func (c *Coordinator) TaskFailed(workerID, taskID string, failure *protocol.ErrorPayload) error {
@@ -81,6 +135,7 @@ func (c *Coordinator) TaskFailed(workerID, taskID string, failure *protocol.Erro
 		return err
 	}
 	c.workers.SetStatus(workerID, worker.Idle)
+	c.downloads.FailChild(taskID, failure)
 	return c.dispatchQueued()
 }
 
@@ -89,6 +144,7 @@ func (c *Coordinator) WorkerDisconnected(workerID string) {
 		return
 	}
 	c.tasks.RequeueForWorker(workerID)
+	c.syncFailedDownloadChildren()
 	_ = c.dispatchQueued()
 }
 func (c *Coordinator) RequeueStaleWorkers(timeout time.Duration) {
@@ -97,6 +153,54 @@ func (c *Coordinator) RequeueStaleWorkers(timeout time.Duration) {
 	}
 }
 func (c *Coordinator) WorkerCount() int { return c.workers.Count() }
+
+func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
+	if completed.Action == string(protocol.ResolveDownload) {
+		var result struct {
+			DownloadURL string `json:"downloadUrl"`
+			Filename    string `json:"filename"`
+		}
+		if err := json.Unmarshal(completed.Result, &result); err != nil {
+			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver returned an invalid result"})
+			return
+		}
+		job, storageRequest, shouldCreate, err := c.downloads.PrepareStorage(completed.ID, strings.TrimSpace(result.DownloadURL), strings.TrimSpace(result.Filename))
+		if err != nil {
+			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver result is missing required download metadata"})
+			return
+		}
+		if !shouldCreate {
+			return
+		}
+		payload := mustJSON(map[string]string{
+			"url": storageRequest.URL, "filename": storageRequest.Filename,
+			"destination": storageRequest.Destination, "password": storageRequest.Password,
+		})
+		if _, err := c.createTask(string(protocol.DownloadFile), payload, true, 0, func(child task.Task) error {
+			return c.downloads.AttachStorage(job.ID, child.ID)
+		}); err != nil {
+			c.downloads.FailJob(job.ID, downloadjob.FailureStorage, &protocol.ErrorPayload{Code: "STORAGE_TASK_CREATE_FAILED", Message: "could not create storage task"})
+		}
+		return
+	}
+	if completed.Action == string(protocol.DownloadFile) {
+		c.downloads.CompleteStorage(completed.ID, completed.Result)
+	}
+}
+
+func (c *Coordinator) syncFailedDownloadChildren() {
+	for _, childID := range c.downloads.ChildTaskIDs() {
+		child, ok := c.tasks.Get(childID)
+		if ok && child.State == task.Failed {
+			c.downloads.FailChild(childID, child.Error)
+		}
+	}
+}
+
+func mustJSON(value any) json.RawMessage {
+	encoded, _ := json.Marshal(value)
+	return encoded
+}
 
 func (c *Coordinator) dispatchQueued() error {
 	for _, queued := range c.tasks.Queued() {

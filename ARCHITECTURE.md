@@ -6,7 +6,7 @@ Repository navigation index. It documents verified implementation separately fro
 
 **Verified:** AppView is a LAN media-library application. Web (React/Vite) and Mobile (Flutter) browse folders, pictures and videos served by Go Storage. A Python Download service resolves MediaFire URLs and orchestrates archive work through Go Storage. Go Storage owns file paths, download/extract/convert processing, and media streaming.
 
-**Verified:** `backend/coordinator` is an independent Go service for generic worker/task orchestration. Python Download and local Go Storage register over outbound WebSockets as `resolve_download` and `download_file` workers respectively.
+**Verified:** `backend/coordinator` is an independent Go service for generic worker/task orchestration. Python Download and local Go Storage register over outbound WebSockets as `resolve_download` and `download_file` workers respectively. Coordinator also owns an in-memory two-stage download-job orchestration between them.
 
 ## Directory Tree
 
@@ -26,7 +26,7 @@ AppView/
 │   │   └── requirements.txt
 │   ├── coordinator/                 # Go generic worker/task coordinator
 │   │   ├── cmd/coordinator/main.go
-│   │   ├── internal/{config,protocol,worker,task,scheduler,service,websocket,httpapi}
+│   │   ├── internal/{config,protocol,worker,task,downloadjob,scheduler,service,websocket,httpapi}
 │   │   └── AGENTS.md, ARCHITECTURE.md, docs/PROTOCOL.md
 │   └── bruno-api/                   # API collection files
 ├── README.md
@@ -125,9 +125,9 @@ Important files:
 
 ### `backend/coordinator`
 
-**Verified:** implemented Go service. It owns generic worker WebSockets, capability routing, in-memory task lifecycle, disconnect requeue behavior and HTTP task status. Read `backend/coordinator/ARCHITECTURE.md` for its detailed Change Map.
+**Verified:** implemented Go service. It owns generic worker WebSockets, capability routing, in-memory task lifecycle, disconnect requeue behavior, generic task status, and in-memory two-stage download jobs. Read `backend/coordinator/ARCHITECTURE.md` for its detailed Change Map.
 
-**Verified workers:** Python Download resolves URLs and Go Storage processes existing archive jobs through their independent outbound Coordinator adapters. The current direct Python → Go HTTP archive flow remains unchanged.
+**Verified workers:** Python Download resolves URLs and Go Storage processes existing archive jobs through their independent outbound Coordinator adapters. The Coordinator creates a `resolve_download` child, then one `download_file` child only after a successful resolve result. The current direct Python → Go HTTP archive flow remains unchanged.
 
 ## Cross-Service Communication
 
@@ -162,6 +162,19 @@ Coordinator ── outbound worker WebSocket ──> local Go Storage
 
 Storage advertises only `download_file`. Its payload is `{ "url", "filename", "destination", "password?" }`; it expects the archive-oriented work already implemented by `StartArchiveJob`. It returns opaque job metadata/progress and never sends file bytes or local filesystem paths on the WebSocket.
 
+### Coordinator download-job pipeline, verified
+
+```text
+POST /api/v1/download
+→ parent DownloadJob (resolving)
+→ resolve_download child task → Python Download
+→ result.downloadUrl + result.filename
+→ one download_file child task (downloading) → Go Storage
+→ parent completed / failed
+```
+
+`DownloadJob` has an ID distinct from both child task IDs. Parent state and child mapping are in memory; a Coordinator restart loses active jobs/tasks. The legacy HTTP pipeline remains available and frontend clients have not migrated yet.
+
 ## HTTP API Map
 
 | Service | Method | Path | Handler area | Purpose |
@@ -173,7 +186,8 @@ Storage advertises only `download_file`. Its payload is `{ "url", "filename", "d
 | Download | POST | `/api/v1/download/archive` | `main.py` | Create MediaFire archive task. |
 | Download | GET/POST/DELETE | `/api/v1/download/tasks...`, `/summary` | `main.py` | Task state, retry/password/cancel/delete, summary. |
 | Download | WebSocket | `/api/v1/download/ws` | `main.py` | Frontend real-time task events. |
-| Coordinator | POST/GET | `/api/tasks`, `/api/tasks/{id}` | `internal/httpapi` | Generic capability task lifecycle. |
+| Coordinator | POST/GET | `/api/v1/tasks`, `/api/v1/tasks/{id}` | `internal/httpapi` | Generic capability task lifecycle. |
+| Coordinator | POST/GET | `/api/v1/download`, `/api/v1/download/{id}` | `internal/httpapi/download_handler.go` | Parent two-stage resolve-to-Storage download lifecycle. |
 | Coordinator | GET | `/health` | `internal/httpapi` | Health and worker count. |
 | Coordinator | WebSocket | `/ws/workers` by default | `internal/websocket` | Worker registration and task protocol. |
 
@@ -200,11 +214,22 @@ Frontend submits MediaFire URL
 ### Coordinator task flow
 
 ```text
-POST /api/tasks { action, payload }
+POST /api/v1/tasks { action, payload }
 → queued
 → first compatible idle worker gets task.assign
 → task.accepted / task.progress
 → task.completed or task.failed
+```
+
+### Coordinator download-job flow
+
+```text
+URL + optional filename/destination/password
+→ parent queued/resolving with resolveTaskId
+→ Python result.downloadUrl/result.filename
+→ parent downloading with storageTaskId
+→ Storage archive job result/progress
+→ parent completed, or failed with failureStage resolve/storage
 ```
 
 ## Environment and Configuration
@@ -225,6 +250,7 @@ Do not place secret values here.
 - **Coordinator worker envelope:** source of truth is `backend/coordinator/internal/protocol/message.go`, documented by `backend/coordinator/docs/PROTOCOL.md`.
 - **Python Download coordinator action:** `resolve_download` accepts payload `{ "url": "https://..." }` and returns resolved URL, filename, extension, and optional estimated size in the opaque Coordinator result.
 - **Storage coordinator action:** `download_file` accepts an archive-oriented direct URL payload with `url`, `filename`, relative `destination`, and optional `password`. It delegates to `pythonapi.StartArchiveJob`, sends snapshot-derived progress, and returns only job/filename/conversion metadata.
+- **Coordinator DownloadJob:** created by `POST /api/v1/download`; owns `resolveTaskId`, `storageTaskId`, current state/progress/result/error and a private password. The resolver result fields used for transition are exactly `downloadUrl` and `filename`.
 - **Storage folder/media response:** produced by Storage controllers; consumed by Web/Mobile folder APIs and models.
 
 ## Change Map
@@ -264,6 +290,10 @@ Read first: `frontend/mobile/lib/screens/video_player_screen.dart`, `api/folder_
 ### Coordinator protocol/routing/lifecycle
 
 Read `backend/coordinator/AGENTS.md` then its `ARCHITECTURE.md`; follow the coordinator Change Map.
+
+### Coordinator download-job orchestration
+
+Read first: `backend/coordinator/internal/downloadjob/{model,registry}.go`, `internal/service/coordinator.go`, `internal/httpapi/download_handler.go`, and both worker contract handlers. Preserve generic `/api/v1/tasks`; do not add worker protocol messages or directly call Storage HTTP.
 
 ## AI Agent Navigation Rules
 

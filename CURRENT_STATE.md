@@ -2,7 +2,7 @@
 
 ## Current goal
 
-Integrate Go Storage as an outbound Coordinator worker while preserving the direct Python → Storage HTTP archive workflow.
+Implement Coordinator-owned in-memory orchestration from `resolve_download` to `download_file`, while preserving all legacy flows.
 
 ## Completed
 
@@ -21,6 +21,11 @@ Integrate Go Storage as an outbound Coordinator worker while preserving the dire
 - The adapter reuses `pythonapi.StartArchiveJob` plus existing thread-safe archive snapshots. It sends metadata only and never file bytes/local paths.
 - Worker cancellation/disconnect stops monitoring only; it deliberately does not cancel an existing local archive job, so Coordinator can requeue/reattach safely.
 - Storage startup now loads optional local `.env`, launches the worker alongside Fiber, and cancels worker work on graceful process shutdown without removing HTTP routes.
+- Added Coordinator parent `DownloadJob` registry with distinct resolve and Storage child task IDs.
+- Added `POST /api/v1/download` and `GET /api/v1/download/{id}` without changing generic `/api/v1/tasks`.
+- Successful Python resolver result maps exact fields `downloadUrl` and `filename` into one Storage payload `{url, filename, destination, password}`.
+- Parent progress mirrors child progress; child failure maps to `failureStage` `resolve` or `storage`. Requeue retains the parent current stage, while terminal disconnect failure is synchronized to the parent.
+- Storage child creation is atomically gated by parent registry state, preventing duplicate `download_file` tasks.
 
 ## In progress
 
@@ -44,6 +49,11 @@ Integrate Go Storage as an outbound Coordinator worker while preserving the dire
 - `backend/storage/worker/{client,handler,protocol}.go`
 - `backend/storage/worker/handler_test.go`
 - `backend/storage/.env.example`
+- `backend/coordinator/internal/downloadjob/{model,registry}.go`
+- `backend/coordinator/internal/service/coordinator.go`
+- `backend/coordinator/internal/service/download_orchestration_test.go`
+- `backend/coordinator/internal/httpapi/download_handler.go`
+- `backend/coordinator/internal/httpapi/{server.go}`
 
 ## Important decisions
 
@@ -52,6 +62,7 @@ Integrate Go Storage as an outbound Coordinator worker while preserving the dire
 - Go Storage is out of scope and unchanged.
 - Real `.env` files are optional local conveniences; OS/Render values override them. Production hostnames are intentionally not stored in source.
 - `download_file` currently means the existing archive workflow, not a newly invented raw-file downloader. It requires `url` and `filename`; `destination` is relative and optional (Storage root when empty).
+- Orchestration is deliberately only a two-stage download job, not a generic DAG/workflow engine. Coordinator does not call Storage HTTP or inspect local Storage paths.
 
 ## Protocol/API assumptions
 
@@ -61,6 +72,7 @@ Integrate Go Storage as an outbound Coordinator worker while preserving the dire
 - Vite public variables: `VITE_STORAGE_API_BASE_URL`, `VITE_DOWNLOAD_API_BASE_URL`, `VITE_DOWNLOAD_WS_URL`.
 - Flutter public compile-time variables: `APPVIEW_STORAGE_API_BASE_URL`, `APPVIEW_DOWNLOAD_API_BASE_URL`, `APPVIEW_DOWNLOAD_WS_URL`.
 - Storage worker uses `COORDINATOR_WS_URL` and `COORDINATOR_WORKER_ID`, defaulting to local Coordinator URL and a hostname-derived ID when unset.
+- Download-job API accepts `url` (required), optional `filename`, optional relative `destination`, and optional `password`; password is forwarded only to Storage payload and omitted from parent JSON.
 
 ## Tests run
 
@@ -73,13 +85,16 @@ Integrate Go Storage as an outbound Coordinator worker while preserving the dire
 - Ignore-policy check: local `.env` files are ignored, `.env.example` files are not ignored, and no local `.env` is tracked.
 - `cd backend/storage && gofmt -w ... && go test ./... && go vet ./...`
 - Manual local verification: Storage connected to Coordinator on `:18090` as `storage-integration-test`; a `download_file` task with an empty payload was capability-routed and became `failed` with `INVALID_PAYLOAD`, without starting a download.
+- `cd backend/coordinator && gofmt -w ... && go test ./... && go vet ./...`
+- Manual three-service verification: Coordinator on `:18090` saw two workers; `POST /api/v1/download` created a resolving parent and an intentionally invalid URL ended as parent `failed` with `failureStage: resolve`, without Storage child creation.
 
 ## Known issues
 
 - The Coordinator task registry is in memory, so task status does not survive a Coordinator restart by design.
 - Flutter configuration is compile-time (`--dart-define`) by design; it does not read `.env` files at runtime.
 - `download_file` is currently tied to the archive-oriented existing Storage API. A future pipeline must pass resolver metadata and an intended relative destination; automatic `resolve_download → download_file` chaining does not exist yet.
+- DownloadJob/task registries are in-memory, so Coordinator restart loses active orchestration state by design.
 
 ## Next step
 
-Implement Coordinator orchestration/pipeline between `resolve_download` and `download_file`.
+Migrate Web/Mobile clients from the legacy Python Download flow to the Coordinator download-job API.
