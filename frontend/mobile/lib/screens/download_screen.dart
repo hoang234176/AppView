@@ -306,7 +306,7 @@ class _AddMediaFireArchiveDialogState
       _errorMessage = null;
     });
 
-    final res = await DownloadApi.startArchiveDownload(
+    final res = await context.read<DownloadProvider>().startCoordinatorDownload(
       url: url,
       destination: _selectedDest.trim(),
       password:
@@ -672,25 +672,34 @@ class _DownloadScreenState extends State<DownloadScreen> {
       'password_required',
     };
     bool isRetryableDownloadError(DownloadTaskModel task) =>
-        task.stage == 'error' &&
-        task.errorCode != 'VIDEO_CONVERT_UNAVAILABLE';
+        task.stage == 'error' && task.errorCode != 'VIDEO_CONVERT_UNAVAILABLE';
     bool isCancelledOptimization(DownloadTaskModel task) =>
         task.stage == 'cancelled' && task.cancelledFromStage == 'converting';
-    final activeTasks = tasks
-        .where((task) =>
-            activeStages.contains(task.stage) ||
-            isRetryableDownloadError(task) ||
-            isCancelledOptimization(task))
-        .toList();
-    final cancelledTasks = tasks
-        .where((task) => task.stage == 'cancelled' && !isCancelledOptimization(task))
-        .toList();
-    final completedTasks = tasks
-        .where((task) =>
-            task.stage != 'cancelled' &&
-            !activeStages.contains(task.stage) &&
-            !isRetryableDownloadError(task))
-        .toList();
+    final activeTasks =
+        tasks
+            .where(
+              (task) =>
+                  activeStages.contains(task.stage) ||
+                  isRetryableDownloadError(task) ||
+                  isCancelledOptimization(task),
+            )
+            .toList();
+    final cancelledTasks =
+        tasks
+            .where(
+              (task) =>
+                  task.stage == 'cancelled' && !isCancelledOptimization(task),
+            )
+            .toList();
+    final completedTasks =
+        tasks
+            .where(
+              (task) =>
+                  task.stage != 'cancelled' &&
+                  !activeStages.contains(task.stage) &&
+                  !isRetryableDownloadError(task),
+            )
+            .toList();
 
     return DefaultTabController(
       length: 3,
@@ -918,11 +927,12 @@ class _DownloadScreenState extends State<DownloadScreen> {
     final isConverting = task.stage == 'converting';
     final isCancelledOptimization =
         task.stage == 'cancelled' && task.cancelledFromStage == 'converting';
-    final convertDisplayIndex = task.convertTotal > 0
-        ? (task.convertCurrent + 1 > task.convertTotal
-            ? task.convertTotal
-            : task.convertCurrent + 1)
-        : 0;
+    final convertDisplayIndex =
+        task.convertTotal > 0
+            ? (task.convertCurrent + 1 > task.convertTotal
+                ? task.convertTotal
+                : task.convertCurrent + 1)
+            : 0;
 
     final category = Formatters.getFileCategory(
       task.filename ?? task.originalUrl,
@@ -967,9 +977,10 @@ class _DownloadScreenState extends State<DownloadScreen> {
                 child: Center(
                   child: FileTypeIcon(
                     filename: task.filename ?? task.originalUrl,
-                    fallback: category == 'video'
-                        ? 'MP4'
-                        : category == 'picture'
+                    fallback:
+                        category == 'video'
+                            ? 'MP4'
+                            : category == 'picture'
                             ? 'IMG'
                             : 'ZIP',
                     color: iconColor,
@@ -1111,7 +1122,7 @@ class _DownloadScreenState extends State<DownloadScreen> {
                           ),
                         ] else if (isError) ...[
                           Text(
-                            task.error ?? 'Gặp lỗi trong quá trình xử lý',
+                            '${task.failureStage != null ? '[${task.failureStage}] ' : ''}${task.error ?? 'Gặp lỗi trong quá trình xử lý'}',
                             style: const TextStyle(
                               fontSize: 11,
                               color: Colors.redAccent,
@@ -1136,7 +1147,11 @@ class _DownloadScreenState extends State<DownloadScreen> {
               // Go to continue it; X deletes that temporary file.
               if (isError) ...[
                 IconButton(
-                  icon: const Icon(Icons.refresh_rounded, color: AppTheme.googleBlue, size: 18),
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    color: AppTheme.googleBlue,
+                    size: 18,
+                  ),
                   onPressed: () => provider.retryTask(task.taskId),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -1144,7 +1159,11 @@ class _DownloadScreenState extends State<DownloadScreen> {
                 const SizedBox(width: 10),
               ],
               IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 18),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white54,
+                  size: 18,
+                ),
                 onPressed: () => provider.deleteTask(task.taskId),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -1154,22 +1173,31 @@ class _DownloadScreenState extends State<DownloadScreen> {
 
           // Mọi tiến trình dùng thanh ngang. Tải có phần trăm; các công đoạn
           // còn lại dùng thanh chạy vô hạn, không vẽ vòng quanh icon.
-          if (isDownloading || isResolving || isExtracting || isScanning || isConverting) ...[
+          if (isDownloading ||
+              isResolving ||
+              isExtracting ||
+              isScanning ||
+              isConverting) ...[
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(99),
               child: LinearProgressIndicator(
                 minHeight: 4,
-                value: isDownloading
-                    ? ((task.downloadPercent ?? 0.0) / 100.0).clamp(0.0, 1.0)
-                    : null,
-                color: isConverting
-                    ? Colors.purpleAccent
-                    : isScanning
+                value:
+                    isDownloading
+                        ? ((task.downloadPercent ?? 0.0) / 100.0).clamp(
+                          0.0,
+                          1.0,
+                        )
+                        : null,
+                color:
+                    isConverting
+                        ? Colors.purpleAccent
+                        : isScanning
                         ? Colors.greenAccent
                         : isExtracting
-                            ? Colors.orangeAccent
-                            : AppTheme.googleBlue,
+                        ? Colors.orangeAccent
+                        : AppTheme.googleBlue,
                 backgroundColor: AppTheme.bgBlock,
               ),
             ),

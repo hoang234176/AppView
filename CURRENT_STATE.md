@@ -2,7 +2,7 @@
 
 ## Current goal
 
-Implement Coordinator-owned in-memory orchestration from `resolve_download` to `download_file`, while preserving all legacy flows.
+Migrate normal Web and Mobile download submission/status to Coordinator-owned in-memory orchestration while preserving legacy APIs.
 
 ## Completed
 
@@ -26,6 +26,8 @@ Implement Coordinator-owned in-memory orchestration from `resolve_download` to `
 - Successful Python resolver result maps exact fields `downloadUrl` and `filename` into one Storage payload `{url, filename, destination, password}`.
 - Parent progress mirrors child progress; child failure maps to `failureStage` `resolve` or `storage`. Requeue retains the parent current stage, while terminal disconnect failure is synchronized to the parent.
 - Storage child creation is atomically gated by parent registry state, preventing duplicate `download_file` tasks.
+- Web now submits one parent job to `POST /api/v1/download`, retains its `id`, and polls `GET /api/v1/download/{id}` every second until terminal state. It maps only Coordinator-provided progress fields into the existing task UI and does not use the Python WebSocket for new submissions.
+- Mobile `DownloadProvider` now has equivalent runtime parent-job retention/polling with disposal cleanup and no post-dispose notifications. The add-download dialog submits through the provider instead of the legacy Python `/archive` route.
 
 ## In progress
 
@@ -69,8 +71,8 @@ Implement Coordinator-owned in-memory orchestration from `resolve_download` to `
 - Coordinator endpoint is `COORDINATOR_WS_URL`, defaulting to `ws://localhost:8090/ws/workers`; production may set `wss://...`.
 - `COORDINATOR_WORKER_ID` is configurable and otherwise hostname-derived.
 - Shared message names and envelope shape remain those in `backend/coordinator/docs/PROTOCOL.md`.
-- Vite public variables: `VITE_STORAGE_API_BASE_URL`, `VITE_DOWNLOAD_API_BASE_URL`, `VITE_DOWNLOAD_WS_URL`.
-- Flutter public compile-time variables: `APPVIEW_STORAGE_API_BASE_URL`, `APPVIEW_DOWNLOAD_API_BASE_URL`, `APPVIEW_DOWNLOAD_WS_URL`.
+- Vite public variables: `VITE_STORAGE_API_BASE_URL`, `VITE_DOWNLOAD_API_BASE_URL`, `VITE_DOWNLOAD_WS_URL`, `VITE_COORDINATOR_API_BASE_URL`.
+- Flutter public compile-time variables: `APPVIEW_STORAGE_API_BASE_URL`, `APPVIEW_DOWNLOAD_API_BASE_URL`, `APPVIEW_DOWNLOAD_WS_URL`, `APPVIEW_COORDINATOR_API_BASE_URL`.
 - Storage worker uses `COORDINATOR_WS_URL` and `COORDINATOR_WORKER_ID`, defaulting to local Coordinator URL and a hostname-derived ID when unset.
 - Download-job API accepts `url` (required), optional `filename`, optional relative `destination`, and optional `password`; password is forwarded only to Storage payload and omitted from parent JSON.
 
@@ -87,14 +89,15 @@ Implement Coordinator-owned in-memory orchestration from `resolve_download` to `
 - Manual local verification: Storage connected to Coordinator on `:18090` as `storage-integration-test`; a `download_file` task with an empty payload was capability-routed and became `failed` with `INVALID_PAYLOAD`, without starting a download.
 - `cd backend/coordinator && gofmt -w ... && go test ./... && go vet ./...`
 - Manual three-service verification: Coordinator on `:18090` saw two workers; `POST /api/v1/download` created a resolving parent and an intentionally invalid URL ended as parent `failed` with `failureStage: resolve`, without Storage child creation.
+- Frontend migration verification: `cd frontend/web && npm run build` and `cd frontend/mobile && flutter analyze` pass after switching normal client submission/status to the Coordinator parent-job API.
 
 ## Known issues
 
 - The Coordinator task registry is in memory, so task status does not survive a Coordinator restart by design.
 - Flutter configuration is compile-time (`--dart-define`) by design; it does not read `.env` files at runtime.
-- `download_file` is currently tied to the archive-oriented existing Storage API. A future pipeline must pass resolver metadata and an intended relative destination; automatic `resolve_download → download_file` chaining does not exist yet.
+- `download_file` is currently tied to the archive-oriented existing Storage API; the Coordinator now chains resolved URL/filename into it, but broader raw-file/provider pipelines remain future work.
 - DownloadJob/task registries are in-memory, so Coordinator restart loses active orchestration state by design.
 
 ## Next step
 
-Migrate Web/Mobile clients from the legacy Python Download flow to the Coordinator download-job API.
+Persist/recover Coordinator parent jobs across client and Coordinator restarts only when durable job storage is intentionally introduced.

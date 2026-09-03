@@ -19,6 +19,8 @@ class DownloadTaskModel {
   final int convertTotal;
   final int convertCurrent;
   final String? cancelledFromStage;
+  final String? failureStage;
+  final bool coordinatorJob;
 
   DownloadTaskModel({
     required this.taskId,
@@ -38,6 +40,8 @@ class DownloadTaskModel {
     this.convertTotal = 0,
     this.convertCurrent = 0,
     this.cancelledFromStage,
+    this.failureStage,
+    this.coordinatorJob = false,
   });
 
   factory DownloadTaskModel.fromJson(Map<String, dynamic> json) {
@@ -66,6 +70,53 @@ class DownloadTaskModel {
       convertTotal: json['convert_total'] ?? 0,
       convertCurrent: json['convert_current'] ?? 0,
       cancelledFromStage: json['cancelled_from_stage'],
+      failureStage: json['failure_stage'],
+    );
+  }
+
+  factory DownloadTaskModel.fromCoordinatorJson(Map<String, dynamic> json) {
+    final progress =
+        json['progress'] is Map
+            ? Map<String, dynamic>.from(json['progress'] as Map)
+            : <String, dynamic>{};
+    final downloadedBytes = (progress['downloadedBytes'] as num?)?.toInt() ?? 0;
+    final totalBytes = (progress['totalBytes'] as num?)?.toInt();
+    final state = json['state']?.toString() ?? 'queued';
+    final stage =
+        state == 'downloading'
+            ? (progress['state']?.toString() ?? 'downloading')
+            : state == 'failed'
+            ? 'error'
+            : state;
+    final error =
+        json['error'] is Map
+            ? Map<String, dynamic>.from(json['error'] as Map)
+            : <String, dynamic>{};
+    final conversion =
+        progress['conversion'] is Map
+            ? Map<String, dynamic>.from(progress['conversion'] as Map)
+            : <String, dynamic>{};
+    return DownloadTaskModel(
+      taskId: json['id']?.toString() ?? '',
+      originalUrl: json['url']?.toString() ?? '',
+      filename:
+          json['filename']?.toString() ?? progress['filename']?.toString(),
+      destination: json['destination']?.toString() ?? '',
+      stage: stage,
+      downloadedBytes: downloadedBytes,
+      downloadTotalBytes: totalBytes,
+      downloadPercent:
+          totalBytes != null && totalBytes > 0
+              ? downloadedBytes / totalBytes * 100
+              : null,
+      downloadSpeedBytes: (progress['speedBytes'] as num?)?.toInt() ?? 0,
+      extractedPercent: (progress['extractedPercent'] as num?)?.toDouble(),
+      error: error['message']?.toString(),
+      errorCode: error['code']?.toString(),
+      failureStage: json['failureStage']?.toString(),
+      convertTotal: (conversion['total'] as num?)?.toInt() ?? 0,
+      convertCurrent: (conversion['current'] as num?)?.toInt() ?? 0,
+      coordinatorJob: true,
     );
   }
 }
@@ -101,6 +152,82 @@ class DownloadSummaryModel {
 }
 
 class DownloadApi {
+  static Dio _createCoordinatorDio() {
+    final baseUrl = ApiConfig.coordinatorBaseUrl;
+    if (baseUrl.trim().isEmpty) {
+      throw StateError('Chưa cấu hình APPVIEW_COORDINATOR_API_BASE_URL.');
+    }
+    return Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 15),
+        headers: {'Content-Type': 'application/json'},
+      ),
+    );
+  }
+
+  static Future<Map<String, dynamic>> startCoordinatorDownload({
+    required String url,
+    String destination = '',
+    String? password,
+  }) async {
+    try {
+      final response = await _createCoordinatorDio().post(
+        '/download',
+        data: {
+          'url': url,
+          'destination': destination,
+          if (password != null && password.isNotEmpty) 'password': password,
+        },
+      );
+      return {
+        'success': true,
+        'data': Map<String, dynamic>.from(response.data as Map),
+      };
+    } on DioException catch (e) {
+      final error = e.response?.data is Map ? e.response?.data['error'] : null;
+      return {
+        'success': false,
+        'message':
+            error is String
+                ? error
+                : error is Map
+                ? error['message'] ?? 'Không thể kết nối Coordinator.'
+                : 'Không thể kết nối Coordinator.',
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> fetchCoordinatorDownload(
+    String jobId,
+  ) async {
+    try {
+      final response = await _createCoordinatorDio().get(
+        '/download/${Uri.encodeComponent(jobId)}',
+      );
+      return {
+        'success': true,
+        'data': Map<String, dynamic>.from(response.data as Map),
+      };
+    } on DioException catch (e) {
+      final error = e.response?.data is Map ? e.response?.data['error'] : null;
+      return {
+        'success': false,
+        'message':
+            error is String
+                ? error
+                : error is Map
+                ? error['message'] ?? 'Không thể cập nhật tiến trình tải.'
+                : 'Không thể cập nhật tiến trình tải.',
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   static Dio _createDio() {
     return Dio(
       BaseOptions(

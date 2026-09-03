@@ -54,7 +54,7 @@ export const DownloadSnackbar = ({ tasks = [], summary = null }) => {
   const extractingTask = activeTasks.find((t) => ['waiting_extract', 'extracting'].includes(t.stage));
   const isDownloadingMode = Boolean(downloadingTask);
   const aggregatePercent = isDownloadingMode 
-    ? (summary?.download?.percent ?? 0)
+    ? (summary?.download?.percent ?? downloadingTask?.download_percent ?? 0)
     : (summary?.extract?.percent ?? 0);
 
   const processingLabel = resolvingTask
@@ -228,16 +228,16 @@ export const DownloadSnackbar = ({ tasks = [], summary = null }) => {
                         </div>
 
                         {/* Cancel */}
-                        <button
+                        {!t.coordinator_job && <button
                           onClick={() => cancelDownloadTask(t.task_id)}
                           className="p-1 rounded-full text-gray-500 hover:text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0"
                         >
                           <X className="w-3.5 h-3.5" />
-                        </button>
+                        </button>}
                       </div>
 
                       {/* Password input */}
-                      {isPasswordRequired && (
+                      {isPasswordRequired && !t.coordinator_job && (
                         <div className="flex items-center gap-2 mt-2.5">
                           <input
                             type="text"

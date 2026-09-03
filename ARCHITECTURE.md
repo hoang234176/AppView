@@ -41,7 +41,7 @@ Path: `frontend/web/src/main.jsx`
 Responsibility: React root and StrictMode entry.
 
 Path: `frontend/web/src/App.jsx`  
-Responsibility: top-level UI state, folder/media loading, Download service WebSocket state, and modal composition.  
+Responsibility: top-level UI state, folder/media loading, Coordinator download-job polling, and modal composition.
 Usually changed with: `api/folderApi.js`, `api/downloadApi.js`, relevant component.
 
 Path: `frontend/web/src/api/axiosConfig.js`  
@@ -49,7 +49,7 @@ Responsibility: Storage and Python Download base URL derivation from browser loc
 Inspect when: LAN host, ports, root folder configuration, WebSocket base URL, or deployment URLs change.
 
 Path: `frontend/web/src/api/folderApi.js`, `downloadApi.js`  
-Responsibility: Storage REST calls; Python Download REST calls and reconnecting Download WebSocket client.  
+Responsibility: Storage REST calls; Coordinator parent download-job REST calls. Legacy Python Download REST/WebSocket helpers remain for compatibility only.
 Inspect when: backend response or endpoint contract changes.
 
 Path: `frontend/web/src/components/VideoPlayerModal.jsx`, `LightboxModal.jsx`  
@@ -69,11 +69,11 @@ Path: `frontend/mobile/lib/main.dart`
 Responsibility: Flutter entry, provider construction, theme and home screen startup.
 
 Path: `frontend/mobile/lib/api/api_config.dart`  
-Responsibility: shared-preference backed Storage and Download endpoint configuration, with public `--dart-define` URL fallbacks.  
+Responsibility: shared-preference backed Storage configuration plus public `--dart-define` Download/Coordinator URL configuration.
 Usually changed with: `widgets/config_api_dialog.dart`.
 
 Path: `frontend/mobile/lib/providers/app_state_provider.dart`, `download_provider.dart`  
-Responsibility: application navigation/cache state and Download task/WebSocket state respectively.
+Responsibility: application navigation/cache state and retained/polled Coordinator DownloadJob state respectively.
 
 Path: `frontend/mobile/lib/services/download_websocket_service.dart`  
 Responsibility: reconnecting client for Python Download WebSocket.
@@ -136,8 +136,9 @@ Important files:
 ```text
 Web / Mobile
   ├── HTTP Storage API :8080 ──> Go Storage
-  └── HTTP + WebSocket Download API :5002 ──> Python Download
-                                               └── HTTP archive/job API ──> Go Storage :8080
+  └── HTTP Coordinator API `/api/v1/download` ──> Coordinator
+       └── resolve_download ──> Python Download worker
+       └── download_file ──> Go Storage worker
 ```
 
 Python calls Go's archive APIs; Go performs all archive filesystem work. Python persists no storage paths. On Python restart it queries Go archive job snapshots and reconnects its monitoring so frontend task state can be restored.
@@ -150,7 +151,7 @@ Coordinator ── outbound worker WebSocket ──> Python Download
                                                 └── existing MediaFire resolver
 ```
 
-This is additive. The regular Frontend → Python Download → Go Storage archive flow remains the production path.
+Worker integration is additive. The normal Web/Mobile submission path uses the parent Coordinator download job; legacy Python endpoints remain available for compatibility-only controls.
 
 ### Coordinator Storage worker, verified
 
@@ -173,7 +174,7 @@ POST /api/v1/download
 → parent completed / failed
 ```
 
-`DownloadJob` has an ID distinct from both child task IDs. Parent state and child mapping are in memory; a Coordinator restart loses active jobs/tasks. The legacy HTTP pipeline remains available and frontend clients have not migrated yet.
+`DownloadJob` has an ID distinct from both child task IDs. Web and Mobile retain the accepted parent ID in runtime state, poll `GET /api/v1/download/{id}` every second, and stop at `completed` or `failed`. Parent state and child mapping are in memory; a Coordinator restart loses active jobs/tasks. The legacy HTTP pipeline remains available for compatibility.
 
 ## HTTP API Map
 
@@ -240,8 +241,8 @@ Do not place secret values here.
 - Coordinator: `backend/coordinator/.env.example` documents `COORDINATOR_HTTP_ADDR`, `COORDINATOR_WORKER_WS_PATH`, `COORDINATOR_HEARTBEAT_TIMEOUT`, `COORDINATOR_HEARTBEAT_CHECK_INTERVAL`, and `COORDINATOR_DEFAULT_MAX_ATTEMPTS`. Its optional local `.env` is loaded only for unset variables. On Render, `PORT` is supported and binds `0.0.0.0:<PORT>` unless `COORDINATOR_HTTP_ADDR` is explicitly supplied.
 - Download: `backend/download/.env.example` documents `GO_STORAGE_BASE_URL`, `PYTHON_DOWNLOAD_PORT`, `PYTHON_DOWNLOAD_HOST`, `COORDINATOR_WS_URL` (local default `ws://localhost:8090/ws/workers`), and `COORDINATOR_WORKER_ID`. Its outbound worker has finite connect/ping timeouts and bounded reconnect backoff, so a sleeping Coordinator does not stop FastAPI.
 - Storage: `backend/storage/.env.example` documents `COORDINATOR_WS_URL` and `COORDINATOR_WORKER_ID`; `configs.LoadEnvironment()` loads its optional local `.env` without overriding OS values. The worker has finite dial timeouts, heartbeat, serialized writes and bounded reconnect backoff. Archive/file processing behavior is reused unchanged.
-- Web: `frontend/web/.env.example` uses public Vite variables `VITE_STORAGE_API_BASE_URL`, `VITE_DOWNLOAD_API_BASE_URL`, and `VITE_DOWNLOAD_WS_URL`. Browser localStorage keys beginning `appview_server_...` override these defaults when the user configures a server.
-- Mobile: `ApiConfig` uses saved SharedPreferences endpoints first, then public compile-time `--dart-define` values `APPVIEW_STORAGE_API_BASE_URL`, `APPVIEW_DOWNLOAD_API_BASE_URL`, and `APPVIEW_DOWNLOAD_WS_URL`, with localhost fallbacks.
+- Web: `frontend/web/.env.example` includes the public `VITE_COORDINATOR_API_BASE_URL` used by normal download submission/polling, alongside legacy Download variables. Browser localStorage keys beginning `appview_server_...` still configure Storage.
+- Mobile: `ApiConfig` reads `APPVIEW_COORDINATOR_API_BASE_URL` from public compile-time `--dart-define` for normal download submission/polling. Legacy Download values remain available only for compatibility code.
 
 ## Shared Contracts
 

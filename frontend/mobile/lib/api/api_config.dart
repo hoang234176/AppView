@@ -20,6 +20,10 @@ class ApiConfig {
     'APPVIEW_DOWNLOAD_WS_URL',
     defaultValue: 'ws://localhost:5002/api/v1/download/ws',
   );
+  static const String defaultCoordinatorApiBaseUrl = String.fromEnvironment(
+    'APPVIEW_COORDINATOR_API_BASE_URL',
+    defaultValue: '',
+  );
 
   static const String pythonDownloadPort = '5002';
 
@@ -38,13 +42,16 @@ class ApiConfig {
   static String get serverPort => _serverPort;
   static String get rootFolderPath => _rootFolderPath;
   static String get baseUrl => _currentBaseUrl;
-  
-  static String get downloadBaseUrl => _hasSavedServerEndpoint
-      ? 'http://$_serverIp:$pythonDownloadPort/api/v1/download'
-      : defaultDownloadApiBaseUrl;
-  static String get downloadWsUrl => _hasSavedServerEndpoint
-      ? 'ws://$_serverIp:$pythonDownloadPort/api/v1/download/ws'
-      : defaultDownloadWsUrl;
+
+  static String get downloadBaseUrl =>
+      _hasSavedServerEndpoint
+          ? 'http://$_serverIp:$pythonDownloadPort/api/v1/download'
+          : defaultDownloadApiBaseUrl;
+  static String get downloadWsUrl =>
+      _hasSavedServerEndpoint
+          ? 'ws://$_serverIp:$pythonDownloadPort/api/v1/download/ws'
+          : defaultDownloadWsUrl;
+  static String get coordinatorBaseUrl => defaultCoordinatorApiBaseUrl;
 
   static bool get isConfigured =>
       _serverIp.trim().isNotEmpty &&
@@ -57,14 +64,19 @@ class ApiConfig {
       final savedIp = prefs.getString(prefKeyServerIp);
       final savedPort = prefs.getString(prefKeyServerPort);
       final hasSavedServerEndpoint =
-          savedIp != null && savedIp.trim().isNotEmpty && savedPort != null && savedPort.trim().isNotEmpty;
+          savedIp != null &&
+          savedIp.trim().isNotEmpty &&
+          savedPort != null &&
+          savedPort.trim().isNotEmpty;
       _hasSavedServerEndpoint = hasSavedServerEndpoint;
       _serverIp = hasSavedServerEndpoint ? savedIp.trim() : defaultIp;
       _serverPort = hasSavedServerEndpoint ? savedPort.trim() : defaultPort;
-      _rootFolderPath = prefs.getString(prefKeyRootFolderPath) ?? defaultRootFolderPath;
-      _currentBaseUrl = _hasSavedServerEndpoint
-          ? 'http://$_serverIp:$_serverPort/api/v1'
-          : defaultApiBaseUrl;
+      _rootFolderPath =
+          prefs.getString(prefKeyRootFolderPath) ?? defaultRootFolderPath;
+      _currentBaseUrl =
+          _hasSavedServerEndpoint
+              ? 'http://$_serverIp:$_serverPort/api/v1'
+              : defaultApiBaseUrl;
     } catch (_) {
       _serverIp = defaultIp;
       _serverPort = defaultPort;

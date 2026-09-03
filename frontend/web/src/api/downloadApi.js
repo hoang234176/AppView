@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getDownloadApiBaseUrl, getDownloadWsUrl } from './axiosConfig';
+import { getCoordinatorApiBaseUrl, getDownloadApiBaseUrl, getDownloadWsUrl } from './axiosConfig';
 
 const createDownloadClient = () => {
   return axios.create({
@@ -11,17 +11,28 @@ const createDownloadClient = () => {
   });
 };
 
+const createCoordinatorClient = () => {
+  const baseURL = getCoordinatorApiBaseUrl();
+  if (!baseURL) {
+    throw new Error('Chưa cấu hình VITE_COORDINATOR_API_BASE_URL.');
+  }
+  return axios.create({
+    baseURL,
+    timeout: 15000,
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
 /**
- * Submit a MediaFire URL for download and extraction
- * Endpoint: POST /archive
+ * Submit one parent Coordinator download job. Legacy Python endpoints below
+ * remain available only for compatibility controls that have not migrated.
  */
 export const startArchiveDownload = async (url, destination = '', password = null) => {
-  const client = createDownloadClient();
   try {
-    const response = await client.post('/archive', {
+    const response = await createCoordinatorClient().post('/download', {
       url,
       destination,
-      password: password || null,
+      ...(password ? { password } : {}),
     });
     return {
       success: true,
@@ -29,9 +40,11 @@ export const startArchiveDownload = async (url, destination = '', password = nul
     };
   } catch (error) {
     console.error('Lỗi khởi tạo download:', error);
-    let message = 'Không thể kết nối đến máy chủ Download.';
-    let code = 'DOWNLOAD_SERVICE_ERROR';
-    if (error.response?.data?.error) {
+    let message = 'Không thể kết nối đến Coordinator.';
+    let code = 'COORDINATOR_ERROR';
+    if (typeof error.response?.data?.error === 'string') {
+      message = error.response.data.error;
+    } else if (error.response?.data?.error) {
       message = error.response.data.error.message || message;
       code = error.response.data.error.code || code;
     }
@@ -39,6 +52,19 @@ export const startArchiveDownload = async (url, destination = '', password = nul
       success: false,
       message,
       code,
+    };
+  }
+};
+
+export const fetchCoordinatorDownload = async (jobId) => {
+  try {
+    const response = await createCoordinatorClient().get(`/download/${encodeURIComponent(jobId)}`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    const errorData = error.response?.data?.error;
+    return {
+      success: false,
+      message: typeof errorData === 'string' ? errorData : errorData?.message || 'Không thể cập nhật tiến trình tải.',
     };
   }
 };

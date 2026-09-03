@@ -12,6 +12,9 @@ export const DEFAULT_ROOT_FOLDER_PATH = '';
 export const DEFAULT_API_BASE_URL = viteValue('VITE_STORAGE_API_BASE_URL', 'http://localhost:8080/api/v1');
 export const DEFAULT_DOWNLOAD_API_BASE_URL = viteValue('VITE_DOWNLOAD_API_BASE_URL', 'http://localhost:5002/api/v1/download');
 export const DEFAULT_DOWNLOAD_WS_URL = viteValue('VITE_DOWNLOAD_WS_URL', 'ws://localhost:5002/api/v1/download/ws');
+// Coordinator is intentionally configured independently from the legacy
+// Python download API.  A deployment must provide this public Vite value.
+export const DEFAULT_COORDINATOR_API_BASE_URL = viteValue('VITE_COORDINATOR_API_BASE_URL', '');
 
 export const PYTHON_DOWNLOAD_PORT = '5002';
 
@@ -60,6 +63,8 @@ export const getDownloadWsUrl = () => {
   const ip = getServerIp();
   return `ws://${ip}:${PYTHON_DOWNLOAD_PORT}/api/v1/download/ws`;
 };
+
+export const getCoordinatorApiBaseUrl = () => DEFAULT_COORDINATOR_API_BASE_URL;
 
 export const saveServerConfig = (ip, port, rootFolderPath) => {
   const cleanIp = (ip || DEFAULT_SERVER_IP).trim();

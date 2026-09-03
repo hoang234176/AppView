@@ -22,7 +22,7 @@ import { DownloadMediafireModal } from './components/DownloadMediafireModal';
 import { DownloadPanelModal } from './components/DownloadPanelModal';
 import { DownloadSnackbar } from './components/DownloadSnackbar';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder } from './api/folderApi';
-import { fetchDownloadTasks, fetchDownloadSummary, DownloadWebSocketClient } from './api/downloadApi';
+import { fetchCoordinatorDownload } from './api/downloadApi';
 import { getApiBaseUrl, saveServerConfig, isServerConfigured } from './api/axiosConfig';
 import { FolderX, Loader2 } from 'lucide-react';
 import './styles/index.css';
@@ -69,6 +69,8 @@ function App() {
   const [showDownloadPanel, setShowDownloadPanel] = useState(false);
   const [downloadPanelTab, setDownloadPanelTab] = useState('active');
   const [showDownloadMediafireModal, setShowDownloadMediafireModal] = useState(false);
+  const coordinatorPollersRef = useRef(new Map());
+  const isMountedRef = useRef(true);
 
   const PAGE_SIZE = 20;
   const [folderLimit, setFolderLimit] = useState(PAGE_SIZE);
@@ -249,104 +251,75 @@ function App() {
     loadData(currentPath, { limit: 0 }, false);
   }, [currentPath, configVersion, loadData]);
 
-  // Connect to Download Service WebSocket & fetch initial state
+  // Coordinator jobs are polled individually. The legacy Python WebSocket is
+  // deliberately not used for normal submissions: the parent job is the
+  // client-facing source of truth for resolve/download completion and errors.
   useEffect(() => {
-    if (!isServerConfigured()) return;
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      coordinatorPollersRef.current.forEach((timer) => window.clearTimeout(timer));
+      coordinatorPollersRef.current.clear();
+    };
+  }, []);
 
-    fetchDownloadTasks().then((res) => {
-      if (res.success && res.data) {
-        setDownloadTasks(res.data);
+  const mapCoordinatorJob = useCallback((job) => {
+    const progress = job.progress && typeof job.progress === 'object' ? job.progress : {};
+    const downloadedBytes = Number(progress.downloadedBytes) || 0;
+    const totalBytes = Number(progress.totalBytes) || 0;
+    const stage = job.state === 'downloading' ? (progress.state || 'downloading') : job.state === 'failed' ? 'error' : job.state;
+    return {
+      task_id: job.id,
+      original_url: job.url,
+      filename: job.filename || progress.filename || '',
+      destination: job.destination || '',
+      stage,
+      downloaded_bytes: downloadedBytes,
+      download_total_bytes: totalBytes || null,
+      download_percent: totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : null,
+      download_speed_bytes: Number(progress.speedBytes) || 0,
+      extracted_percent: progress.extractedPercent ?? null,
+      convert_total: Number(progress.conversion?.total) || 0,
+      convert_current: Number(progress.conversion?.current) || 0,
+      error: job.error?.message || null,
+      error_code: job.error?.code || null,
+      failure_stage: job.failureStage || null,
+      coordinator_job: true,
+    };
+  }, []);
+
+  const pollCoordinatorJob = useCallback((jobId) => {
+    const poll = async () => {
+      const response = await fetchCoordinatorDownload(jobId);
+      if (!isMountedRef.current) return;
+      if (!response.success) {
+        setDownloadTasks((previous) => previous.map((task) => task.task_id === jobId
+          ? { ...task, stage: 'error', error: response.message, error_code: 'COORDINATOR_POLL_FAILED', coordinator_job: true }
+          : task));
+        coordinatorPollersRef.current.delete(jobId);
+        return;
       }
-    });
-
-    fetchDownloadSummary().then((res) => {
-      if (res.success && res.data) {
-        setDownloadSummary(res.data);
-      }
-    });
-
-    const wsClient = new DownloadWebSocketClient((event) => {
-      if (!event || !event.type) return;
-
-      if (event.type === 'init_state') {
-        if (event.tasks) setDownloadTasks(event.tasks);
-        if (event.summary) setDownloadSummary(event.summary);
-      } else if (event.type === 'task_created' && event.task) {
-        setDownloadTasks((prev) => {
-          const exists = prev.some((t) => t.task_id === event.task.task_id);
-          return exists ? prev : [event.task, ...prev];
-        });
-      } else if (event.type === 'task_stage_changed') {
-        setDownloadTasks((prev) =>
-          prev.map((t) =>
-            t.task_id === event.task_id
-              ? {
-                  ...t,
-                  stage: event.stage,
-                  filename: event.filename || t.filename,
-                  error: event.error || t.error,
-                  error_code: event.error_code || t.error_code,
-                  cancelled_from_stage: event.cancelled_from_stage ?? t.cancelled_from_stage,
-                  convert_total: event.conversion?.total ?? t.convert_total,
-                  convert_current: event.conversion?.current ?? t.convert_current,
-                }
-              : t
-          )
-        );
-
-        if (event.stage === 'completed') {
-          // Auto refresh folder grid & tree on extraction completed
+      const task = mapCoordinatorJob(response.data);
+      setDownloadTasks((previous) => [task, ...previous.filter((item) => item.task_id !== jobId)]);
+      if (response.data.state === 'completed' || response.data.state === 'failed') {
+        coordinatorPollersRef.current.delete(jobId);
+        if (response.data.state === 'completed') {
           loadData(currentPath);
           loadTreeData();
         }
-      } else if (event.type === 'task_progress') {
-        setDownloadTasks((prev) =>
-          prev.map((t) => {
-            if (t.task_id !== event.task_id) return t;
-            const updated = { ...t };
-            if (event.stage) updated.stage = event.stage;
-            if (event.filename) updated.filename = event.filename;
-            if (event.downloaded_bytes !== undefined) updated.downloaded_bytes = event.downloaded_bytes;
-            if (event.total_bytes !== undefined) updated.download_total_bytes = event.total_bytes;
-            if (event.percent !== undefined) updated.download_percent = event.percent;
-            if (event.speed_bytes !== undefined) updated.download_speed_bytes = event.speed_bytes;
-            if (event.extracted_percent !== undefined) updated.extracted_percent = event.extracted_percent;
-            if (event.conversion?.total !== undefined) updated.convert_total = event.conversion.total;
-            if (event.conversion?.current !== undefined) updated.convert_current = event.conversion.current;
-            return updated;
-          })
-        );
-      } else if (event.type === 'task_password_required') {
-        setDownloadTasks((prev) =>
-          prev.map((t) =>
-            t.task_id === event.task_id
-              ? {
-                  ...t,
-                  stage: 'password_required',
-                  password_required: true,
-                  error: event.error,
-                  error_code: event.error_code,
-                }
-              : t
-          )
-        );
-      } else if (event.type === 'summary_updated') {
-        setDownloadSummary({
-          active_count: event.active_count ?? 0,
-          downloading_count: event.downloading_count ?? 0,
-          extracting_count: event.extracting_count ?? 0,
-          download: event.downloading || event.download || { count: 0, percent: 0 },
-          extract: event.extracting || event.extract || { count: 0, percent: 0 },
-        });
+        return;
       }
-    });
-
-    wsClient.connect();
-
-    return () => {
-      wsClient.disconnect();
+      coordinatorPollersRef.current.set(jobId, window.setTimeout(poll, 1000));
     };
-  }, [configVersion, currentPath, loadData, loadTreeData]);
+    poll();
+  }, [currentPath, loadData, loadTreeData, mapCoordinatorJob]);
+
+  const handleCoordinatorJobCreated = useCallback((job) => {
+    if (!job?.id || coordinatorPollersRef.current.has(job.id)) return;
+    const task = mapCoordinatorJob(job);
+    setDownloadTasks((previous) => [task, ...previous.filter((item) => item.task_id !== job.id)]);
+    pollCoordinatorJob(job.id);
+  }, [mapCoordinatorJob, pollCoordinatorJob]);
 
   const handleNavigate = (newPath) => {
     if (newPath === currentPath) return;
@@ -467,14 +440,14 @@ function App() {
   const hasContent = filteredFolders.length > 0 || filteredPictures.length > 0 || filteredVideos.length > 0;
 
   // Active Download Status Metrics for Header Icon
-  const activeDownloadCount = downloadSummary?.active_count ?? downloadTasks.filter((t) => ['queued', 'resolving', 'downloading', 'waiting_extract', 'extracting', 'scanning', 'converting', 'password_required'].includes(t.stage)).length;
+  const activeDownloadCount = downloadTasks.filter((t) => ['queued', 'resolving', 'downloading', 'waiting_extract', 'extracting', 'scanning', 'converting', 'password_required'].includes(t.stage)).length;
   // Summary có thể đến chậm hơn WebSocket. Luôn lấy task thật làm fallback để
   // animation mũi tên Header xuất hiện ngay từ lúc Go bắt đầu tải.
   const downloadingTask = downloadTasks.find((t) => t.stage === 'downloading');
-  const isDownloadingMode = (downloadSummary?.downloading_count ?? 0) > 0 || Boolean(downloadingTask);
+  const isDownloadingMode = Boolean(downloadingTask);
   const downloadProgressPercent = isDownloadingMode 
-    ? (downloadSummary?.download?.percent ?? downloadingTask?.download_percent ?? 0)
-    : (downloadSummary?.extract?.percent ?? 0);
+    ? (downloadingTask?.download_percent ?? 0)
+    : 0;
   const hasPasswordError = downloadTasks.some((t) => t.stage === 'password_required');
   const isScanning = downloadTasks.some((t) => t.stage === 'scanning');
   const isConverting = downloadTasks.some((t) => t.stage === 'converting');
@@ -723,7 +696,10 @@ function App() {
           onClose={() => setShowDownloadMediafireModal(false)}
           currentPath={currentPath}
           treeData={treeData}
-          onSuccess={() => {
+          onSuccess={(job) => {
+            // The modal passes the accepted parent job; retain and poll that
+            // exact Coordinator ID instead of creating another legacy task.
+            handleCoordinatorJobCreated(job);
             setDownloadPanelTab('active');
             setShowDownloadPanel(true);
           }}

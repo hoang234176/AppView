@@ -198,7 +198,7 @@ export const DownloadMediafireModal = ({
       setUrl('');
       setPassword('');
       onClose();
-      if (onSuccess) onSuccess();
+      if (onSuccess) onSuccess(res.data);
     } else {
       setErrorMsg(res.message);
     }
