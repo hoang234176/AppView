@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Go
+/backend/storage/backend

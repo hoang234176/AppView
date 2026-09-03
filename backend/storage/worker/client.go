@@ -1,0 +1,199 @@
+package worker
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"os"
+	"sync"
+	"time"
+
+	"backend/utils"
+
+	"github.com/gorilla/websocket"
+)
+
+type Config struct {
+	URL                   string
+	WorkerID              string
+	HeartbeatInterval     time.Duration
+	ReconnectInitialDelay time.Duration
+	ReconnectMaxDelay     time.Duration
+}
+
+func LoadConfig() Config {
+	hostname, err := os.Hostname()
+	if err != nil || hostname == "" {
+		hostname = "local"
+	}
+	return Config{
+		URL:                   stringEnv("COORDINATOR_WS_URL", "ws://localhost:8090/ws/workers"),
+		WorkerID:              stringEnv("COORDINATOR_WORKER_ID", "storage-go-"+hostname),
+		HeartbeatInterval:     10 * time.Second,
+		ReconnectInitialDelay: time.Second,
+		ReconnectMaxDelay:     15 * time.Second,
+	}
+}
+
+func stringEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+
+type Client struct {
+	config  Config
+	handler *Handler
+	dialer  *websocket.Dialer
+}
+
+func NewClient(config Config, handler *Handler) *Client {
+	if handler == nil {
+		handler = NewHandler(nil)
+	}
+	return &Client{
+		config:  config,
+		handler: handler,
+		dialer: &websocket.Dialer{
+			HandshakeTimeout: 10 * time.Second,
+			NetDialContext:   (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		},
+	}
+}
+
+// Run reconnects indefinitely with bounded backoff. It is intended to run in
+// a goroutine alongside Fiber; an unavailable Coordinator never stops HTTP.
+func (c *Client) Run(ctx context.Context) {
+	delay := c.config.ReconnectInitialDelay
+	for ctx.Err() == nil {
+		err := c.connectOnce(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil {
+			utils.LogInfo("[STORAGE WORKER] Coordinator chưa sẵn sàng (%v); thử lại sau %s.", err, delay)
+		} else {
+			utils.LogInfo("[STORAGE WORKER] Mất kết nối Coordinator; thử lại sau %s.", delay)
+		}
+		if !waitContext(ctx, delay) {
+			return
+		}
+		delay *= 2
+		if delay > c.config.ReconnectMaxDelay {
+			delay = c.config.ReconnectMaxDelay
+		}
+	}
+}
+
+func (c *Client) connectOnce(ctx context.Context) error {
+	conn, _, err := c.dialer.DialContext(ctx, c.config.URL, nil)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	safeConn := &serializedConnection{conn: conn}
+	if err := safeConn.Send(Message{Type: WorkerRegister, WorkerID: c.config.WorkerID, Capabilities: c.handler.Capabilities()}); err != nil {
+		return err
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
+	var registration Message
+	if err := conn.ReadJSON(&registration); err != nil {
+		return err
+	}
+	_ = conn.SetReadDeadline(time.Time{})
+	if registration.Type == ProtocolError {
+		if registration.Error != nil {
+			return fmt.Errorf("Coordinator từ chối đăng ký: %s", registration.Error.Message)
+		}
+		return fmt.Errorf("Coordinator từ chối đăng ký")
+	}
+	if registration.Type != WorkerRegistered || registration.WorkerID != c.config.WorkerID {
+		return fmt.Errorf("Coordinator trả acknowledgement đăng ký không hợp lệ")
+	}
+
+	utils.LogInfo("[STORAGE WORKER] Đã kết nối Coordinator: %s (%s)", c.config.URL, c.config.WorkerID)
+	connectionCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	closeOnContextDone := make(chan struct{})
+	go func() {
+		select {
+		case <-connectionCtx.Done():
+			_ = conn.Close()
+		case <-closeOnContextDone:
+		}
+	}()
+	var assignments sync.WaitGroup
+	heartbeatDone := make(chan struct{})
+	go c.heartbeat(connectionCtx, safeConn, heartbeatDone)
+	defer func() {
+		close(closeOnContextDone)
+		cancel()
+		<-heartbeatDone
+		assignments.Wait()
+	}()
+
+	for {
+		var incoming Message
+		if err := conn.ReadJSON(&incoming); err != nil {
+			return err
+		}
+		switch incoming.Type {
+		case TaskAssign:
+			assignments.Add(1)
+			go func(task Message) {
+				defer assignments.Done()
+				c.handler.Handle(connectionCtx, task, safeConn.Send)
+			}(incoming)
+		case ProtocolError:
+			if incoming.Error != nil {
+				utils.LogInfo("[STORAGE WORKER] Coordinator báo lỗi: %s", incoming.Error.Message)
+			}
+		}
+	}
+}
+
+func (c *Client) heartbeat(ctx context.Context, conn *serializedConnection, done chan<- struct{}) {
+	defer close(done)
+	ticker := time.NewTicker(c.config.HeartbeatInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := conn.Send(Message{Type: WorkerHeartbeat, WorkerID: c.config.WorkerID}); err != nil {
+				return
+			}
+		}
+	}
+}
+
+type serializedConnection struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
+}
+
+func (c *serializedConnection) Send(message Message) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.conn.WriteJSON(message); err != nil {
+		_ = c.conn.Close()
+		return err
+	}
+	return nil
+}
+
+func waitContext(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}

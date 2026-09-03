@@ -1,0 +1,275 @@
+# AppView Architecture
+
+Repository navigation index. It documents verified implementation separately from planned work so future sessions can inspect targeted files instead of recursively scanning the repository.
+
+## Repository Overview
+
+**Verified:** AppView is a LAN media-library application. Web (React/Vite) and Mobile (Flutter) browse folders, pictures and videos served by Go Storage. A Python Download service resolves MediaFire URLs and orchestrates archive work through Go Storage. Go Storage owns file paths, download/extract/convert processing, and media streaming.
+
+**Verified:** `backend/coordinator` is an independent Go service for generic worker/task orchestration. Python Download and local Go Storage register over outbound WebSockets as `resolve_download` and `download_file` workers respectively.
+
+## Directory Tree
+
+```text
+AppView/
+├── frontend/
+│   ├── web/                         # React 19 + Vite + Tailwind UI
+│   │   └── src/{App.jsx,api,components,styles,utils}
+│   └── mobile/                      # Flutter application
+│       └── lib/{main.dart,api,models,providers,screens,services,widgets}
+├── backend/
+│   ├── storage/                     # Go Fiber local media/storage service
+│   │   ├── main.go, routes/, controllers/, api/python/, worker/, utils/, configs/
+│   │   └── go.mod
+│   ├── download/                    # FastAPI URL resolver + task/WebSocket service
+│   │   ├── main.py, archive/, services/, models/, worker/, config.py
+│   │   └── requirements.txt
+│   ├── coordinator/                 # Go generic worker/task coordinator
+│   │   ├── cmd/coordinator/main.go
+│   │   ├── internal/{config,protocol,worker,task,scheduler,service,websocket,httpapi}
+│   │   └── AGENTS.md, ARCHITECTURE.md, docs/PROTOCOL.md
+│   └── bruno-api/                   # API collection files
+├── README.md
+└── ARCHITECTURE.md
+```
+
+## Frontend Architecture
+
+### Web
+
+Path: `frontend/web/src/main.jsx`  
+Responsibility: React root and StrictMode entry.
+
+Path: `frontend/web/src/App.jsx`  
+Responsibility: top-level UI state, folder/media loading, Download service WebSocket state, and modal composition.  
+Usually changed with: `api/folderApi.js`, `api/downloadApi.js`, relevant component.
+
+Path: `frontend/web/src/api/axiosConfig.js`  
+Responsibility: Storage and Python Download base URL derivation from browser localStorage, with public Vite environment fallbacks.  
+Inspect when: LAN host, ports, root folder configuration, WebSocket base URL, or deployment URLs change.
+
+Path: `frontend/web/src/api/folderApi.js`, `downloadApi.js`  
+Responsibility: Storage REST calls; Python Download REST calls and reconnecting Download WebSocket client.  
+Inspect when: backend response or endpoint contract changes.
+
+Path: `frontend/web/src/components/VideoPlayerModal.jsx`, `LightboxModal.jsx`  
+Responsibility: video and image viewing UI.  
+Inspect when: playback, controls, rotation, fullscreen, or image viewing changes.
+
+Path: `frontend/web/src/components/DownloadPanelModal.jsx`, `DownloadSnackbar.jsx`, `DownloadMediafireModal.jsx`  
+Responsibility: download creation, task manager UI, and active-task display.  
+Inspect when: Download task stages, status fields, or download UI behavior changes.
+
+Path: `frontend/web/src/styles/index.css`  
+Responsibility: Tahoe-like styling, UI transitions, spinner and snackbar animation classes.
+
+### Mobile
+
+Path: `frontend/mobile/lib/main.dart`  
+Responsibility: Flutter entry, provider construction, theme and home screen startup.
+
+Path: `frontend/mobile/lib/api/api_config.dart`  
+Responsibility: shared-preference backed Storage and Download endpoint configuration, with public `--dart-define` URL fallbacks.  
+Usually changed with: `widgets/config_api_dialog.dart`.
+
+Path: `frontend/mobile/lib/providers/app_state_provider.dart`, `download_provider.dart`  
+Responsibility: application navigation/cache state and Download task/WebSocket state respectively.
+
+Path: `frontend/mobile/lib/services/download_websocket_service.dart`  
+Responsibility: reconnecting client for Python Download WebSocket.
+
+Path: `frontend/mobile/lib/screens/home_screen.dart`, `download_screen.dart`, `video_player_screen.dart`, `lightbox_screen.dart`  
+Responsibility: primary browsing, task management, video and image views.
+
+Path: `frontend/mobile/lib/api/{folder_api,download_api,cache_api}.dart`  
+Responsibility: typed Storage/Download HTTP boundaries.
+
+## Backend Architecture
+
+### `backend/storage`
+
+**Verified language/server:** Go, Fiber, entry point `backend/storage/main.go`.
+
+It owns local media filesystem operations, folder CRUD, thumbnails/media streaming, archive job lifecycle, SSD workspace download/extract/convert, final result transfer, and video compatibility conversion.
+
+Important files:
+
+- `routes/routes.go`: verified `/api/v1` route map.
+- `controllers/storage_controller.go`: folders/files/move/ping handlers.
+- `controllers/picture_controller.go`, `video_controller.go`: image and video serving/streaming.
+- `controllers/archive_job_controller.go`: archive start/status/list/retry/cancel/delete HTTP boundary.
+- `controllers/convert_controller.go`: standalone conversion job API.
+- `api/python/archive_task.go`: Go-owned archive job, SSD workspace and final HDD commit flow.
+- `api/python/convert_task.go`: incompatible-video scan, ffmpeg operation and global one-archive convert queue.
+- `utils/storage_utils.go`: filesystem listing, thumbnail, path and media helpers.
+- `configs/config.go`: Storage root and SSD workspace configuration.
+- `configs/env.go`: optional service-local `.env` loader; OS/process values retain precedence.
+- `worker/client.go`, `worker/handler.go`, `worker/protocol.go`: outbound Coordinator lifecycle and the `download_file` adapter. It reuses `pythonapi.StartArchiveJob` and archive snapshots; it does not implement a separate downloader or filesystem pipeline.
+
+### `backend/download`
+
+**Verified language/server:** Python FastAPI, entry point `backend/download/main.py`.
+
+It owns URL resolution, Download task presentation state, frontend WebSocket broadcasts, and orchestration calls to Go Storage. It deliberately does not own filesystem paths or archive/file mutations.
+
+Important files:
+
+- `main.py`: lifespan recovery, REST task API and `/api/v1/download/ws` WebSocket.
+- `archive/mediafire.py`: MediaFire page resolver.
+- `archive/service.py`: resolves URL then drives Go archive job monitoring/recovery.
+- `archive/go_archive_client.py`: only HTTP boundary from Python to Go Storage archive API.
+- `services/task_manager.py`, `progress_manager.py`, `websocket_manager.py`: in-memory task lifecycle, summary and broadcasts.
+- `models/download_task.py`: Download task and stage contract.
+- `worker/client.py`, `worker/handler.py`, `worker/protocol.py`: outbound Coordinator WebSocket lifecycle, `resolve_download` task adaptation, and protocol helpers. The handler reuses `archive_service.resolver` and does not start archive jobs.
+- `config.py`: service-local `.env` loader (OS values win), `GO_STORAGE_BASE_URL`, `PYTHON_DOWNLOAD_PORT`, `PYTHON_DOWNLOAD_HOST`, `COORDINATOR_WS_URL`, `COORDINATOR_WORKER_ID`. Render's `PORT` is used when `PYTHON_DOWNLOAD_PORT` is absent.
+
+### `backend/coordinator`
+
+**Verified:** implemented Go service. It owns generic worker WebSockets, capability routing, in-memory task lifecycle, disconnect requeue behavior and HTTP task status. Read `backend/coordinator/ARCHITECTURE.md` for its detailed Change Map.
+
+**Verified workers:** Python Download resolves URLs and Go Storage processes existing archive jobs through their independent outbound Coordinator adapters. The current direct Python → Go HTTP archive flow remains unchanged.
+
+## Cross-Service Communication
+
+### Current, verified
+
+```text
+Web / Mobile
+  ├── HTTP Storage API :8080 ──> Go Storage
+  └── HTTP + WebSocket Download API :5002 ──> Python Download
+                                               └── HTTP archive/job API ──> Go Storage :8080
+```
+
+Python calls Go's archive APIs; Go performs all archive filesystem work. Python persists no storage paths. On Python restart it queries Go archive job snapshots and reconnects its monitoring so frontend task state can be restored.
+
+### Coordinator resolution worker, verified
+
+```text
+Client ── HTTP task API ──> Coordinator
+Coordinator ── outbound worker WebSocket ──> Python Download
+                                                └── existing MediaFire resolver
+```
+
+This is additive. The regular Frontend → Python Download → Go Storage archive flow remains the production path.
+
+### Coordinator Storage worker, verified
+
+```text
+Coordinator ── outbound worker WebSocket ──> local Go Storage
+                                                └── existing StartArchiveJob
+                                                    download → extract → scan → convert → commit
+```
+
+Storage advertises only `download_file`. Its payload is `{ "url", "filename", "destination", "password?" }`; it expects the archive-oriented work already implemented by `StartArchiveJob`. It returns opaque job metadata/progress and never sends file bytes or local filesystem paths on the WebSocket.
+
+## HTTP API Map
+
+| Service | Method | Path | Handler area | Purpose |
+|---|---|---|---|---|
+| Storage | GET/POST/PUT/DELETE | `/api/v1/folder`, `/file`, `/item/move` | `controllers/storage_controller.go` | Folder/file management. |
+| Storage | GET | `/api/v1/pictures/*`, `/thumbnails/*`, `/videos/*` | picture/video controllers | Serve media and streams. |
+| Storage | POST/GET | `/api/v1/jobs/convert...` | `convert_controller.go` | Convert job start/status. |
+| Storage | POST/GET/DELETE | `/api/v1/jobs/archive...` | `archive_job_controller.go` | Go archive job lifecycle. |
+| Download | POST | `/api/v1/download/archive` | `main.py` | Create MediaFire archive task. |
+| Download | GET/POST/DELETE | `/api/v1/download/tasks...`, `/summary` | `main.py` | Task state, retry/password/cancel/delete, summary. |
+| Download | WebSocket | `/api/v1/download/ws` | `main.py` | Frontend real-time task events. |
+| Coordinator | POST/GET | `/api/tasks`, `/api/tasks/{id}` | `internal/httpapi` | Generic capability task lifecycle. |
+| Coordinator | GET | `/health` | `internal/httpapi` | Health and worker count. |
+| Coordinator | WebSocket | `/ws/workers` by default | `internal/websocket` | Worker registration and task protocol. |
+
+## WebSocket Map
+
+| Endpoint | Direction | Verified behavior |
+|---|---|---|
+| Python Download `/api/v1/download/ws` | Frontend ↔ Python | Python broadcasts task creation, stage, progress, password and summary events; Web/Mobile reconnect clients consume them. |
+| Coordinator `/ws/workers` | Worker ↔ Coordinator | Workers register capabilities, heartbeat, accept/progress/complete/fail tasks; coordinator assigns compatible idle workers. |
+
+## Task Flow
+
+### Current archive download
+
+```text
+Frontend submits MediaFire URL
+→ Python creates DownloadTask and resolves direct URL
+→ Python starts Go archive job
+→ Go downloads/extracts/scans/converts in SSD workspace
+→ Go commits final folder to Storage destination
+→ Python polls Go snapshots and broadcasts frontend state
+```
+
+### Coordinator task flow
+
+```text
+POST /api/tasks { action, payload }
+→ queued
+→ first compatible idle worker gets task.assign
+→ task.accepted / task.progress
+→ task.completed or task.failed
+```
+
+## Environment and Configuration
+
+Do not place secret values here.
+
+- Root `.gitignore` ignores `.env` and `.env.*` at every depth, but explicitly allows `.env.example`. Real `.env` files are local-only and never overwrite process/Render variables.
+- Coordinator: `backend/coordinator/.env.example` documents `COORDINATOR_HTTP_ADDR`, `COORDINATOR_WORKER_WS_PATH`, `COORDINATOR_HEARTBEAT_TIMEOUT`, `COORDINATOR_HEARTBEAT_CHECK_INTERVAL`, and `COORDINATOR_DEFAULT_MAX_ATTEMPTS`. Its optional local `.env` is loaded only for unset variables. On Render, `PORT` is supported and binds `0.0.0.0:<PORT>` unless `COORDINATOR_HTTP_ADDR` is explicitly supplied.
+- Download: `backend/download/.env.example` documents `GO_STORAGE_BASE_URL`, `PYTHON_DOWNLOAD_PORT`, `PYTHON_DOWNLOAD_HOST`, `COORDINATOR_WS_URL` (local default `ws://localhost:8090/ws/workers`), and `COORDINATOR_WORKER_ID`. Its outbound worker has finite connect/ping timeouts and bounded reconnect backoff, so a sleeping Coordinator does not stop FastAPI.
+- Storage: `backend/storage/.env.example` documents `COORDINATOR_WS_URL` and `COORDINATOR_WORKER_ID`; `configs.LoadEnvironment()` loads its optional local `.env` without overriding OS values. The worker has finite dial timeouts, heartbeat, serialized writes and bounded reconnect backoff. Archive/file processing behavior is reused unchanged.
+- Web: `frontend/web/.env.example` uses public Vite variables `VITE_STORAGE_API_BASE_URL`, `VITE_DOWNLOAD_API_BASE_URL`, and `VITE_DOWNLOAD_WS_URL`. Browser localStorage keys beginning `appview_server_...` override these defaults when the user configures a server.
+- Mobile: `ApiConfig` uses saved SharedPreferences endpoints first, then public compile-time `--dart-define` values `APPVIEW_STORAGE_API_BASE_URL`, `APPVIEW_DOWNLOAD_API_BASE_URL`, and `APPVIEW_DOWNLOAD_WS_URL`, with localhost fallbacks.
+
+## Shared Contracts
+
+- **Download task:** defined by Python `models/download_task.py`; consumed by Web `downloadApi.js`/`App.jsx` and Mobile `api/download_api.dart`/`download_provider.dart`.
+- **Go archive snapshot:** defined in Go `api/python/archive_task.go`; consumed by Python `archive/go_archive_client.py` and `archive/service.py`.
+- **Coordinator worker envelope:** source of truth is `backend/coordinator/internal/protocol/message.go`, documented by `backend/coordinator/docs/PROTOCOL.md`.
+- **Python Download coordinator action:** `resolve_download` accepts payload `{ "url": "https://..." }` and returns resolved URL, filename, extension, and optional estimated size in the opaque Coordinator result.
+- **Storage coordinator action:** `download_file` accepts an archive-oriented direct URL payload with `url`, `filename`, relative `destination`, and optional `password`. It delegates to `pythonapi.StartArchiveJob`, sends snapshot-derived progress, and returns only job/filename/conversion metadata.
+- **Storage folder/media response:** produced by Storage controllers; consumed by Web/Mobile folder APIs and models.
+
+## Change Map
+
+### Storage filesystem, archive, convert, or compatibility behavior
+
+Read first: `backend/storage/api/python/archive_task.go`, `api/python/convert_task.go`, relevant controller, and `configs/config.go`. Do not start in frontend unless returned contract changes.
+
+### Storage Coordinator worker adapter
+
+Read first: `backend/storage/worker/{client,handler,protocol}.go`, `configs/env.go`, `api/python/archive_task.go`, and `backend/coordinator/docs/PROTOCOL.md`. Register only `download_file`; reuse existing archive jobs and do not chain resolver tasks here.
+
+### Download URL resolver or task orchestration
+
+Read first: `backend/download/archive/service.py`, `archive/go_archive_client.py`, relevant resolver, `services/task_manager.py`, `models/download_task.py`.
+
+### Download Coordinator worker adapter
+
+Read first: `backend/download/worker/{client,handler,protocol}.py`, `archive/service.py`, `archive/contracts.py`, and `backend/coordinator/docs/PROTOCOL.md`. The adapter resolves only; do not route Go archive work through Coordinator yet.
+
+### Environment or deployment connectivity
+
+Read first: root `.gitignore`, relevant service `.env.example`, Coordinator `internal/config/config.go`, Download `config.py`/`worker/client.py`, and frontend endpoint configuration. Keep production hostnames out of source and use only public frontend configuration values.
+
+### Download WebSocket contract/UI
+
+Read first: Python `services/websocket_manager.py`, `services/task_manager.py`; then Web `api/downloadApi.js`/`App.jsx` or Mobile `services/download_websocket_service.dart`/`providers/download_provider.dart` and relevant screen.
+
+### Web media playback
+
+Read first: `frontend/web/src/components/VideoPlayerModal.jsx`, `api/folderApi.js`, `utils/formatters.js`.
+
+### Mobile media playback
+
+Read first: `frontend/mobile/lib/screens/video_player_screen.dart`, `api/folder_api.dart`, `utils/formatters.dart`.
+
+### Coordinator protocol/routing/lifecycle
+
+Read `backend/coordinator/AGENTS.md` then its `ARCHITECTURE.md`; follow the coordinator Change Map.
+
+## AI Agent Navigation Rules
+
+1. Read this file before modifying code.
+2. Use Change Map to choose initial files.
+3. Search symbols before expanding scope.
+4. Avoid generated/build/dependency directories.
+5. Keep planned coordinator integration distinct from current Python → Go behavior.
+6. Update this document for new important services, routes, protocols or responsibility changes.

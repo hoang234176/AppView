@@ -1,0 +1,353 @@
+@import "tailwindcss";
+
+:root {
+  --bg-app: #0b0c0e;
+  --bg-tahoe-block: #1c1d21;
+  --border-color: #383c42;
+  --google-blue: #8ab4f8;
+  --google-blue-hover: #aecbfa;
+  --radius-global: 24px;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh; /* Dynamic Viewport Height: Automatically fits mobile browser bottom address bar */
+  overflow: hidden;
+  background-color: var(--bg-app);
+  color: #e8eaed;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Guarantee MAXIMUM Original High-Quality Crisp Image Rendering */
+img {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Force global 24px border radius theme override across project components */
+.rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-lg, .rounded-md {
+  border-radius: 24px !important;
+}
+
+/* TAHOE ISLAND BLOCKS LAYOUT: 8px inset padding & 8px gap */
+.tahoe-app-wrapper {
+  display: flex;
+  height: 100vh;
+  height: 100dvh; /* Automatically fits mobile browser address bar show/hide */
+  padding: 8px;
+  gap: 8px;
+  box-sizing: border-box;
+  background-color: var(--bg-app);
+  overflow: hidden;
+}
+
+/* Tahoe Island Block styling */
+.tahoe-block {
+  background-color: var(--bg-tahoe-block);
+  border: 1px solid var(--border-color);
+  border-radius: 24px !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+/* Completely Hide Scrollbars Globally while keeping scrolling active */
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+* {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+/* Search Bar (24px rounded) */
+.google-search-bar {
+  background-color: #28292d;
+  border: 1px solid var(--border-color);
+  border-radius: 24px !important;
+  transition: all 0.2s ease;
+}
+.google-search-bar:focus-within {
+  background-color: #202124;
+  border-color: var(--google-blue);
+  box-shadow: 0 1px 6px rgba(138, 180, 248, 0.3);
+}
+
+/* Action Button */
+.btn-google {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 22px;
+  border-radius: 24px !important;
+  font-weight: 500;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.btn-google-primary {
+  background-color: var(--google-blue);
+  color: #202124;
+}
+.btn-google-primary:hover {
+  background-color: var(--google-blue-hover);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.btn-google-surface {
+  background-color: #28292d;
+  color: #e8eaed;
+  border-color: var(--border-color);
+}
+.btn-google-surface:hover {
+  background-color: #383c42;
+  border-color: var(--google-blue);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Skeleton Loading Shimmer */
+.skeleton {
+  background: linear-gradient(90deg, #202124 25%, #2d2f31 50%, #202124 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes popFast {
+  0% { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-pop-fast {
+  animation: popFast 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Modal lớn không scale toàn bộ nội dung khi mở: scale + nhiều spinner gây
+   khựng trên máy yếu. Chỉ opacity/dịch nhẹ, vẫn hoàn tất trong 0,2 giây. */
+@keyframes modalEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-modal-enter {
+  animation: modalEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
+}
+
+@keyframes speedDialEnter {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-speed-dial-enter {
+  animation: speedDialEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Header download: only the arrow travels down; the tray remains fixed. */
+@keyframes download-header-arrow-drop {
+  /* Nghỉ ở vị trí gốc, rơi vào khay U, mờ đi; sau đó xuất hiện phía trên
+     và trượt về đúng vị trí gốc trước khi lặp vòng tiếp theo. */
+  0%, 18% { transform: translateY(0); opacity: 1; }
+  55% { transform: translateY(4.5px); opacity: 1; }
+  65% { transform: translateY(5px); opacity: 0; }
+  66% { transform: translateY(-4px); opacity: 0; }
+  84% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.download-header-arrow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: download-header-arrow-drop 1.5s ease-in-out infinite;
+}
+
+/* Chỉ trạng thái rảnh mới phản hồi hover. Không scale để vòng tiến độ và icon
+   không bị lệch; trong lúc tải, nút giữ nguyên để ưu tiên tín hiệu tiến độ. */
+.download-header-idle:hover {
+  background-color: #383c42;
+  border-color: rgb(96 165 250 / 0.75);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.12);
+}
+.download-header-idle:hover svg {
+  color: #ffffff;
+}
+
+/* The snackbar is bottom-anchored. Expanding this grid adds height above its
+   compact row, creating a real upward slide while the outer rounded card is
+   never scaled or replaced. */
+.snackbar-details {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: grid-template-rows 0.2s ease-out, opacity 0.16s ease-out, transform 0.2s ease-out;
+}
+.snackbar-details-expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Tree branches stay mounted for 200ms when closing. Opening and closing use
+   separate keyframes: do not combine a CSS transition with an animation on
+   the same properties, otherwise they fight each other. */
+.tree-children {
+  display: grid;
+}
+.tree-children-opening {
+  animation: tree-children-open 0.2s ease-out both;
+}
+@keyframes tree-children-open {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.tree-children-closing {
+  animation: tree-children-close 0.2s ease-in both;
+}
+@keyframes tree-children-close {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* Google-style Horizontal Indeterminate Progress Bar Animation */
+@keyframes google-indeterminate-slide {
+  0% {
+    left: -40%;
+    width: 40%;
+  }
+  50% {
+    left: 40%;
+    width: 60%;
+  }
+  100% {
+    left: 100%;
+    width: 40%;
+  }
+}
+
+.google-linear-progress {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  background-color: rgba(249, 115, 22, 0.2);
+  border-radius: 9999px;
+}
+
+.google-linear-progress-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: #f97316;
+  border-radius: 9999px;
+  animation: google-indeterminate-slide 1.2s infinite ease-in-out;
+}
+
+/* ── Google Material Indeterminate Circular Spinner ──────────────────────────
+   Chuẩn xác: container xoay liên tục + arc dash co/dãn độc lập.
+   Kết quả: đúng hiệu ứng spinner của Chrome / Gmail / Google Drive.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@keyframes google-spinner-rotate {
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes google-spinner-dash {
+  0% {
+    stroke-dasharray: 1, 150;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -35;
+  }
+  100% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -124;
+  }
+}
+
+/* Áp dụng rotation lên SVG container (thẻ <svg> cha) */
+.google-spinner-svg {
+  animation: google-spinner-rotate 2s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Áp dụng dash lên circle bên trong */
+.google-spinner-circle {
+  animation: google-spinner-dash 1.5s ease-in-out infinite;
+  stroke-linecap: round;
+}
+
+/* Giữ cùng chuyển động Google, chỉ đổi màu theo stage. */
+.google-linear-progress-purple {
+  background-color: rgba(168, 85, 247, 0.2);
+}
+.google-linear-progress-purple .google-linear-progress-bar {
+  background-color: #a855f7;
+}
+.google-linear-progress-green {
+  background-color: rgba(52, 211, 153, 0.2);
+}
+.google-linear-progress-green .google-linear-progress-bar {
+  background-color: #34d399;
+}
+
+/* ── Google Linear Indeterminate Progress Bar ─────────────────────────────── */
+@keyframes google-indeterminate-slide {
+  0%   { left: -35%; right: 100%; }
+  60%  { left: 100%; right: -90%; }
+  100% { left: 100%; right: -90%; }
+}
+
+@keyframes google-indeterminate-short-slide {
+  0%   { left: -200%; right: 100%; }
+  60%  { left: 107%; right: -8%;  }
+  100% { left: 107%; right: -8%;  }
+}
