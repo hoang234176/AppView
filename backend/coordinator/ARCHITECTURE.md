@@ -99,6 +99,7 @@ Minimal standard-library HTTP API: task creation/query and health. Inspect for c
 | `COORDINATOR_HEARTBEAT_TIMEOUT` | `30s` | Offline threshold. |
 | `COORDINATOR_HEARTBEAT_CHECK_INTERVAL` | `5s` | Offline sweep interval. |
 | `COORDINATOR_DEFAULT_MAX_ATTEMPTS` | `2` | Retryable task assignment limit. |
+| `COORDINATOR_CORS_ORIGINS` | unset | Comma-separated additional browser origins. Localhost and private LAN IP origins are allowed by default. |
 | `PORT` | unset | Render-compatible fallback: listens on `0.0.0.0:<PORT>` when `COORDINATOR_HTTP_ADDR` is unset. |
 | `LOG_LEVEL` | `INFO` | Structured log threshold: `DEBUG`, `INFO`, `WARN`, `ERROR`. |
 

@@ -41,3 +41,53 @@ func TestVersionedCoordinatorRoutes(t *testing.T) {
 		})
 	}
 }
+
+func TestCoordinatorCORS(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+	handler := WithCORS(mux, []string{"https://web.appview.test"})
+	allowedOrigin := "http://192.168.1.252:5173"
+
+	t.Run("preflight download", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodOptions, "/api/v1/download", nil)
+		request.Header.Set("Origin", allowedOrigin)
+		request.Header.Set("Access-Control-Request-Method", http.MethodPost)
+		request.Header.Set("Access-Control-Request-Headers", "Content-Type, Authorization")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want %d", response.Code, http.StatusNoContent)
+		}
+		assertCORSHeaders(t, response, allowedOrigin)
+	})
+
+	t.Run("allowed post", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/download", bytes.NewBufferString(`{"url":"https://example.test/file"}`))
+		request.Header.Set("Origin", allowedOrigin)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want %d", response.Code, http.StatusAccepted)
+		}
+		assertCORSHeaders(t, response, allowedOrigin)
+	})
+
+	t.Run("disallowed origin", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodOptions, "/api/v1/download", nil)
+		request.Header.Set("Origin", "https://untrusted.example")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusForbidden || response.Header().Get("Access-Control-Allow-Origin") != "" {
+			t.Fatalf("unexpected disallowed response: status=%d origin=%q", response.Code, response.Header().Get("Access-Control-Allow-Origin"))
+		}
+	})
+}
+
+func assertCORSHeaders(t *testing.T, response *httptest.ResponseRecorder, origin string) {
+	t.Helper()
+	if response.Header().Get("Access-Control-Allow-Origin") != origin || response.Header().Get("Access-Control-Allow-Methods") != "GET, POST, PUT, DELETE, OPTIONS" || response.Header().Get("Access-Control-Allow-Headers") != "Content-Type, Authorization" {
+		t.Fatalf("missing CORS headers: %#v", response.Header())
+	}
+}

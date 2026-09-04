@@ -14,6 +14,7 @@ type Config struct {
 	HeartbeatTimeout       time.Duration
 	HeartbeatCheckInterval time.Duration
 	DefaultMaxAttempts     int
+	CORSAllowedOrigins     []string
 }
 
 func Load() Config {
@@ -26,7 +27,22 @@ func Load() Config {
 		HeartbeatTimeout:       durationEnv("COORDINATOR_HEARTBEAT_TIMEOUT", 30*time.Second),
 		HeartbeatCheckInterval: durationEnv("COORDINATOR_HEARTBEAT_CHECK_INTERVAL", 5*time.Second),
 		DefaultMaxAttempts:     intEnv("COORDINATOR_DEFAULT_MAX_ATTEMPTS", 2),
+		CORSAllowedOrigins:     csvEnv("COORDINATOR_CORS_ORIGINS"),
 	}
+}
+func csvEnv(key string) []string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if origin := strings.TrimSpace(part); origin != "" {
+			result = append(result, strings.TrimRight(origin, "/"))
+		}
+	}
+	return result
 }
 
 // httpAddress keeps the established service-specific setting first. Render
