@@ -8,8 +8,16 @@ import '../models/tree_node.dart';
 import '../models/api_result.dart';
 import '../api/folder_api.dart';
 import '../api/api_config.dart';
+import '../services/filesystem_events_service.dart';
 
 class AppStateProvider extends ChangeNotifier {
+  AppStateProvider() {
+    _filesystemEvents = FilesystemEventsService(
+      onEvent: _handleFilesystemEvent,
+      onConnected: _scheduleCanonicalRefresh,
+    );
+  }
+
   String _currentPath = '';
   List<FolderItem> _folders = [];
   List<PictureItem> _pictures = [];
@@ -22,6 +30,9 @@ class AppStateProvider extends ChangeNotifier {
   String _searchQuery = '';
 
   CancelToken? _activeCancelToken;
+  late final FilesystemEventsService _filesystemEvents;
+  Timer? _filesystemRefreshTimer;
+  bool _disposed = false;
 
   // Getters
   String get currentPath => _currentPath;
@@ -38,7 +49,8 @@ class AppStateProvider extends ChangeNotifier {
     if (_searchQuery.trim().isEmpty) return _folders;
     final q = _searchQuery.toLowerCase().trim();
     return _folders.where((f) {
-      return f.name.toLowerCase().contains(q) || f.path.toLowerCase().contains(q);
+      return f.name.toLowerCase().contains(q) ||
+          f.path.toLowerCase().contains(q);
     }).toList();
   }
 
@@ -46,7 +58,8 @@ class AppStateProvider extends ChangeNotifier {
     if (_searchQuery.trim().isEmpty) return _pictures;
     final q = _searchQuery.toLowerCase().trim();
     return _pictures.where((p) {
-      return p.name.toLowerCase().contains(q) || p.path.toLowerCase().contains(q);
+      return p.name.toLowerCase().contains(q) ||
+          p.path.toLowerCase().contains(q);
     }).toList();
   }
 
@@ -54,7 +67,8 @@ class AppStateProvider extends ChangeNotifier {
     if (_searchQuery.trim().isEmpty) return _videos;
     final q = _searchQuery.toLowerCase().trim();
     return _videos.where((v) {
-      return v.name.toLowerCase().contains(q) || v.path.toLowerCase().contains(q);
+      return v.name.toLowerCase().contains(q) ||
+          v.path.toLowerCase().contains(q);
     }).toList();
   }
 
@@ -67,7 +81,9 @@ class AppStateProvider extends ChangeNotifier {
   int get totalVideos => _totalVideos;
 
   bool get hasContent =>
-      filteredFolders.isNotEmpty || filteredPictures.isNotEmpty || filteredVideos.isNotEmpty;
+      filteredFolders.isNotEmpty ||
+      filteredPictures.isNotEmpty ||
+      filteredVideos.isNotEmpty;
 
   int _folderLimit = 20;
   int _pictureLimit = 20;
@@ -88,9 +104,14 @@ class AppStateProvider extends ChangeNotifier {
       _totalVideos > _videos.length;
 
   int get remainingCount {
-    int remFolders = _totalFolders > _folders.length ? _totalFolders - _folders.length : 0;
-    int remPictures = _totalPictures > _pictures.length ? _totalPictures - _pictures.length : 0;
-    int remVideos = _totalVideos > _videos.length ? _totalVideos - _videos.length : 0;
+    int remFolders =
+        _totalFolders > _folders.length ? _totalFolders - _folders.length : 0;
+    int remPictures =
+        _totalPictures > _pictures.length
+            ? _totalPictures - _pictures.length
+            : 0;
+    int remVideos =
+        _totalVideos > _videos.length ? _totalVideos - _videos.length : 0;
     return remFolders + remPictures + remVideos;
   }
 
@@ -121,7 +142,10 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   void navigateTo(String path) {
-    if (path == _currentPath) return;
+    if (path == _currentPath) {
+      refreshCurrentFolder();
+      return;
+    }
     _currentPath = path;
     _searchQuery = '';
     resetLimits();
@@ -140,11 +164,73 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   Future<void> refreshAll() async {
-    await Future.wait([
-      loadTreeData(),
-      loadData(_currentPath, page: 1, isSilent: false),
-    ]);
+    await refreshCurrentFolder(includeTree: true);
   }
+
+  Future<void> refreshCurrentFolder({bool includeTree = true}) async {
+    if (includeTree) {
+      await Future.wait([
+        loadTreeData(),
+        loadData(_currentPath, page: 1, isSilent: false),
+      ]);
+      return;
+    }
+    await loadData(_currentPath, page: 1, isSilent: false);
+  }
+
+  void startRealtime() {
+    _filesystemEvents.start();
+  }
+
+  void _handleFilesystemEvent(Map<String, dynamic> event) {
+    final type = event['type']?.toString();
+    final oldPath =
+        event['oldPath']?.toString() ?? event['path']?.toString() ?? '';
+    final newPath =
+        event['newPath']?.toString() ?? event['path']?.toString() ?? '';
+    final oldParentPath =
+        event['oldParentPath']?.toString() ?? _parentPath(oldPath);
+    var nextPath = _currentPath;
+
+    if (type == 'folder_deleted' &&
+        _isSameOrDescendant(_currentPath, oldPath)) {
+      nextPath = oldParentPath;
+    } else if ((type == 'folder_moved' || type == 'folder_renamed') &&
+        _isSameOrDescendant(_currentPath, oldPath)) {
+      nextPath = _replacePathPrefix(_currentPath, oldPath, newPath);
+    }
+
+    if (nextPath != _currentPath) {
+      _currentPath = nextPath;
+      _searchQuery = '';
+      resetLimits();
+      notifyListeners();
+    }
+    _scheduleCanonicalRefresh();
+  }
+
+  void _scheduleCanonicalRefresh() {
+    _filesystemRefreshTimer?.cancel();
+    _filesystemRefreshTimer = Timer(const Duration(milliseconds: 120), () {
+      if (!_disposed) {
+        refreshCurrentFolder(includeTree: true);
+      }
+    });
+  }
+
+  bool _isSameOrDescendant(String candidate, String parent) =>
+      parent.isNotEmpty &&
+      (candidate == parent || candidate.startsWith('$parent/'));
+
+  String _parentPath(String path) {
+    final separator = path.lastIndexOf('/');
+    return separator == -1 ? '' : path.substring(0, separator);
+  }
+
+  String _replacePathPrefix(String path, String oldPrefix, String newPrefix) =>
+      path == oldPrefix
+          ? newPrefix
+          : '$newPrefix${path.substring(oldPrefix.length)}';
 
   Future<void> loadTreeData() async {
     if (!ApiConfig.isConfigured) {
@@ -162,7 +248,11 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadData(String path, {int page = 1, bool isSilent = false}) async {
+  Future<void> loadData(
+    String path, {
+    int page = 1,
+    bool isSilent = false,
+  }) async {
     _activeCancelToken?.cancel();
     final cancelToken = CancelToken();
     _activeCancelToken = cancelToken;
@@ -177,7 +267,8 @@ class AppStateProvider extends ChangeNotifier {
       _isLoading = false;
       _errorInfo = ApiErrorInfo(
         status: 400,
-        message: 'Vui lòng nhập đầy đủ IP, Cổng (Port) và Đường dẫn thư mục gốc (Root Path) trong bảng cấu hình máy chủ để bắt đầu.',
+        message:
+            'Vui lòng nhập đầy đủ IP, Cổng (Port) và Đường dẫn thư mục gốc (Root Path) trong bảng cấu hình máy chủ để bắt đầu.',
       );
       notifyListeners();
       return;
@@ -207,9 +298,15 @@ class AppStateProvider extends ChangeNotifier {
         final existingPictures = _pictures.map((p) => p.path).toSet();
         final existingVideos = _videos.map((v) => v.path).toSet();
 
-        final newFolders = result.data!.folders.where((f) => !existingFolders.contains(f.path));
-        final newPictures = result.data!.pictures.where((p) => !existingPictures.contains(p.path));
-        final newVideos = result.data!.videos.where((v) => !existingVideos.contains(v.path));
+        final newFolders = result.data!.folders.where(
+          (f) => !existingFolders.contains(f.path),
+        );
+        final newPictures = result.data!.pictures.where(
+          (p) => !existingPictures.contains(p.path),
+        );
+        final newVideos = result.data!.videos.where(
+          (v) => !existingVideos.contains(v.path),
+        );
 
         _folders = [..._folders, ...newFolders];
         _pictures = [..._pictures, ...newPictures];
@@ -232,10 +329,14 @@ class AppStateProvider extends ChangeNotifier {
         _totalPictures = 0;
         _totalVideos = 0;
       }
-      _errorInfo = result.errorInfo ??
+      _errorInfo =
+          result.errorInfo ??
           ApiErrorInfo(
             status: result.status,
-            message: result.message.isNotEmpty ? result.message : 'Không thể lấy dữ liệu',
+            message:
+                result.message.isNotEmpty
+                    ? result.message
+                    : 'Không thể lấy dữ liệu',
           );
     }
     notifyListeners();
@@ -243,7 +344,10 @@ class AppStateProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _activeCancelToken?.cancel();
+    _filesystemRefreshTimer?.cancel();
+    _filesystemEvents.dispose();
     super.dispose();
   }
 }

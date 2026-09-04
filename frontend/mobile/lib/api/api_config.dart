@@ -52,6 +52,25 @@ class ApiConfig {
           ? 'ws://$_serverIp:$pythonDownloadPort/api/v1/download/ws'
           : defaultDownloadWsUrl;
   static String get coordinatorBaseUrl => defaultCoordinatorApiBaseUrl;
+  static String get coordinatorEventsWsUrl {
+    final base = coordinatorBaseUrl.trim();
+    if (base.isEmpty) return '';
+    final uri = Uri.tryParse(base);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return '';
+    }
+    final basePath = uri.path
+        .replaceFirst(RegExp(r'/api/v1/?$'), '')
+        .replaceFirst(RegExp(r'/+$'), '');
+    return uri
+        .replace(
+          scheme: uri.scheme == 'https' ? 'wss' : 'ws',
+          path: '$basePath/ws/events',
+          query: null,
+          fragment: null,
+        )
+        .toString();
+  }
 
   static bool get isConfigured =>
       _serverIp.trim().isNotEmpty &&

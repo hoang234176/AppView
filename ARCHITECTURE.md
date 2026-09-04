@@ -41,7 +41,7 @@ Path: `frontend/web/src/main.jsx`
 Responsibility: React root and StrictMode entry.
 
 Path: `frontend/web/src/App.jsx`  
-Responsibility: top-level UI state, folder/media loading, Coordinator download-job polling, and modal composition.
+Responsibility: top-level UI state, folder/media loading, Coordinator download-job polling, one Coordinator filesystem-invalidation WebSocket, and modal composition. It derives `/ws/events` from `VITE_COORDINATOR_API_BASE_URL`; events and reconnects refetch canonical tree/current-folder state.
 Usually changed with: `api/folderApi.js`, `api/downloadApi.js`, relevant component.
 
 Path: `frontend/web/src/api/axiosConfig.js`  
@@ -73,7 +73,7 @@ Responsibility: shared-preference backed Storage configuration plus public `--da
 Usually changed with: `widgets/config_api_dialog.dart`.
 
 Path: `frontend/mobile/lib/providers/app_state_provider.dart`, `download_provider.dart`  
-Responsibility: application navigation/cache state and retained/polled Coordinator DownloadJob state respectively.
+Responsibility: application navigation/cache state (including its one Coordinator `/ws/events` invalidation connection and canonical refetch) and retained/polled Coordinator DownloadJob state respectively.
 
 Path: `frontend/mobile/lib/services/download_websocket_service.dart`  
 Responsibility: reconnecting client for Python Download WebSocket.

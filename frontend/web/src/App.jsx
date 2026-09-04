@@ -23,9 +23,16 @@ import { DownloadPanelModal } from './components/DownloadPanelModal';
 import { DownloadSnackbar } from './components/DownloadSnackbar';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder } from './api/folderApi';
 import { fetchCoordinatorDownload } from './api/downloadApi';
-import { getApiBaseUrl, saveServerConfig, isServerConfigured } from './api/axiosConfig';
+import { getApiBaseUrl, getCoordinatorEventsWsUrl, saveServerConfig, isServerConfigured } from './api/axiosConfig';
 import { FolderX, Loader2 } from 'lucide-react';
 import './styles/index.css';
+
+const isSameOrDescendantPath = (candidate, parent) => Boolean(parent) && (candidate === parent || candidate.startsWith(`${parent}/`));
+const parentPath = (path) => {
+  const separator = path.lastIndexOf('/');
+  return separator === -1 ? '' : path.slice(0, separator);
+};
+const replacePathPrefix = (path, oldPrefix, newPrefix) => path === oldPrefix ? newPrefix : `${newPrefix}${path.slice(oldPrefix.length)}`;
 
 function App() {
   const getInitialPathFromUrl = () => {
@@ -48,7 +55,7 @@ function App() {
   const [isConnected, setIsConnected] = useState(true);
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
   const [videoModalIndex, setVideoModalIndex] = useState(null);
   
   const [apiBaseUrl, setApiBaseUrl] = useState(getApiBaseUrl());
@@ -71,6 +78,10 @@ function App() {
   const [showDownloadMediafireModal, setShowDownloadMediafireModal] = useState(false);
   const coordinatorPollersRef = useRef(new Map());
   const isMountedRef = useRef(true);
+  const realtimeSocketRef = useRef(null);
+  const realtimeReconnectTimerRef = useRef(null);
+  const realtimeRefreshTimerRef = useRef(null);
+  const realtimeRefreshRef = useRef(null);
 
   const PAGE_SIZE = 20;
   const [folderLimit, setFolderLimit] = useState(PAGE_SIZE);
@@ -243,6 +254,103 @@ function App() {
     }
   }, [currentPath]);
 
+  const refreshFromFilesystemEvent = useCallback((event = null) => {
+    let nextPath = currentPath;
+    let refreshCurrent = event === null;
+    const type = event?.type;
+    const oldPath = event?.oldPath || event?.path || '';
+    const newPath = event?.newPath || event?.path || '';
+    const oldParentPath = event?.oldParentPath || parentPath(oldPath);
+    const newParentPath = event?.newParentPath || event?.parentPath || parentPath(newPath);
+
+    if (type === 'folder_deleted') {
+      if (isSameOrDescendantPath(currentPath, oldPath)) {
+        nextPath = oldParentPath;
+        refreshCurrent = true;
+      } else if (currentPath === oldParentPath) {
+        refreshCurrent = true;
+      }
+    } else if (type === 'folder_moved' || type === 'folder_renamed') {
+      if (isSameOrDescendantPath(currentPath, oldPath)) {
+        nextPath = replacePathPrefix(currentPath, oldPath, newPath);
+        refreshCurrent = true;
+      } else if (currentPath === oldParentPath || currentPath === newParentPath) {
+        refreshCurrent = true;
+      }
+    } else if (type === 'folder_created' && currentPath === newParentPath) {
+      refreshCurrent = true;
+    }
+
+    const pathChanged = nextPath !== currentPath;
+    if (pathChanged) {
+      updateUrlPath(nextPath);
+      setCurrentPath(nextPath);
+      setSearchQuery('');
+    }
+
+    if (realtimeRefreshTimerRef.current) {
+      window.clearTimeout(realtimeRefreshTimerRef.current);
+    }
+    realtimeRefreshTimerRef.current = window.setTimeout(() => {
+      loadTreeData();
+      if (refreshCurrent && !pathChanged) {
+        loadData(nextPath, { limit: 0 }, false);
+      }
+    }, 120);
+  }, [currentPath, loadData, loadTreeData]);
+
+  useEffect(() => {
+    realtimeRefreshRef.current = refreshFromFilesystemEvent;
+  }, [refreshFromFilesystemEvent]);
+
+  useEffect(() => {
+    const websocketUrl = getCoordinatorEventsWsUrl();
+    if (!websocketUrl) return undefined;
+
+    let stopped = false;
+    let reconnectAttempt = 0;
+    const connect = () => {
+      if (stopped) return;
+      const socket = new WebSocket(websocketUrl);
+      realtimeSocketRef.current = socket;
+      socket.onopen = () => {
+        reconnectAttempt = 0;
+        realtimeRefreshRef.current?.();
+      };
+      socket.onmessage = (message) => {
+        try {
+          const payload = JSON.parse(message.data);
+          if (payload?.type === 'filesystem_event' && payload.event && typeof payload.event === 'object') {
+            realtimeRefreshRef.current?.(payload.event);
+          }
+        } catch {
+          // Ignore malformed best-effort invalidation messages.
+        }
+      };
+      socket.onclose = () => {
+        if (stopped) return;
+        const delay = Math.min(1000 * (2 ** reconnectAttempt), 15000);
+        reconnectAttempt = Math.min(reconnectAttempt + 1, 4);
+        realtimeReconnectTimerRef.current = window.setTimeout(connect, delay);
+      };
+    };
+    connect();
+
+    return () => {
+      stopped = true;
+      if (realtimeReconnectTimerRef.current) window.clearTimeout(realtimeReconnectTimerRef.current);
+      if (realtimeRefreshTimerRef.current) window.clearTimeout(realtimeRefreshTimerRef.current);
+      const socket = realtimeSocketRef.current;
+      realtimeSocketRef.current = null;
+      if (socket) {
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onclose = null;
+        socket.close();
+      }
+    };
+  }, []);
+
   useEffect(() => {
     loadTreeData();
   }, [configVersion, loadTreeData]);
@@ -322,7 +430,10 @@ function App() {
   }, [mapCoordinatorJob, pollCoordinatorJob]);
 
   const handleNavigate = (newPath) => {
-    if (newPath === currentPath) return;
+    if (newPath === currentPath) {
+      refreshFromFilesystemEvent();
+      return;
+    }
     updateUrlPath(newPath);
     setCurrentPath(newPath);
     setSearchQuery('');
@@ -558,7 +669,7 @@ function App() {
                 <PictureGrid
                   pictures={visiblePictures}
                   totalCount={totalPictures}
-                  onOpenLightbox={(idx) => setLightboxIndex(idx)}
+                  onOpenLightbox={(idx) => setLightbox({ pictures: [...visiblePictures], index: idx })}
                   onShowInfo={handleShowMediaInfo}
                   onMoveItem={handleOpenMoveItem}
                   onDeleteItem={(pic) => handleOpenDeleteItem(pic, false)}
@@ -594,13 +705,13 @@ function App() {
         </div>
 
         {/* Lightbox Modal */}
-        {lightboxIndex !== null && (
+        {lightbox !== null && (
           <LightboxModal
-            pictures={filteredPictures}
-            currentIndex={lightboxIndex}
-            onClose={() => setLightboxIndex(null)}
-            onSelectIndex={(newIdx) => setLightboxIndex(newIdx)}
-            totalPictures={searchQuery.trim() ? filteredPictures.length : totalPictures}
+            pictures={lightbox.pictures}
+            currentIndex={lightbox.index}
+            onClose={() => setLightbox(null)}
+            onSelectIndex={(newIdx) => setLightbox((current) => current ? { ...current, index: newIdx } : current)}
+            totalPictures={lightbox.pictures.length}
             hasMore={hasMore}
             isLoadingMore={isLoadingMore}
             onLoadMore={handleLoadMore}

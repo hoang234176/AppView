@@ -66,6 +66,23 @@ export const getDownloadWsUrl = () => {
 
 export const getCoordinatorApiBaseUrl = () => DEFAULT_COORDINATOR_API_BASE_URL;
 
+// The Coordinator HTTP base includes `/api/v1`; its frontend invalidation
+// socket is intentionally mounted at the service root.
+export const getCoordinatorEventsWsUrl = () => {
+  const baseUrl = getCoordinatorApiBaseUrl();
+  if (!baseUrl) return '';
+  try {
+    const url = new URL(baseUrl);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    url.pathname = `${url.pathname.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '')}/ws/events`;
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return '';
+  }
+};
+
 export const saveServerConfig = (ip, port, rootFolderPath) => {
   const cleanIp = (ip || DEFAULT_SERVER_IP).trim();
   const cleanPort = (port || DEFAULT_SERVER_PORT).trim();
