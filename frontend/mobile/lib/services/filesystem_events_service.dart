@@ -27,7 +27,12 @@ class FilesystemEventsService {
   int _attempt = 0;
 
   void start() {
-    if (!_stopped) return;
+    if (!_stopped) {
+      if (_channel == null && _reconnectTimer == null) {
+        _connect();
+      }
+      return;
+    }
     _stopped = false;
     _connect();
   }

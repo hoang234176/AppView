@@ -26,6 +26,7 @@ class ApiConfig {
   );
 
   static const String pythonDownloadPort = '5002';
+  static const String coordinatorPort = '8090';
 
   static const String prefKeyServerIp = 'appview_server_ip';
   static const String prefKeyServerPort = 'appview_server_port';
@@ -51,7 +52,12 @@ class ApiConfig {
       _hasSavedServerEndpoint
           ? 'ws://$_serverIp:$pythonDownloadPort/api/v1/download/ws'
           : defaultDownloadWsUrl;
-  static String get coordinatorBaseUrl => defaultCoordinatorApiBaseUrl;
+  static String get coordinatorBaseUrl =>
+      defaultCoordinatorApiBaseUrl.isNotEmpty
+          ? defaultCoordinatorApiBaseUrl
+          : _hasSavedServerEndpoint
+          ? 'http://$_serverIp:$coordinatorPort/api/v1'
+          : '';
   static String get coordinatorEventsWsUrl {
     final base = coordinatorBaseUrl.trim();
     if (base.isEmpty) return '';

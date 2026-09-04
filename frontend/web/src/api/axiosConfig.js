@@ -17,6 +17,7 @@ export const DEFAULT_DOWNLOAD_WS_URL = viteValue('VITE_DOWNLOAD_WS_URL', 'ws://l
 export const DEFAULT_COORDINATOR_API_BASE_URL = viteValue('VITE_COORDINATOR_API_BASE_URL', '');
 
 export const PYTHON_DOWNLOAD_PORT = '5002';
+export const COORDINATOR_PORT = '8090';
 
 export const getServerIp = () => {
   const saved = localStorage.getItem('appview_server_ip');
@@ -64,7 +65,11 @@ export const getDownloadWsUrl = () => {
   return `ws://${ip}:${PYTHON_DOWNLOAD_PORT}/api/v1/download/ws`;
 };
 
-export const getCoordinatorApiBaseUrl = () => DEFAULT_COORDINATOR_API_BASE_URL;
+export const getCoordinatorApiBaseUrl = () => {
+  if (DEFAULT_COORDINATOR_API_BASE_URL) return DEFAULT_COORDINATOR_API_BASE_URL;
+  const savedIp = localStorage.getItem('appview_server_ip');
+  return savedIp && savedIp.trim() ? `http://${getServerIp()}:${COORDINATOR_PORT}/api/v1` : '';
+};
 
 // The Coordinator HTTP base includes `/api/v1`; its frontend invalidation
 // socket is intentionally mounted at the service root.

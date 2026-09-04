@@ -124,13 +124,18 @@ function App() {
     window.history.pushState({ path }, '', url.toString());
   };
 
-  const handleSaveServerConfig = (ip, port, folderPath) => {
-    const { baseUrl } = saveServerConfig(ip, port, folderPath);
+  const handleServerConfigSaved = () => {
+    const baseUrl = getApiBaseUrl();
     setApiBaseUrl(baseUrl);
     setConfigVersion((prev) => prev + 1);
     updateUrlPath('');
     setCurrentPath('');
     setSearchQuery('');
+  };
+
+  const handleSaveServerConfig = (ip, port, folderPath) => {
+    saveServerConfig(ip, port, folderPath);
+    handleServerConfigSaved();
   };
 
   useEffect(() => {
@@ -140,7 +145,7 @@ function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [configVersion]);
 
   const loadTreeData = useCallback(async () => {
     if (!isServerConfigured()) {
@@ -844,6 +849,7 @@ function App() {
           isOpen={showConfigModal}
           onClose={() => setShowConfigModal(false)}
           onRefreshFolder={handleRefreshAll}
+          onServerConfigSaved={handleServerConfigSaved}
         />
 
         {/* Media Info Dialog Modal */}

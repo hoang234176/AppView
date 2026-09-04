@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { getRootFolderPath, saveServerConfig, getServerIp, getServerPort } from '../api/axiosConfig';
 
-export const SettingsModal = ({ isOpen, onClose, onRefreshFolder }) => {
+export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfigSaved }) => {
   const [serverIp, setServerIp] = useState('');
   const [serverPort, setServerPort] = useState('');
   const [rootFolder, setRootFolder] = useState('');
@@ -53,7 +53,11 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder }) => {
 
   const handleSaveServerConfig = (e) => {
     e.preventDefault();
-    saveServerConfig(serverIp.trim(), serverPort.trim(), rootFolder.trim());
+    const ip = serverIp.trim();
+    const port = serverPort.trim();
+    const rootFolderPath = rootFolder.trim();
+    saveServerConfig(ip, port, rootFolderPath);
+    onServerConfigSaved?.(ip, port, rootFolderPath);
     setServerSavedMsg('✅ Đã lưu cấu hình!');
     setTimeout(() => setServerSavedMsg(''), 3000);
     if (onRefreshFolder) onRefreshFolder();
@@ -233,4 +237,3 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder }) => {
     </div>
   );
 };
-

@@ -41,3 +41,9 @@ func (h *Hub) Broadcast(event protocol.FilesystemEvent) int {
 	}
 	return len(h.subscribers)
 }
+
+func (h *Hub) SubscriberCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.subscribers)
+}

@@ -67,3 +67,53 @@ func TestRealtimeWebSocketWritesProtocolEnvelope(t *testing.T) {
 		t.Fatalf("unexpected websocket envelope: %#v", message)
 	}
 }
+
+func TestRealtimeWebSocketBroadcastsEveryFolderMutationToTwoClients(t *testing.T) {
+	hub := NewHub()
+	mux := http.NewServeMux()
+	NewServer(hub).Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	endpoint := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws/events"
+	first, _, err := websocket.DefaultDialer.Dial(endpoint, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, _, err := websocket.DefaultDialer.Dial(endpoint, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+
+	deadline := time.Now().Add(time.Second)
+	for hub.SubscriberCount() != 2 {
+		if time.Now().After(deadline) {
+			t.Fatal("two websocket subscribers did not register")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	hub.Broadcast(protocol.FilesystemEvent{Type: "folder_created", NewPath: "albums/created"})
+	assertFilesystemEvent(t, first, "folder_created")
+	assertFilesystemEvent(t, second, "folder_created")
+
+	for _, eventType := range []string{"folder_renamed", "folder_moved", "folder_deleted"} {
+		hub.Broadcast(protocol.FilesystemEvent{Type: eventType, OldPath: "albums/old", NewPath: "albums/new"})
+		assertFilesystemEvent(t, first, eventType)
+		assertFilesystemEvent(t, second, eventType)
+	}
+}
+
+func assertFilesystemEvent(t *testing.T, conn *websocket.Conn, wantType string) {
+	t.Helper()
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	var message protocol.Message
+	if err := conn.ReadJSON(&message); err != nil {
+		t.Fatal(err)
+	}
+	if message.Type != protocol.FilesystemEventMessage || message.Event == nil || message.Event.Type != wantType {
+		t.Fatalf("event = %#v, want filesystem_event/%s", message, wantType)
+	}
+}
