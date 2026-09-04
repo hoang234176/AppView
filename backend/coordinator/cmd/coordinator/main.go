@@ -11,6 +11,7 @@ import (
 	"appview/coordinator/internal/config"
 	"appview/coordinator/internal/httpapi"
 	"appview/coordinator/internal/logging"
+	"appview/coordinator/internal/realtime"
 	"appview/coordinator/internal/scheduler"
 	"appview/coordinator/internal/service"
 	"appview/coordinator/internal/task"
@@ -26,6 +27,7 @@ func main() {
 	workerWS := websocket.NewServer(coordinator, cfg)
 	workerWS.Register(mux)
 	workerWS.LogStartup()
+	realtime.NewServer(coordinator.RealtimeHub()).Register(mux)
 
 	server := &http.Server{Addr: cfg.HTTPAddress, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

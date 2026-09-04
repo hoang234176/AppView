@@ -5,12 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
 	"appview/coordinator/internal/downloadjob"
 	"appview/coordinator/internal/logging"
 	"appview/coordinator/internal/protocol"
+	"appview/coordinator/internal/realtime"
 	"appview/coordinator/internal/scheduler"
 	"appview/coordinator/internal/task"
 	"appview/coordinator/internal/worker"
@@ -22,10 +24,11 @@ type Coordinator struct {
 	scheduler          *scheduler.Scheduler
 	defaultMaxAttempts int
 	downloads          *downloadjob.Registry
+	realtime           *realtime.Hub
 }
 
 func New(workers *worker.Registry, tasks *task.Registry, scheduler *scheduler.Scheduler, defaultMaxAttempts int) *Coordinator {
-	return &Coordinator{workers: workers, tasks: tasks, scheduler: scheduler, defaultMaxAttempts: defaultMaxAttempts, downloads: downloadjob.NewRegistry()}
+	return &Coordinator{workers: workers, tasks: tasks, scheduler: scheduler, defaultMaxAttempts: defaultMaxAttempts, downloads: downloadjob.NewRegistry(), realtime: realtime.NewHub()}
 }
 
 func (c *Coordinator) RegisterWorker(id string, capabilities []protocol.Capability, sender worker.Sender) error {
@@ -172,7 +175,43 @@ func (c *Coordinator) RequeueStaleWorkers(timeout time.Duration) {
 		c.WorkerDisconnected(id)
 	}
 }
-func (c *Coordinator) WorkerCount() int { return c.workers.Count() }
+func (c *Coordinator) WorkerCount() int           { return c.workers.Count() }
+func (c *Coordinator) RealtimeHub() *realtime.Hub { return c.realtime }
+
+func (c *Coordinator) FilesystemEvent(workerID string, event *protocol.FilesystemEvent) error {
+	if _, ok := c.workers.Get(workerID); !ok {
+		return fmt.Errorf("unknown worker")
+	}
+	if event == nil || !validFilesystemEvent(*event) {
+		return fmt.Errorf("invalid filesystem event")
+	}
+	count := c.realtime.Broadcast(*event)
+	logging.Event("INFO", "filesystem event broadcast", map[string]any{"workerId": workerID, "eventType": event.Type, "subscriberCount": count, "oldPath": event.OldPath, "newPath": event.NewPath})
+	return nil
+}
+
+func validFilesystemEvent(event protocol.FilesystemEvent) bool {
+	if !validFilesystemPath(event.Path) || !validFilesystemPath(event.OldPath) || !validFilesystemPath(event.NewPath) || !validFilesystemPath(event.ParentPath) || !validFilesystemPath(event.OldParentPath) || !validFilesystemPath(event.NewParentPath) {
+		return false
+	}
+	switch event.Type {
+	case "folder_created":
+		return event.NewPath != "" || event.Path != ""
+	case "folder_deleted":
+		return event.OldPath != "" || event.Path != ""
+	case "folder_moved", "folder_renamed":
+		return event.OldPath != "" && event.NewPath != ""
+	default:
+		return false
+	}
+}
+
+func validFilesystemPath(value string) bool {
+	if value == "" {
+		return true
+	}
+	return value != "." && value != ".." && !strings.HasPrefix(value, "../") && path.Clean(value) == value && value[0] != '/'
+}
 
 func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 	if completed.Action == string(protocol.ResolveDownload) {

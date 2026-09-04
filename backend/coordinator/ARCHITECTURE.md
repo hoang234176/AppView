@@ -68,7 +68,11 @@ Main orchestration layer: creates tasks, dispatches assignments, receives worker
 
 ### `internal/websocket/connection.go`, `server.go`
 
-Gorilla WebSocket upgrade and read loop. `Connection` serializes all outbound writes. The server maps protocol events to service calls and starts heartbeat expiry handling; it contains no task selection rules.
+Gorilla WebSocket upgrade and read loop. `Connection` serializes all outbound writes. The server maps protocol events (including Storage filesystem invalidations) to service calls and starts heartbeat expiry handling; it contains no task selection rules.
+
+### `internal/realtime`
+
+Small bounded WebSocket fanout for frontend filesystem invalidation. It is best-effort rather than durable: each client has a bounded queue and reconnecting clients must refetch canonical folder/tree state.
 
 ### `internal/httpapi/*.go`
 
@@ -84,6 +88,7 @@ Minimal standard-library HTTP API: task creation/query and health. Inspect for c
 | `POST` | `/api/v1/download` | Create a parent two-stage resolve-to-Storage download job. |
 | `GET` | `/api/v1/download/{id}` | Return its in-memory parent job snapshot. |
 | `GET` | configured `/ws/workers` | Worker WebSocket upgrade. |
+| `GET` | `/ws/events` | Frontend filesystem-invalidation WebSocket. |
 
 ## Configuration
 

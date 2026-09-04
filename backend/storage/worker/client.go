@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"backend/events"
 	"backend/utils"
 
 	"github.com/gorilla/websocket"
@@ -116,6 +117,10 @@ func (c *Client) connectOnce(ctx context.Context) error {
 	}
 
 	utils.LogEvent("INFO", "storage worker registered", map[string]any{"workerId": c.config.WorkerID, "capability": CapabilityDownloadFile})
+	events.SetPublisher(func(event events.FilesystemEvent) error {
+		return safeConn.Send(Message{Type: FilesystemEvent, WorkerID: c.config.WorkerID, Event: &event})
+	})
+	defer events.SetPublisher(nil)
 	connectionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	closeOnContextDone := make(chan struct{})

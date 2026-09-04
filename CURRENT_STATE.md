@@ -30,6 +30,8 @@ Improve backend observability and verify the end-to-end Coordinator download pat
 - Mobile `DownloadProvider` now has equivalent runtime parent-job retention/polling with disposal cleanup and no post-dispose notifications. The add-download dialog submits through the provider instead of the legacy Python `/archive` route.
 - Added JSON-line structured logs in Coordinator, Download and Storage. `LOG_LEVEL` defaults to `INFO`; logging avoids passwords, task payloads, signed URL queries and credentials.
 - Storage media routes now read the original escaped route wildcard, decode each URL path segment exactly once, retain traversal checks, and stream the verified file handle. Focused tests cover spaces, `#`, `%`, `@`, Unicode, emoji, full-width punctuation, literal `%20`, video/thumbnail routes and traversal rejection.
+- Storage now emits post-success `folder_created`, `folder_deleted`, `folder_moved`, and `folder_renamed` invalidations through its existing Coordinator worker connection. Coordinator relays bounded best-effort envelopes to frontend subscribers at `/ws/events`; clients must refetch after reconnect.
+- Thumbnail investigation confirmed that folder listing does not generate thumbnails and original picture/video endpoints do not wait for thumbnail cache generation. Focused regression tests cover uncached originals and listing behavior.
 
 ## In progress
 
@@ -65,7 +67,7 @@ Improve backend observability and verify the end-to-end Coordinator download pat
 
 - Coordinator task `resolve_download` performs URL resolution only and returns opaque metadata; it does not enter the existing archive download pipeline.
 - Coordinator outages use bounded reconnect backoff and cannot crash or block the FastAPI HTTP service.
-- Go Storage is out of scope and unchanged.
+- Coordinator filesystem events are invalidations only; there is no durable replay. Phase 2 Web/Mobile clients must reconnect and refetch their folder/tree state.
 - Real `.env` files are optional local conveniences; OS/Render values override them. Production hostnames are intentionally not stored in source.
 - `download_file` currently means the existing archive workflow, not a newly invented raw-file downloader. It requires `url` and `filename`; `destination` is relative and optional (Storage root when empty).
 - Orchestration is deliberately only a two-stage download job, not a generic DAG/workflow engine. Coordinator does not call Storage HTTP or inspect local Storage paths.

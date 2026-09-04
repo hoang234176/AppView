@@ -105,8 +105,10 @@ Important files:
 - `configs/config.go`: Storage root and SSD workspace configuration.
 - `configs/env.go`: optional service-local `.env` loader; OS/process values retain precedence.
 - `worker/client.go`, `worker/handler.go`, `worker/protocol.go`: outbound Coordinator lifecycle and the `download_file` adapter. It reuses `pythonapi.StartArchiveJob` and archive snapshots; it does not implement a separate downloader or filesystem pipeline.
+- `events/filesystem.go`: lightweight structural folder invalidations, emitted after successful mutations through the existing Storage worker connection.
 - `utils/logger.go`: JSON-line structured logging controlled by `LOG_LEVEL` (default `INFO`); worker and media-path events omit passwords, payloads and signed URLs.
 - Media routes use the original escaped wildcard and decode URL path segments exactly once before filesystem resolution. They stream the verified file handle rather than re-parsing a filesystem filename as a URI, preserving `%`, `#`, Unicode and emoji names.
+- Folder listings do not generate thumbnails. Thumbnails are lazy at `/api/v1/thumbnails/*`, while original picture/video routes remain independent of thumbnail cache state.
 
 ### `backend/download`
 
@@ -194,6 +196,7 @@ POST /api/v1/download
 | Coordinator | POST/GET | `/api/v1/download`, `/api/v1/download/{id}` | `internal/httpapi/download_handler.go` | Parent two-stage resolve-to-Storage download lifecycle. |
 | Coordinator | GET | `/health` | `internal/httpapi` | Health and worker count. |
 | Coordinator | WebSocket | `/ws/workers` by default | `internal/websocket` | Worker registration and task protocol. |
+| Coordinator | WebSocket | `/ws/events` | `internal/realtime` | Best-effort frontend filesystem invalidation. |
 
 ## WebSocket Map
 
@@ -201,6 +204,7 @@ POST /api/v1/download
 |---|---|---|
 | Python Download `/api/v1/download/ws` | Frontend ↔ Python | Python broadcasts task creation, stage, progress, password and summary events; Web/Mobile reconnect clients consume them. |
 | Coordinator `/ws/workers` | Worker ↔ Coordinator | Workers register capabilities, heartbeat, accept/progress/complete/fail tasks; coordinator assigns compatible idle workers. |
+| Coordinator `/ws/events` | Coordinator → Frontend | Bounded, best-effort structural-folder invalidations. Clients refetch canonical state after reconnect. |
 
 ## Task Flow
 

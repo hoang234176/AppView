@@ -5,30 +5,42 @@ import "encoding/json"
 type MessageType string
 
 const (
-	WorkerRegister   MessageType = "worker.register"
-	WorkerRegistered MessageType = "worker.registered"
-	WorkerHeartbeat  MessageType = "worker.heartbeat"
-	TaskAssign       MessageType = "task.assign"
-	TaskAccepted     MessageType = "task.accepted"
-	TaskProgress     MessageType = "task.progress"
-	TaskCompleted    MessageType = "task.completed"
-	TaskFailed       MessageType = "task.failed"
-	Error            MessageType = "error"
+	WorkerRegister         MessageType = "worker.register"
+	WorkerRegistered       MessageType = "worker.registered"
+	WorkerHeartbeat        MessageType = "worker.heartbeat"
+	TaskAssign             MessageType = "task.assign"
+	TaskAccepted           MessageType = "task.accepted"
+	TaskProgress           MessageType = "task.progress"
+	TaskCompleted          MessageType = "task.completed"
+	TaskFailed             MessageType = "task.failed"
+	FilesystemEventMessage MessageType = "filesystem_event"
+	Error                  MessageType = "error"
 )
 
 // Message is the single JSON envelope used on worker WebSockets. Payload and
 // Result intentionally retain raw JSON: the coordinator routes opaque worker
 // data and must not learn scraping or filesystem-specific schemas.
 type Message struct {
-	Type         MessageType     `json:"type"`
-	TaskID       string          `json:"taskId,omitempty"`
-	WorkerID     string          `json:"workerId,omitempty"`
-	Action       string          `json:"action,omitempty"`
-	Capabilities []Capability    `json:"capabilities,omitempty"`
-	Payload      json.RawMessage `json:"payload,omitempty"`
-	Result       json.RawMessage `json:"result,omitempty"`
-	Progress     json.RawMessage `json:"progress,omitempty"`
-	Error        *ErrorPayload   `json:"error,omitempty"`
+	Type         MessageType      `json:"type"`
+	TaskID       string           `json:"taskId,omitempty"`
+	WorkerID     string           `json:"workerId,omitempty"`
+	Action       string           `json:"action,omitempty"`
+	Capabilities []Capability     `json:"capabilities,omitempty"`
+	Payload      json.RawMessage  `json:"payload,omitempty"`
+	Result       json.RawMessage  `json:"result,omitempty"`
+	Progress     json.RawMessage  `json:"progress,omitempty"`
+	Error        *ErrorPayload    `json:"error,omitempty"`
+	Event        *FilesystemEvent `json:"event,omitempty"`
+}
+
+type FilesystemEvent struct {
+	Type          string `json:"type"`
+	Path          string `json:"path,omitempty"`
+	OldPath       string `json:"oldPath,omitempty"`
+	NewPath       string `json:"newPath,omitempty"`
+	ParentPath    string `json:"parentPath,omitempty"`
+	OldParentPath string `json:"oldParentPath,omitempty"`
+	NewParentPath string `json:"newParentPath,omitempty"`
 }
 
 type ErrorPayload struct {

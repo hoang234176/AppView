@@ -3,8 +3,12 @@ package controllers
 import (
 	"fmt"
 	"net/url"
+	"os"
+	pathpkg "path"
+	"path/filepath"
 
 	"backend/configs"
+	"backend/events"
 	"backend/utils"
 
 	"github.com/gofiber/fiber/v2"
@@ -131,6 +135,7 @@ func CreateFolder(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	publishFolderEvent(events.FilesystemEvent{Type: "folder_created", Path: folder.Path, NewPath: folder.Path, ParentPath: folderParent(folder.Path)})
 
 	return c.JSON(fiber.Map{"message": "Đã tạo thư mục thành công", "data": folder})
 }
@@ -149,6 +154,8 @@ func RenameFolder(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	oldPath := filepath.ToSlash(filepath.Clean(req.Path))
+	publishFolderEvent(events.FilesystemEvent{Type: "folder_renamed", OldPath: oldPath, NewPath: folder.Path, OldParentPath: folderParent(oldPath), NewParentPath: folderParent(folder.Path), ParentPath: folderParent(folder.Path)})
 
 	return c.JSON(fiber.Map{"message": "Đổi tên thành công", "data": folder})
 }
@@ -170,6 +177,8 @@ func DeleteFolder(c *fiber.Ctx) error {
 	if err := utils.DeleteSubFolder(rootPath, path); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	cleanPath := filepath.ToSlash(filepath.Clean(path))
+	publishFolderEvent(events.FilesystemEvent{Type: "folder_deleted", Path: cleanPath, OldPath: cleanPath, ParentPath: folderParent(cleanPath), OldParentPath: folderParent(cleanPath)})
 
 	return c.JSON(fiber.Map{"message": "Đã xóa thư mục thành công"})
 }
@@ -232,9 +241,35 @@ func HandleMoveItem(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Đường dẫn nguồn không được để trống"})
 	}
 
+	info, statErr := os.Stat(filepath.Join(rootPath, filepath.Clean(src)))
 	if err := utils.MoveItem(rootPath, src, dest); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	if statErr == nil && info.IsDir() {
+		oldPath := filepath.ToSlash(filepath.Clean(src))
+		newPath := filepath.ToSlash(filepath.Join(dest, filepath.Base(src)))
+		publishFolderEvent(events.FilesystemEvent{Type: "folder_moved", OldPath: oldPath, NewPath: newPath, OldParentPath: folderParent(oldPath), NewParentPath: folderParent(newPath), ParentPath: folderParent(newPath)})
+	}
 
 	return c.JSON(fiber.Map{"message": "Di chuyển thành công"})
+}
+
+func folderParent(folderPath string) string {
+	parent := pathpkg.Dir(folderPath)
+	if parent == "." {
+		return ""
+	}
+	return parent
+}
+
+func publishFolderEvent(event events.FilesystemEvent) {
+	if err := events.Publish(event); err != nil {
+		utils.LogEvent("WARN", "filesystem event publish failed", map[string]any{
+			"eventType": event.Type,
+			"path":      event.Path,
+			"oldPath":   event.OldPath,
+			"newPath":   event.NewPath,
+			"error":     err.Error(),
+		})
+	}
 }

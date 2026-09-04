@@ -108,3 +108,51 @@ func TestVideoRouteServesNormalFilename(t *testing.T) {
 		t.Fatalf("normal video status=%d body=%q accept-ranges=%q", response.StatusCode, body, response.Header.Get("Accept-Ranges"))
 	}
 }
+
+func TestOriginalMediaDoesNotRequireThumbnail(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "photo.jpg"), []byte("image source"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "movie.webm"), []byte("video source"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".thumbnails")); !os.IsNotExist(err) {
+		t.Fatalf("thumbnail cache unexpectedly exists: %v", err)
+	}
+
+	app := fiber.New()
+	app.Get("/api/v1/pictures/*", ServePicture)
+	app.Get("/api/v1/videos/*", StreamVideo)
+	rootQuery := url.QueryEscape(root)
+	for _, endpoint := range []string{"pictures/photo.jpg", "videos/movie.webm"} {
+		response, err := app.Test(httptest.NewRequest("GET", "/api/v1/"+endpoint+"?root_path="+rootQuery, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != fiber.StatusOK {
+			t.Fatalf("%s status = %d, want %d without a thumbnail", endpoint, response.StatusCode, fiber.StatusOK)
+		}
+	}
+}
+
+func TestFolderListingDoesNotGenerateThumbnails(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "uncached.jpg"), []byte("not a thumbnail"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app := fiber.New()
+	app.Get("/api/v1/folder", GetFolders)
+	response, err := app.Test(httptest.NewRequest("GET", "/api/v1/folder?root_path="+url.QueryEscape(root), nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != fiber.StatusOK {
+		t.Fatalf("listing status = %d, want %d", response.StatusCode, fiber.StatusOK)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".thumbnails")); !os.IsNotExist(err) {
+		t.Fatalf("listing created thumbnail cache: %v", err)
+	}
+}

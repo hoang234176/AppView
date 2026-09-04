@@ -2,6 +2,10 @@
 
 Storage owns local filesystem/media operations and the `download_file` Coordinator worker.
 
+Successful folder create/delete/move/rename operations publish a small relative-path filesystem event through that existing worker connection. Coordinator forwards these invalidations to `/ws/events`; events are not durable history.
+
+Folder listings build canonical file/folder metadata and media URLs without creating thumbnails. Thumbnail generation remains lazy in `/api/v1/thumbnails/*`; `/api/v1/pictures/*` and `/api/v1/videos/*` resolve and serve originals independently of thumbnail cache state.
+
 ## Logging
 
 `utils/logger.go` emits JSON-line events with `timestamp`, `level`, `service`, and `message`. Set `LOG_LEVEL` to `DEBUG`, `INFO`, `WARN`, or `ERROR` (default `INFO`). Do not log passwords, worker payloads, signed URLs, headers, or tokens.
