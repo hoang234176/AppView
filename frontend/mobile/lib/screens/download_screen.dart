@@ -308,7 +308,7 @@ class _AddMediaFireArchiveDialogState
 
     final res = await context.read<DownloadProvider>().startCoordinatorDownload(
       url: url,
-      destination: _selectedDest.trim(),
+      destination: canonicalDownloadDestination(_selectedDest),
       password:
           _pwdController.text.trim().isEmpty
               ? null
@@ -641,6 +641,9 @@ class _AddMediaFireArchiveDialogState
 
 class _DownloadScreenState extends State<DownloadScreen> {
   final Map<String, TextEditingController> _pwdControllers = {};
+  final Set<String> _passwordSubmissions = {};
+  final Set<String> _retrySubmissions = {};
+  final Set<String> _cancelSubmissions = {};
 
   @override
   void dispose() {
@@ -661,42 +664,24 @@ class _DownloadScreenState extends State<DownloadScreen> {
   Widget build(BuildContext context) {
     final downloadProvider = context.watch<DownloadProvider>();
     final tasks = downloadProvider.tasks;
-    const activeStages = {
-      'queued',
-      'resolving',
-      'downloading',
-      'waiting_extract',
-      'extracting',
-      'scanning',
-      'converting',
-      'password_required',
-    };
     bool isRetryableDownloadError(DownloadTaskModel task) =>
-        task.stage == 'error' && task.errorCode != 'VIDEO_CONVERT_UNAVAILABLE';
-    bool isCancelledOptimization(DownloadTaskModel task) =>
-        task.stage == 'cancelled' && task.cancelledFromStage == 'converting';
+        DownloadProvider.isRetryableDownload(task);
     final activeTasks =
         tasks
             .where(
               (task) =>
-                  activeStages.contains(task.stage) ||
-                  isRetryableDownloadError(task) ||
-                  isCancelledOptimization(task),
+                  DownloadProvider.isActiveDownload(task) ||
+                  isRetryableDownloadError(task),
             )
             .toList();
     final cancelledTasks =
-        tasks
-            .where(
-              (task) =>
-                  task.stage == 'cancelled' && !isCancelledOptimization(task),
-            )
-            .toList();
+        tasks.where((task) => task.stage == 'cancelled').toList();
     final completedTasks =
         tasks
             .where(
               (task) =>
                   task.stage != 'cancelled' &&
-                  !activeStages.contains(task.stage) &&
+                  !DownloadProvider.isActiveDownload(task) &&
                   !isRetryableDownloadError(task),
             )
             .toList();
@@ -920,11 +905,11 @@ class _DownloadScreenState extends State<DownloadScreen> {
     final isResolving = task.stage == 'resolving' || task.stage == 'queued';
     final isError = task.stage == 'error' || task.stage == 'extract_error';
     final isOptimizationError = task.errorCode == 'VIDEO_CONVERT_UNAVAILABLE';
-    final isPasswordReq =
-        task.stage == 'password_required' || task.passwordRequired;
+    final isPasswordReq = DownloadProvider.needsPassword(task);
     final isCompleted = task.stage == 'completed';
     final isScanning = task.stage == 'scanning';
     final isConverting = task.stage == 'converting';
+	final isVideoDecisionRequired = task.stage == 'video_decision_required';
     final isCancelledOptimization =
         task.stage == 'cancelled' && task.cancelledFromStage == 'converting';
     final convertDisplayIndex =
@@ -1058,7 +1043,9 @@ class _DownloadScreenState extends State<DownloadScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                        ] else if (isConverting) ...[
+						] else if (isVideoDecisionRequired) ...[
+						  const Text('Chọn chất lượng cho từng video', style: TextStyle(fontSize: 11, color: Colors.purpleAccent, fontWeight: FontWeight.w500)),
+						] else if (isConverting) ...[
                           Text(
                             '[$convertDisplayIndex/${task.convertTotal}] Đang tối ưu video...',
                             style: const TextStyle(
@@ -1145,29 +1132,77 @@ class _DownloadScreenState extends State<DownloadScreen> {
 
               // A failed download stays here with its .part file. Reload asks
               // Go to continue it; X deletes that temporary file.
-              if (isError) ...[
+              if (DownloadProvider.isRetryableDownload(task)) ...[
                 IconButton(
                   icon: const Icon(
                     Icons.refresh_rounded,
                     color: AppTheme.googleBlue,
                     size: 18,
                   ),
-                  onPressed: () => provider.retryTask(task.taskId),
+                  onPressed:
+                      _retrySubmissions.contains(task.taskId)
+                          ? null
+                          : () async {
+                            setState(() => _retrySubmissions.add(task.taskId));
+                            await provider.retryTask(task.taskId);
+                            if (!mounted) return;
+                            setState(
+                              () => _retrySubmissions.remove(task.taskId),
+                            );
+                          },
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 4),
               ],
-              IconButton(
-                icon: const Icon(
-                  Icons.close_rounded,
-                  color: Colors.white54,
-                  size: 18,
+              if (DownloadProvider.canCancelDownload(task))
+                IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white70,
+                      size: 16,
+                    ),
+                  ),
+                  onPressed:
+                      _cancelSubmissions.contains(task.taskId)
+                          ? null
+                          : () async {
+                            setState(() => _cancelSubmissions.add(task.taskId));
+                            await provider.cancelTask(task.taskId);
+                            if (!mounted) return;
+                            setState(
+                              () => _cancelSubmissions.remove(task.taskId),
+                            );
+                          },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Hủy tác vụ',
                 ),
-                onPressed: () => provider.deleteTask(task.taskId),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
+              if (!DownloadProvider.canCancelDownload(task))
+                IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white54,
+                      size: 16,
+                    ),
+                  ),
+                  onPressed: () => provider.deleteTask(task.taskId),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Xóa tác vụ',
+                ),
             ],
           ),
 
@@ -1202,6 +1237,20 @@ class _DownloadScreenState extends State<DownloadScreen> {
               ),
             ),
           ],
+
+		  if (task.stage == 'video_decision_required') ...[
+			const SizedBox(height: 12),
+			for (final video in task.videos.where((v) => v.allowedQualities.isNotEmpty))
+			  Container(
+				margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
+				decoration: BoxDecoration(color: Colors.purple.withValues(alpha: .08), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.purple.withValues(alpha: .35))),
+				child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+				  Text(video.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+				  Text('${video.width}×${video.height} • ${Formatters.formatFileSize(video.sourceSizeBytes)}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+				  const SizedBox(height: 6), Wrap(spacing: 6, runSpacing: 5, children: video.allowedQualities.map((quality) => OutlinedButton(onPressed: () => provider.submitVideoDecision(task.taskId, video.id, quality), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), foregroundColor: Colors.purpleAccent, side: BorderSide(color: video.selectedQuality == quality ? Colors.purpleAccent : Colors.purple.withValues(alpha: .5))), child: Text('${quality.toUpperCase()} ~${Formatters.formatFileSize(video.estimates[quality] ?? 0)}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))).toList()),
+				]),
+			  ),
+		  ],
 
           // Password Input Field when required
           if (isPasswordReq) ...[
@@ -1240,12 +1289,26 @@ class _DownloadScreenState extends State<DownloadScreen> {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: () {
-                    final pwd = _getController(task.taskId).text.trim();
-                    if (pwd.isEmpty) return;
-                    provider.submitPassword(task.taskId, pwd);
-                    AppToast.showSuccess(context, 'Đã gửi mật khẩu giải nén!');
-                  },
+                  onPressed:
+                      _passwordSubmissions.contains(task.taskId)
+                          ? null
+                          : () async {
+                            final pwd = _getController(task.taskId).text.trim();
+                            if (pwd.isEmpty) return;
+                            setState(
+                              () => _passwordSubmissions.add(task.taskId),
+                            );
+                            await provider.submitPassword(task.taskId, pwd);
+                            if (!context.mounted) return;
+                            _getController(task.taskId).clear();
+                            setState(
+                              () => _passwordSubmissions.remove(task.taskId),
+                            );
+                            AppToast.showSuccess(
+                              context,
+                              'Đã gửi mật khẩu giải nén!',
+                            );
+                          },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.googleBlue,
                     padding: const EdgeInsets.symmetric(
@@ -1256,9 +1319,14 @@ class _DownloadScreenState extends State<DownloadScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  child: const Text(
-                    'Gửi',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  child: Text(
+                    _passwordSubmissions.contains(task.taskId)
+                        ? 'Đang gửi...'
+                        : 'Thử giải nén',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],

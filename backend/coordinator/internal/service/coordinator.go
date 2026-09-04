@@ -30,6 +30,13 @@ type Coordinator struct {
 		sync.Mutex
 		lastProgress map[string]time.Time
 	}
+	pinnedTasks  sync.Map // map[task ID]Storage worker ID for durable controls
+	busyControls sync.Map // map[task ID]struct{}; completion must not idle an active archive worker
+	storageInfo  struct {
+		sync.RWMutex
+		workerID string
+		value    protocol.StorageInfo
+	}
 }
 
 func New(workers *worker.Registry, tasks *task.Registry, scheduler *scheduler.Scheduler, defaultMaxAttempts int) *Coordinator {
@@ -126,6 +133,131 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 
 func (c *Coordinator) GetDownload(id string) (downloadjob.Job, bool) { return c.downloads.Get(id) }
 func (c *Coordinator) ListDownloads() []downloadjob.Job              { return c.downloads.List() }
+func (c *Coordinator) StorageInfo(workerID string, info *protocol.StorageInfo) error {
+	if info == nil || strings.TrimSpace(info.DisplayName) == "" || info.TotalBytes < 0 || info.UsedBytes < 0 || info.AvailableBytes < 0 {
+		return fmt.Errorf("invalid storage info")
+	}
+	if _, ok := c.workers.Get(workerID); !ok {
+		return fmt.Errorf("unknown storage worker")
+	}
+	c.storageInfo.Lock()
+	c.storageInfo.workerID, c.storageInfo.value = workerID, *info
+	c.storageInfo.Unlock()
+	return nil
+}
+func (c *Coordinator) GetStorageInfo() (protocol.StorageInfo, bool) {
+	c.storageInfo.RLock()
+	defer c.storageInfo.RUnlock()
+	return c.storageInfo.value, c.storageInfo.workerID != ""
+}
+
+// RetryDownload forwards one recovery command to the Storage worker owning
+// the durable archive. The password only lives in this short-lived task
+// payload and never reaches the canonical job projection.
+func (c *Coordinator) RetryDownload(jobID, password string, extractionOnly bool) error {
+	operation := "retry"
+	if extractionOnly {
+		operation = "extract"
+	}
+	return c.controlDownload(jobID, operation, password)
+}
+
+// CancelDownload cooperatively stops the Storage-owned archive workflow while
+// retaining its durable history and already committed/downloaded artifacts.
+func (c *Coordinator) CancelDownload(jobID string) error {
+	job, ok := c.downloads.Get(jobID)
+	if !ok {
+		return fmt.Errorf("download job not found")
+	}
+	if job.State == downloadjob.Completed {
+		return fmt.Errorf("completed download cannot be cancelled")
+	}
+	if job.State == "cancelled" {
+		return nil
+	}
+	return c.controlDownload(jobID, "cancel", "")
+}
+
+// DecideVideo forwards a single persisted per-video quality choice to the
+// owning Storage worker. Coordinator validates only public canonical shape;
+// Storage remains authoritative for allowed options and filesystem work.
+func (c *Coordinator) DecideVideo(jobID, videoID, quality string) error {
+	job, ok := c.downloads.Get(jobID)
+	if !ok {
+		return fmt.Errorf("download job not found")
+	}
+	found := false
+	for _, video := range job.Videos {
+		if video.ID == strings.TrimSpace(videoID) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("video not found")
+	}
+	if strings.TrimSpace(quality) == "" {
+		return fmt.Errorf("quality is required")
+	}
+	return c.controlDownloadPayload(jobID, map[string]string{"operation": "video_decision", "archiveTaskId": job.StorageTaskID, "videoId": videoID, "quality": strings.ToLower(strings.TrimSpace(quality))})
+}
+
+func (c *Coordinator) controlDownload(jobID, operation, password string) error {
+	job, ok := c.downloads.Get(jobID)
+	if !ok {
+		return fmt.Errorf("download job not found")
+	}
+	return c.controlDownloadPayload(jobID, map[string]string{"operation": operation, "archiveTaskId": job.StorageTaskID, "password": password})
+}
+
+func (c *Coordinator) controlDownloadPayload(jobID string, payload map[string]string) error {
+	job, ok := c.downloads.Get(jobID)
+	if !ok {
+		return fmt.Errorf("download job not found")
+	}
+	workerID, found := c.downloads.StorageWorkerForJob(jobID)
+	if !found && job.StorageTaskID != "" {
+		if child, exists := c.tasks.Get(job.StorageTaskID); exists {
+			workerID = child.AssignedWorkerID
+		}
+	}
+	registered, exists := c.workers.Get(workerID)
+	if !exists || !registered.Supports(string(protocol.DownloadFile)) {
+		return fmt.Errorf("owning storage worker is unavailable")
+	}
+	operation := payload["operation"]
+	control, err := c.tasks.Create(task.Task{
+		ID:          newID(),
+		Action:      string(protocol.DownloadFile),
+		Payload:     mustJSON(payload),
+		Retryable:   false,
+		MaxAttempts: c.defaultMaxAttempts,
+	})
+	if err != nil {
+		return err
+	}
+	logging.Event("INFO", "task created", map[string]any{"taskId": control.ID, "action": control.Action})
+	c.pinnedTasks.Store(control.ID, workerID)
+	if (operation == "cancel" || operation == "video_decision") && registered.Status == worker.Busy {
+		// Cancellation is a cooperative control message for the job already
+		// running on this worker; waiting for it to become idle would make
+		// cancel/decision ineffective. It does not start a second archive workflow.
+		assigned, err := c.tasks.Assign(control.ID, workerID)
+		if err != nil {
+			return err
+		}
+		if err := registered.Sender.Send(protocol.Message{Type: protocol.TaskAssign, TaskID: assigned.ID, Action: assigned.Action, Payload: assigned.Payload}); err != nil {
+			c.WorkerDisconnected(workerID)
+			return nil
+		}
+		c.pinnedTasks.Delete(control.ID)
+		c.busyControls.Store(control.ID, struct{}{})
+	} else if err := c.dispatch(control.ID); err != nil {
+		return err
+	}
+	logging.Event("INFO", "download archive retry requested", map[string]any{"jobId": jobID, "operation": operation, "workerId": workerID})
+	return nil
+}
 
 func (c *Coordinator) TaskAccepted(workerID, taskID string) error {
 	_, err := c.tasks.Accept(taskID, workerID)
@@ -150,7 +282,9 @@ func (c *Coordinator) TaskCompleted(workerID, taskID string, result json.RawMess
 	if err != nil {
 		return err
 	}
-	c.workers.SetStatus(workerID, worker.Idle)
+	if _, busyControl := c.busyControls.LoadAndDelete(taskID); !busyControl {
+		c.workers.SetStatus(workerID, worker.Idle)
+	}
 	logging.Event("INFO", "task completed", map[string]any{"taskId": taskID, "workerId": workerID, "action": completed.Action})
 	c.handleDownloadCompletion(completed)
 	return c.dispatchQueued()
@@ -345,7 +479,15 @@ func (c *Coordinator) dispatch(taskID string) error {
 	if !ok || pending.State != task.Queued {
 		return nil
 	}
-	candidate, found := c.scheduler.Select(pending, c.workers.IdleFor(pending.Action))
+	candidates := c.workers.IdleFor(pending.Action)
+	if value, pinned := c.pinnedTasks.Load(taskID); pinned {
+		workerID, _ := value.(string)
+		candidates = nil
+		if candidate, exists := c.workers.Get(workerID); exists && candidate.Status == worker.Idle && candidate.Supports(pending.Action) {
+			candidates = []worker.Worker{candidate}
+		}
+	}
+	candidate, found := c.scheduler.Select(pending, candidates)
 	if !found {
 		return nil
 	}
@@ -361,6 +503,7 @@ func (c *Coordinator) dispatch(taskID string) error {
 		c.WorkerDisconnected(candidate.ID)
 		return nil
 	}
+	c.pinnedTasks.Delete(taskID)
 	logging.Event("INFO", "task assigned", map[string]any{"taskId": assigned.ID, "workerId": candidate.ID, "action": assigned.Action})
 	return nil
 }

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"backend/configs"
+	"backend/events"
 	"backend/utils"
 )
 
@@ -47,6 +48,7 @@ type ArchiveJob struct {
 	ArchiveExtracted  bool
 	VideoScanState    string
 	TotalVideoCount   int
+	Videos            []VideoOptimization
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	archivePath       string
@@ -73,17 +75,18 @@ type ArchiveJobSnapshot struct {
 		Current int `json:"current"`
 		Failed  int `json:"failed"`
 	} `json:"conversion"`
-	ErrorCode         string    `json:"error_code,omitempty"`
-	Error             string    `json:"error,omitempty"`
-	PasswordNeeded    bool      `json:"password_required"`
-	ArchiveDownloaded bool      `json:"archive_downloaded"`
-	ArchiveExtracted  bool      `json:"archive_extracted"`
-	VideoScanState    string    `json:"video_scan_state,omitempty"`
-	TotalVideoCount   int       `json:"total_video_count,omitempty"`
-	InvalidVideoCount int       `json:"invalid_video_count,omitempty"`
-	ExtractedName     string    `json:"extracted_name,omitempty"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ErrorCode         string              `json:"error_code,omitempty"`
+	Error             string              `json:"error,omitempty"`
+	PasswordNeeded    bool                `json:"password_required"`
+	ArchiveDownloaded bool                `json:"archive_downloaded"`
+	ArchiveExtracted  bool                `json:"archive_extracted"`
+	VideoScanState    string              `json:"video_scan_state,omitempty"`
+	TotalVideoCount   int                 `json:"total_video_count,omitempty"`
+	InvalidVideoCount int                 `json:"invalid_video_count,omitempty"`
+	Videos            []VideoOptimization `json:"videos,omitempty"`
+	ExtractedName     string              `json:"extracted_name,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	UpdatedAt         time.Time           `json:"updated_at"`
 }
 
 // persistedArchiveJob is deliberately separate from ArchiveJob. It is the
@@ -102,7 +105,12 @@ var archiveJobs = struct {
 
 func safeArchivePath(relative string) (string, error) {
 	root := filepath.Clean(configs.DEFAULT_ROOT_PATH)
-	clean := filepath.Clean(strings.TrimSpace(relative))
+	// Public clients use absolute logical paths below Storage's configured root
+	// (for example /Test or /Albums/Test). No library segment is implicit.
+	// Strip only leading separators before joining, so filepath.Join can never
+	// discard ROOT_PATH; traversal remains rejected below.
+	logical := strings.TrimLeft(strings.TrimSpace(relative), "/\\")
+	clean := filepath.Clean(logical)
 	if clean == "." || clean == "" {
 		return root, nil
 	}
@@ -197,6 +205,7 @@ func archiveJobSnapshot(job *ArchiveJob) ArchiveJobSnapshot {
 	result.ArchiveDownloaded, result.ArchiveExtracted = job.ArchiveDownloaded, job.ArchiveExtracted
 	result.VideoScanState, result.TotalVideoCount, result.ExtractedName = job.VideoScanState, job.TotalVideoCount, job.extractedName
 	result.InvalidVideoCount = job.ConvertTotal
+	result.Videos = append([]VideoOptimization(nil), job.Videos...)
 	result.CreatedAt, result.UpdatedAt = job.CreatedAt, job.UpdatedAt
 	return result
 }
@@ -274,6 +283,7 @@ func LoadPersistentArchiveJobs() {
 			ErrorCode: snapshot.ErrorCode, Error: snapshot.Error, PasswordNeeded: snapshot.PasswordNeeded,
 			ArchiveDownloaded: snapshot.ArchiveDownloaded, ArchiveExtracted: snapshot.ArchiveExtracted,
 			VideoScanState: snapshot.VideoScanState, TotalVideoCount: snapshot.TotalVideoCount,
+			Videos:    append([]VideoOptimization(nil), snapshot.Videos...),
 			CreatedAt: snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt, ctx: ctx, cancel: cancel,
 		}
 		if job.CanonicalID == "" {
@@ -308,7 +318,7 @@ func LoadPersistentArchiveJobs() {
 
 func isActiveArchiveStage(stage string) bool {
 	switch stage {
-	case "queued", "downloading", "extracting", "scanning", "converting", "finalizing":
+	case "queued", "downloading", "extracting", "scanning", "video_decision_required", "converting", "finalizing":
 		return true
 	default:
 		return false
@@ -455,6 +465,65 @@ func CancelArchiveJob(id string) bool {
 	CancelConvertJob(id)
 	setArchiveStage(job, "cancelled")
 	return true
+}
+
+// SetVideoDecision persists one independent choice.  It never trusts a UI
+// index, never accepts an upscale, and begins conversion only once every
+// video that needs a selector has a valid decision.
+func SetVideoDecision(id, videoID, quality string) error {
+	archiveJobs.RLock()
+	job := archiveJobs.items[id]
+	archiveJobs.RUnlock()
+	if job == nil {
+		return fmt.Errorf("không tìm thấy archive job")
+	}
+	quality = strings.ToLower(strings.TrimSpace(quality))
+	job.mu.Lock()
+	if job.Stage != "video_decision_required" && job.Stage != "converting" {
+		job.mu.Unlock()
+		return fmt.Errorf("job không chờ quyết định video")
+	}
+	found := false
+	for i := range job.Videos {
+		video := &job.Videos[i]
+		if video.ID != videoID {
+			continue
+		}
+		found = true
+		allowed := false
+		for _, option := range video.AllowedQualities {
+			if option == quality {
+				allowed = true
+				break
+			}
+		}
+		if len(video.AllowedQualities) == 0 || !allowed {
+			job.mu.Unlock()
+			return fmt.Errorf("chất lượng không được hỗ trợ")
+		}
+		video.SelectedQuality, video.State, video.Error = quality, "ready", ""
+		break
+	}
+	if !found {
+		job.mu.Unlock()
+		return fmt.Errorf("không tìm thấy video")
+	}
+	ready := true
+	for _, video := range job.Videos {
+		if video.OptimizationNeeded && video.SelectedQuality == "" {
+			ready = false
+			break
+		}
+	}
+	job.UpdatedAt = time.Now().UTC()
+	folder := job.extractedPath
+	ctx := job.ctx
+	job.mu.Unlock()
+	persistArchiveJob(job)
+	if ready && folder != "" {
+		go runSelectedArchiveConversion(job, folder, ctx)
+	}
+	return nil
 }
 
 func DeleteArchiveJob(id string) {
@@ -739,6 +808,16 @@ func commitArchiveResult(job *ArchiveJob) error {
 	if err := os.Rename(partialPath, finalPath); err != nil {
 		return fmt.Errorf("không thể hoàn tất chuyển thư mục kết quả: %w", err)
 	}
+	// The SSD workspace is private. Emit one public destination invalidation
+	// only after its atomic final rename has succeeded.
+	publicPath := filepath.ToSlash(filepath.Join(job.Destination, filepath.Base(finalPath)))
+	parentPath := filepath.ToSlash(filepath.Clean(job.Destination))
+	if parentPath == "." {
+		parentPath = ""
+	}
+	if err := events.Publish(events.FilesystemEvent{Type: "folder_created", Path: publicPath, NewPath: publicPath, ParentPath: parentPath}); err != nil {
+		LogInfo("[ARCHIVE] [%s] không phát được filesystem event sau commit: %v", job.ID, err)
+	}
 	if workspace, err := archiveWorkspace(job.ID); err == nil {
 		if err := os.RemoveAll(workspace); err != nil {
 			LogInfo("[ARCHIVE] [%s] đã chuyển xong nhưng chưa dọn workspace %s: %v", job.ID, workspace, err)
@@ -828,12 +907,18 @@ func startArchiveConversion(job *ArchiveJob, folder string) {
 		case <-ctx.Done():
 			return
 		}
-		invalidTotal, videoTotal := StartConvertJobWithContextSummary(ctx, job.ID, folder)
+		videos := ScanVideoOptimizations(ctx, folder)
 		if ctx.Err() != nil {
 			return
 		}
+		invalidTotal := 0
+		for _, video := range videos {
+			if video.OptimizationNeeded {
+				invalidTotal++
+			}
+		}
 		job.mu.Lock()
-		job.ConvertTotal, job.TotalVideoCount, job.VideoScanState, job.UpdatedAt = invalidTotal, videoTotal, "completed", time.Now().UTC()
+		job.Videos, job.ConvertTotal, job.TotalVideoCount, job.VideoScanState, job.UpdatedAt = videos, invalidTotal, len(videos), "completed", time.Now().UTC()
 		job.mu.Unlock()
 		persistArchiveJob(job)
 		if invalidTotal == 0 {
@@ -846,7 +931,37 @@ func startArchiveConversion(job *ArchiveJob, folder string) {
 			setArchiveStage(job, "completed")
 			return
 		}
-		setArchiveStage(job, "converting")
+		needsDecision := false
+		for _, video := range videos {
+			if video.OptimizationNeeded && video.SelectedQuality == "" {
+				needsDecision = true
+				break
+			}
+		}
+		if needsDecision {
+			setArchiveStage(job, "video_decision_required")
+			return
+		}
+		runSelectedArchiveConversion(job, folder, ctx)
+	}()
+}
+
+func runSelectedArchiveConversion(job *ArchiveJob, folder string, ctx context.Context) {
+	job.mu.Lock()
+	if job.Stage == "converting" {
+		job.mu.Unlock()
+		return
+	}
+	plans := make(map[string]string)
+	for _, video := range job.Videos {
+		if video.OptimizationNeeded {
+			plans[video.RelativePath] = video.SelectedQuality
+		}
+	}
+	job.mu.Unlock()
+	setArchiveStage(job, "converting")
+	go func() {
+		invalidTotal, _ := StartConvertJobWithContextPlans(ctx, job.ID, folder, plans)
 		for {
 			select {
 			case <-time.After(time.Second):

@@ -3,23 +3,25 @@
 package worker
 
 import (
+	pythonapi "backend/api/python"
 	"backend/events"
 	"encoding/json"
 	"time"
 )
 
 const (
-	WorkerRegister   = "worker.register"
-	WorkerRegistered = "worker.registered"
-	WorkerHeartbeat  = "worker.heartbeat"
-	TaskAssign       = "task.assign"
-	TaskAccepted     = "task.accepted"
-	TaskProgress     = "task.progress"
-	TaskCompleted    = "task.completed"
-	TaskFailed       = "task.failed"
-	ProtocolError    = "error"
-	FilesystemEvent  = "filesystem_event"
-	StorageHistory   = "storage.history"
+	WorkerRegister     = "worker.register"
+	WorkerRegistered   = "worker.registered"
+	WorkerHeartbeat    = "worker.heartbeat"
+	TaskAssign         = "task.assign"
+	TaskAccepted       = "task.accepted"
+	TaskProgress       = "task.progress"
+	TaskCompleted      = "task.completed"
+	TaskFailed         = "task.failed"
+	ProtocolError      = "error"
+	FilesystemEvent    = "filesystem_event"
+	StorageHistory     = "storage.history"
+	StorageInfoMessage = "storage.info"
 
 	CapabilityDownloadFile = "download_file"
 )
@@ -36,6 +38,7 @@ type Message struct {
 	Error          *ErrorPayload           `json:"error,omitempty"`
 	Event          *events.FilesystemEvent `json:"event,omitempty"`
 	StorageHistory *StorageHistoryPayload  `json:"storageHistory,omitempty"`
+	StorageInfo    *StorageInfo            `json:"storageInfo,omitempty"`
 }
 
 // StorageHistoryPayload contains safe durable metadata only. Workspace paths,
@@ -45,29 +48,30 @@ type StorageHistoryPayload struct {
 }
 
 type StorageJobSnapshot struct {
-	ID                string    `json:"id"`
-	CanonicalID       string    `json:"canonicalJobId,omitempty"`
-	SourceURL         string    `json:"sourceUrl,omitempty"`
-	Filename          string    `json:"filename"`
-	Destination       string    `json:"destination,omitempty"`
-	State             string    `json:"state"`
-	DownloadedBytes   int64     `json:"downloadedBytes,omitempty"`
-	TotalBytes        int64     `json:"totalBytes,omitempty"`
-	SpeedBytes        int64     `json:"speedBytes,omitempty"`
-	ExtractedPercent  float64   `json:"extractedPercent,omitempty"`
-	ConversionTotal   int       `json:"conversionTotal,omitempty"`
-	ConversionCurrent int       `json:"conversionCurrent,omitempty"`
-	ConversionFailed  int       `json:"conversionFailed,omitempty"`
-	ErrorCode         string    `json:"errorCode,omitempty"`
-	Error             string    `json:"error,omitempty"`
-	PasswordRequired  bool      `json:"passwordRequired"`
-	ArchiveDownloaded bool      `json:"archiveDownloaded"`
-	ArchiveExtracted  bool      `json:"archiveExtracted"`
-	VideoScanState    string    `json:"videoScanState,omitempty"`
-	TotalVideoCount   int       `json:"totalVideoCount,omitempty"`
-	InvalidVideoCount int       `json:"invalidVideoCount,omitempty"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID                string                        `json:"id"`
+	CanonicalID       string                        `json:"canonicalJobId,omitempty"`
+	SourceURL         string                        `json:"sourceUrl,omitempty"`
+	Filename          string                        `json:"filename"`
+	Destination       string                        `json:"destination,omitempty"`
+	State             string                        `json:"state"`
+	DownloadedBytes   int64                         `json:"downloadedBytes,omitempty"`
+	TotalBytes        int64                         `json:"totalBytes,omitempty"`
+	SpeedBytes        int64                         `json:"speedBytes,omitempty"`
+	ExtractedPercent  float64                       `json:"extractedPercent,omitempty"`
+	ConversionTotal   int                           `json:"conversionTotal,omitempty"`
+	ConversionCurrent int                           `json:"conversionCurrent,omitempty"`
+	ConversionFailed  int                           `json:"conversionFailed,omitempty"`
+	ErrorCode         string                        `json:"errorCode,omitempty"`
+	Error             string                        `json:"error,omitempty"`
+	PasswordRequired  bool                          `json:"passwordRequired"`
+	ArchiveDownloaded bool                          `json:"archiveDownloaded"`
+	ArchiveExtracted  bool                          `json:"archiveExtracted"`
+	VideoScanState    string                        `json:"videoScanState,omitempty"`
+	TotalVideoCount   int                           `json:"totalVideoCount,omitempty"`
+	InvalidVideoCount int                           `json:"invalidVideoCount,omitempty"`
+	Videos            []pythonapi.VideoOptimization `json:"videos,omitempty"`
+	CreatedAt         time.Time                     `json:"createdAt"`
+	UpdatedAt         time.Time                     `json:"updatedAt"`
 }
 
 type ErrorPayload struct {

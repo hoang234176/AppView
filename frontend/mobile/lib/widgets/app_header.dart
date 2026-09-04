@@ -9,10 +9,7 @@ import '../screens/download_screen.dart';
 class AppHeader extends StatefulWidget {
   final VoidCallback onOpenDrawer;
 
-  const AppHeader({
-    super.key,
-    required this.onOpenDrawer,
-  });
+  const AppHeader({super.key, required this.onOpenDrawer});
 
   @override
   State<AppHeader> createState() => _AppHeaderState();
@@ -83,9 +80,10 @@ class _AppHeaderState extends State<AppHeader>
                 ),
               ],
             ),
-            child: _isSearching
-                ? _buildSearchBar(appState)
-                : _buildDefaultHeader(appState),
+            child:
+                _isSearching
+                    ? _buildSearchBar(appState)
+                    : _buildDefaultHeader(appState),
           ),
         );
       },
@@ -97,35 +95,37 @@ class _AppHeaderState extends State<AppHeader>
     final activeCount = downloadProvider.activeCount;
     final isDownloading = downloadProvider.isDownloadingMode;
     final percent = downloadProvider.aggregatePercent;
-    final hasPasswordError = downloadProvider.hasPasswordError;
+    final hasPasswordError = downloadProvider.hasDownloadAttention;
     final isScanning = downloadProvider.isScanning;
     final isConverting = downloadProvider.isConverting;
 
     // Màu icon download theo từng stage (đồng bộ với Web)
-    final Color iconColor = activeCount > 0
-        ? hasPasswordError
-            ? Colors.redAccent
-            : isConverting
+    final Color iconColor =
+        activeCount > 0
+            ? hasPasswordError
+                ? Colors.amberAccent
+                : isConverting
                 ? Colors.purpleAccent
                 : isScanning
-                    ? Colors.greenAccent
-                    : isDownloading
-                        ? AppTheme.googleBlue
-                        : Colors.orangeAccent
-        : Colors.white70;
+                ? Colors.greenAccent
+                : isDownloading
+                ? AppTheme.googleBlue
+                : Colors.orangeAccent
+            : Colors.white70;
 
     // Màu progress ring
-    final Color ringColor = activeCount > 0
-        ? hasPasswordError
-            ? Colors.redAccent
-            : isConverting
+    final Color ringColor =
+        activeCount > 0
+            ? hasPasswordError
+                ? Colors.amberAccent
+                : isConverting
                 ? Colors.purpleAccent
                 : isScanning
-                    ? Colors.greenAccent
-                    : isDownloading
-                        ? AppTheme.googleBlue
-                        : Colors.orangeAccent
-        : Colors.transparent;
+                ? Colors.greenAccent
+                : isDownloading
+                ? AppTheme.googleBlue
+                : Colors.orangeAccent
+            : Colors.transparent;
 
     final double? progressValue =
         isDownloading && percent > 0 ? (percent / 100.0).clamp(0.0, 1.0) : null;
@@ -135,7 +135,11 @@ class _AppHeaderState extends State<AppHeader>
         // Drawer Menu Hamburger Button
         IconButton(
           onPressed: widget.onOpenDrawer,
-          icon: const Icon(Icons.menu_rounded, color: AppTheme.googleBlue, size: 22),
+          icon: const Icon(
+            Icons.menu_rounded,
+            color: AppTheme.googleBlue,
+            size: 22,
+          ),
           tooltip: 'Mở danh mục thư mục',
           style: IconButton.styleFrom(
             backgroundColor: AppTheme.bgCard,
@@ -208,7 +212,11 @@ class _AppHeaderState extends State<AppHeader>
         // Download Header Action Button — icon + ring đồng bộ màu theo stage
         GestureDetector(
           onTap: () {
-            DownloadScreen.navigateTo(context, currentPath: appState.currentPath);
+            if (!appState.isServerConnected) return;
+            DownloadScreen.navigateTo(
+              context,
+              currentPath: appState.currentPath,
+            );
           },
           child: AnimatedContainer(
             width: 40,
@@ -247,8 +255,10 @@ class _AppHeaderState extends State<AppHeader>
                       size: const Size(18, 18),
                       painter: _DownloadIconPainter(
                         color: iconColor,
-                        arrowOffset: isActiveDownload ? _arrowOffsetAt(phase) : 0,
-                        arrowOpacity: isActiveDownload ? _arrowOpacityAt(phase) : 1,
+                        arrowOffset:
+                            isActiveDownload ? _arrowOffsetAt(phase) : 0,
+                        arrowOpacity:
+                            isActiveDownload ? _arrowOpacityAt(phase) : 1,
                       ),
                     );
                   },
@@ -262,7 +272,7 @@ class _AppHeaderState extends State<AppHeader>
                       width: 7,
                       height: 7,
                       decoration: const BoxDecoration(
-                        color: Colors.redAccent,
+                        color: Colors.amberAccent,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -283,7 +293,11 @@ class _AppHeaderState extends State<AppHeader>
             setState(() => _isSearching = false);
             appState.clearSearch();
           },
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
           tooltip: 'Đóng tìm kiếm',
           style: IconButton.styleFrom(
             backgroundColor: AppTheme.bgCard,
@@ -302,7 +316,9 @@ class _AppHeaderState extends State<AppHeader>
             decoration: BoxDecoration(
               color: AppTheme.bgCard,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppTheme.googleBlue.withValues(alpha: 0.8)),
+              border: Border.all(
+                color: AppTheme.googleBlue.withValues(alpha: 0.8),
+              ),
             ),
             child: TextField(
               controller: _searchController,
@@ -315,24 +331,48 @@ class _AppHeaderState extends State<AppHeader>
                 isDense: true,
                 filled: false,
                 hintText: 'Tìm kiếm ảnh, video và thư mục...',
-                hintStyle: const TextStyle(color: Color(0xFF80868B), fontSize: 14),
-                prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.googleBlue, size: 18),
-                prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                suffixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear_rounded, color: Colors.grey, size: 16),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                        splashRadius: 16,
-                        onPressed: () {
-                          _searchController.clear();
-                          appState.clearSearch();
-                          setState(() {});
-                        },
-                      )
-                    : null,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                hintStyle: const TextStyle(
+                  color: Color(0xFF80868B),
+                  fontSize: 14,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: AppTheme.googleBlue,
+                  size: 18,
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 36,
+                  minHeight: 36,
+                ),
+                suffixIconConstraints: const BoxConstraints(
+                  minWidth: 36,
+                  minHeight: 36,
+                ),
+                suffixIcon:
+                    _searchController.text.isNotEmpty
+                        ? IconButton(
+                          icon: const Icon(
+                            Icons.clear_rounded,
+                            color: Colors.grey,
+                            size: 16,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
+                          splashRadius: 16,
+                          onPressed: () {
+                            _searchController.clear();
+                            appState.clearSearch();
+                            setState(() {});
+                          },
+                        )
+                        : null,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 8,
+                ),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
@@ -364,12 +404,13 @@ class _DownloadIconPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.8
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = 1.8
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke;
 
     final double w = size.width;
     final double h = size.height;
@@ -381,29 +422,35 @@ class _DownloadIconPainter extends CustomPainter {
     canvas.drawLine(Offset(w * 0.5, h * 0.1), Offset(w * 0.5, h * 0.58), paint);
 
     // Chevron: \ /
-    final arrowPath = Path()
-      ..moveTo(w * 0.28, h * 0.38)
-      ..lineTo(w * 0.5, h * 0.60)
-      ..lineTo(w * 0.72, h * 0.38);
+    final arrowPath =
+        Path()
+          ..moveTo(w * 0.28, h * 0.38)
+          ..lineTo(w * 0.5, h * 0.60)
+          ..lineTo(w * 0.72, h * 0.38);
     canvas.drawPath(arrowPath, paint);
     canvas.restore();
 
     // Khay chữ U giống hệt SVG web: đáy thẳng, chỉ bo nhẹ hai góc.
     // Không dùng arcToPoint lớn vì nó biến khay thành nửa vòng tròn.
     paint.color = color;
-    final trayPath = Path()
-      ..moveTo(w * (4 / 24), h * (15.5 / 24))
-      ..lineTo(w * (4 / 24), h * (18.5 / 24))
-      ..quadraticBezierTo(
-        w * (4 / 24), h * (20 / 24),
-        w * (5.5 / 24), h * (20 / 24),
-      )
-      ..lineTo(w * (18.5 / 24), h * (20 / 24))
-      ..quadraticBezierTo(
-        w * (20 / 24), h * (20 / 24),
-        w * (20 / 24), h * (18.5 / 24),
-      )
-      ..lineTo(w * (20 / 24), h * (15.5 / 24));
+    final trayPath =
+        Path()
+          ..moveTo(w * (4 / 24), h * (15.5 / 24))
+          ..lineTo(w * (4 / 24), h * (18.5 / 24))
+          ..quadraticBezierTo(
+            w * (4 / 24),
+            h * (20 / 24),
+            w * (5.5 / 24),
+            h * (20 / 24),
+          )
+          ..lineTo(w * (18.5 / 24), h * (20 / 24))
+          ..quadraticBezierTo(
+            w * (20 / 24),
+            h * (20 / 24),
+            w * (20 / 24),
+            h * (18.5 / 24),
+          )
+          ..lineTo(w * (20 / 24), h * (15.5 / 24));
     canvas.drawPath(trayPath, paint);
   }
 

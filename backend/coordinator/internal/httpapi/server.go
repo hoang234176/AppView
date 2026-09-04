@@ -13,6 +13,11 @@ func Register(mux *http.ServeMux, coordinator *service.Coordinator) {
 	mux.HandleFunc("GET /api/v1/tasks/{id}", api.Get)
 	mux.HandleFunc("POST /api/v1/download", downloads.Create)
 	mux.HandleFunc("GET /api/v1/download", downloads.List)
+	mux.HandleFunc("GET /api/v1/storage", downloads.StorageInfo)
 	mux.HandleFunc("GET /api/v1/download/{id}", downloads.Get)
+	mux.HandleFunc("POST /api/v1/download/{id}/retry", downloads.Retry)
+	mux.HandleFunc("POST /api/v1/download/{id}/extract", downloads.Extract)
+	mux.HandleFunc("POST /api/v1/download/{id}/cancel", downloads.Cancel)
+	mux.HandleFunc("POST /api/v1/download/{id}/videos/{videoId}/decision", downloads.DecideVideo)
 	mux.HandleFunc("GET /health", Health(coordinator))
 }

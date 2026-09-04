@@ -97,6 +97,31 @@ func TestDownloadCreatesResolveThenExactlyOneStorageTask(t *testing.T) {
 	}
 }
 
+func TestDownloadPreservesSelectedLogicalDestinationForStorage(t *testing.T) {
+	for _, destination := range []string{"/", "/Test", "/Test/Subfolder", "/Albums/Test", "/Ảnh #1/玉汇"} {
+		t.Run(destination, func(t *testing.T) {
+			coordinator, _, storage := newDownloadCoordinator(t)
+			job, err := coordinator.CreateDownload(DownloadRequest{URL: "https://example.test/file", Destination: destination})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := coordinator.TaskAccepted("resolver", job.ResolveTaskID); err != nil {
+				t.Fatal(err)
+			}
+			if err := coordinator.TaskCompleted("resolver", job.ResolveTaskID, resolveResult("https://direct.test/file.zip", "file.zip")); err != nil {
+				t.Fatal(err)
+			}
+			var payload map[string]string
+			if err := json.Unmarshal(storage.assignments()[0].Payload, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["destination"] != destination {
+				t.Fatalf("destination was changed: %#v", payload)
+			}
+		})
+	}
+}
+
 func TestDownloadResolveFailureDoesNotCreateStorageTask(t *testing.T) {
 	coordinator, _, storage := newDownloadCoordinator(t)
 	job, err := coordinator.CreateDownload(DownloadRequest{URL: "https://example.test"})
@@ -147,6 +172,87 @@ func TestDownloadStorageCompletionAndFailurePropagate(t *testing.T) {
 				t.Fatalf("unexpected terminal parent: %#v", updated)
 			}
 		})
+	}
+}
+
+func TestPasswordRequiredRemainsRecoverableParentState(t *testing.T) {
+	coordinator, _, _ := newDownloadCoordinator(t)
+	job, _ := coordinator.CreateDownload(DownloadRequest{URL: "https://example.test"})
+	_ = coordinator.TaskAccepted("resolver", job.ResolveTaskID)
+	_ = coordinator.TaskCompleted("resolver", job.ResolveTaskID, resolveResult("https://direct.test/file.zip", "file.zip"))
+	current, _ := coordinator.GetDownload(job.ID)
+	_ = coordinator.TaskAccepted("storage", current.StorageTaskID)
+	if err := coordinator.TaskFailed("storage", current.StorageTaskID, &protocol.ErrorPayload{Code: "PASSWORD_REQUIRED", Message: "safe"}); err != nil {
+		t.Fatal(err)
+	}
+	updated, _ := coordinator.GetDownload(job.ID)
+	if updated.State != "password_required" || updated.Stage != "password_required" || !updated.PasswordRequired {
+		t.Fatalf("password request was made terminal: %#v", updated)
+	}
+}
+
+func TestPasswordRetryUsesPinnedStorageControlTask(t *testing.T) {
+	coordinator, _, storage := newDownloadCoordinator(t)
+	job, _ := coordinator.CreateDownload(DownloadRequest{URL: "https://example.test"})
+	_ = coordinator.TaskAccepted("resolver", job.ResolveTaskID)
+	_ = coordinator.TaskCompleted("resolver", job.ResolveTaskID, resolveResult("https://direct.test/file.zip", "file.zip"))
+	current, _ := coordinator.GetDownload(job.ID)
+	_ = coordinator.TaskAccepted("storage", current.StorageTaskID)
+	_ = coordinator.TaskFailed("storage", current.StorageTaskID, &protocol.ErrorPayload{Code: "PASSWORD_REQUIRED", Message: "safe"})
+	otherStorage := &lockedSender{}
+	if err := coordinator.RegisterWorker("a-different-storage", []protocol.Capability{protocol.DownloadFile}, otherStorage); err != nil {
+		t.Fatal(err)
+	}
+	if err := coordinator.RetryDownload(job.ID, "secret-password", true); err != nil {
+		t.Fatal(err)
+	}
+	assignments := storage.assignments()
+	if len(assignments) != 2 {
+		t.Fatalf("assignments = %#v", assignments)
+	}
+	var control map[string]string
+	if err := json.Unmarshal(assignments[1].Payload, &control); err != nil {
+		t.Fatal(err)
+	}
+	if control["operation"] != "extract" || control["archiveTaskId"] != current.StorageTaskID || control["password"] != "secret-password" {
+		t.Fatalf("unexpected control payload: %#v", control)
+	}
+	if len(otherStorage.assignments()) != 0 {
+		t.Fatalf("control was routed to an unrelated storage worker: %#v", otherStorage.assignments())
+	}
+	encoded, _ := json.Marshal(func() any { value, _ := coordinator.GetDownload(job.ID); return value }())
+	if strings.Contains(string(encoded), "secret-password") {
+		t.Fatalf("password leaked in parent job: %s", encoded)
+	}
+}
+
+func TestCancelUsesPinnedStorageControlAndPreservesCancelledState(t *testing.T) {
+	coordinator, _, storage := newDownloadCoordinator(t)
+	job, _ := coordinator.CreateDownload(DownloadRequest{URL: "https://example.test"})
+	_ = coordinator.TaskAccepted("resolver", job.ResolveTaskID)
+	_ = coordinator.TaskCompleted("resolver", job.ResolveTaskID, resolveResult("https://direct.test/file.zip", "file.zip"))
+	current, _ := coordinator.GetDownload(job.ID)
+	_ = coordinator.TaskAccepted("storage", current.StorageTaskID)
+	if err := coordinator.CancelDownload(job.ID); err != nil {
+		t.Fatal(err)
+	}
+	assignments := storage.assignments()
+	var control map[string]string
+	if err := json.Unmarshal(assignments[len(assignments)-1].Payload, &control); err != nil {
+		t.Fatal(err)
+	}
+	if control["operation"] != "cancel" || control["archiveTaskId"] != current.StorageTaskID {
+		t.Fatalf("control=%#v", control)
+	}
+	if err := coordinator.TaskFailed("storage", current.StorageTaskID, &protocol.ErrorPayload{Code: "STORAGE_JOB_CANCELLED", Message: "safe"}); err != nil {
+		t.Fatal(err)
+	}
+	updated, _ := coordinator.GetDownload(job.ID)
+	if updated.State != "cancelled" || updated.Stage != "cancelled" {
+		t.Fatalf("cancel state=%#v", updated)
+	}
+	if err := coordinator.CancelDownload(job.ID); err != nil {
+		t.Fatalf("repeat cancel must be idempotent: %v", err)
 	}
 }
 

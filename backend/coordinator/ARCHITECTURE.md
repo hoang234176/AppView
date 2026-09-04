@@ -88,6 +88,9 @@ Minimal standard-library HTTP API: task creation/query and health. Inspect for c
 | `POST` | `/api/v1/download` | Create a parent two-stage resolve-to-Storage download job. |
 | `GET` | `/api/v1/download` | Return current Coordinator parent-job snapshots, newest first. |
 | `GET` | `/api/v1/download/{id}` | Return its in-memory parent job snapshot. |
+| `POST` | `/api/v1/download/{id}/retry` | Ask the owning Storage worker to resume its durable archive without re-downloading completed artifacts. |
+| `POST` | `/api/v1/download/{id}/extract` | Forward a transient password to the owning Storage worker for extraction-only retry. |
+| `POST` | `/api/v1/download/{id}/cancel` | Cooperatively cancel the owning Storage archive workflow while retaining its history. |
 | `GET` | configured `/ws/workers` | Worker WebSocket upgrade. |
 | `GET` | `/ws/events` | Frontend filesystem/download invalidation WebSocket. |
 

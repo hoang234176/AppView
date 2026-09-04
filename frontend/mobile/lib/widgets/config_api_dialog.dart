@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/settings_provider.dart';
 import '../providers/app_state_provider.dart';
+import '../api/api_config.dart';
+import '../api/download_api.dart';
 import '../api/cache_api.dart';
+import '../utils/formatters.dart';
 import 'app_toast.dart';
 
 class ConfigApiDialog extends StatefulWidget {
@@ -22,18 +25,20 @@ class ConfigApiDialog extends StatefulWidget {
 }
 
 class _ConfigApiDialogState extends State<ConfigApiDialog> {
-  late TextEditingController _ipController;
-  late TextEditingController _portController;
-  late TextEditingController _rootPathController;
+  late TextEditingController _hostController;
 
   bool _isSavingServer = false;
   bool _isClearingCache = false;
   String? _errorMessage;
   String? _cacheMsg;
+  StorageInfoModel? _storageInfo;
+  bool _isLoadingStorage = false;
+  bool _isCheckingConnection = false;
+  bool _isConnected = false;
 
   // Collapsible Accordion States
-  bool _openSection1 = true;
-  bool _openSection2 = true;
+  bool _openSection1 = false;
+  bool _openSection2 = false;
 
   CacheInfoData? _cacheInfo;
 
@@ -41,19 +46,51 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   void initState() {
     super.initState();
     final settings = context.read<SettingsProvider>();
-    _ipController = TextEditingController(text: settings.serverIp);
-    _portController = TextEditingController(text: settings.serverPort);
-    _rootPathController = TextEditingController(text: settings.rootFolderPath);
-
+    _hostController = TextEditingController(text: settings.serverHost);
     _loadCacheInfo();
+    _checkCurrentConnectionAndLoadStorage();
   }
 
   @override
   void dispose() {
-    _ipController.dispose();
-    _portController.dispose();
-    _rootPathController.dispose();
+    _hostController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkCurrentConnectionAndLoadStorage() async {
+    final host = _hostController.text.trim();
+    if (host.isEmpty) return;
+
+    setState(() {
+      _isCheckingConnection = true;
+    });
+
+    final valRes = await ApiConfig.validateCoordinatorHost(host);
+    if (!mounted) return;
+
+    if (valRes['success'] == true) {
+      setState(() {
+        _isCheckingConnection = false;
+        _isConnected = true;
+        _isLoadingStorage = true;
+      });
+      final storageData = await DownloadApi.fetchCoordinatorStorageInfo();
+      if (!mounted) return;
+      setState(() {
+        _storageInfo = storageData;
+        _isLoadingStorage = false;
+      });
+    } else {
+      await context.read<AppStateProvider>().stopRealtimeAndClearState(
+        valRes['message']?.toString() ?? 'Không thể kết nối máy chủ.',
+      );
+      if (!mounted) return;
+      setState(() {
+        _isCheckingConnection = false;
+        _isConnected = false;
+        _storageInfo = null;
+      });
+    }
   }
 
   Future<void> _loadCacheInfo() async {
@@ -67,38 +104,72 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
 
   // Save Server Config (Section 1)
   Future<void> _handleSaveServer() async {
-    final ip = _ipController.text.trim();
-    final port = _portController.text.trim();
-    final rootPath = _rootPathController.text.trim();
+    final host = _hostController.text.trim();
 
-    if (ip.isEmpty || port.isEmpty || rootPath.isEmpty) {
+    if (host.isEmpty) {
       setState(() {
-        _errorMessage =
-            'Vui lòng nhập đầy đủ tất cả các trường: IP, Cổng và Đường dẫn thư mục gốc.';
+        _errorMessage = 'Vui lòng nhập Server Host (hostname hoặc địa chỉ IP).';
       });
       return;
     }
 
     setState(() {
       _isSavingServer = true;
+      _isCheckingConnection = true;
       _errorMessage = null;
     });
 
     final settings = context.read<SettingsProvider>();
     final appState = context.read<AppStateProvider>();
-    final success = await settings.updateServerConfig(
-      ip: ip,
-      port: port,
-      rootFolderPath: rootPath,
-    );
+    final valRes = await ApiConfig.validateCoordinatorHost(host);
+    if (!mounted) return;
+
+    if (valRes['success'] != true) {
+      await settings.updateServerConfig(host: host);
+      if (!mounted) return;
+      await appState.stopRealtimeAndClearState(
+        'Lỗi kết nối máy chủ: ${valRes['message'] ?? 'Không thể kết nối.'}',
+      );
+      if (!mounted) return;
+      setState(() {
+        _isSavingServer = false;
+        _isCheckingConnection = false;
+        _isConnected = false;
+        _errorMessage = valRes['message'] ?? 'Không thể kết nối đến máy chủ.';
+      });
+      return;
+    }
+    final success = await settings.updateServerConfig(host: host);
 
     if (!mounted) return;
-    setState(() => _isSavingServer = false);
 
     if (success) {
-      appState.startRealtime();
+      appState.markServerConnected();
+      setState(() {
+        _isSavingServer = false;
+        _isCheckingConnection = false;
+        _isConnected = true;
+        _isLoadingStorage = true;
+      });
+
+      await appState.restartRealtime();
+      if (!mounted) return;
       appState.refreshAll();
-      AppToast.showSuccess(context, 'Đã lưu kết nối máy chủ: $ip:$port');
+
+      final storageData = await DownloadApi.fetchCoordinatorStorageInfo();
+      if (mounted) {
+        setState(() {
+          _storageInfo = storageData;
+          _isLoadingStorage = false;
+        });
+        AppToast.showSuccess(context, 'Đã lưu & kết nối máy chủ: $host');
+      }
+    } else {
+      setState(() {
+        _isSavingServer = false;
+        _isCheckingConnection = false;
+        _errorMessage = 'Không thể lưu cấu hình máy chủ.';
+      });
     }
   }
 
@@ -130,29 +201,62 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final appState = context.watch<AppStateProvider>();
-    final isServerConnected =
-        appState.errorInfo == null &&
-        _ipController.text.trim().isNotEmpty &&
-        _portController.text.trim().isNotEmpty;
-
     final Widget serverStatusTrailing = Container(
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color:
-            isServerConnected
+            _isCheckingConnection
+                ? Colors.amber.withValues(alpha: 0.15)
+                : _isConnected
                 ? Colors.green.withValues(alpha: 0.15)
                 : Colors.red.withValues(alpha: 0.15),
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isServerConnected ? Colors.greenAccent : Colors.redAccent,
-          width: 1.5,
+          color:
+              _isCheckingConnection
+                  ? Colors.amberAccent
+                  : _isConnected
+                  ? Colors.greenAccent
+                  : Colors.redAccent,
+          width: 1,
         ),
       ),
-      child: Icon(
-        Icons.dns_rounded,
-        size: 16,
-        color: isServerConnected ? Colors.greenAccent : Colors.redAccent,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _isCheckingConnection
+                ? Icons.sync_rounded
+                : _isConnected
+                ? Icons.check_circle_rounded
+                : Icons.error_outline_rounded,
+            size: 12,
+            color:
+                _isCheckingConnection
+                    ? Colors.amberAccent
+                    : _isConnected
+                    ? Colors.greenAccent
+                    : Colors.redAccent,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _isCheckingConnection
+                ? 'Đang kiểm tra...'
+                : _isConnected
+                ? 'Connected'
+                : 'Chưa kết nối',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color:
+                  _isCheckingConnection
+                      ? Colors.amberAccent
+                      : _isConnected
+                      ? Colors.greenAccent
+                      : Colors.redAccent,
+            ),
+          ),
+        ],
       ),
     );
 
@@ -167,7 +271,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           side: const BorderSide(color: AppTheme.borderColor),
         ),
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 600),
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 580),
           padding: const EdgeInsets.all(18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -206,6 +310,122 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
               ),
               const SizedBox(height: 12),
 
+              // Storage Info Card (from Coordinator)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.bgCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.dns_rounded,
+                          size: 16,
+                          color: AppTheme.googleBlue,
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Storage',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (_isLoadingStorage)
+                      const Row(
+                        children: [
+                          SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.googleBlue,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Đang tải thông tin Storage...',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (_storageInfo != null)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _storageInfo!.displayName,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                '${_storageInfo!.usedPercent.round()}%',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.googleBlue,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: (_storageInfo!.usedPercent / 100).clamp(
+                                0.0,
+                                1.0,
+                              ),
+                              minHeight: 6,
+                              backgroundColor: AppTheme.bgBlock,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppTheme.googleBlue,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${Formatters.formatFileSize(_storageInfo!.usedBytes)} / ${Formatters.formatFileSize(_storageInfo!.totalBytes)} đã dùng • ${Formatters.formatFileSize(_storageInfo!.availableBytes)} còn trống',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Text(
+                        _isConnected
+                            ? 'Đang chờ Storage local kết nối...'
+                            : 'Chưa kết nối máy chủ Coordinator.',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white38,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
               if (_errorMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(10),
@@ -241,154 +461,17 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                         onToggle:
                             () =>
                                 setState(() => _openSection1 = !_openSection1),
-                        icon: Icons.dns_rounded,
+                        icon: Icons.wifi_rounded,
                         iconColor: AppTheme.googleBlue,
-                        title: '1. Cấu hình Kết nối Máy Chủ',
+                        title: '1. Kết nối Máy Chủ',
                         trailing: serverStatusTrailing,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: TextField(
-                                      controller: _ipController,
-                                      textInputAction: TextInputAction.next,
-                                      onChanged: (_) => setState(() {}),
-                                      style: TextStyle(
-                                        fontSize:
-                                            _ipController.text.isNotEmpty
-                                                ? 13.5
-                                                : 12,
-                                        color: Colors.white,
-                                        fontFamily: 'monospace',
-                                      ),
-                                      decoration: InputDecoration(
-                                        labelText: 'Địa chỉ IP Máy Chủ *',
-                                        labelStyle: const TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.white70,
-                                        ),
-                                        floatingLabelStyle: const TextStyle(
-                                          fontSize: 14,
-                                          color: AppTheme.googleBlue,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        floatingLabelBehavior:
-                                            FloatingLabelBehavior.auto,
-                                        hintText: '192.168.1.xxx',
-                                        hintStyle: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.2,
-                                          ),
-                                        ),
-                                        prefixIcon: const Icon(
-                                          Icons.lan_rounded,
-                                          color: AppTheme.googleBlue,
-                                          size: 16,
-                                        ),
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 10,
-                                            ),
-                                        isDense: true,
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: AppTheme.borderColor,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: AppTheme.googleBlue,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 1,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: TextField(
-                                      controller: _portController,
-                                      textInputAction: TextInputAction.next,
-                                      onChanged: (_) => setState(() {}),
-                                      style: TextStyle(
-                                        fontSize:
-                                            _portController.text.isNotEmpty
-                                                ? 13.5
-                                                : 12,
-                                        color: Colors.white,
-                                        fontFamily: 'monospace',
-                                      ),
-                                      decoration: InputDecoration(
-                                        labelText: 'Port *',
-                                        labelStyle: const TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.white70,
-                                        ),
-                                        floatingLabelStyle: const TextStyle(
-                                          fontSize: 14,
-                                          color: AppTheme.googleBlue,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        floatingLabelBehavior:
-                                            FloatingLabelBehavior.auto,
-                                        hintText: '8080',
-                                        hintStyle: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.2,
-                                          ),
-                                        ),
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 10,
-                                            ),
-                                        isDense: true,
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: AppTheme.borderColor,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: AppTheme.googleBlue,
-                                          ),
-                                        ),
-                                      ),
-                                      keyboardType: TextInputType.number,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: TextField(
-                                controller: _rootPathController,
+                                controller: _hostController,
                                 textInputAction: TextInputAction.done,
                                 onSubmitted:
                                     (_) =>
@@ -397,33 +480,34 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                 onChanged: (_) => setState(() {}),
                                 style: TextStyle(
                                   fontSize:
-                                      _rootPathController.text.isNotEmpty
+                                      _hostController.text.isNotEmpty
                                           ? 13.5
                                           : 12,
                                   color: Colors.white,
                                   fontFamily: 'monospace',
                                 ),
                                 decoration: InputDecoration(
-                                  labelText: 'Đường dẫn gốc (PATH) *',
+                                  labelText: 'Server Host *',
                                   labelStyle: const TextStyle(
                                     fontSize: 11,
                                     color: Colors.white70,
                                   ),
                                   floatingLabelStyle: const TextStyle(
                                     fontSize: 14,
-                                    color: AppTheme.folderYellow,
+                                    color: AppTheme.googleBlue,
                                     fontWeight: FontWeight.bold,
                                   ),
                                   floatingLabelBehavior:
                                       FloatingLabelBehavior.auto,
-                                  hintText: '/Volumes/HDD/Albums',
+                                  hintText:
+                                      'HOANGs-MacBook-Pro.local or 192.168.1.x',
                                   hintStyle: TextStyle(
                                     fontSize: 10,
                                     color: Colors.white.withValues(alpha: 0.2),
                                   ),
                                   prefixIcon: const Icon(
-                                    Icons.folder_open_rounded,
-                                    color: AppTheme.folderYellow,
+                                    Icons.lan_rounded,
+                                    color: AppTheme.googleBlue,
                                     size: 16,
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(
@@ -440,9 +524,20 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
                                     borderSide: const BorderSide(
-                                      color: AppTheme.folderYellow,
+                                      color: AppTheme.googleBlue,
                                     ),
                                   ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4),
+                              child: Text(
+                                'Nhập hostname .local hoặc địa chỉ IP. Port và đường dẫn được cấu hình tự động.',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.white38,
                                 ),
                               ),
                             ),
@@ -452,9 +547,11 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                               alignment: Alignment.centerRight,
                               child: ElevatedButton.icon(
                                 onPressed:
-                                    _isSavingServer ? null : _handleSaveServer,
+                                    (_isSavingServer || _isCheckingConnection)
+                                        ? null
+                                        : _handleSaveServer,
                                 icon:
-                                    _isSavingServer
+                                    (_isSavingServer || _isCheckingConnection)
                                         ? const SizedBox(
                                           width: 14,
                                           height: 14,
@@ -467,9 +564,11 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                           Icons.save_rounded,
                                           size: 14,
                                         ),
-                                label: const Text(
-                                  'Lưu Máy chủ',
-                                  style: TextStyle(
+                                label: Text(
+                                  (_isSavingServer || _isCheckingConnection)
+                                      ? 'Đang kiểm tra...'
+                                      : 'Lưu & Kết nối',
+                                  style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),

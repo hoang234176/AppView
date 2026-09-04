@@ -27,32 +27,33 @@ const (
 // Job is the parent lifecycle for a two-stage Coordinator download. password
 // is intentionally private so API responses never expose it.
 type Job struct {
-	ID                string                 `json:"id"`
-	URL               string                 `json:"url"`
-	SourceURL         string                 `json:"sourceUrl,omitempty"`
-	Filename          string                 `json:"filename,omitempty"`
-	DisplayName       string                 `json:"displayName,omitempty"`
-	Destination       string                 `json:"destination,omitempty"`
-	State             State                  `json:"state"`
-	Stage             string                 `json:"stage,omitempty"`
-	ResolveTaskID     string                 `json:"resolveTaskId,omitempty"`
-	StorageTaskID     string                 `json:"storageTaskId,omitempty"`
-	CurrentTaskID     string                 `json:"currentTaskId,omitempty"`
-	Progress          json.RawMessage        `json:"progress,omitempty"`
-	Result            json.RawMessage        `json:"result,omitempty"`
-	Error             *protocol.ErrorPayload `json:"error,omitempty"`
-	FailureStage      FailureStage           `json:"failureStage,omitempty"`
-	CreatedAt         time.Time              `json:"createdAt"`
-	UpdatedAt         time.Time              `json:"updatedAt"`
-	ArchiveDownloaded bool                   `json:"archiveDownloaded"`
-	ArchiveExtracted  bool                   `json:"archiveExtracted"`
-	PasswordRequired  bool                   `json:"passwordRequired"`
-	TotalVideoCount   int                    `json:"totalVideoCount,omitempty"`
-	InvalidVideoCount int                    `json:"invalidVideoCount,omitempty"`
-	VideoScanState    string                 `json:"videoScanState,omitempty"`
-	ConversionTotal   int                    `json:"conversionTotal,omitempty"`
-	ConversionCurrent int                    `json:"conversionCurrent,omitempty"`
-	ConversionFailed  int                    `json:"conversionFailed,omitempty"`
+	ID                string                       `json:"id"`
+	URL               string                       `json:"url"`
+	SourceURL         string                       `json:"sourceUrl,omitempty"`
+	Filename          string                       `json:"filename,omitempty"`
+	DisplayName       string                       `json:"displayName,omitempty"`
+	Destination       string                       `json:"destination,omitempty"`
+	State             State                        `json:"state"`
+	Stage             string                       `json:"stage,omitempty"`
+	ResolveTaskID     string                       `json:"resolveTaskId,omitempty"`
+	StorageTaskID     string                       `json:"storageTaskId,omitempty"`
+	CurrentTaskID     string                       `json:"currentTaskId,omitempty"`
+	Progress          json.RawMessage              `json:"progress,omitempty"`
+	Result            json.RawMessage              `json:"result,omitempty"`
+	Error             *protocol.ErrorPayload       `json:"error,omitempty"`
+	FailureStage      FailureStage                 `json:"failureStage,omitempty"`
+	CreatedAt         time.Time                    `json:"createdAt"`
+	UpdatedAt         time.Time                    `json:"updatedAt"`
+	ArchiveDownloaded bool                         `json:"archiveDownloaded"`
+	ArchiveExtracted  bool                         `json:"archiveExtracted"`
+	PasswordRequired  bool                         `json:"passwordRequired"`
+	TotalVideoCount   int                          `json:"totalVideoCount,omitempty"`
+	InvalidVideoCount int                          `json:"invalidVideoCount,omitempty"`
+	VideoScanState    string                       `json:"videoScanState,omitempty"`
+	ConversionTotal   int                          `json:"conversionTotal,omitempty"`
+	ConversionCurrent int                          `json:"conversionCurrent,omitempty"`
+	ConversionFailed  int                          `json:"conversionFailed,omitempty"`
+	Videos            []protocol.VideoOptimization `json:"videos,omitempty"`
 
 	password                 string
 	storagePending           bool
@@ -63,6 +64,7 @@ type Job struct {
 func (j Job) Clone() Job {
 	j.Progress = append(json.RawMessage(nil), j.Progress...)
 	j.Result = append(json.RawMessage(nil), j.Result...)
+	j.Videos = append([]protocol.VideoOptimization(nil), j.Videos...)
 	if j.Error != nil {
 		errorCopy := *j.Error
 		j.Error = &errorCopy

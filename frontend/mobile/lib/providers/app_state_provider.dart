@@ -25,6 +25,7 @@ class AppStateProvider extends ChangeNotifier {
   List<TreeNode> _treeData = [];
 
   bool _isLoading = false;
+  bool _isServerConnected = false;
   ApiErrorInfo? _errorInfo;
 
   String _searchQuery = '';
@@ -41,6 +42,7 @@ class AppStateProvider extends ChangeNotifier {
   List<VideoItem> get videos => _videos;
   List<TreeNode> get treeData => _treeData;
   bool get isLoading => _isLoading;
+  bool get isServerConnected => _isServerConnected;
   ApiErrorInfo? get errorInfo => _errorInfo;
   String get searchQuery => _searchQuery;
 
@@ -118,6 +120,7 @@ class AppStateProvider extends ChangeNotifier {
   int _currentPage = 1;
 
   void loadMore() {
+    if (!_isServerConnected) return;
     _currentPage++;
     loadData(_currentPath, page: _currentPage, isSilent: true);
   }
@@ -142,6 +145,7 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   void navigateTo(String path) {
+    if (!_isServerConnected) return;
     if (path == _currentPath) {
       refreshCurrentFolder();
       return;
@@ -164,10 +168,12 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   Future<void> refreshAll() async {
+    if (!_isServerConnected) return;
     await refreshCurrentFolder(includeTree: true);
   }
 
   Future<void> refreshCurrentFolder({bool includeTree = true}) async {
+    if (!_isServerConnected) return;
     if (includeTree) {
       await Future.wait([
         loadTreeData(),
@@ -179,7 +185,35 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   void startRealtime() {
+    if (!_isServerConnected) return;
     _filesystemEvents.start();
+  }
+
+  void markServerConnected() {
+    _isServerConnected = true;
+    notifyListeners();
+  }
+
+  /// Tear down and reconnect the realtime socket to the updated host.
+  Future<void> restartRealtime() async {
+    if (!_isServerConnected) return;
+    await _filesystemEvents.restart();
+  }
+
+  /// Stop realtime connection and clear server-backed state when connection fails.
+  Future<void> stopRealtimeAndClearState(String errorMessage) async {
+    _activeCancelToken?.cancel();
+    await _filesystemEvents.dispose();
+    _isServerConnected = false;
+    _treeData = [];
+    _folders = [];
+    _pictures = [];
+    _videos = [];
+    _totalFolders = 0;
+    _totalPictures = 0;
+    _totalVideos = 0;
+    _errorInfo = ApiErrorInfo(status: 500, message: errorMessage);
+    notifyListeners();
   }
 
   void _handleFilesystemEvent(Map<String, dynamic> event) {
@@ -233,6 +267,7 @@ class AppStateProvider extends ChangeNotifier {
           : '$newPrefix${path.substring(oldPrefix.length)}';
 
   Future<void> loadTreeData() async {
+    if (!_isServerConnected) return;
     if (!ApiConfig.isConfigured) {
       _treeData = [];
       notifyListeners();
@@ -253,6 +288,7 @@ class AppStateProvider extends ChangeNotifier {
     int page = 1,
     bool isSilent = false,
   }) async {
+    if (!_isServerConnected) return;
     _activeCancelToken?.cancel();
     final cancelToken = CancelToken();
     _activeCancelToken = cancelToken;
@@ -267,8 +303,7 @@ class AppStateProvider extends ChangeNotifier {
       _isLoading = false;
       _errorInfo = ApiErrorInfo(
         status: 400,
-        message:
-            'Vui lòng nhập đầy đủ IP, Cổng (Port) và Đường dẫn thư mục gốc (Root Path) trong bảng cấu hình máy chủ để bắt đầu.',
+        message: 'Vui lòng nhập Server Host trong phần cài đặt để bắt đầu.',
       );
       notifyListeners();
       return;

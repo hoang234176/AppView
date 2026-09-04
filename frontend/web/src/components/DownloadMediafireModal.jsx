@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { startArchiveDownload } from '../api/downloadApi';
 import { createNewFolder } from '../api/folderApi';
+import { canonicalDownloadDestination } from '../utils/downloadDestination';
 
 const TreeNodeItem = memo(({ 
   node, 
@@ -190,7 +191,7 @@ export const DownloadMediafireModal = ({
     setIsSubmitting(true);
     setErrorMsg(null);
 
-    const res = await startArchiveDownload(url.trim(), destination.trim(), password.trim() || null);
+    const res = await startArchiveDownload(url.trim(), canonicalDownloadDestination(destination), password.trim() || null);
 
     setIsSubmitting(false);
 

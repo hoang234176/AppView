@@ -351,3 +351,10 @@ img {
   60%  { left: 107%; right: -8%;  }
   100% { left: 107%; right: -8%;  }
 }
+
+/* The form supplies one accessible custom reveal control. Hide Edge's native
+   password affordance so users never see two reveal buttons. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}

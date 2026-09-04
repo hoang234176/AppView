@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FolderTreeSidebar } from './components/FolderTreeSidebar';
 import { Header } from './components/Header';
 import { Breadcrumbs } from './components/Breadcrumbs';
@@ -22,8 +22,9 @@ import { DownloadMediafireModal } from './components/DownloadMediafireModal';
 import { DownloadPanelModal } from './components/DownloadPanelModal';
 import { DownloadSnackbar } from './components/DownloadSnackbar';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder } from './api/folderApi';
-import { fetchCoordinatorDownload } from './api/downloadApi';
-import { getApiBaseUrl, getCoordinatorEventsWsUrl, saveServerConfig, isServerConfigured } from './api/axiosConfig';
+import { fetchCoordinatorDownloads } from './api/downloadApi';
+import { isActiveDownload, needsDownloadAttention } from './utils/downloadPresentation';
+import { getApiBaseUrl, getCoordinatorEventsWsUrl, getServerHost, saveServerConfig, isServerConfigured, validateCoordinatorHost } from './api/axiosConfig';
 import { FolderX, Loader2 } from 'lucide-react';
 import './styles/index.css';
 
@@ -52,7 +53,9 @@ function App() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [errorInfo, setErrorInfo] = useState(null);
-  const [isConnected, setIsConnected] = useState(true);
+	// Server-backed UI becomes usable only after Coordinator /health succeeds.
+	// Presence of a configured host is intentionally not treated as connected.
+  const [isConnected, setIsConnected] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [lightbox, setLightbox] = useState(null);
@@ -82,6 +85,8 @@ function App() {
   const realtimeReconnectTimerRef = useRef(null);
   const realtimeRefreshTimerRef = useRef(null);
   const realtimeRefreshRef = useRef(null);
+  const refreshCoordinatorDownloadsRef = useRef(null);
+  const downloadRefreshTimerRef = useRef(null);
 
   const PAGE_SIZE = 20;
   const [folderLimit, setFolderLimit] = useState(PAGE_SIZE);
@@ -131,10 +136,39 @@ function App() {
     updateUrlPath('');
     setCurrentPath('');
     setSearchQuery('');
+	setIsConnected(true);
   };
 
-  const handleSaveServerConfig = (ip, port, folderPath) => {
-    saveServerConfig(ip, port, folderPath);
+  const handleServerConfigFailed = (message) => {
+	if (activeControllerRef.current) activeControllerRef.current.abort();
+	if (realtimeSocketRef.current) realtimeSocketRef.current.close();
+    setIsConnected(false);
+    setTreeData([]);
+    setFolders([]);
+    setPictures([]);
+    setVideos([]);
+    setTotalFolders(0);
+    setTotalPictures(0);
+    setTotalVideos(0);
+    setErrorInfo({
+      status: 'Lỗi kết nối máy chủ',
+      message: message || 'Không thể kết nối đến Coordinator trên máy chủ vừa nhập.',
+    });
+  };
+
+	useEffect(() => {
+	  let active = true;
+	  if (!isServerConfigured()) return () => { active = false; };
+	  validateCoordinatorHost(getServerHost()).then((result) => {
+		if (!active) return;
+		if (result.success) setIsConnected(true);
+		else handleServerConfigFailed(result.message);
+	  });
+	  return () => { active = false; };
+	}, [configVersion]);
+
+  const handleSaveServerConfig = (host) => {
+    saveServerConfig(host);
     handleServerConfigSaved();
   };
 
@@ -156,10 +190,8 @@ function App() {
     const result = await fetchFolderTree();
     if (result.success) {
       setTreeData(result.data || []);
-      setIsConnected(true);
     } else {
       setTreeData([]);
-      setIsConnected(false);
     }
   }, []);
 
@@ -189,7 +221,7 @@ function App() {
       setIsConnected(false);
       setErrorInfo({
         status: 'Chưa cấu hình máy chủ',
-        message: 'Vui lòng nhập đầy đủ IP, Cổng (Port) và Đường dẫn thư mục gốc (Root Path) trong bảng cấu hình máy chủ để bắt đầu.',
+        message: 'Vui lòng nhập Server Host trong phần cài đặt để bắt đầu.',
       });
       setShowConfigModal(true);
       return;
@@ -232,7 +264,6 @@ function App() {
         setTotalFolders(result.data.totalFolders ?? (result.data.folders || []).length);
         setTotalPictures(result.data.totalPictures ?? (result.data.pictures || []).length);
         setTotalVideos(result.data.totalVideos ?? (result.data.videos || []).length);
-        setIsConnected(true);
         setErrorInfo(null);
       } else {
         if (!isSilent) {
@@ -244,12 +275,10 @@ function App() {
           setTotalVideos(0);
         }
         setErrorInfo(result);
-        setIsConnected(false);
       }
     } catch (err) {
       if (!controller.signal.aborted) {
         setErrorInfo({ status: 500, message: 'Lỗi tải dữ liệu' });
-        setIsConnected(false);
       }
     } finally {
       if (!controller.signal.aborted) {
@@ -309,6 +338,7 @@ function App() {
   }, [refreshFromFilesystemEvent]);
 
   useEffect(() => {
+	if (!isConnected) return undefined;
     const websocketUrl = getCoordinatorEventsWsUrl();
     if (!websocketUrl) return undefined;
 
@@ -321,12 +351,16 @@ function App() {
       socket.onopen = () => {
         reconnectAttempt = 0;
         realtimeRefreshRef.current?.();
+        refreshCoordinatorDownloadsRef.current?.();
       };
       socket.onmessage = (message) => {
         try {
           const payload = JSON.parse(message.data);
           if (payload?.type === 'filesystem_event' && payload.event && typeof payload.event === 'object') {
             realtimeRefreshRef.current?.(payload.event);
+          } else if (payload?.type === 'download_event') {
+            if (downloadRefreshTimerRef.current) window.clearTimeout(downloadRefreshTimerRef.current);
+            downloadRefreshTimerRef.current = window.setTimeout(() => refreshCoordinatorDownloadsRef.current?.(), 200);
           }
         } catch {
           // Ignore malformed best-effort invalidation messages.
@@ -354,15 +388,17 @@ function App() {
         socket.close();
       }
     };
-  }, []);
+	}, [configVersion, isConnected]);
 
   useEffect(() => {
+	if (!isConnected) return;
     loadTreeData();
-  }, [configVersion, loadTreeData]);
+  }, [configVersion, isConnected, loadTreeData]);
 
   useEffect(() => {
+	if (!isConnected) return;
     loadData(currentPath, { limit: 0 }, false);
-  }, [currentPath, configVersion, loadData]);
+  }, [currentPath, configVersion, isConnected, loadData]);
 
   // Coordinator jobs are polled individually. The legacy Python WebSocket is
   // deliberately not used for normal submissions: the parent job is the
@@ -380,11 +416,11 @@ function App() {
     const progress = job.progress && typeof job.progress === 'object' ? job.progress : {};
     const downloadedBytes = Number(progress.downloadedBytes) || 0;
     const totalBytes = Number(progress.totalBytes) || 0;
-    const stage = job.state === 'downloading' ? (progress.state || 'downloading') : job.state === 'failed' ? 'error' : job.state;
+    const stage = job.stage || (job.state === 'downloading' ? (progress.state || 'downloading') : job.state === 'failed' ? 'error' : job.state);
     return {
       task_id: job.id,
       original_url: job.url,
-      filename: job.filename || progress.filename || '',
+      filename: job.displayName || job.filename || progress.filename || '',
       destination: job.destination || '',
       stage,
       downloaded_bytes: downloadedBytes,
@@ -398,43 +434,24 @@ function App() {
       error_code: job.error?.code || null,
       failure_stage: job.failureStage || null,
       coordinator_job: true,
+      password_required: Boolean(job.passwordRequired), archive_downloaded: Boolean(job.archiveDownloaded), archive_extracted: Boolean(job.archiveExtracted), total_video_count: Number(job.totalVideoCount) || 0, invalid_video_count: Number(job.invalidVideoCount) || 0,
+	  videos: Array.isArray(job.videos) ? job.videos : [],
     };
   }, []);
 
-  const pollCoordinatorJob = useCallback((jobId) => {
-    const poll = async () => {
-      const response = await fetchCoordinatorDownload(jobId);
-      if (!isMountedRef.current) return;
-      if (!response.success) {
-        setDownloadTasks((previous) => previous.map((task) => task.task_id === jobId
-          ? { ...task, stage: 'error', error: response.message, error_code: 'COORDINATOR_POLL_FAILED', coordinator_job: true }
-          : task));
-        coordinatorPollersRef.current.delete(jobId);
-        return;
-      }
-      const task = mapCoordinatorJob(response.data);
-      setDownloadTasks((previous) => [task, ...previous.filter((item) => item.task_id !== jobId)]);
-      if (response.data.state === 'completed' || response.data.state === 'failed') {
-        coordinatorPollersRef.current.delete(jobId);
-        if (response.data.state === 'completed') {
-          loadData(currentPath);
-          loadTreeData();
-        }
-        return;
-      }
-      coordinatorPollersRef.current.set(jobId, window.setTimeout(poll, 1000));
-    };
-    poll();
-  }, [currentPath, loadData, loadTreeData, mapCoordinatorJob]);
+  const refreshCoordinatorDownloads = useCallback(async () => {
+	if (!isConnected) { setDownloadTasks([]); return; }
+    const response = await fetchCoordinatorDownloads();
+    if (isMountedRef.current && response.success) setDownloadTasks(response.data.map(mapCoordinatorJob));
+  }, [isConnected, mapCoordinatorJob]);
+  useEffect(() => { refreshCoordinatorDownloadsRef.current = refreshCoordinatorDownloads; refreshCoordinatorDownloads(); }, [refreshCoordinatorDownloads]);
 
   const handleCoordinatorJobCreated = useCallback((job) => {
-    if (!job?.id || coordinatorPollersRef.current.has(job.id)) return;
-    const task = mapCoordinatorJob(job);
-    setDownloadTasks((previous) => [task, ...previous.filter((item) => item.task_id !== job.id)]);
-    pollCoordinatorJob(job.id);
-  }, [mapCoordinatorJob, pollCoordinatorJob]);
+    if (job?.id) refreshCoordinatorDownloads();
+  }, [refreshCoordinatorDownloads]);
 
   const handleNavigate = (newPath) => {
+	if (!isConnected) return;
     if (newPath === currentPath) {
       refreshFromFilesystemEvent();
       return;
@@ -445,11 +462,13 @@ function App() {
   };
 
   const handleRefreshAll = () => {
+	if (!isConnected) return;
     loadTreeData();
     loadData(currentPath);
   };
 
   const handleEmptyContextMenu = (e) => {
+	if (!isConnected) return;
     e.preventDefault();
     if (e.target.closest('input, button, a, img, video')) {
       return;
@@ -465,6 +484,7 @@ function App() {
   };
 
   const handleFolderContextMenu = (e, folder) => {
+	if (!isConnected) return;
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({
@@ -477,6 +497,7 @@ function App() {
   };
 
   const handleCreateFolderSubmit = async (arg1, arg2) => {
+	if (!isConnected) return { success: false, message: 'Chưa kết nối máy chủ.' };
     let parentPath = currentPath;
     let folderName = arg1;
     if (arg2 !== undefined) {
@@ -492,6 +513,7 @@ function App() {
   };
 
   const handleRenameFolderSubmit = async (folder, newName) => {
+	if (!isConnected) return { success: false, message: 'Chưa kết nối máy chủ.' };
     const res = await renameFolder(folder.path, newName);
     if (res.success) {
       await loadData(currentPath);
@@ -535,11 +557,12 @@ function App() {
                          Math.max(0, totalVideos - videos.length);
 
   const handleLoadMore = useCallback(() => {
+	if (!isConnected) return;
     if (isLoadingMore || !hasMore) return;
     const nextPage = page + 1;
     setPage(nextPage);
     loadData(currentPath, { page: nextPage, limit: PAGE_SIZE }, true);
-  }, [page, currentPath, loadData, isLoadingMore, hasMore]);
+  }, [page, currentPath, loadData, isLoadingMore, hasMore, isConnected]);
 
   // Auto-prefetch next page when scrolling near bottom of page
   useEffect(() => {
@@ -556,7 +579,7 @@ function App() {
   const hasContent = filteredFolders.length > 0 || filteredPictures.length > 0 || filteredVideos.length > 0;
 
   // Active Download Status Metrics for Header Icon
-  const activeDownloadCount = downloadTasks.filter((t) => ['queued', 'resolving', 'downloading', 'waiting_extract', 'extracting', 'scanning', 'converting', 'password_required'].includes(t.stage)).length;
+  const activeDownloadCount = downloadTasks.filter(isActiveDownload).length;
   // Summary có thể đến chậm hơn WebSocket. Luôn lấy task thật làm fallback để
   // animation mũi tên Header xuất hiện ngay từ lúc Go bắt đầu tải.
   const downloadingTask = downloadTasks.find((t) => t.stage === 'downloading');
@@ -564,7 +587,7 @@ function App() {
   const downloadProgressPercent = isDownloadingMode 
     ? (downloadingTask?.download_percent ?? 0)
     : 0;
-  const hasPasswordError = downloadTasks.some((t) => t.stage === 'password_required');
+  const hasPasswordError = downloadTasks.some(needsDownloadAttention);
   const isScanning = downloadTasks.some((t) => t.stage === 'scanning');
   const isConverting = downloadTasks.some((t) => t.stage === 'converting');
 
@@ -844,12 +867,26 @@ function App() {
           onOpenPanel={() => setShowDownloadPanel(true)}
         />
 
+		{/* A failed health check invalidates every server-backed surface. This is
+		    separate from the Settings backdrop: it remains after Settings closes
+		    and exposes only a route back to connection settings. */}
+		{!isConnected && !showConfigModal && (
+		  <div className="fixed inset-0 z-[99990] flex items-center justify-center bg-[#1c1d21]/75 p-6 backdrop-brightness-75" role="alert" aria-live="assertive">
+			<div className="max-w-sm rounded-2xl border border-red-500/35 bg-[#202124] p-5 text-center shadow-2xl">
+			  <h2 className="text-sm font-bold text-white">Chưa kết nối máy chủ</h2>
+			  <p className="mt-2 text-xs text-gray-400">Cần kết nối Coordinator hợp lệ trước khi duyệt thư mục, mở media hoặc tải xuống.</p>
+			  <button type="button" onClick={() => setShowConfigModal(true)} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500">Mở cài đặt kết nối</button>
+			</div>
+		  </div>
+		)}
+
         {/* Settings Modal */}
         <SettingsModal
           isOpen={showConfigModal}
           onClose={() => setShowConfigModal(false)}
           onRefreshFolder={handleRefreshAll}
           onServerConfigSaved={handleServerConfigSaved}
+          onServerConfigFailed={handleServerConfigFailed}
         />
 
         {/* Media Info Dialog Modal */}

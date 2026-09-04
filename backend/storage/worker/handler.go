@@ -17,6 +17,9 @@ import (
 // a fake without downloading files or invoking external tools.
 type ArchiveOperations interface {
 	Start(id, sourceURL, filename, destination, password string) error
+	Retry(id, password string) error
+	RetryExtraction(id, password string) error
+	Cancel(id string) bool
 	Snapshot(id string) (pythonapi.ArchiveJobSnapshot, bool)
 	Snapshots() []pythonapi.ArchiveJobSnapshot
 }
@@ -25,6 +28,23 @@ type archiveOperations struct{}
 
 func (archiveOperations) Start(id, sourceURL, filename, destination, password string) error {
 	return pythonapi.StartArchiveJob(id, sourceURL, filename, destination, password)
+}
+
+func (archiveOperations) Retry(id, password string) error {
+	return pythonapi.RetryArchiveJob(id, password)
+}
+
+func (archiveOperations) RetryExtraction(id, password string) error {
+	return pythonapi.RetryArchiveExtraction(id, password)
+}
+
+func (archiveOperations) Cancel(id string) bool { return pythonapi.CancelArchiveJob(id) }
+func (archiveOperations) SetVideoDecision(id, videoID, quality string) error {
+	return pythonapi.SetVideoDecision(id, videoID, quality)
+}
+
+type videoDecisionOperations interface {
+	SetVideoDecision(id, videoID, quality string) error
 }
 
 func (archiveOperations) Snapshot(id string) (pythonapi.ArchiveJobSnapshot, bool) {
@@ -78,6 +98,7 @@ func storageSnapshot(snapshot pythonapi.ArchiveJobSnapshot) StorageJobSnapshot {
 		ConversionFailed: snapshot.Conversion.Failed, ErrorCode: snapshot.ErrorCode, Error: snapshot.Error,
 		PasswordRequired: snapshot.PasswordNeeded, ArchiveDownloaded: snapshot.ArchiveDownloaded, ArchiveExtracted: snapshot.ArchiveExtracted,
 		VideoScanState: snapshot.VideoScanState, TotalVideoCount: snapshot.TotalVideoCount, InvalidVideoCount: snapshot.InvalidVideoCount,
+		Videos:    snapshot.Videos,
 		CreatedAt: snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt,
 	}
 }
@@ -101,6 +122,11 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 	}
 	if task.Action != CapabilityDownloadFile {
 		h.fail(send, task.TaskID, "UNSUPPORTED_ACTION", "Storage worker không hỗ trợ action được giao.")
+		return
+	}
+
+	if control, ok := decodeArchiveControl(task.Payload); ok {
+		h.handleArchiveControl(ctx, task.TaskID, control, send)
 		return
 	}
 
@@ -130,6 +156,67 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 		}
 	}
 	h.monitor(ctx, task.TaskID, send)
+}
+
+type archiveControl struct {
+	Operation     string `json:"operation"`
+	ArchiveTaskID string `json:"archiveTaskId"`
+	Password      string `json:"password"`
+	VideoID       string `json:"videoId"`
+	Quality       string `json:"quality"`
+}
+
+func decodeArchiveControl(payload json.RawMessage) (archiveControl, bool) {
+	var control archiveControl
+	if len(payload) == 0 || json.Unmarshal(payload, &control) != nil || control.Operation == "" {
+		return archiveControl{}, false
+	}
+	control.Operation = strings.TrimSpace(control.Operation)
+	control.ArchiveTaskID = strings.TrimSpace(control.ArchiveTaskID)
+	if control.ArchiveTaskID == "" || (control.Operation != "retry" && control.Operation != "extract" && control.Operation != "cancel" && control.Operation != "video_decision") {
+		return archiveControl{}, false
+	}
+	return control, true
+}
+
+func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string, control archiveControl, send SendFunc) {
+	if err := send(Message{Type: TaskAccepted, TaskID: controlTaskID}); err != nil {
+		return
+	}
+	var err error
+	if control.Operation == "video_decision" {
+		operations, ok := h.archive.(videoDecisionOperations)
+		if !ok {
+			err = fmt.Errorf("video decision không được hỗ trợ")
+		} else {
+			err = operations.SetVideoDecision(control.ArchiveTaskID, control.VideoID, control.Quality)
+		}
+	} else if control.Operation == "extract" {
+		err = h.archive.RetryExtraction(control.ArchiveTaskID, control.Password)
+	} else if control.Operation == "cancel" {
+		if !h.archive.Cancel(control.ArchiveTaskID) {
+			err = fmt.Errorf("archive job not found")
+		}
+	} else {
+		err = h.archive.Retry(control.ArchiveTaskID, control.Password)
+	}
+	if err != nil {
+		h.fail(send, controlTaskID, "ARCHIVE_RETRY_FAILED", "Storage không thể tiếp tục archive.")
+		return
+	}
+	if control.Operation == "video_decision" {
+		// A decision is a short control operation while the original archive
+		// monitor remains busy/waiting. Persist + publish one canonical snapshot
+		// then finish this control task; do not attach a second long monitor.
+		if snapshot, ok := h.archive.Snapshot(control.ArchiveTaskID); ok {
+			_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{storageSnapshot(snapshot)}}})
+		}
+		_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": "video_decision"}})
+		return
+	}
+	// Storage history updates the canonical parent. This short-lived control
+	// task deliberately has no parent-child relationship of its own.
+	h.monitor(ctx, control.ArchiveTaskID, send)
 }
 
 type downloadRequest struct {

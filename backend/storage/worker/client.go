@@ -123,6 +123,9 @@ func (c *Client) connectOnce(ctx context.Context) error {
 	if err := safeConn.Send(Message{Type: StorageHistory, WorkerID: c.config.WorkerID, StorageHistory: ptrHistory(c.handler.History())}); err != nil {
 		return err
 	}
+	if info, err := CurrentStorageInfo(); err == nil {
+		_ = safeConn.Send(Message{Type: StorageInfoMessage, WorkerID: c.config.WorkerID, StorageInfo: &info})
+	}
 	events.SetPublisher(func(event events.FilesystemEvent) error {
 		return safeConn.Send(Message{Type: FilesystemEvent, WorkerID: c.config.WorkerID, Event: &event})
 	})

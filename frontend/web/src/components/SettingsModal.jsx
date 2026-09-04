@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   X, 
   Server,
@@ -7,24 +7,33 @@ import {
   RefreshCw,
   CheckCircle2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Wifi
 } from 'lucide-react';
-import { getRootFolderPath, saveServerConfig, getServerIp, getServerPort } from '../api/axiosConfig';
+import { saveServerConfig, getServerHost, validateCoordinatorHost } from '../api/axiosConfig';
+import { fetchCoordinatorStorageInfo } from '../api/downloadApi';
 
-export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfigSaved }) => {
-  const [serverIp, setServerIp] = useState('');
-  const [serverPort, setServerPort] = useState('');
-  const [rootFolder, setRootFolder] = useState('');
+const formatStorage = (value) => {
+  const bytes = Number(value) || 0;
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+};
+
+export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfigSaved, onServerConfigFailed }) => {
+  const [serverHost, setServerHost] = useState('');
   const [serverSavedMsg, setServerSavedMsg] = useState('');
+  const [serverErrorMsg, setServerErrorMsg] = useState('');
+  const [connectionState, setConnectionState] = useState('idle'); // 'idle' | 'checking' | 'connected' | 'failed'
 
   // Accordion Sections
-  const [openSection1, setOpenSection1] = useState(true);
-  const [openSection2, setOpenSection2] = useState(true);
+  const [openSection1, setOpenSection1] = useState(false);
+  const [openSection2, setOpenSection2] = useState(false);
 
   // Client Cache State
   const [cacheSizeText, setCacheSizeText] = useState('Đang tính...');
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [cacheMsg, setCacheMsg] = useState('');
+  const [storageInfo, setStorageInfo] = useState(null);
 
   const calculateBrowserCache = async () => {
     try {
@@ -40,25 +49,71 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
     }
   };
 
+  const loadStorageDetails = () => {
+    fetchCoordinatorStorageInfo().then((result) => {
+      if (result.success) setStorageInfo(result.data);
+      else setStorageInfo(null);
+    });
+  };
+
   useEffect(() => {
     if (isOpen) {
-      setServerIp(getServerIp());
-      setServerPort(getServerPort());
-      setRootFolder(getRootFolderPath());
+      const currentHost = getServerHost();
+      setServerHost(currentHost);
+      setServerErrorMsg('');
+      setServerSavedMsg('');
       calculateBrowserCache();
+
+      setConnectionState('checking');
+      validateCoordinatorHost(currentHost).then((res) => {
+        if (res.success) {
+          setConnectionState('connected');
+          loadStorageDetails();
+        } else {
+          setConnectionState('failed');
+          setStorageInfo(null);
+        }
+      });
     }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSaveServerConfig = (e) => {
+  const handleSaveServerConfig = async (e) => {
     e.preventDefault();
-    const ip = serverIp.trim();
-    const port = serverPort.trim();
-    const rootFolderPath = rootFolder.trim();
-    saveServerConfig(ip, port, rootFolderPath);
-    onServerConfigSaved?.(ip, port, rootFolderPath);
-    setServerSavedMsg('✅ Đã lưu cấu hình!');
+    const host = serverHost.trim();
+    setServerErrorMsg('');
+    setServerSavedMsg('');
+
+    if (!host) {
+      setServerErrorMsg('Vui lòng nhập Server Host (hostname hoặc địa chỉ IP).');
+      return;
+    }
+
+    setConnectionState('checking');
+    const valResult = await validateCoordinatorHost(host);
+
+    if (!valResult.success) {
+      setConnectionState('failed');
+      setServerErrorMsg(valResult.message);
+      saveServerConfig(host);
+      onServerConfigFailed?.(valResult.message);
+      return;
+    }
+
+    saveServerConfig(host);
+    setConnectionState('connected');
+    setServerSavedMsg('✅ Đã kết nối và lưu cấu hình!');
+    loadStorageDetails();
+
+    onServerConfigSaved?.(host);
     setTimeout(() => setServerSavedMsg(''), 3000);
     if (onRefreshFolder) onRefreshFolder();
   };
@@ -73,7 +128,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
       }
       await calculateBrowserCache();
       setCacheMsg('Đã dọn dẹp sạch sẽ bộ nhớ tạm');
-    } catch (err) {
+    } catch {
       setCacheMsg('Đã dọn dẹp bộ nhớ tạm trình duyệt');
     } finally {
       setIsClearingCache(false);
@@ -81,12 +136,15 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in select-none" onClick={onClose}>
+	<div className="fixed inset-0 z-[100000] flex items-center justify-center overflow-hidden bg-black/80 px-4 py-[10vh] animate-fade-in select-none overscroll-contain" onClick={onClose} onWheelCapture={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} role="presentation">
       <div 
-        className="bg-[#1c1d21] border border-[#383c42] rounded-[28px] max-w-lg w-full p-6 shadow-2xl space-y-4 animate-pop-fast"
+        className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-[#383c42] bg-[#1c1d21] p-6 shadow-2xl animate-pop-fast"
         onClick={(e) => e.stopPropagation()}
+		role="dialog"
+		aria-modal="true"
+		aria-label="Cài đặt hệ thống"
       >
-        {/* Header */}
+		{/* Header stays fixed while Settings content scrolls internally. */}
         <div className="flex items-center justify-between pb-3 border-b border-[#383c42]">
           <div className="flex items-center gap-2.5">
             <div className="p-2.5 bg-blue-500/15 rounded-full border border-blue-500/30 text-blue-400">
@@ -106,7 +164,14 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
           </button>
         </div>
 
-        {/* Section 1: Server Config */}
+		<div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 custom-scrollbar">
+		{/* Storage Info */}
+		<div className="border border-[#383c42] rounded-[20px] bg-[#202124]/60 p-4 text-xs">
+		  <div className="flex items-center gap-2 font-bold text-gray-200"><HardDrive className="w-4 h-4 text-blue-400" />Storage</div>
+		  {storageInfo ? <div className="mt-3"><div className="flex justify-between font-bold text-white"><span>{storageInfo.displayName}</span><span>{Math.round(storageInfo.usedPercent || 0)}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[#18191c]"><div className="h-full bg-blue-500" style={{ width: `${Math.max(0, Math.min(100, storageInfo.usedPercent || 0))}%` }} /></div><p className="mt-2 text-gray-400">{formatStorage(storageInfo.usedBytes)} / {formatStorage(storageInfo.totalBytes)} đã dùng • {formatStorage(storageInfo.availableBytes)} còn trống</p></div> : <p className="mt-2 text-gray-500">Đang chờ Storage local kết nối…</p>}
+		</div>
+
+        {/* Section 1: Server Host */}
         <div className="border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
           <button
             type="button"
@@ -114,57 +179,53 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
             className="w-full flex items-center justify-between p-4 text-xs font-bold text-gray-200 hover:bg-white/5 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <Server className="w-4 h-4 text-blue-400" />
-              <span>1. Cấu hình máy chủ</span>
+              <Wifi className="w-4 h-4 text-blue-400" />
+              <span>1. Kết nối máy chủ</span>
+              {connectionState === 'connected' ? (
+                <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Connected
+                </span>
+              ) : connectionState === 'checking' ? (
+                <span className="flex items-center gap-1 text-amber-400 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                  Đang kiểm tra...
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-red-400 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                  Chưa kết nối
+                </span>
+              )}
             </div>
             {openSection1 ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </button>
 
           {openSection1 && (
             <form onSubmit={handleSaveServerConfig} className="p-4 pt-0 space-y-3 text-xs font-semibold border-t border-[#383c42]/40">
-              <div className="grid grid-cols-3 gap-3 mt-3">
-                <div className="col-span-2">
-                  <label htmlFor="serverIpInput" className="block text-gray-300 mb-1 font-bold">
-                    Địa chỉ IP
-                  </label>
-                  <input
-                    type="text"
-                    id="serverIpInput"
-                    value={serverIp}
-                    onChange={(e) => setServerIp(e.target.value)}
-                    placeholder="192.168.1.253"
-                    className="w-full bg-[#18191c] border border-[#383c42] focus:border-blue-400 rounded-xl px-3 py-2 text-white font-mono placeholder-gray-500 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="serverPortInput" className="block text-gray-300 mb-1 font-bold">
-                    Cổng
-                  </label>
-                  <input
-                    type="text"
-                    id="serverPortInput"
-                    value={serverPort}
-                    onChange={(e) => setServerPort(e.target.value)}
-                    placeholder="8080"
-                    className="w-full bg-[#18191c] border border-[#383c42] focus:border-blue-400 rounded-xl px-3 py-2 text-white font-mono placeholder-gray-500 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="rootFolderInput" className="block text-gray-300 mb-1 font-bold">
-                  Thư mục gốc
+              <div className="mt-3">
+                <label htmlFor="serverHostInput" className="block text-gray-300 mb-1 font-bold">
+                  Server Host
                 </label>
                 <input
                   type="text"
-                  id="rootFolderInput"
-                  value={rootFolder}
-                  onChange={(e) => setRootFolder(e.target.value)}
-                  placeholder="/Volumes/HDD/Albums"
-                  className="w-full bg-[#18191c] border border-[#383c42] focus:border-amber-400 rounded-xl px-3 py-2 text-white font-mono placeholder-gray-500 outline-none"
+                  id="serverHostInput"
+                  value={serverHost}
+                  onChange={(e) => setServerHost(e.target.value)}
+                  disabled={connectionState === 'checking'}
+                  placeholder="HOANGs-MacBook-Pro.local or 192.168.1.x"
+                  className="w-full bg-[#18191c] border border-[#383c42] focus:border-blue-400 rounded-xl px-3 py-2 text-white font-mono placeholder-gray-500 outline-none disabled:opacity-50"
                 />
+                <p className="mt-1.5 text-[11px] text-gray-500">
+                  Nhập hostname .local hoặc địa chỉ IP. Port và đường dẫn được cấu hình tự động.
+                </p>
               </div>
+
+              {serverErrorMsg && (
+                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs font-medium">
+                  ⚠️ {serverErrorMsg}
+                </div>
+              )}
 
               <div className="flex items-center justify-between pt-3 border-t border-[#383c42]/50">
                 {serverSavedMsg ? (
@@ -176,17 +237,27 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                 )}
                 <button
                   type="submit"
-                  className="flex items-center gap-1.5 px-4 py-1.5 font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl shadow-lg shadow-blue-600/30 transition-all"
+                  disabled={connectionState === 'checking'}
+                  className="flex items-center gap-1.5 px-4 py-1.5 font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 rounded-xl shadow-lg shadow-blue-600/30 transition-all"
                 >
-                  <Check className="w-4 h-4" />
-                  <span>Lưu Máy chủ</span>
+                  {connectionState === 'checking' ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Đang kiểm tra...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Lưu & Kết nối</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
           )}
         </div>
 
-        {/* Section 2: Client Cache Cleanup */}
+		{/* Section 2: Client Cache Cleanup */}
         <div className="border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
           <button
             type="button"
@@ -232,7 +303,8 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
               </div>
             </div>
           )}
-        </div>
+		</div>
+		</div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../providers/settings_provider.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/download_provider.dart';
+import '../api/api_config.dart';
 import '../widgets/app_header.dart';
 import '../widgets/breadcrumbs_bar.dart';
 import '../widgets/folder_tree_drawer.dart';
@@ -31,12 +32,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final settings = context.read<SettingsProvider>();
       final appState = context.read<AppStateProvider>();
       final downloadProvider = context.read<DownloadProvider>();
-
-      appState.startRealtime();
 
       downloadProvider.onRefreshGrid = () {
         if (mounted) {
@@ -46,8 +45,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!settings.isConfigured) {
         ConfigApiDialog.show(context);
-        appState.loadData('');
       } else {
+        final validation = await ApiConfig.validateCoordinatorHost(
+          settings.serverHost,
+        );
+        if (!mounted) return;
+        if (validation['success'] != true) {
+          await appState.stopRealtimeAndClearState(
+            validation['message']?.toString() ?? 'Không thể kết nối máy chủ.',
+          );
+          if (mounted) ConfigApiDialog.show(context);
+          return;
+        }
+        appState.markServerConnected();
+        appState.startRealtime();
         appState.loadTreeData();
         appState.loadData('');
       }
@@ -69,10 +80,18 @@ class _HomeScreenState extends State<HomeScreen> {
         drawer: const FolderTreeDrawer(),
         floatingActionButton: FabSpeedDial(
           onCreateFolder: () {
+            if (!context.read<AppStateProvider>().isServerConnected) {
+              ConfigApiDialog.show(context);
+              return;
+            }
             final currentPath = context.read<AppStateProvider>().currentPath;
             CreateFolderDialog.show(context, currentPath);
           },
           onDownloadArchive: () {
+            if (!context.read<AppStateProvider>().isServerConnected) {
+              ConfigApiDialog.show(context);
+              return;
+            }
             final currentPath = context.read<AppStateProvider>().currentPath;
             DownloadScreen.showAddMediaFireDialog(context, currentPath);
           },

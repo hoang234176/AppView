@@ -1,6 +1,51 @@
 import 'package:dio/dio.dart';
 import 'api_config.dart';
 
+String canonicalDownloadDestination(String selectedPath) {
+  final selected = selectedPath
+      .trim()
+      .replaceFirst(RegExp(r'^/+'), '')
+      .replaceFirst(RegExp(r'/+$'), '');
+  return selected.isEmpty ? '/' : '/$selected';
+}
+
+class VideoOptimizationModel {
+  final String id, displayName, resolutionClass, selectedQuality, state;
+  final int width, height, sourceSizeBytes;
+  final List<String> allowedQualities;
+  final Map<String, int> estimates;
+  const VideoOptimizationModel({
+    required this.id,
+    required this.displayName,
+    required this.resolutionClass,
+    required this.width,
+    required this.height,
+    required this.sourceSizeBytes,
+    required this.allowedQualities,
+    required this.estimates,
+    this.selectedQuality = '',
+    this.state = '',
+  });
+  factory VideoOptimizationModel.fromJson(Map<String, dynamic> json) =>
+      VideoOptimizationModel(
+        id: json['id']?.toString() ?? '',
+        displayName: json['displayName']?.toString() ?? '',
+        resolutionClass: json['resolutionClass']?.toString() ?? '',
+        width: (json['width'] as num?)?.toInt() ?? 0,
+        height: (json['height'] as num?)?.toInt() ?? 0,
+        sourceSizeBytes: (json['sourceSizeBytes'] as num?)?.toInt() ?? 0,
+        allowedQualities:
+            (json['allowedQualities'] as List? ?? const [])
+                .map((e) => e.toString())
+                .toList(),
+        estimates: (json['estimates'] as Map? ?? const {}).map(
+          (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+        ),
+        selectedQuality: json['selectedQuality']?.toString() ?? '',
+        state: json['state']?.toString() ?? '',
+      );
+}
+
 class DownloadTaskModel {
   final String taskId;
   final String originalUrl;
@@ -21,6 +66,9 @@ class DownloadTaskModel {
   final String? cancelledFromStage;
   final String? failureStage;
   final bool coordinatorJob;
+  final bool archiveDownloaded, archiveExtracted;
+  final int totalVideoCount, invalidVideoCount;
+  final List<VideoOptimizationModel> videos;
 
   DownloadTaskModel({
     required this.taskId,
@@ -42,6 +90,11 @@ class DownloadTaskModel {
     this.cancelledFromStage,
     this.failureStage,
     this.coordinatorJob = false,
+    this.archiveDownloaded = false,
+    this.archiveExtracted = false,
+    this.totalVideoCount = 0,
+    this.invalidVideoCount = 0,
+    this.videos = const [],
   });
 
   factory DownloadTaskModel.fromJson(Map<String, dynamic> json) {
@@ -82,12 +135,14 @@ class DownloadTaskModel {
     final downloadedBytes = (progress['downloadedBytes'] as num?)?.toInt() ?? 0;
     final totalBytes = (progress['totalBytes'] as num?)?.toInt();
     final state = json['state']?.toString() ?? 'queued';
-    final stage =
-        state == 'downloading'
+    final rawStage =
+        json['stage']?.toString() ??
+        (state == 'downloading'
             ? (progress['state']?.toString() ?? 'downloading')
             : state == 'failed'
             ? 'error'
-            : state;
+            : state);
+    final stage = rawStage == 'failed' ? 'error' : rawStage;
     final error =
         json['error'] is Map
             ? Map<String, dynamic>.from(json['error'] as Map)
@@ -100,7 +155,9 @@ class DownloadTaskModel {
       taskId: json['id']?.toString() ?? '',
       originalUrl: json['url']?.toString() ?? '',
       filename:
-          json['filename']?.toString() ?? progress['filename']?.toString(),
+          json['displayName']?.toString() ??
+          json['filename']?.toString() ??
+          progress['filename']?.toString(),
       destination: json['destination']?.toString() ?? '',
       stage: stage,
       downloadedBytes: downloadedBytes,
@@ -117,6 +174,20 @@ class DownloadTaskModel {
       convertTotal: (conversion['total'] as num?)?.toInt() ?? 0,
       convertCurrent: (conversion['current'] as num?)?.toInt() ?? 0,
       coordinatorJob: true,
+      passwordRequired: json['passwordRequired'] == true,
+      archiveDownloaded: json['archiveDownloaded'] == true,
+      archiveExtracted: json['archiveExtracted'] == true,
+      totalVideoCount: (json['totalVideoCount'] as num?)?.toInt() ?? 0,
+      invalidVideoCount: (json['invalidVideoCount'] as num?)?.toInt() ?? 0,
+      videos:
+          (json['videos'] as List? ?? const [])
+              .whereType<Map>()
+              .map(
+                (v) => VideoOptimizationModel.fromJson(
+                  Map<String, dynamic>.from(v),
+                ),
+              )
+              .toList(),
     );
   }
 }
@@ -151,6 +222,32 @@ class DownloadSummaryModel {
   }
 }
 
+class StorageInfoModel {
+  final String displayName;
+  final int totalBytes;
+  final int usedBytes;
+  final int availableBytes;
+  final double usedPercent;
+
+  const StorageInfoModel({
+    required this.displayName,
+    required this.totalBytes,
+    required this.usedBytes,
+    required this.availableBytes,
+    required this.usedPercent,
+  });
+
+  factory StorageInfoModel.fromJson(Map<String, dynamic> json) {
+    return StorageInfoModel(
+      displayName: json['displayName']?.toString() ?? '',
+      totalBytes: (json['totalBytes'] as num?)?.toInt() ?? 0,
+      usedBytes: (json['usedBytes'] as num?)?.toInt() ?? 0,
+      availableBytes: (json['availableBytes'] as num?)?.toInt() ?? 0,
+      usedPercent: (json['usedPercent'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
 class DownloadApi {
   static Dio _createCoordinatorDio() {
     final baseUrl = ApiConfig.coordinatorBaseUrl;
@@ -165,6 +262,20 @@ class DownloadApi {
         headers: {'Content-Type': 'application/json'},
       ),
     );
+  }
+
+  static Future<StorageInfoModel?> fetchCoordinatorStorageInfo() async {
+    try {
+      final response = await _createCoordinatorDio().get('/storage');
+      if (response.data is Map) {
+        return StorageInfoModel.fromJson(
+          Map<String, dynamic>.from(response.data as Map),
+        );
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<Map<String, dynamic>> startCoordinatorDownload({
@@ -225,6 +336,77 @@ class DownloadApi {
       };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<List<DownloadTaskModel>?> fetchCoordinatorDownloads() async {
+    try {
+      final response = await _createCoordinatorDio().get('/download');
+      final jobs = response.data is Map ? response.data['jobs'] : null;
+      if (jobs is! List) return <DownloadTaskModel>[];
+      return jobs
+          .whereType<Map>()
+          .map(
+            (job) => DownloadTaskModel.fromCoordinatorJson(
+              Map<String, dynamic>.from(job),
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<bool> retryCoordinatorArchive(String jobId) async {
+    try {
+      await _createCoordinatorDio().post(
+        '/download/${Uri.encodeComponent(jobId)}/retry',
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> submitCoordinatorArchivePassword(
+    String jobId,
+    String password,
+  ) async {
+    try {
+      await _createCoordinatorDio().post(
+        '/download/${Uri.encodeComponent(jobId)}/extract',
+        data: {'password': password},
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> submitVideoDecision(
+    String jobId,
+    String videoId,
+    String quality,
+  ) async {
+    try {
+      await _createCoordinatorDio().post(
+        '/download/${Uri.encodeComponent(jobId)}/videos/${Uri.encodeComponent(videoId)}/decision',
+        data: {'quality': quality},
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> cancelCoordinatorArchive(String jobId) async {
+    try {
+      await _createCoordinatorDio().post(
+        '/download/${Uri.encodeComponent(jobId)}/cancel',
+      );
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

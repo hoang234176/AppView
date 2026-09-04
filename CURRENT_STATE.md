@@ -25,6 +25,9 @@ Improve backend observability and verify the end-to-end Coordinator download pat
 - Added `POST /api/v1/download`, `GET /api/v1/download`, and `GET /api/v1/download/{id}` without changing generic `/api/v1/tasks`.
 - Storage now owns a versioned durable archive-job snapshot under `APPVIEW_STATE_DIR/downloads/jobs` (defaulting through `os.UserHomeDir()` to `~/.tmp-appview`). It restores history at startup, marks interrupted active work as resumable rather than silently losing it, retains partial/archive/extracted artifacts, and exposes per-job `POST /api/v1/jobs/archive/:job_id/retry`. Passwords are never persisted.
 - Storage now synchronizes its password-free durable archive snapshots through the existing `download_file` worker connection using `storage.history`. Coordinator merges by stable ID and worker identity, exposes recovered records through `GET /api/v1/download`, and broadcasts bounded `download_event` invalidations to every `/ws/events` subscriber. Coordinator never accesses Storage state files.
+- Web and Mobile now treat `GET /api/v1/download` as canonical download history. Their existing app-level Coordinator event connection treats `download_event` as a coalesced invalidation and refetches history on event/reconnect; per-job Storage retry and password-only extraction controls do not retain passwords locally.
+- Password-required is a recoverable canonical download state. Web and Mobile keep it in Downloading, show a per-job masked retry input, and derive their header warning badge from canonical attention states. Retry/extract requests now go through Coordinator, which pins the short-lived `download_file` control task to the Storage worker that owns the persisted archive.
+- Canonical download actions now include cooperative cancel through Coordinator. Storage persists cancelled jobs without deleting archive/extracted artifacts. After a successful SSD-workspace commit, Storage emits one public `folder_created` event for the final relative destination, so tree/current-folder refetches happen without exposing temporary paths.
 - Successful Python resolver result maps exact fields `downloadUrl` and `filename` into one Storage payload `{url, filename, destination, password}`.
 - Parent progress mirrors child progress; child failure maps to `failureStage` `resolve` or `storage`. Requeue retains the parent current stage, while terminal disconnect failure is synchronized to the parent.
 - Storage child creation is atomically gated by parent registry state, preventing duplicate `download_file` tasks.
@@ -108,7 +111,6 @@ Improve backend observability and verify the end-to-end Coordinator download pat
 - The Coordinator task registry is in memory, so task status does not survive a Coordinator restart by design.
 - Flutter configuration is compile-time (`--dart-define`) by design; it does not read `.env` files at runtime.
 - `download_file` is currently tied to the archive-oriented existing Storage API; the Coordinator now chains resolved URL/filename into it, but broader raw-file/provider pipelines remain future work.
-- DownloadJob/task registries are in-memory. Storage now preserves local recovery state, but automatic Storage-to-Coordinator history reconciliation after a remote Coordinator restart still needs a worker protocol sync message; clients can currently recover it through the local Storage/Python compatibility path.
 
 ## Next step
 

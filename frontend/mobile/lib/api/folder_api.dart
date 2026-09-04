@@ -11,14 +11,13 @@ import '../utils/formatters.dart';
 class FolderApi {
   static Dio _createDio() {
     final baseUrl = ApiConfig.baseUrl;
-    final rootPath = ApiConfig.rootFolderPath;
     final options = BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
-      headers: {
+      headers: const {
         'Content-Type': 'application/json',
-        'X-Root-Folder-Path': rootPath,
+        // X-Root-Folder-Path is no longer sent; Storage uses its own ROOT_PATH.
       },
     );
     return Dio(options);
@@ -36,9 +35,7 @@ class FolderApi {
   }) async {
     final dio = _createDio();
     final baseUrl = ApiConfig.baseUrl;
-    final Map<String, dynamic> queryParams = {
-      'root_path': ApiConfig.rootFolderPath,
-    };
+    final Map<String, dynamic> queryParams = {};
     if (folderPath.trim().isNotEmpty) {
       queryParams['path'] = folderPath.trim();
     }

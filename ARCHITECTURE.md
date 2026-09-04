@@ -193,7 +193,7 @@ POST /api/v1/download
 | Download | GET/POST/DELETE | `/api/v1/download/tasks...`, `/summary` | `main.py` | Task state, retry/password/cancel/delete, summary. |
 | Download | WebSocket | `/api/v1/download/ws` | `main.py` | Frontend real-time task events. |
 | Coordinator | POST/GET | `/api/v1/tasks`, `/api/v1/tasks/{id}` | `internal/httpapi` | Generic capability task lifecycle. |
-| Coordinator | POST/GET | `/api/v1/download`, `/api/v1/download/{id}` | `internal/httpapi/download_handler.go` | Parent two-stage resolve-to-Storage download lifecycle and current job list. |
+| Coordinator | POST/GET | `/api/v1/download`, `/api/v1/download/{id}`, `/{id}/retry`, `/{id}/extract`, `/{id}/cancel` | `internal/httpapi/download_handler.go` | Parent lifecycle/history plus worker-pinned recovery and cooperative cancellation controls. |
 | Coordinator | GET | `/health` | `internal/httpapi` | Health and worker count. |
 | Coordinator | WebSocket | `/ws/workers` by default | `internal/websocket` | Worker registration and task protocol. |
 | Coordinator | WebSocket | `/ws/events` | `internal/realtime` | Best-effort frontend filesystem and download-history invalidation. |

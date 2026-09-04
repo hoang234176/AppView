@@ -69,6 +69,36 @@ export const fetchCoordinatorDownload = async (jobId) => {
   }
 };
 
+export const fetchCoordinatorDownloads = async () => {
+  try {
+    const response = await createCoordinatorClient().get('/download');
+    return { success: true, data: Array.isArray(response.data?.jobs) ? response.data.jobs : [] };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.error || 'Không thể tải lịch sử download.' };
+  }
+};
+export const fetchCoordinatorStorageInfo = async () => {
+  try { const response = await createCoordinatorClient().get('/storage'); return { success: true, data: response.data }; }
+  catch (error) { return { success: false, message: error.response?.data?.error || 'Không thể đọc dung lượng Storage.' }; }
+};
+
+export const retryCoordinatorArchive = async (jobId) => {
+  try { await createCoordinatorClient().post(`/download/${encodeURIComponent(jobId)}/retry`); return { success: true }; }
+  catch (error) { return { success: false, message: error.response?.data?.error || 'Không thể tải tiếp tác vụ.' }; }
+};
+export const submitCoordinatorArchivePassword = async (jobId, password) => {
+  try { await createCoordinatorClient().post(`/download/${encodeURIComponent(jobId)}/extract`, { password }); return { success: true }; }
+  catch (error) { return { success: false, message: error.response?.data?.error || 'Mật khẩu không hợp lệ.' }; }
+};
+export const cancelCoordinatorArchive = async (jobId) => {
+  try { await createCoordinatorClient().post(`/download/${encodeURIComponent(jobId)}/cancel`); return { success: true }; }
+  catch (error) { return { success: false, message: error.response?.data?.error || 'Không thể hủy tác vụ.' }; }
+};
+export const submitVideoDecision = async (jobId, videoId, quality) => {
+  try { await createCoordinatorClient().post(`/download/${encodeURIComponent(jobId)}/videos/${encodeURIComponent(videoId)}/decision`, { quality }); return { success: true }; }
+  catch (error) { return { success: false, message: error.response?.data?.error || 'Không thể lưu lựa chọn video.' }; }
+};
+
 /**
  * Fetch all tasks
  * Endpoint: GET /tasks

@@ -25,7 +25,7 @@ export const Header = ({
   // Màu ring và icon download theo từng stage
   const ringColorClass = activeDownloadCount > 0
     ? hasPasswordError
-      ? 'text-red-500'
+      ? 'text-amber-500'
       : isConverting
         ? 'text-purple-500'
         : isScanning
@@ -37,7 +37,7 @@ export const Header = ({
 
   const iconColorClass = activeDownloadCount > 0
     ? hasPasswordError
-      ? 'text-red-400'
+      ? 'text-amber-400'
       : isConverting
         ? 'text-purple-400'
         : isScanning
@@ -155,9 +155,9 @@ export const Header = ({
               <path d="M4 15.5v3A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-3" />
             </svg>
 
-            {/* Badge đỏ nhỏ khi có lỗi mật khẩu */}
+            {/* Badge cảnh báo khi có tác vụ cần người dùng xử lý. */}
             {hasPasswordError && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[7px] font-black text-white leading-none" />
+              <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-amber-400 text-[7px] font-black text-[#1c1d21] leading-none" />
             )}
           </button>
         </div>

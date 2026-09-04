@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"backend/configs"
+	"backend/events"
 )
 
 func resetArchiveJobsForTest(t *testing.T) {
@@ -29,6 +32,39 @@ func resetArchiveJobsForTest(t *testing.T) {
 		archiveJobs.items = make(map[string]*ArchiveJob)
 		archiveJobs.Unlock()
 	})
+}
+
+func TestCommitArchiveResultEmitsOnePublicDestinationEvent(t *testing.T) {
+	root := t.TempDir()
+	previousRoot := configs.DEFAULT_ROOT_PATH
+	configs.DEFAULT_ROOT_PATH = root
+	t.Cleanup(func() { configs.DEFAULT_ROOT_PATH = previousRoot; events.SetPublisher(nil) })
+	workspace := t.TempDir()
+	source := filepath.Join(workspace, "tệp # % @ 😀")
+	if err := os.MkdirAll(source, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "a.txt"), []byte("ok"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var emitted []events.FilesystemEvent
+	events.SetPublisher(func(event events.FilesystemEvent) error { emitted = append(emitted, event); return nil })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	job := &ArchiveJob{ID: "event-job", Destination: "đích/@folder", extractedPath: source, extractedName: "tệp # % @ 😀", ctx: ctx}
+	if err := commitArchiveResult(job); err != nil {
+		t.Fatal(err)
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("events=%#v", emitted)
+	}
+	event := emitted[0]
+	if event.Type != "folder_created" || event.ParentPath != "đích/@folder" || event.NewPath != "đích/@folder/tệp # % @ 😀" || filepath.IsAbs(event.NewPath) || filepath.IsAbs(event.ParentPath) {
+		t.Fatalf("unsafe event=%#v", event)
+	}
+	if _, err := os.Stat(filepath.Join(root, "đích/@folder/tệp # % @ 😀", "a.txt")); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestPersistentArchiveStateRestoresInterruptedJobWithoutPassword(t *testing.T) {

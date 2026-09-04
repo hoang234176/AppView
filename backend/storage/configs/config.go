@@ -9,7 +9,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-var DEFAULT_ROOT_PATH = "/Volumes/HDD/Albums"
+// ROOT_PATH is the Storage volume root. Public clients submit logical paths
+// such as /Albums; archive_task safely resolves them beneath this root.
+var DEFAULT_ROOT_PATH = "/Volumes/HDD"
 
 // AppViewStateDir is Storage's local durable state root.  It intentionally
 // belongs to the local Storage process: Coordinator can be remote and must

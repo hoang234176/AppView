@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../api/download_api.dart';
+import '../services/filesystem_events_service.dart';
 
 /// Holds parent Coordinator jobs created during this app session. The legacy
 /// Python Download WebSocket remains available for compatibility only; new
@@ -11,17 +12,38 @@ class DownloadProvider extends ChangeNotifier {
   final List<DownloadTaskModel> _tasks = [];
   final Map<String, Timer> _pollers = {};
   bool _disposed = false;
+  Timer? _refreshTimer;
+  StreamSubscription<void>? _realtimeSubscription;
 
   VoidCallback? onRefreshGrid;
 
   List<DownloadTaskModel> get tasks => List.unmodifiable(_tasks);
-  int get activeCount =>
-      _tasks
-          .where(
-            (task) =>
-                !const {'completed', 'error', 'cancelled'}.contains(task.stage),
-          )
-          .length;
+  int get activeCount => _tasks.where((task) => isActiveDownload(task)).length;
+  static String downloadGroup(DownloadTaskModel task) =>
+      task.stage == 'completed'
+          ? 'completed'
+          : task.stage == 'cancelled'
+          ? 'cancelled'
+          : 'active';
+  static bool isActiveDownload(DownloadTaskModel task) =>
+      downloadGroup(task) == 'active';
+  static bool isRetryableDownload(DownloadTaskModel task) =>
+      const {'error', 'failed', 'interrupted'}.contains(task.stage) &&
+      task.errorCode != 'VIDEO_CONVERT_UNAVAILABLE';
+  static bool needsPassword(DownloadTaskModel task) =>
+      task.passwordRequired || task.stage == 'password_required';
+  static bool canCancelDownload(DownloadTaskModel task) =>
+      downloadGroup(task) == 'active';
+  static bool needsDownloadAttention(DownloadTaskModel task) =>
+      task.passwordRequired ||
+      const {
+		'video_decision_required',
+        'password_required',
+        'error',
+        'failed',
+        'interrupted',
+      }.contains(task.stage);
+  bool get hasDownloadAttention => _tasks.any(needsDownloadAttention);
   bool get isDownloadingMode =>
       _tasks.any((task) => task.stage == 'downloading');
   double get aggregatePercent {
@@ -31,13 +53,38 @@ class DownloadProvider extends ChangeNotifier {
     return 0;
   }
 
-  bool get hasPasswordError => false;
+  bool get hasPasswordError => hasDownloadAttention;
   bool get isScanning => _tasks.any((task) => task.stage == 'scanning');
   bool get isConverting => _tasks.any((task) => task.stage == 'converting');
 
   void init() {
-    // There is intentionally no Coordinator collection endpoint. A parent ID
-    // is retained after POST and then individually polled.
+    refreshCanonicalHistory();
+    _realtimeSubscription = DownloadRealtimeBus.events.listen(
+      (_) => scheduleCanonicalRefresh(),
+    );
+  }
+
+  Future<void> refreshCanonicalHistory() async {
+    final tasks = await DownloadApi.fetchCoordinatorDownloads();
+    if (_disposed || tasks == null) return;
+    _tasks
+      ..clear()
+      ..addAll(tasks);
+    notifyListeners();
+  }
+
+  void scheduleCanonicalRefresh({bool immediate = false}) {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(
+      Duration(milliseconds: immediate ? 0 : 200),
+      refreshCanonicalHistory,
+    );
+  }
+
+  Future<bool> submitVideoDecision(String jobId, String videoId, String quality) async {
+    final ok = await DownloadApi.submitVideoDecision(jobId, videoId, quality);
+    if (ok) scheduleCanonicalRefresh(immediate: true);
+    return ok;
   }
 
   Future<Map<String, dynamic>> startCoordinatorDownload({
@@ -59,8 +106,7 @@ class DownloadProvider extends ChangeNotifier {
         'message': 'Coordinator không trả về mã tác vụ.',
       };
     }
-    _upsert(DownloadTaskModel.fromCoordinatorJson(job));
-    _poll(jobId);
+    scheduleCanonicalRefresh(immediate: true);
     return response;
   }
 
@@ -124,17 +170,29 @@ class DownloadProvider extends ChangeNotifier {
   // Legacy controls remain only for legacy task UIs. New Coordinator jobs do
   // not call Python endpoints after their initial parent-job submission.
   Future<void> retryTask(String taskId) async {
-    if (_taskIsCoordinatorJob(taskId)) return;
+    if (_taskIsCoordinatorJob(taskId)) {
+      await DownloadApi.retryCoordinatorArchive(taskId);
+      scheduleCanonicalRefresh(immediate: true);
+      return;
+    }
     await DownloadApi.retryTask(taskId);
   }
 
   Future<void> submitPassword(String taskId, String pwd) async {
-    if (_taskIsCoordinatorJob(taskId)) return;
+    if (_taskIsCoordinatorJob(taskId)) {
+      await DownloadApi.submitCoordinatorArchivePassword(taskId, pwd);
+      scheduleCanonicalRefresh(immediate: true);
+      return;
+    }
     await DownloadApi.submitPassword(taskId, pwd);
   }
 
   Future<void> cancelTask(String taskId) async {
-    if (_taskIsCoordinatorJob(taskId)) return;
+    if (_taskIsCoordinatorJob(taskId)) {
+      await DownloadApi.cancelCoordinatorArchive(taskId);
+      scheduleCanonicalRefresh(immediate: true);
+      return;
+    }
     await DownloadApi.cancelTask(taskId);
   }
 
@@ -155,6 +213,8 @@ class DownloadProvider extends ChangeNotifier {
       timer.cancel();
     }
     _pollers.clear();
+    _refreshTimer?.cancel();
+    _realtimeSubscription?.cancel();
     super.dispose();
   }
 }

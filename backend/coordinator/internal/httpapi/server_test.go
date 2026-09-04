@@ -85,6 +85,26 @@ func TestVersionedCoordinatorRoutes(t *testing.T) {
 	}
 }
 
+func TestDownloadRecoveryRoutesAreVersioned(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+	for _, test := range []struct{ method, path, body string }{
+		{http.MethodPost, "/api/v1/download/missing/retry", ""},
+		{http.MethodPost, "/api/v1/download/missing/extract", `{"password":"transient"}`},
+		{http.MethodPost, "/api/v1/download/missing/cancel", ""},
+	} {
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, httptest.NewRequest(test.method, test.path, bytes.NewBufferString(test.body)))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("%s %s: status=%d body=%s", test.method, test.path, response.Code, response.Body.String())
+		}
+		if bytes.Contains(response.Body.Bytes(), []byte("transient")) {
+			t.Fatalf("password leaked in response: %s", response.Body.String())
+		}
+	}
+}
+
 func TestCoordinatorCORS(t *testing.T) {
 	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
 	mux := http.NewServeMux()

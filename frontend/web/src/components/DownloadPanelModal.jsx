@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { X, Download, Video, Image, Trash2, AlertTriangle, RotateCw } from 'lucide-react';
 import { formatFileSize, formatSpeed, getFileCategory } from '../utils/formatters';
-import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask } from '../api/downloadApi';
+import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask, retryCoordinatorArchive, submitCoordinatorArchivePassword, cancelCoordinatorArchive, submitVideoDecision } from '../api/downloadApi';
 import { FileTypeIcon } from './icons/FileTypeIcon';
+import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload } from '../utils/downloadPresentation';
 
-const ACTIVE = ['queued', 'resolving', 'downloading', 'waiting_extract', 'extracting', 'scanning', 'converting', 'password_required'];
-const isRetryableDownloadError = (task) => task.stage === 'error' && task.error_code !== 'VIDEO_CONVERT_UNAVAILABLE';
+const isRetryableDownloadError = isRetryableDownload;
 const isCancelledOptimization = (task) => task.stage === 'cancelled' && task.cancelled_from_stage === 'converting';
 const COMPLETED_GROUPS = [
   ['File nén', 'archive', ({ className }) => <FileTypeIcon fallback="ZIP" className={className} />],
@@ -21,11 +21,15 @@ const displayConvertIndex = (task) => {
 export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, selectedTab: controlledTab, onSelectedTabChange }) => {
   const [passwords, setPasswords] = useState({});
   const [localTab, setLocalTab] = useState('active');
+  const [pendingPasswords, setPendingPasswords] = useState({});
+  const [pendingRetries, setPendingRetries] = useState({});
+  const [pendingCancels, setPendingCancels] = useState({});
+	const [pendingDecisions, setPendingDecisions] = useState({});
   const selectedTab = controlledTab ?? localTab;
   const setSelectedTab = onSelectedTabChange ?? setLocalTab;
-  const active = useMemo(() => tasks.filter((t) => ACTIVE.includes(t.stage) || isRetryableDownloadError(t) || isCancelledOptimization(t)), [tasks]);
-  const cancelled = useMemo(() => tasks.filter((t) => t.stage === 'cancelled' && !isCancelledOptimization(t)), [tasks]);
-  const completed = useMemo(() => tasks.filter((t) => t.stage !== 'cancelled' && !ACTIVE.includes(t.stage) && !isRetryableDownloadError(t)), [tasks]);
+  const active = useMemo(() => tasks.filter((t) => isActiveDownload(t) || isRetryableDownloadError(t)), [tasks]);
+  const cancelled = useMemo(() => tasks.filter((t) => t.stage === 'cancelled'), [tasks]);
+  const completed = useMemo(() => tasks.filter((t) => t.stage !== 'cancelled' && !isActiveDownload(t) && !isRetryableDownloadError(t)), [tasks]);
   const completedByGroup = useMemo(() => Object.fromEntries(
     COMPLETED_GROUPS.map(([, category]) => [
       category,
@@ -41,7 +45,7 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
     const fallback = category === 'video' ? 'MP4' : category === 'picture' ? 'IMG' : 'ZIP';
     return <FileTypeIcon filename={task.filename || task.original_url} fallback={fallback} className={`h-7 w-7 ${color}`} />;
   };
-  const color = (stage) => stage === 'error' || stage === 'password_required' ? 'text-red-400' : stage === 'scanning' ? 'text-emerald-400' : stage === 'converting' ? 'text-purple-400' : ['extracting', 'waiting_extract'].includes(stage) ? 'text-orange-400' : 'text-blue-400';
+  const color = (stage) => ['error', 'failed', 'password_required', 'interrupted'].includes(stage) ? 'text-amber-400' : stage === 'scanning' ? 'text-emerald-400' : stage === 'converting' ? 'text-purple-400' : ['extracting', 'waiting_extract'].includes(stage) ? 'text-orange-400' : 'text-blue-400';
   const status = (t) => {
     if (t.stage === 'queued') return 'Đang chờ tải...';
     if (t.stage === 'resolving') return 'Đang lấy liên kết...';
@@ -49,26 +53,34 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
     if (t.stage === 'waiting_extract') return 'Đang chờ giải nén...';
     if (t.stage === 'extracting') return 'Đang giải nén...';
     if (t.stage === 'scanning') return 'Đang kiểm tra thư mục...';
+	if (t.stage === 'video_decision_required') return 'Chọn chất lượng cho từng video cần tối ưu';
     if (t.stage === 'converting') return `[${displayConvertIndex(t)}/${t.convert_total || 0}] Đang tối ưu video...`;
-    if (t.stage === 'error') return `${t.failure_stage ? `[${t.failure_stage}] ` : ''}${t.error || 'Tải xuống bị lỗi.'}`;
-    return 'Yêu cầu mật khẩu giải nén';
+    if (t.invalid_video_count > 0) return `${t.total_video_count || t.invalid_video_count} video • ${t.invalid_video_count} cần tối ưu`;
+    if (t.stage === 'password_required' || t.password_required) return 'Yêu cầu mật khẩu giải nén';
+    if (['error', 'failed', 'interrupted'].includes(t.stage)) return `${t.failure_stage ? `[${t.failure_stage}] ` : ''}${t.error || 'Tải xuống bị lỗi.'}`;
+    return t.stage;
   };
   const remove = async (id) => { onDeleteTask?.(id); await deleteDownloadTask(id); };
-  const submitPassword = async (id) => { const value = (passwords[id] || '').trim(); if (value) await submitTaskPassword(id, value); };
+  const submitPassword = async (task) => { const value = (passwords[task.task_id] || '').trim(); if (!value || pendingPasswords[task.task_id]) return; setPendingPasswords((old) => ({ ...old, [task.task_id]: true })); try { const result = task.coordinator_job ? await submitCoordinatorArchivePassword(task.task_id, value) : await submitTaskPassword(task.task_id, value); if (result?.success) setPasswords((old) => ({ ...old, [task.task_id]: '' })); } finally { setPendingPasswords((old) => ({ ...old, [task.task_id]: false })); } };
+  const retry = async (task) => { if (pendingRetries[task.task_id]) return; setPendingRetries((old) => ({ ...old, [task.task_id]: true })); try { if (task.coordinator_job) await retryCoordinatorArchive(task.task_id); else await retryDownloadTask(task.task_id); } finally { setPendingRetries((old) => ({ ...old, [task.task_id]: false })); } };
+  const cancel = async (task) => { if (pendingCancels[task.task_id]) return; setPendingCancels((old) => ({ ...old, [task.task_id]: true })); try { if (task.coordinator_job) await cancelCoordinatorArchive(task.task_id); else await cancelDownloadTask(task.task_id); } finally { setPendingCancels((old) => ({ ...old, [task.task_id]: false })); } };
+	const decide = async (task, video, quality) => { const key = `${task.task_id}:${video.id}`; if (pendingDecisions[key]) return; setPendingDecisions((old) => ({ ...old, [key]: true })); try { await submitVideoDecision(task.task_id, video.id, quality); } finally { setPendingDecisions((old) => ({ ...old, [key]: false })); } };
+	const videoChoices = (t) => (t.videos || []).filter((v) => v.optimizationRequired).map((v) => <div key={v.id} className="rounded-xl border border-purple-400/25 bg-black/15 p-2.5 text-[11px]"><div className="font-semibold text-white">{v.displayName}</div><div className="mt-0.5 text-gray-400">{v.width}×{v.height} • {formatFileSize(v.sourceSizeBytes || 0)}</div>{v.allowedQualities?.length ? <div className="mt-2 flex flex-wrap gap-1.5">{v.allowedQualities.map((q) => <button key={q} disabled={pendingDecisions[`${t.task_id}:${v.id}`]} onClick={() => decide(t, v, q)} className={`rounded-lg border px-2 py-1 font-bold ${v.selectedQuality === q ? 'border-purple-300 bg-purple-500/25 text-purple-100' : 'border-[#4a3b56] text-purple-200 hover:bg-purple-500/15'}`}>{q.toUpperCase()} <span className="text-purple-300/80">~{formatFileSize(v.estimates?.[q] || 0)}</span></button>)}</div> : <p className="mt-1 text-emerald-300">Giữ nguyên độ phân giải • ~{formatFileSize(v.estimates?.preserve || 0)}</p>}{v.error && <p className="mt-1 text-amber-300">{v.error}</p>}</div>);
 
   const activeCard = (t) => {
     const loading = ['queued', 'resolving', 'waiting_extract', 'extracting', 'scanning', 'converting'].includes(t.stage);
     const cancelledOptimization = isCancelledOptimization(t);
-    const taskColor = cancelledOptimization ? 'text-amber-400' : color(t.stage);
+    const taskColor = cancelledOptimization || needsDownloadAttention(t) ? 'text-amber-400' : color(t.stage);
     return <div key={t.task_id} className="min-h-[108px] space-y-3 rounded-2xl border border-[#383c42] bg-[#202124] p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center">{icon(t, taskColor)}</div>
         <div className="min-w-0 flex-1"><h5 className="truncate text-xs font-bold text-white">{t.filename || 'Đang phân tích liên kết...'}</h5>{t.stage === 'downloading' ? <p className="mt-1 flex items-center justify-between gap-3 text-[11px] font-medium"><span className="truncate text-gray-400">{formatFileSize(t.downloaded_bytes)} / {t.download_total_bytes ? formatFileSize(t.download_total_bytes) : 'Không rõ'}</span><span className="flex-shrink-0 text-emerald-400">{formatSpeed(t.download_speed_bytes)}</span></p> : cancelledOptimization ? <p className="mt-1 text-[11px] font-medium"><span className="text-emerald-400">Đã giải nén hoàn tất</span><span className="text-gray-400"> - </span><span className="text-amber-400">Đã hủy tối ưu video</span></p> : <p className={`mt-1 text-[11px] font-medium ${taskColor}`}>{status(t)}</p>}</div>
-        {!t.coordinator_job && (t.stage === 'error' ? <div className="flex items-center gap-1"><button onClick={() => retryDownloadTask(t.task_id)} title="Tải tiếp" className="rounded-full p-1 text-blue-400 hover:bg-blue-500/20"><RotateCw className="h-4 w-4" /></button><button onClick={() => remove(t.task_id)} title="Xóa file tạm" className="rounded-full p-1 text-gray-400 hover:text-red-400"><X className="h-4 w-4" /></button></div> : cancelledOptimization ? <button onClick={() => remove(t.task_id)} title="Xóa khỏi danh sách" className="rounded-full p-1 text-gray-400 hover:text-red-400"><X className="h-4 w-4" /></button> : <button onClick={() => cancelDownloadTask(t.task_id)} title="Hủy" className="rounded-full p-1 text-gray-400 hover:text-red-400"><X className="h-4 w-4" /></button>)}
+        <div className="flex items-center gap-1">{isRetryableDownloadError(t) && <button disabled={pendingRetries[t.task_id]} onClick={() => retry(t)} title="Tải tiếp" className="rounded-full p-1 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50"><RotateCw className="h-4 w-4" /></button>}{canCancelDownload(t) && <button disabled={pendingCancels[t.task_id]} onClick={() => cancel(t)} title="Hủy tác vụ" className="rounded-full p-1 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50"><X className="h-4 w-4" /></button>}</div>
       </div>
       {t.stage === 'downloading' && <div className="h-2 overflow-hidden rounded-full bg-[#18191c]"><div className="h-full rounded-full bg-blue-500" style={{ width: `${t.download_percent || 0}%` }} /></div>}
       {loading && <div className={`google-linear-progress ${t.stage === 'converting' ? 'google-linear-progress-purple' : t.stage === 'scanning' ? 'google-linear-progress-green' : ''}`}><div className="google-linear-progress-bar" /></div>}
-      {t.stage === 'password_required' && !t.coordinator_job && <div className="flex gap-2"><input value={passwords[t.task_id] || ''} onChange={(e) => setPasswords((old) => ({ ...old, [t.task_id]: e.target.value }))} placeholder="Nhập lại mật khẩu..." className="min-w-0 flex-1 rounded-xl border border-red-500/50 bg-[#1c1d21] px-3 py-1.5 text-xs text-white outline-none" /><button onClick={() => submitPassword(t.task_id)} className="rounded-xl bg-red-600 px-3 text-xs font-bold text-white">Tiếp tục</button></div>}
+      {needsPassword(t) && <div className="flex gap-2"><input type="password" value={passwords[t.task_id] || ''} onChange={(e) => setPasswords((old) => ({ ...old, [t.task_id]: e.target.value }))} placeholder="Nhập lại mật khẩu..." className="min-w-0 flex-1 rounded-xl border border-amber-500/50 bg-[#1c1d21] px-3 py-1.5 text-xs text-white outline-none" /><button disabled={pendingPasswords[t.task_id]} onClick={() => submitPassword(t)} className="rounded-xl bg-amber-500 px-3 text-xs font-bold text-[#1c1d21] disabled:opacity-60">{pendingPasswords[t.task_id] ? 'Đang gửi...' : 'Thử giải nén'}</button></div>}
+	  {t.stage === 'video_decision_required' && <div className="space-y-2">{videoChoices(t)}</div>}
     </div>;
   };
 

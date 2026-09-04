@@ -106,11 +106,15 @@ func (r *Registry) MergeStorageHistory(workerID string, snapshots []protocol.Sto
 		}
 		next.URL = safeSourceURL(snapshot.SourceURL)
 		next.SourceURL = next.URL
+		if next.StorageTaskID == "" {
+			next.StorageTaskID = snapshot.ID
+		}
 		next.Filename, next.DisplayName, next.Destination = snapshot.Filename, snapshot.Filename, snapshot.Destination
 		next.State, next.Stage = State(snapshot.State), snapshot.State
 		next.ArchiveDownloaded, next.ArchiveExtracted, next.PasswordRequired = snapshot.ArchiveDownloaded, snapshot.ArchiveExtracted, snapshot.PasswordRequired
 		next.TotalVideoCount, next.InvalidVideoCount, next.VideoScanState = snapshot.TotalVideoCount, snapshot.InvalidVideoCount, snapshot.VideoScanState
 		next.ConversionTotal, next.ConversionCurrent, next.ConversionFailed = snapshot.ConversionTotal, snapshot.ConversionCurrent, snapshot.ConversionFailed
+		next.Videos = append([]protocol.VideoOptimization(nil), snapshot.Videos...)
 		next.CreatedAt, next.UpdatedAt, next.storageWorkerID, next.storageSnapshotUpdatedAt = snapshot.CreatedAt, snapshot.UpdatedAt, workerID, snapshot.UpdatedAt
 		next.Progress = storageProgress(snapshot)
 		if snapshot.ErrorCode != "" || snapshot.Error != "" {
@@ -134,6 +138,11 @@ func validStorageSnapshot(snapshot protocol.StorageJobSnapshot) error {
 	}
 	if snapshot.DownloadedBytes < 0 || snapshot.TotalBytes < 0 || snapshot.TotalBytes > 0 && snapshot.DownloadedBytes > snapshot.TotalBytes || snapshot.TotalVideoCount < 0 || snapshot.InvalidVideoCount < 0 || snapshot.InvalidVideoCount > snapshot.TotalVideoCount {
 		return fmt.Errorf("storage snapshot %s has invalid progress", snapshot.ID)
+	}
+	for _, video := range snapshot.Videos {
+		if strings.TrimSpace(video.ID) == "" || strings.TrimSpace(video.RelativePath) == "" || video.SourceSizeBytes < 0 {
+			return fmt.Errorf("storage snapshot %s has invalid video", snapshot.ID)
+		}
 	}
 	return nil
 }
@@ -233,6 +242,20 @@ func (r *Registry) FailChild(taskID string, failure *protocol.ErrorPayload) {
 	if job.State == Completed || job.State == Failed {
 		return
 	}
+	// Storage deliberately reports password_required as a task failure so its
+	// monitor can finish. It is nevertheless a recoverable archive state, not
+	// a terminal parent failure: retain the canonical action required by Web
+	// and Mobile rather than overwriting the preceding storage.history update.
+	if ref.Stage == storageChild && failure != nil && failure.Code == "PASSWORD_REQUIRED" {
+		job.State, job.Stage, job.PasswordRequired, job.Error, job.FailureStage, job.storagePending, job.UpdatedAt = State("password_required"), "password_required", true, cloneError(failure), FailureStorage, false, time.Now().UTC()
+		r.jobs[job.ID] = job
+		return
+	}
+	if ref.Stage == storageChild && failure != nil && failure.Code == "STORAGE_JOB_CANCELLED" {
+		job.State, job.Stage, job.PasswordRequired, job.Error, job.FailureStage, job.storagePending, job.UpdatedAt = State("cancelled"), "cancelled", false, nil, "", false, time.Now().UTC()
+		r.jobs[job.ID] = job
+		return
+	}
 	stage := FailureResolve
 	if ref.Stage == storageChild {
 		stage = FailureStorage
@@ -298,6 +321,15 @@ func (r *Registry) JobForChild(taskID string) (Job, bool) {
 	}
 	job, ok := r.jobs[ref.JobID]
 	return job.Clone(), ok
+}
+
+// StorageWorkerForJob identifies the one Storage worker that owns a recovered
+// durable archive, avoiding cross-library control requests.
+func (r *Registry) StorageWorkerForJob(jobID string) (string, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	job, ok := r.jobs[jobID]
+	return job.storageWorkerID, ok && job.storageWorkerID != ""
 }
 
 func cloneError(failure *protocol.ErrorPayload) *protocol.ErrorPayload {

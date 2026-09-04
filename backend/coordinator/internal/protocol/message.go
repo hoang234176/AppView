@@ -18,6 +18,7 @@ const (
 	TaskFailed             MessageType = "task.failed"
 	FilesystemEventMessage MessageType = "filesystem_event"
 	StorageHistory         MessageType = "storage.history"
+	StorageInfoMessage     MessageType = "storage.info"
 	DownloadEventMessage   MessageType = "download_event"
 	Error                  MessageType = "error"
 )
@@ -37,7 +38,16 @@ type Message struct {
 	Error          *ErrorPayload          `json:"error,omitempty"`
 	Event          *FilesystemEvent       `json:"event,omitempty"`
 	StorageHistory *StorageHistoryPayload `json:"storageHistory,omitempty"`
+	StorageInfo    *StorageInfo           `json:"storageInfo,omitempty"`
 	DownloadEvent  *DownloadEvent         `json:"download,omitempty"`
+}
+
+type StorageInfo struct {
+	DisplayName    string  `json:"displayName"`
+	TotalBytes     int64   `json:"totalBytes"`
+	UsedBytes      int64   `json:"usedBytes"`
+	AvailableBytes int64   `json:"availableBytes"`
+	UsedPercent    float64 `json:"usedPercent"`
 }
 
 // StorageHistoryPayload is metadata-only durable state sent by one identified
@@ -47,29 +57,53 @@ type StorageHistoryPayload struct {
 }
 
 type StorageJobSnapshot struct {
-	ID                string    `json:"id"`
-	CanonicalID       string    `json:"canonicalJobId,omitempty"`
-	SourceURL         string    `json:"sourceUrl,omitempty"`
-	Filename          string    `json:"filename"`
-	Destination       string    `json:"destination,omitempty"`
-	State             string    `json:"state"`
-	DownloadedBytes   int64     `json:"downloadedBytes,omitempty"`
-	TotalBytes        int64     `json:"totalBytes,omitempty"`
-	SpeedBytes        int64     `json:"speedBytes,omitempty"`
-	ExtractedPercent  float64   `json:"extractedPercent,omitempty"`
-	ConversionTotal   int       `json:"conversionTotal,omitempty"`
-	ConversionCurrent int       `json:"conversionCurrent,omitempty"`
-	ConversionFailed  int       `json:"conversionFailed,omitempty"`
-	ErrorCode         string    `json:"errorCode,omitempty"`
-	Error             string    `json:"error,omitempty"`
-	PasswordRequired  bool      `json:"passwordRequired"`
-	ArchiveDownloaded bool      `json:"archiveDownloaded"`
-	ArchiveExtracted  bool      `json:"archiveExtracted"`
-	VideoScanState    string    `json:"videoScanState,omitempty"`
-	TotalVideoCount   int       `json:"totalVideoCount,omitempty"`
-	InvalidVideoCount int       `json:"invalidVideoCount,omitempty"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID                string              `json:"id"`
+	CanonicalID       string              `json:"canonicalJobId,omitempty"`
+	SourceURL         string              `json:"sourceUrl,omitempty"`
+	Filename          string              `json:"filename"`
+	Destination       string              `json:"destination,omitempty"`
+	State             string              `json:"state"`
+	DownloadedBytes   int64               `json:"downloadedBytes,omitempty"`
+	TotalBytes        int64               `json:"totalBytes,omitempty"`
+	SpeedBytes        int64               `json:"speedBytes,omitempty"`
+	ExtractedPercent  float64             `json:"extractedPercent,omitempty"`
+	ConversionTotal   int                 `json:"conversionTotal,omitempty"`
+	ConversionCurrent int                 `json:"conversionCurrent,omitempty"`
+	ConversionFailed  int                 `json:"conversionFailed,omitempty"`
+	ErrorCode         string              `json:"errorCode,omitempty"`
+	Error             string              `json:"error,omitempty"`
+	PasswordRequired  bool                `json:"passwordRequired"`
+	ArchiveDownloaded bool                `json:"archiveDownloaded"`
+	ArchiveExtracted  bool                `json:"archiveExtracted"`
+	VideoScanState    string              `json:"videoScanState,omitempty"`
+	TotalVideoCount   int                 `json:"totalVideoCount,omitempty"`
+	InvalidVideoCount int                 `json:"invalidVideoCount,omitempty"`
+	Videos            []VideoOptimization `json:"videos,omitempty"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	UpdatedAt         time.Time           `json:"updatedAt"`
+}
+
+// VideoOptimization is small, persisted media metadata projected by Storage.
+// It intentionally carries a relative display path only; no workspace paths,
+// passwords, or file contents cross the worker boundary.
+type VideoOptimization struct {
+	ID                 string           `json:"id"`
+	RelativePath       string           `json:"relativePath"`
+	DisplayName        string           `json:"displayName"`
+	Width              int              `json:"width"`
+	Height             int              `json:"height"`
+	ResolutionClass    string           `json:"resolutionClass"`
+	SourceSizeBytes    int64            `json:"sourceSizeBytes"`
+	ContainerOK        bool             `json:"containerCompatible"`
+	MetadataOK         bool             `json:"metadataCompatible"`
+	VideoOK            bool             `json:"videoCompatible"`
+	AudioOK            bool             `json:"audioCompatible"`
+	OptimizationNeeded bool             `json:"optimizationRequired"`
+	AllowedQualities   []string         `json:"allowedQualities,omitempty"`
+	SelectedQuality    string           `json:"selectedQuality,omitempty"`
+	Estimates          map[string]int64 `json:"estimates,omitempty"`
+	State              string           `json:"state"`
+	Error              string           `json:"error,omitempty"`
 }
 
 // DownloadEvent is a deliberately small invalidation notification. Clients

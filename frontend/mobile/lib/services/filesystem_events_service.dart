@@ -8,6 +8,13 @@ import '../api/api_config.dart';
 typedef FilesystemEventHandler = void Function(Map<String, dynamic> event);
 typedef RealtimeConnectedHandler = void Function();
 
+/// Shares download invalidations from the one app-level Coordinator socket.
+class DownloadRealtimeBus {
+  static final StreamController<void> _controller = StreamController<void>.broadcast();
+  static Stream<void> get events => _controller.stream;
+  static void notify() => _controller.add(null);
+}
+
 /// One bounded-retry Coordinator invalidation socket for the mobile app.
 /// Events are best-effort, so every successful connection asks the owner to
 /// refetch canonical state rather than relying on replay.
@@ -33,6 +40,22 @@ class FilesystemEventsService {
       }
       return;
     }
+    _stopped = false;
+    _connect();
+  }
+
+  /// Tear down any existing connection and reconnect using the current
+  /// ApiConfig.coordinatorEventsWsUrl. Call this after the server host changes.
+  Future<void> restart() async {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    final subscription = _subscription;
+    _subscription = null;
+    final channel = _channel;
+    _channel = null;
+    await subscription?.cancel();
+    await channel?.sink.close();
+    _attempt = 0;
     _stopped = false;
     _connect();
   }
@@ -64,7 +87,9 @@ class FilesystemEventsService {
     if (message is! String) return;
     try {
       final decoded = jsonDecode(message);
-      if (decoded is! Map || decoded['type'] != 'filesystem_event') return;
+      if (decoded is! Map) return;
+      if (decoded['type'] == 'download_event') { DownloadRealtimeBus.notify(); return; }
+      if (decoded['type'] != 'filesystem_event') return;
       final event = decoded['event'];
       if (event is Map) {
         _onEvent(Map<String, dynamic>.from(event));

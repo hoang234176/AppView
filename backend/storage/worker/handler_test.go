@@ -10,10 +10,12 @@ import (
 )
 
 type fakeArchiveOperations struct {
-	startErr      error
-	startSnapshot *pythonapi.ArchiveJobSnapshot
-	started       bool
-	snapshots     map[string]pythonapi.ArchiveJobSnapshot
+	startErr          error
+	startSnapshot     *pythonapi.ArchiveJobSnapshot
+	started           bool
+	retried           bool
+	extractionRetried bool
+	snapshots         map[string]pythonapi.ArchiveJobSnapshot
 }
 
 func (f *fakeArchiveOperations) Start(id, _, _, _, _ string) error {
@@ -27,6 +29,16 @@ func (f *fakeArchiveOperations) Start(id, _, _, _, _ string) error {
 		f.snapshots[id] = snapshot
 	}
 	return f.startErr
+}
+
+func (f *fakeArchiveOperations) Retry(_, _ string) error { f.retried = true; return f.startErr }
+func (f *fakeArchiveOperations) RetryExtraction(_, _ string) error {
+	f.extractionRetried = true
+	return f.startErr
+}
+func (f *fakeArchiveOperations) Cancel(id string) bool {
+	_, ok := f.snapshots[id]
+	return ok
 }
 
 func (f *fakeArchiveOperations) Snapshot(id string) (pythonapi.ArchiveJobSnapshot, bool) {
@@ -106,6 +118,24 @@ func TestHandlerFailsInvalidPayloadAndUnsupportedAction(t *testing.T) {
 		if len(sent) != 1 || sent[0].Type != TaskFailed {
 			t.Fatalf("messages = %#v, want one task.failed", sent)
 		}
+	}
+}
+
+func TestHandlerRetriesExistingArchiveWithoutStartingAnotherDownload(t *testing.T) {
+	archive := &fakeArchiveOperations{snapshots: map[string]pythonapi.ArchiveJobSnapshot{
+		"archive-1": completedSnapshot("archive-1"),
+	}}
+	handler := NewHandler(archive)
+	var sent []Message
+	handler.Handle(context.Background(), Message{
+		Type: TaskAssign, TaskID: "control-1", Action: CapabilityDownloadFile,
+		Payload: []byte(`{"operation":"extract","archiveTaskId":"archive-1","password":"not logged"}`),
+	}, collect(&sent))
+	if archive.started || !archive.extractionRetried {
+		t.Fatalf("control must retry extraction only: started=%v retried=%v", archive.started, archive.extractionRetried)
+	}
+	if len(sent) != 3 || sent[0].Type != TaskAccepted || sent[1].Type != StorageHistory || sent[2].Type != TaskCompleted {
+		t.Fatalf("messages = %#v, want accepted, history, completed", sent)
 	}
 }
 

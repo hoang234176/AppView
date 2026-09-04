@@ -1,18 +1,17 @@
-import { createApiClient, getApiBaseUrl, getRootFolderPath } from './axiosConfig';
+import { createApiClient, getApiBaseUrl } from './axiosConfig';
 
 /**
  * Fetch folder content from backend API with AbortSignal support
  * Endpoint: /folder (root) or /folder?path=<path>
+ *
+ * root_path is no longer sent from the frontend. Storage uses its own
+ * ROOT_PATH environment variable so the frontend never needs to know it.
  */
 export const fetchFolderContents = async (folderPath = '', queryOptions = {}, signal = null) => {
   const client = createApiClient();
-  const rootFolderPath = getRootFolderPath();
   
   try {
-    const params = {
-      root_path: rootFolderPath,
-      ...queryOptions,
-    };
+    const params = { ...queryOptions };
     if (folderPath && folderPath.trim() !== '') {
       params.path = folderPath;
     }
@@ -29,7 +28,7 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
       dataContainer = resData.data;
     }
 
-    // Always create fresh arrays to prevent memory references leaks
+    // Always create fresh arrays to prevent memory reference leaks
     const folders = Array.isArray(dataContainer?.folders) ? [...dataContainer.folders] : [];
     const rawPictures = Array.isArray(dataContainer?.pictures) ? [...dataContainer.pictures] : [];
     const rawVideos = Array.isArray(dataContainer?.videos) ? [...dataContainer.videos] : [];
@@ -39,14 +38,13 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
     const totalVideos = dataContainer?.total_videos ?? rawVideos.length;
 
     const baseUrl = getApiBaseUrl();
-    const rootQuery = rootFolderPath ? `?root_path=${encodeURIComponent(rootFolderPath)}` : '';
     const pictures = rawPictures.map((pic) => {
       const cleanPath = pic.path?.startsWith('/') ? pic.path.slice(1) : (pic.path || '');
       const encodedPath = cleanPath.split('/').map(p => encodeURIComponent(p).replace(/#/g, '%2523')).join('/');
       return {
         ...pic,
-        url: `${baseUrl}/pictures/${encodedPath}${rootQuery}`,
-        thumbnail_url: `${baseUrl}/thumbnails/${encodedPath}${rootQuery}`,
+        url: `${baseUrl}/pictures/${encodedPath}`,
+        thumbnail_url: `${baseUrl}/thumbnails/${encodedPath}`,
       };
     });
 
@@ -55,7 +53,7 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
       const encodedPath = cleanPath.split('/').map(p => encodeURIComponent(p).replace(/#/g, '%2523')).join('/');
       return {
         ...v,
-        url: `${baseUrl}/videos/${encodedPath}${rootQuery}`,
+        url: `${baseUrl}/videos/${encodedPath}`,
       };
     });
 
@@ -90,7 +88,7 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
       errorMessage = error.response.data?.message || `Máy chủ phản hồi lỗi (${statusCode})`;
       errorDetails = JSON.stringify(error.response.data, null, 2);
     } else if (error.request) {
-      errorMessage = `Không nhận được phản hồi từ server (${requestUrl}). Hãy kiểm tra địa chỉ IP, Cổng hoặc đường dẫn thư mục.`;
+      errorMessage = `Không nhận được phản hồi từ server (${requestUrl}). Hãy kiểm tra Server Host trong phần cài đặt.`;
     } else {
       errorMessage = error.message;
     }
@@ -112,12 +110,8 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
  */
 export const fetchFolderTree = async (signal = null) => {
   const client = createApiClient();
-  const rootFolderPath = getRootFolderPath();
   try {
-    const response = await client.get('/tree-folder', { 
-      params: { root_path: rootFolderPath },
-      signal 
-    });
+    const response = await client.get('/tree-folder', { signal });
     const resData = response.data;
     
     let treeArray = [];
@@ -149,15 +143,10 @@ export const fetchFolderTree = async (signal = null) => {
  */
 export const createNewFolder = async (parentPath = '', folderName = '') => {
   const client = createApiClient();
-  const rootFolderPath = getRootFolderPath();
   try {
     const response = await client.post('/folder', {
       path: parentPath,
       name: folderName,
-    }, {
-      params: {
-        root_path: rootFolderPath,
-      }
     });
 
     const resData = response.data;
@@ -185,15 +174,10 @@ export const createNewFolder = async (parentPath = '', folderName = '') => {
  */
 export const renameFolder = async (folderPath, newName) => {
   const client = createApiClient();
-  const rootFolderPath = getRootFolderPath();
   try {
     const response = await client.put('/folder/rename', {
       path: folderPath,
       new_name: newName,
-    }, {
-      params: {
-        root_path: rootFolderPath,
-      }
     });
 
     const resData = response.data;
@@ -221,15 +205,10 @@ export const renameFolder = async (folderPath, newName) => {
  */
 export const moveItem = async (srcPath, destFolderPath) => {
   const client = createApiClient();
-  const rootFolderPath = getRootFolderPath();
   try {
     const response = await client.post('/item/move', {
       src_path: srcPath,
       dest_folder_path: destFolderPath,
-    }, {
-      params: {
-        root_path: rootFolderPath,
-      }
     });
 
     const resData = response.data;
@@ -257,13 +236,9 @@ export const moveItem = async (srcPath, destFolderPath) => {
  */
 export const deleteFolder = async (folderPath) => {
   const client = createApiClient();
-  const rootFolderPath = getRootFolderPath();
   try {
     const response = await client.delete('/folder', {
-      params: {
-        path: folderPath,
-        root_path: rootFolderPath,
-      }
+      params: { path: folderPath }
     });
 
     const resData = response.data;
@@ -290,13 +265,9 @@ export const deleteFolder = async (folderPath) => {
  */
 export const deleteFile = async (filePath) => {
   const client = createApiClient();
-  const rootFolderPath = getRootFolderPath();
   try {
     const response = await client.delete('/file', {
-      params: {
-        path: filePath,
-        root_path: rootFolderPath,
-      }
+      params: { path: filePath }
     });
 
     const resData = response.data;
@@ -316,4 +287,3 @@ export const deleteFile = async (filePath) => {
     };
   }
 };
-

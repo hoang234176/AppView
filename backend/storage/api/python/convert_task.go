@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,6 +24,7 @@ type ConvertJob struct {
 	CurrentName    string
 	CurrentPercent float64
 	Failed         int
+	Qualities      map[string]string
 	Done           bool
 	ctx            context.Context
 	cancel         context.CancelFunc
@@ -112,15 +114,19 @@ type ffprobeMedia struct {
 // một bool vì mỗi điều kiện sai có cách sửa rẻ hơn và ít làm giảm chất lượng hơn.
 type VideoCompatibility struct {
 	ContainerOK bool
-	VideoOK     bool
-	AudioOK     bool
-	IsVideo     bool
-	Width       int
-	Height      int
+	// MetadataOK is deliberately independent even though the current browser
+	// profile has no extra metadata restriction. Keeping it explicit avoids
+	// collapsing future MP4 metadata repairs into a vague "invalid" state.
+	MetadataOK bool
+	VideoOK    bool
+	AudioOK    bool
+	IsVideo    bool
+	Width      int
+	Height     int
 }
 
 func (c VideoCompatibility) IsCompatible() bool {
-	return c.IsVideo && c.ContainerOK && c.VideoOK && c.AudioOK
+	return c.IsVideo && c.ContainerOK && c.MetadataOK && c.VideoOK && c.AudioOK
 }
 
 // VideoValidationResult is the structured result kept by the scanner. The
@@ -134,6 +140,7 @@ type VideoValidationResult struct {
 	ResolutionClass string `json:"resolution_class"`
 	IsVideo         bool   `json:"is_video"`
 	ContainerOK     bool   `json:"container_ok"`
+	MetadataOK      bool   `json:"metadata_ok"`
 	VideoOK         bool   `json:"video_ok"`
 	AudioOK         bool   `json:"audio_ok"`
 }
@@ -141,7 +148,7 @@ type VideoValidationResult struct {
 func (c VideoCompatibility) Validation(path string) VideoValidationResult {
 	return VideoValidationResult{
 		Path: path, Width: c.Width, Height: c.Height, ResolutionClass: resolutionClass(c.Width, c.Height),
-		IsVideo: c.IsVideo, ContainerOK: c.ContainerOK, VideoOK: c.VideoOK, AudioOK: c.AudioOK,
+		IsVideo: c.IsVideo, ContainerOK: c.ContainerOK, MetadataOK: c.MetadataOK, VideoOK: c.VideoOK, AudioOK: c.AudioOK,
 	}
 }
 
@@ -189,6 +196,7 @@ func probeVideoCompatibilityContext(parent context.Context, path string) VideoCo
 	// ffprobe gọi MP4/MOV là "mov,mp4,m4a,3gp,3g2,mj2".
 	result := VideoCompatibility{
 		ContainerOK: strings.Contains(media.Format.FormatName, "mov") || strings.Contains(media.Format.FormatName, "mp4"),
+		MetadataOK:  true,
 		AudioOK:     true, // video không có audio vẫn phát được
 	}
 	for _, stream := range media.Streams {
@@ -206,6 +214,106 @@ func probeVideoCompatibilityContext(parent context.Context, path string) VideoCo
 		}
 	}
 	return result
+}
+
+// VideoOptimization is the durable, public-safe record for one scanned video.
+// RelativePath and ID are stable across Storage/Coordinator restarts; never
+// expose the SSD workspace's absolute path outside Storage.
+type VideoOptimization struct {
+	ID                 string           `json:"id"`
+	RelativePath       string           `json:"relativePath"`
+	DisplayName        string           `json:"displayName"`
+	Width              int              `json:"width"`
+	Height             int              `json:"height"`
+	ResolutionClass    string           `json:"resolutionClass"`
+	SourceSizeBytes    int64            `json:"sourceSizeBytes"`
+	ContainerOK        bool             `json:"containerCompatible"`
+	MetadataOK         bool             `json:"metadataCompatible"`
+	VideoOK            bool             `json:"videoCompatible"`
+	AudioOK            bool             `json:"audioCompatible"`
+	OptimizationNeeded bool             `json:"optimizationRequired"`
+	AllowedQualities   []string         `json:"allowedQualities,omitempty"`
+	SelectedQuality    string           `json:"selectedQuality,omitempty"`
+	Estimates          map[string]int64 `json:"estimates,omitempty"`
+	State              string           `json:"state"`
+	Error              string           `json:"error,omitempty"`
+}
+
+func videoID(relativePath string) string {
+	sum := sha256.Sum256([]byte(filepath.ToSlash(relativePath)))
+	return fmt.Sprintf("video-%x", sum[:12])
+}
+
+func allowedQualities(class string) []string {
+	switch class {
+	case "4k":
+		return []string{"4k", "2k", "1080p"}
+	case "2k":
+		return []string{"2k", "1080p"}
+	default:
+		return nil
+	}
+}
+
+// estimateOutputSize uses the same coarse plan information as conversion:
+// copied streams stay close to source size; CRF video output remains explicitly
+// approximate and is never represented as an exact promise.
+func estimateOutputSize(source int64, c VideoCompatibility, quality string) int64 {
+	if source <= 0 {
+		return 0
+	}
+	if quality == "" && c.ContainerOK && c.VideoOK && c.AudioOK {
+		return source
+	}
+	factor := 0.92 // remux / audio-only repair overhead is normally small.
+	switch quality {
+	case "2k":
+		factor = 0.58
+	case "1080p":
+		factor = 0.30
+	case "4k":
+		factor = 0.88
+	}
+	if c.VideoOK && quality == "" {
+		factor = 1.0
+	}
+	return int64(float64(source) * factor)
+}
+
+// ScanVideoOptimizations performs one metadata scan and derives all canonical
+// UI/conversion data. The caller persists the result and does not re-ffprobe
+// it for history GETs.
+func ScanVideoOptimizations(ctx context.Context, folderPath string) []VideoOptimization {
+	validations := ScanVideoValidationContext(ctx, folderPath)
+	items := make([]VideoOptimization, 0, len(validations))
+	for _, validation := range validations {
+		rel, err := filepath.Rel(folderPath, validation.Path)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			continue
+		}
+		info, _ := os.Stat(validation.Path)
+		size := int64(0)
+		if info != nil {
+			size = info.Size()
+		}
+		compat := VideoCompatibility{ContainerOK: validation.ContainerOK, MetadataOK: validation.MetadataOK, VideoOK: validation.VideoOK, AudioOK: validation.AudioOK, IsVideo: validation.IsVideo, Width: validation.Width, Height: validation.Height}
+		needed := validation.IsVideo && !(validation.ContainerOK && validation.MetadataOK && validation.VideoOK && validation.AudioOK)
+		qualities := allowedQualities(validation.ResolutionClass)
+		item := VideoOptimization{ID: videoID(rel), RelativePath: filepath.ToSlash(rel), DisplayName: filepath.Base(rel), Width: validation.Width, Height: validation.Height, ResolutionClass: validation.ResolutionClass, SourceSizeBytes: size, ContainerOK: validation.ContainerOK, MetadataOK: validation.MetadataOK, VideoOK: validation.VideoOK, AudioOK: validation.AudioOK, OptimizationNeeded: needed, AllowedQualities: qualities, Estimates: map[string]int64{}, State: "compatible"}
+		if needed {
+			item.State = "decision_required"
+			if len(qualities) == 0 {
+				item.SelectedQuality, item.State = "preserve", "ready"
+				item.Estimates["preserve"] = estimateOutputSize(size, compat, "")
+			} else {
+				for _, quality := range qualities {
+					item.Estimates[quality] = estimateOutputSize(size, compat, quality)
+				}
+			}
+		}
+		items = append(items, item)
+	}
+	return items
 }
 
 // ScanVideoValidation recursively validates every file with a known video
@@ -275,6 +383,12 @@ func StartConvertJobWithContext(parent context.Context, taskID string, folderPat
 // candidates scanned so archive history can distinguish no videos from all
 // videos already valid.
 func StartConvertJobWithContextSummary(parent context.Context, taskID string, folderPath string) (int, int) {
+	return StartConvertJobWithContextPlans(parent, taskID, folderPath, nil)
+}
+
+// StartConvertJobWithContextPlans uses persisted per-video choices. A nil plan
+// retains the legacy scanner behavior for callers outside the archive flow.
+func StartConvertJobWithContextPlans(parent context.Context, taskID string, folderPath string, plans map[string]string) (int, int) {
 	LogInfo("[CONVERT] [%s] Bắt đầu quét thư mục: %s", taskID, folderPath)
 	if parent.Err() != nil {
 		return 0, 0
@@ -286,7 +400,13 @@ func StartConvertJobWithContextSummary(parent context.Context, taskID string, fo
 	}
 	files := make([]string, 0, len(validations))
 	for _, validation := range validations {
-		if validation.IsVideo && !(validation.ContainerOK && validation.VideoOK && validation.AudioOK) {
+		if validation.IsVideo && !(validation.ContainerOK && validation.MetadataOK && validation.VideoOK && validation.AudioOK) {
+			if plans != nil {
+				rel, err := filepath.Rel(folderPath, validation.Path)
+				if err != nil || plans[filepath.ToSlash(rel)] == "" {
+					continue
+				}
+			}
 			files = append(files, validation.Path)
 		}
 	}
@@ -301,12 +421,18 @@ func StartConvertJobWithContextSummary(parent context.Context, taskID string, fo
 
 	ctx, cancel := context.WithCancel(parent)
 	job := &ConvertJob{
-		TaskID:  taskID,
-		Total:   total,
-		Current: 0,
-		Done:    false,
-		ctx:     ctx,
-		cancel:  cancel,
+		TaskID:    taskID,
+		Total:     total,
+		Current:   0,
+		Done:      false,
+		ctx:       ctx,
+		cancel:    cancel,
+		Qualities: make(map[string]string),
+	}
+	if plans != nil {
+		for path, quality := range plans {
+			job.Qualities[filepath.Clean(path)] = quality
+		}
 	}
 	convertJobsMu.Lock()
 	convertJobs[taskID] = job
@@ -377,7 +503,8 @@ func StartConvertJobWithContextSummary(parent context.Context, taskID string, fo
 			LogInfo("[CONVERT] [%s] [%d/%d] Bắt đầu convert: %s", taskID, idx, total, filepath.Base(srcPath))
 
 			compatibility := probeVideoCompatibility(srcPath)
-			if !convertSingleFile(job, taskID, srcPath, stagedPath, idx, total, compatibility) {
+			rel, _ := filepath.Rel(folderPath, srcPath)
+			if !convertSingleFile(job, taskID, srcPath, stagedPath, idx, total, compatibility, job.Qualities[filepath.Clean(filepath.ToSlash(rel))]) {
 				if job.ctx.Err() == nil {
 					job.mu.Lock()
 					job.Failed++
@@ -437,7 +564,15 @@ func ConvertFolderVideos(folderPath string) {
 
 // convertSingleFile chọn đúng nhánh nhỏ nhất. Ba thuộc tính độc lập cho phép
 // giữ nguyên stream đã đạt thay vì luôn encode lại cả video lẫn audio.
-func convertSingleFile(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int, c VideoCompatibility) bool {
+func convertSingleFile(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int, c VideoCompatibility, quality string) bool {
+	// A selected downscale necessarily re-encodes video, while still copying
+	// compatible audio whenever the MP4 container allows it.
+	if quality == "4k" || quality == "2k" || quality == "1080p" {
+		if c.AudioOK {
+			return transcodeVideoOnlyQuality(job, taskID, srcPath, dstPath, idx, total, quality)
+		}
+		return transcodeVideoAndAudioQuality(job, taskID, srcPath, dstPath, idx, total, quality)
+	}
 	switch {
 	case c.VideoOK && c.AudioOK:
 		return remuxContainer(job, taskID, srcPath, dstPath, idx, total)
@@ -448,6 +583,14 @@ func convertSingleFile(job *ConvertJob, taskID, srcPath, dstPath string, idx, to
 	default:
 		return transcodeVideoAndAudio(job, taskID, srcPath, dstPath, idx, total)
 	}
+}
+
+func transcodeVideoOnlyQuality(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int, quality string) bool {
+	return runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264 "+quality, append(browserVideoArgs(quality), "-map", "0:a?", "-c:a", "copy", "-movflags", "+faststart", "-brand", "mp42"))
+}
+
+func transcodeVideoAndAudioQuality(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int, quality string) bool {
+	return runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264 + audio AAC "+quality, append(browserVideoArgs(quality), "-map", "0:a?", "-c:a", "aac", "-profile:a", "aac_low", "-ar", "48000", "-b:a", "192k", "-movflags", "+faststart", "-brand", "mp42"))
 }
 
 func remuxContainer(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int) bool {
@@ -469,24 +612,28 @@ func transcodeAudioOnly(job *ConvertJob, taskID, srcPath, dstPath string, idx, t
 
 func transcodeVideoOnly(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int) bool {
 	LogInfo("[CONVERT] [%s] [%d/%d] Chỉ tối ưu video H.264, giữ nguyên audio: %s", taskID, idx, total, filepath.Base(srcPath))
-	return runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264", append(browserVideoArgs(),
+	return runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264", append(browserVideoArgs(""),
 		"-map", "0:a?", "-c:a", "copy", "-movflags", "+faststart", "-brand", "mp42",
 	))
 }
 
 func transcodeVideoAndAudio(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int) bool {
 	LogInfo("[CONVERT] [%s] [%d/%d] Tối ưu video H.264 và audio AAC: %s", taskID, idx, total, filepath.Base(srcPath))
-	return runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264 + audio AAC", append(browserVideoArgs(),
+	return runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264 + audio AAC", append(browserVideoArgs(""),
 		"-map", "0:a?", "-c:a", "aac", "-profile:a", "aac_low", "-ar", "48000", "-b:a", "192k",
 		"-movflags", "+faststart", "-brand", "mp42",
 	))
 }
 
-func browserVideoArgs() []string {
-	return []string{
+func browserVideoArgs(quality string) []string {
+	args := []string{
 		"-map", "0:v:0", "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-threads", "2",
 		"-profile:v", "high", "-level:v", "5.1", "-pix_fmt", "yuv420p", "-tag:v", "avc1",
 	}
+	if target := map[string]int{"4k": 2160, "2k": 1440, "1080p": 1080}[quality]; target > 0 {
+		args = append(args, "-vf", fmt.Sprintf("scale='if(gte(iw,ih),-2,%d)':'if(gte(iw,ih),%d,-2)':force_original_aspect_ratio=decrease", target, target))
+	}
+	return args
 }
 
 // runFFmpegConversion dùng chung logging, progress nguyên %, timeout và publish
