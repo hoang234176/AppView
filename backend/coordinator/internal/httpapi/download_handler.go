@@ -55,3 +55,7 @@ func (h *DownloadHandler) Get(writer http.ResponseWriter, request *http.Request)
 	}
 	writeJSON(writer, http.StatusOK, job)
 }
+
+func (h *DownloadHandler) List(writer http.ResponseWriter, _ *http.Request) {
+	writeJSON(writer, http.StatusOK, map[string]any{"jobs": h.coordinator.ListDownloads()})
+}

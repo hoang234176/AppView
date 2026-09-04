@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"appview/coordinator/internal/downloadjob"
@@ -25,10 +26,16 @@ type Coordinator struct {
 	defaultMaxAttempts int
 	downloads          *downloadjob.Registry
 	realtime           *realtime.Hub
+	downloadEvents     struct {
+		sync.Mutex
+		lastProgress map[string]time.Time
+	}
 }
 
 func New(workers *worker.Registry, tasks *task.Registry, scheduler *scheduler.Scheduler, defaultMaxAttempts int) *Coordinator {
-	return &Coordinator{workers: workers, tasks: tasks, scheduler: scheduler, defaultMaxAttempts: defaultMaxAttempts, downloads: downloadjob.NewRegistry(), realtime: realtime.NewHub()}
+	coordinator := &Coordinator{workers: workers, tasks: tasks, scheduler: scheduler, defaultMaxAttempts: defaultMaxAttempts, downloads: downloadjob.NewRegistry(), realtime: realtime.NewHub()}
+	coordinator.downloadEvents.lastProgress = make(map[string]time.Time)
+	return coordinator
 }
 
 func (c *Coordinator) RegisterWorker(id string, capabilities []protocol.Capability, sender worker.Sender) error {
@@ -113,10 +120,12 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 	}
 	_ = createdTask
 	job, _ := c.downloads.Get(created.ID)
+	c.notifyDownload(job, "created")
 	return job, nil
 }
 
 func (c *Coordinator) GetDownload(id string) (downloadjob.Job, bool) { return c.downloads.Get(id) }
+func (c *Coordinator) ListDownloads() []downloadjob.Job              { return c.downloads.List() }
 
 func (c *Coordinator) TaskAccepted(workerID, taskID string) error {
 	_, err := c.tasks.Accept(taskID, workerID)
@@ -130,6 +139,9 @@ func (c *Coordinator) TaskProgress(workerID, taskID string, progress json.RawMes
 		return err
 	}
 	c.downloads.UpdateProgress(taskID, progress)
+	if job, ok := c.downloads.JobForChild(taskID); ok {
+		c.notifyDownload(job, "progress")
+	}
 	logging.Event("DEBUG", "task progress", map[string]any{"taskId": taskID, "workerId": workerID})
 	return nil
 }
@@ -153,6 +165,7 @@ func (c *Coordinator) TaskFailed(workerID, taskID string, failure *protocol.Erro
 	if job, ok := c.downloads.JobForChild(taskID); ok {
 		fields["jobId"] = job.ID
 		fields["failureStage"] = job.FailureStage
+		c.notifyDownload(job, "state_changed")
 	}
 	if failure != nil {
 		fields["errorCode"] = failure.Code
@@ -190,6 +203,45 @@ func (c *Coordinator) FilesystemEvent(workerID string, event *protocol.Filesyste
 	return nil
 }
 
+// StorageHistory is the only durable-state ingress. Coordinator does not read
+// local state directories; it accepts safe snapshots only from a registered
+// Storage download worker and projects them into the public history.
+func (c *Coordinator) StorageHistory(workerID string, history *protocol.StorageHistoryPayload) error {
+	registered, exists := c.workers.Get(workerID)
+	if !exists || !registered.Supports(string(protocol.DownloadFile)) {
+		return fmt.Errorf("storage history requires a registered download_file worker")
+	}
+	if history == nil {
+		return fmt.Errorf("storage history is required")
+	}
+	changed, err := c.downloads.MergeStorageHistory(workerID, history.Jobs)
+	if err != nil {
+		return err
+	}
+	for _, job := range changed {
+		c.notifyDownload(job, "updated")
+	}
+	logging.Event("INFO", "storage history synchronized", map[string]any{"workerId": workerID, "jobCount": len(history.Jobs), "changedCount": len(changed)})
+	return nil
+}
+
+func (c *Coordinator) notifyDownload(job downloadjob.Job, kind string) {
+	if job.ID == "" {
+		return
+	}
+	if kind == "progress" {
+		c.downloadEvents.Lock()
+		last := c.downloadEvents.lastProgress[job.ID]
+		if !last.IsZero() && time.Since(last) < 750*time.Millisecond {
+			c.downloadEvents.Unlock()
+			return
+		}
+		c.downloadEvents.lastProgress[job.ID] = time.Now()
+		c.downloadEvents.Unlock()
+	}
+	c.realtime.BroadcastDownload(protocol.DownloadEvent{JobID: job.ID, Kind: kind})
+}
+
 func validFilesystemEvent(event protocol.FilesystemEvent) bool {
 	if !validFilesystemPath(event.Path) || !validFilesystemPath(event.OldPath) || !validFilesystemPath(event.NewPath) || !validFilesystemPath(event.ParentPath) || !validFilesystemPath(event.OldParentPath) || !validFilesystemPath(event.NewParentPath) {
 		return false
@@ -221,11 +273,17 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 		}
 		if err := json.Unmarshal(completed.Result, &result); err != nil {
 			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver returned an invalid result"})
+			if job, ok := c.downloads.JobForChild(completed.ID); ok {
+				c.notifyDownload(job, "state_changed")
+			}
 			return
 		}
 		job, storageRequest, shouldCreate, err := c.downloads.PrepareStorage(completed.ID, strings.TrimSpace(result.DownloadURL), strings.TrimSpace(result.Filename))
 		if err != nil {
 			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver result is missing required download metadata"})
+			if failedJob, ok := c.downloads.JobForChild(completed.ID); ok {
+				c.notifyDownload(failedJob, "state_changed")
+			}
 			return
 		}
 		if !shouldCreate {
@@ -234,7 +292,7 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 		logging.Event("INFO", "download job transition", map[string]any{"jobId": job.ID, "state": downloadjob.Downloading, "resolveTaskId": completed.ID, "filename": storageRequest.Filename})
 		payload := mustJSON(map[string]string{
 			"url": storageRequest.URL, "filename": storageRequest.Filename,
-			"destination": storageRequest.Destination, "password": storageRequest.Password,
+			"destination": storageRequest.Destination, "password": storageRequest.Password, "parentJobId": job.ID,
 		})
 		if storageTask, err := c.createTask(string(protocol.DownloadFile), payload, true, 0, func(child task.Task) error {
 			return c.downloads.AttachStorage(job.ID, child.ID)
@@ -243,6 +301,9 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 			logging.Event("ERROR", "download job failed", map[string]any{"jobId": job.ID, "failureStage": downloadjob.FailureStorage, "errorCode": "STORAGE_TASK_CREATE_FAILED"})
 		} else {
 			logging.Event("INFO", "storage child created", map[string]any{"jobId": job.ID, "storageTaskId": storageTask.ID, "filename": storageRequest.Filename})
+			if current, ok := c.downloads.Get(job.ID); ok {
+				c.notifyDownload(current, "state_changed")
+			}
 		}
 		return
 	}
@@ -251,6 +312,7 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 		fields := map[string]any{"storageTaskId": completed.ID, "state": downloadjob.Completed}
 		if job, ok := c.downloads.JobForChild(completed.ID); ok {
 			fields["jobId"] = job.ID
+			c.notifyDownload(job, "state_changed")
 		}
 		logging.Event("INFO", "download job completed", fields)
 	}

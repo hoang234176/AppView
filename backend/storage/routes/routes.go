@@ -34,6 +34,7 @@ func SetupRoutes(app *fiber.App) {
 		v1.Post("/jobs/archive", controllers.StartArchiveJob)
 		v1.Get("/jobs/archive", controllers.ListArchiveJobs)
 		v1.Get("/jobs/archive/:job_id", controllers.GetArchiveJob)
+		v1.Post("/jobs/archive/:job_id/retry", controllers.RetryArchiveJob)
 		v1.Post("/jobs/archive/:job_id/extract", controllers.RetryArchiveJobExtraction)
 		v1.Post("/jobs/archive/:job_id/cancel", controllers.CancelArchiveJob)
 		v1.Delete("/jobs/archive/:job_id", controllers.DeleteArchiveJob)

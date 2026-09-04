@@ -84,7 +84,14 @@ class ArchiveService:
             log_info("DOWNLOAD SERVICE", f"Đã đồng bộ {len(jobs)} archive job từ Go sau khi Python khởi động lại.")
 
     async def retry_task(self, task_id: str):
-        await self.process_task(task_id)
+        task = await task_manager.get_task(task_id)
+        if not task:
+            raise ValueError("Không tìm thấy task")
+        # A Go-persisted job can continue after Python reload/restart without
+        # resolving the provider URL again or discarding its local .part file.
+        await go_archive_client.retry(task_id, task.password)
+        monitor = asyncio.create_task(go_archive_client.monitor(task_id, self._apply_go_update))
+        task_manager.register_async_task(task_id, monitor)
 
     async def _mark_go_interruption(self, task_id: str, error_code: str) -> None:
         """Keep the task visible and describe what Go could have left behind.

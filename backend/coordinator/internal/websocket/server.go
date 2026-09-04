@@ -86,6 +86,8 @@ func (s *Server) handleMessage(connection *Connection, currentWorkerID string, m
 		return "", s.coordinator.TaskFailed(currentWorkerID, message.TaskID, message.Error)
 	case protocol.FilesystemEventMessage:
 		return "", s.coordinator.FilesystemEvent(currentWorkerID, message.Event)
+	case protocol.StorageHistory:
+		return "", s.coordinator.StorageHistory(currentWorkerID, message.StorageHistory)
 	default:
 		return "", fmtError("unsupported message type")
 	}

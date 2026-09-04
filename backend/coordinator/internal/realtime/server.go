@@ -1,7 +1,6 @@
 package realtime
 
 import (
-	"appview/coordinator/internal/protocol"
 	"github.com/gorilla/websocket"
 	"net/http"
 )
@@ -38,7 +37,7 @@ func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if err := conn.WriteJSON(protocol.Message{Type: protocol.FilesystemEventMessage, Event: &event}); err != nil {
+			if err := conn.WriteJSON(event); err != nil {
 				return
 			}
 		case <-done:

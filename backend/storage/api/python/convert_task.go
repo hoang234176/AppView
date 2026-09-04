@@ -103,6 +103,8 @@ type ffprobeMedia struct {
 		CodecType string `json:"codec_type"`
 		CodecName string `json:"codec_name"`
 		PixFmt    string `json:"pix_fmt"`
+		Width     int    `json:"width"`
+		Height    int    `json:"height"`
 	} `json:"streams"`
 }
 
@@ -113,10 +115,52 @@ type VideoCompatibility struct {
 	VideoOK     bool
 	AudioOK     bool
 	IsVideo     bool
+	Width       int
+	Height      int
 }
 
 func (c VideoCompatibility) IsCompatible() bool {
 	return c.IsVideo && c.ContainerOK && c.VideoOK && c.AudioOK
+}
+
+// VideoValidationResult is the structured result kept by the scanner. The
+// three compatibility dimensions are intentionally independent: callers can
+// remux, transcode audio, or transcode video without needlessly touching a
+// stream which is already browser-compatible.
+type VideoValidationResult struct {
+	Path            string `json:"path"`
+	Width           int    `json:"width"`
+	Height          int    `json:"height"`
+	ResolutionClass string `json:"resolution_class"`
+	IsVideo         bool   `json:"is_video"`
+	ContainerOK     bool   `json:"container_ok"`
+	VideoOK         bool   `json:"video_ok"`
+	AudioOK         bool   `json:"audio_ok"`
+}
+
+func (c VideoCompatibility) Validation(path string) VideoValidationResult {
+	return VideoValidationResult{
+		Path: path, Width: c.Width, Height: c.Height, ResolutionClass: resolutionClass(c.Width, c.Height),
+		IsVideo: c.IsVideo, ContainerOK: c.ContainerOK, VideoOK: c.VideoOK, AudioOK: c.AudioOK,
+	}
+}
+
+// resolutionClass never infers a resolution from the filename and never
+// offers an upscale. 4K begins at a 3840-pixel long edge; 2K begins at 2560;
+// everything below that is treated as 1080p-or-lower.
+func resolutionClass(width, height int) string {
+	longEdge := width
+	if height > longEdge {
+		longEdge = height
+	}
+	switch {
+	case longEdge >= 3840:
+		return "4k"
+	case longEdge >= 2560:
+		return "2k"
+	default:
+		return "1080p_or_lower"
+	}
 }
 
 // probeVideoCompatibility chỉ đọc metadata. Container, video và audio được
@@ -129,7 +173,7 @@ func probeVideoCompatibilityContext(parent context.Context, path string) VideoCo
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-show_entries",
-		"format=format_name:stream=codec_type,codec_name,pix_fmt", "-of", "json", path)
+		"format=format_name:stream=codec_type,codec_name,pix_fmt,width,height", "-of", "json", path)
 	out, err := cmd.Output()
 	if err != nil {
 		LogInfo("[CONVERT] Không thể đọc metadata video %s: %v", filepath.Base(path), err)
@@ -151,6 +195,7 @@ func probeVideoCompatibilityContext(parent context.Context, path string) VideoCo
 		switch stream.CodecType {
 		case "video":
 			result.IsVideo = true
+			result.Width, result.Height = stream.Width, stream.Height
 			if stream.CodecName == "h264" && (stream.PixFmt == "yuv420p" || stream.PixFmt == "yuvj420p") {
 				result.VideoOK = true
 			}
@@ -161,6 +206,31 @@ func probeVideoCompatibilityContext(parent context.Context, path string) VideoCo
 		}
 	}
 	return result
+}
+
+// ScanVideoValidation recursively validates every file with a known video
+// extension. It is the authoritative scan used before conversion; image and
+// archive files are filtered by extension before ffprobe is invoked.
+func ScanVideoValidationContext(ctx context.Context, folderPath string) []VideoValidationResult {
+	var results []VideoValidationResult
+	_ = filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
+		if ctx.Err() != nil {
+			return context.Canceled
+		}
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+			return filepath.SkipDir
+		}
+		if info.IsDir() || strings.HasPrefix(info.Name(), ".") || !videoExtensions[strings.ToLower(filepath.Ext(info.Name()))] {
+			return nil
+		}
+		compatibility := probeVideoCompatibilityContext(ctx, path)
+		results = append(results, compatibility.Validation(path))
+		return nil
+	})
+	return results
 }
 
 // isBrowserCompatibleVideo chỉ chấp nhận tập an toàn chung cho Safari, iOS và
@@ -178,30 +248,13 @@ func ScanIncompatibleVideos(folderPath string) []string {
 }
 
 func ScanIncompatibleVideosContext(ctx context.Context, folderPath string) []string {
-	var found []string
-	_ = filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
-		if ctx.Err() != nil {
-			return context.Canceled
+	validations := ScanVideoValidationContext(ctx, folderPath)
+	found := make([]string, 0, len(validations))
+	for _, validation := range validations {
+		if validation.IsVideo && !(validation.ContainerOK && validation.VideoOK && validation.AudioOK) {
+			found = append(found, validation.Path)
 		}
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
-			return filepath.SkipDir
-		}
-		if info.IsDir() || strings.HasPrefix(info.Name(), ".") {
-			return nil
-		}
-		ext := strings.ToLower(filepath.Ext(info.Name()))
-		if !videoExtensions[ext] {
-			return nil
-		}
-		compatibility := probeVideoCompatibilityContext(ctx, path)
-		if compatibility.IsVideo && !compatibility.IsCompatible() {
-			found = append(found, path)
-		}
-		return nil
-	})
+	}
 	return found
 }
 
@@ -214,20 +267,34 @@ func StartConvertJob(taskID string, folderPath string) int {
 // StartConvertJobWithContext cho archive job truyền context xuyên suốt. Khi
 // archive bị cancel, việc quét và ffmpeg convert đều dừng cùng lúc.
 func StartConvertJobWithContext(parent context.Context, taskID string, folderPath string) int {
+	invalid, _ := StartConvertJobWithContextSummary(parent, taskID, folderPath)
+	return invalid
+}
+
+// StartConvertJobWithContextSummary additionally returns the number of video
+// candidates scanned so archive history can distinguish no videos from all
+// videos already valid.
+func StartConvertJobWithContextSummary(parent context.Context, taskID string, folderPath string) (int, int) {
 	LogInfo("[CONVERT] [%s] Bắt đầu quét thư mục: %s", taskID, folderPath)
 	if parent.Err() != nil {
-		return 0
+		return 0, 0
 	}
-	files := ScanIncompatibleVideosContext(parent, folderPath)
+	validations := ScanVideoValidationContext(parent, folderPath)
 	if parent.Err() != nil {
 		LogInfo("[CONVERT] [%s] Đã hủy khi đang quét thư mục.", taskID)
-		return 0
+		return 0, 0
+	}
+	files := make([]string, 0, len(validations))
+	for _, validation := range validations {
+		if validation.IsVideo && !(validation.ContainerOK && validation.VideoOK && validation.AudioOK) {
+			files = append(files, validation.Path)
+		}
 	}
 	total := len(files)
 
 	if total == 0 {
 		LogInfo("[CONVERT] [%s] Không tìm thấy video không hợp lệ trong thư mục.", taskID)
-		return 0
+		return 0, len(validations)
 	}
 
 	LogInfo("[CONVERT] [%s] Tìm thấy %d video không hợp lệ. Khởi chạy convert ngầm...", taskID, total)
@@ -338,7 +405,7 @@ func StartConvertJobWithContext(parent context.Context, taskID string, folderPat
 		}
 	}()
 
-	return total
+	return total, len(validations)
 }
 
 // publishConvertedVideo thay thế nguồn bằng file đã convert một cách an toàn:

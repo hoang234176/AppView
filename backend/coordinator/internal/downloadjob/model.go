@@ -27,23 +27,37 @@ const (
 // Job is the parent lifecycle for a two-stage Coordinator download. password
 // is intentionally private so API responses never expose it.
 type Job struct {
-	ID            string                 `json:"id"`
-	URL           string                 `json:"url"`
-	Filename      string                 `json:"filename,omitempty"`
-	Destination   string                 `json:"destination,omitempty"`
-	State         State                  `json:"state"`
-	ResolveTaskID string                 `json:"resolveTaskId,omitempty"`
-	StorageTaskID string                 `json:"storageTaskId,omitempty"`
-	CurrentTaskID string                 `json:"currentTaskId,omitempty"`
-	Progress      json.RawMessage        `json:"progress,omitempty"`
-	Result        json.RawMessage        `json:"result,omitempty"`
-	Error         *protocol.ErrorPayload `json:"error,omitempty"`
-	FailureStage  FailureStage           `json:"failureStage,omitempty"`
-	CreatedAt     time.Time              `json:"createdAt"`
-	UpdatedAt     time.Time              `json:"updatedAt"`
+	ID                string                 `json:"id"`
+	URL               string                 `json:"url"`
+	SourceURL         string                 `json:"sourceUrl,omitempty"`
+	Filename          string                 `json:"filename,omitempty"`
+	DisplayName       string                 `json:"displayName,omitempty"`
+	Destination       string                 `json:"destination,omitempty"`
+	State             State                  `json:"state"`
+	Stage             string                 `json:"stage,omitempty"`
+	ResolveTaskID     string                 `json:"resolveTaskId,omitempty"`
+	StorageTaskID     string                 `json:"storageTaskId,omitempty"`
+	CurrentTaskID     string                 `json:"currentTaskId,omitempty"`
+	Progress          json.RawMessage        `json:"progress,omitempty"`
+	Result            json.RawMessage        `json:"result,omitempty"`
+	Error             *protocol.ErrorPayload `json:"error,omitempty"`
+	FailureStage      FailureStage           `json:"failureStage,omitempty"`
+	CreatedAt         time.Time              `json:"createdAt"`
+	UpdatedAt         time.Time              `json:"updatedAt"`
+	ArchiveDownloaded bool                   `json:"archiveDownloaded"`
+	ArchiveExtracted  bool                   `json:"archiveExtracted"`
+	PasswordRequired  bool                   `json:"passwordRequired"`
+	TotalVideoCount   int                    `json:"totalVideoCount,omitempty"`
+	InvalidVideoCount int                    `json:"invalidVideoCount,omitempty"`
+	VideoScanState    string                 `json:"videoScanState,omitempty"`
+	ConversionTotal   int                    `json:"conversionTotal,omitempty"`
+	ConversionCurrent int                    `json:"conversionCurrent,omitempty"`
+	ConversionFailed  int                    `json:"conversionFailed,omitempty"`
 
-	password       string
-	storagePending bool
+	password                 string
+	storagePending           bool
+	storageWorkerID          string
+	storageSnapshotUpdatedAt time.Time
 }
 
 func (j Job) Clone() Job {
@@ -67,7 +81,9 @@ func NewJob(id string, request CreateRequest) Job {
 	return Job{
 		ID:          id,
 		URL:         request.URL,
+		SourceURL:   request.URL,
 		Filename:    request.Filename,
+		DisplayName: request.Filename,
 		Destination: request.Destination,
 		password:    request.Password,
 	}

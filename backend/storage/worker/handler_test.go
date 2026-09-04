@@ -34,6 +34,14 @@ func (f *fakeArchiveOperations) Snapshot(id string) (pythonapi.ArchiveJobSnapsho
 	return snapshot, ok
 }
 
+func (f *fakeArchiveOperations) Snapshots() []pythonapi.ArchiveJobSnapshot {
+	result := make([]pythonapi.ArchiveJobSnapshot, 0, len(f.snapshots))
+	for _, snapshot := range f.snapshots {
+		result = append(result, snapshot)
+	}
+	return result
+}
+
 func collect(messages *[]Message) SendFunc {
 	return func(message Message) error {
 		*messages = append(*messages, message)
@@ -67,8 +75,8 @@ func TestHandlerCompletesExistingArchiveJob(t *testing.T) {
 	if archive.started {
 		t.Fatal("existing archive job must be monitored, not started again")
 	}
-	if len(sent) != 2 || sent[0].Type != TaskAccepted || sent[1].Type != TaskCompleted {
-		t.Fatalf("messages = %#v, want accepted then completed", sent)
+	if len(sent) != 3 || sent[0].Type != TaskAccepted || sent[1].Type != StorageHistory || sent[2].Type != TaskCompleted {
+		t.Fatalf("messages = %#v, want accepted, history, completed", sent)
 	}
 }
 
@@ -82,8 +90,8 @@ func TestHandlerStartsExistingArchiveServiceAndMapsCompleted(t *testing.T) {
 		Payload: []byte(`{"url":"https://example.test/archive.zip","filename":"archive.zip"}`),
 	}, collect(&sent))
 
-	if !archive.started || len(sent) != 2 || sent[0].Type != TaskAccepted || sent[1].Type != TaskCompleted {
-		t.Fatalf("messages = %#v, want existing service accepted then completed", sent)
+	if !archive.started || len(sent) != 3 || sent[0].Type != TaskAccepted || sent[1].Type != StorageHistory || sent[2].Type != TaskCompleted {
+		t.Fatalf("messages = %#v, want existing service accepted, history, completed", sent)
 	}
 }
 

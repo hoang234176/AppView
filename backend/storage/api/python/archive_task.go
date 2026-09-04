@@ -6,12 +6,14 @@ package pythonapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -25,31 +27,39 @@ import (
 func LogInfo(format string, args ...interface{}) { utils.LogInfo(format, args...) }
 
 type ArchiveJob struct {
-	ID              string
-	URL             string
-	Filename        string
-	Destination     string
-	Stage           string
-	DownloadedBytes int64
-	TotalBytes      int64
-	SpeedBytes      int64
-	ExtractedPct    float64
-	ConvertTotal    int
-	ConvertCurrent  int
-	ConvertFailed   int
-	ErrorCode       string
-	Error           string
-	PasswordNeeded  bool
-	archivePath     string
-	extractedPath   string
-	extractedName   string
-	ctx             context.Context
-	cancel          context.CancelFunc
-	mu              sync.RWMutex
+	ID                string
+	CanonicalID       string
+	URL               string
+	Filename          string
+	Destination       string
+	Stage             string
+	DownloadedBytes   int64
+	TotalBytes        int64
+	SpeedBytes        int64
+	ExtractedPct      float64
+	ConvertTotal      int
+	ConvertCurrent    int
+	ConvertFailed     int
+	ErrorCode         string
+	Error             string
+	PasswordNeeded    bool
+	ArchiveDownloaded bool
+	ArchiveExtracted  bool
+	VideoScanState    string
+	TotalVideoCount   int
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	archivePath       string
+	extractedPath     string
+	extractedName     string
+	ctx               context.Context
+	cancel            context.CancelFunc
+	mu                sync.RWMutex
 }
 
 type ArchiveJobSnapshot struct {
 	ID              string  `json:"id"`
+	CanonicalID     string  `json:"canonical_job_id,omitempty"`
 	State           string  `json:"state"`
 	Filename        string  `json:"filename"`
 	URL             string  `json:"url,omitempty"`
@@ -63,9 +73,26 @@ type ArchiveJobSnapshot struct {
 		Current int `json:"current"`
 		Failed  int `json:"failed"`
 	} `json:"conversion"`
-	ErrorCode      string `json:"error_code,omitempty"`
-	Error          string `json:"error,omitempty"`
-	PasswordNeeded bool   `json:"password_required"`
+	ErrorCode         string    `json:"error_code,omitempty"`
+	Error             string    `json:"error,omitempty"`
+	PasswordNeeded    bool      `json:"password_required"`
+	ArchiveDownloaded bool      `json:"archive_downloaded"`
+	ArchiveExtracted  bool      `json:"archive_extracted"`
+	VideoScanState    string    `json:"video_scan_state,omitempty"`
+	TotalVideoCount   int       `json:"total_video_count,omitempty"`
+	InvalidVideoCount int       `json:"invalid_video_count,omitempty"`
+	ExtractedName     string    `json:"extracted_name,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+// persistedArchiveJob is deliberately separate from ArchiveJob. It is the
+// versioned, secret-free restart boundary owned by local Storage. In
+// particular, archive passwords, contexts and cancellation functions are
+// never written to disk.
+type persistedArchiveJob struct {
+	Version int                `json:"version"`
+	Job     ArchiveJobSnapshot `json:"job"`
 }
 
 var archiveJobs = struct {
@@ -90,14 +117,38 @@ func safeArchivePath(relative string) (string, error) {
 	return path, nil
 }
 
-func archiveTempDir() string { return configs.APPVIEW_WORKSPACE_PATH }
+func archiveTempDir() (string, error) { return configs.AppViewStateDir() }
+
+func archiveStateDir() (string, error) {
+	root, err := archiveTempDir()
+	if err != nil {
+		return "", fmt.Errorf("không xác định được thư mục trạng thái AppView: %w", err)
+	}
+	return filepath.Join(root, "downloads", "jobs"), nil
+}
+
+func archiveStatePath(id string) (string, error) {
+	stateDir, err := archiveStateDir()
+	if err != nil {
+		return "", err
+	}
+	clean := filepath.Base(strings.TrimSpace(id))
+	if clean == "" || clean == "." || clean != id || strings.Contains(clean, "..") {
+		return "", fmt.Errorf("task_id không hợp lệ")
+	}
+	return filepath.Join(stateDir, clean+".json"), nil
+}
 
 func archiveWorkspace(id string) (string, error) {
 	clean := filepath.Base(strings.TrimSpace(id))
 	if clean == "" || clean == "." || clean != id || strings.Contains(clean, "..") {
 		return "", fmt.Errorf("task_id không hợp lệ")
 	}
-	return filepath.Join(archiveTempDir(), clean), nil
+	root, err := archiveTempDir()
+	if err != nil {
+		return "", fmt.Errorf("không xác định được thư mục trạng thái AppView: %w", err)
+	}
+	return filepath.Join(root, clean), nil
 }
 
 func archiveSafeName(name string) string {
@@ -129,6 +180,7 @@ func GetArchiveJobSnapshots() []ArchiveJobSnapshot {
 	for _, job := range jobs {
 		result = append(result, archiveJobSnapshot(job))
 	}
+	sort.Slice(result, func(i, j int) bool { return result[i].CreatedAt.After(result[j].CreatedAt) })
 	return result
 }
 
@@ -136,30 +188,156 @@ func archiveJobSnapshot(job *ArchiveJob) ArchiveJobSnapshot {
 	job.mu.RLock()
 	defer job.mu.RUnlock()
 	var result ArchiveJobSnapshot
-	result.ID, result.State, result.Filename = job.ID, job.Stage, job.Filename
+	result.ID, result.CanonicalID, result.State, result.Filename = job.ID, job.CanonicalID, job.Stage, job.Filename
 	result.URL, result.Destination = job.URL, job.Destination
 	result.DownloadedBytes, result.TotalBytes, result.SpeedBytes = job.DownloadedBytes, job.TotalBytes, job.SpeedBytes
 	result.ExtractedPct = job.ExtractedPct
 	result.Conversion.Total, result.Conversion.Current, result.Conversion.Failed = job.ConvertTotal, job.ConvertCurrent, job.ConvertFailed
 	result.ErrorCode, result.Error, result.PasswordNeeded = job.ErrorCode, job.Error, job.PasswordNeeded
+	result.ArchiveDownloaded, result.ArchiveExtracted = job.ArchiveDownloaded, job.ArchiveExtracted
+	result.VideoScanState, result.TotalVideoCount, result.ExtractedName = job.VideoScanState, job.TotalVideoCount, job.extractedName
+	result.InvalidVideoCount = job.ConvertTotal
+	result.CreatedAt, result.UpdatedAt = job.CreatedAt, job.UpdatedAt
 	return result
+}
+
+func persistArchiveJob(job *ArchiveJob) {
+	snapshot := archiveJobSnapshot(job)
+	path, err := archiveStatePath(snapshot.ID)
+	if err != nil {
+		LogInfo("[ARCHIVE] [%s] không thể xác định file trạng thái: %v", snapshot.ID, err)
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		LogInfo("[ARCHIVE] [%s] không thể tạo thư mục trạng thái: %v", snapshot.ID, err)
+		return
+	}
+	encoded, err := json.Marshal(persistedArchiveJob{Version: 1, Job: snapshot})
+	if err != nil {
+		LogInfo("[ARCHIVE] [%s] không thể mã hóa trạng thái: %v", snapshot.ID, err)
+		return
+	}
+	temp := path + ".tmp"
+	if err := os.WriteFile(temp, encoded, 0600); err != nil {
+		LogInfo("[ARCHIVE] [%s] không thể ghi trạng thái: %v", snapshot.ID, err)
+		return
+	}
+	if err := os.Rename(temp, path); err != nil {
+		_ = os.Remove(temp)
+		LogInfo("[ARCHIVE] [%s] không thể hoàn tất ghi trạng thái: %v", snapshot.ID, err)
+	}
+}
+
+func removePersistedArchiveJob(id string) {
+	if path, err := archiveStatePath(id); err == nil {
+		_ = os.Remove(path)
+	}
+}
+
+// LoadPersistentArchiveJobs restores visible history after a Storage restart.
+// Work that was active at shutdown is never guessed or resumed automatically:
+// it is surfaced as interrupted so a client can choose the appropriate retry.
+func LoadPersistentArchiveJobs() {
+	stateDir, err := archiveStateDir()
+	if err != nil {
+		LogInfo("[ARCHIVE] không thể đọc trạng thái cũ: %v", err)
+		return
+	}
+	entries, err := os.ReadDir(stateDir)
+	if os.IsNotExist(err) {
+		return
+	}
+	if err != nil {
+		LogInfo("[ARCHIVE] không thể đọc thư mục trạng thái: %v", err)
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		contents, readErr := os.ReadFile(filepath.Join(stateDir, entry.Name()))
+		if readErr != nil {
+			continue
+		}
+		var persisted persistedArchiveJob
+		if json.Unmarshal(contents, &persisted) != nil || persisted.Version != 1 || persisted.Job.ID == "" {
+			LogInfo("[ARCHIVE] bỏ qua trạng thái không hợp lệ: %s", entry.Name())
+			continue
+		}
+		snapshot := persisted.Job
+		ctx, cancel := context.WithCancel(context.Background())
+		job := &ArchiveJob{
+			ID: snapshot.ID, CanonicalID: snapshot.CanonicalID, URL: snapshot.URL, Filename: archiveSafeName(snapshot.Filename), Destination: snapshot.Destination,
+			Stage: snapshot.State, DownloadedBytes: snapshot.DownloadedBytes, TotalBytes: snapshot.TotalBytes,
+			SpeedBytes: snapshot.SpeedBytes, ExtractedPct: snapshot.ExtractedPct, ConvertTotal: snapshot.Conversion.Total,
+			ConvertCurrent: snapshot.Conversion.Current, ConvertFailed: snapshot.Conversion.Failed,
+			ErrorCode: snapshot.ErrorCode, Error: snapshot.Error, PasswordNeeded: snapshot.PasswordNeeded,
+			ArchiveDownloaded: snapshot.ArchiveDownloaded, ArchiveExtracted: snapshot.ArchiveExtracted,
+			VideoScanState: snapshot.VideoScanState, TotalVideoCount: snapshot.TotalVideoCount,
+			CreatedAt: snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt, ctx: ctx, cancel: cancel,
+		}
+		if job.CanonicalID == "" {
+			job.CanonicalID = job.ID
+		}
+		if workspace, workspaceErr := archiveWorkspace(job.ID); workspaceErr == nil {
+			archive := filepath.Join(workspace, job.Filename)
+			if info, statErr := os.Stat(archive); statErr == nil && !info.IsDir() {
+				job.archivePath, job.ArchiveDownloaded = archive, true
+			}
+			if extractedInfo, statErr := os.Stat(filepath.Join(workspace, "extracted")); statErr == nil && extractedInfo.IsDir() {
+				extractedRoot := filepath.Join(workspace, "extracted")
+				job.extractedPath, job.ArchiveExtracted = extractedRoot, true
+				job.extractedName = snapshot.ExtractedName
+				if job.extractedName == "" {
+					job.extractedName = archiveFolderName(job.Filename)
+				}
+				if innerInfo, innerErr := os.Stat(filepath.Join(extractedRoot, job.extractedName)); innerErr == nil && innerInfo.IsDir() {
+					job.extractedPath = filepath.Join(extractedRoot, job.extractedName)
+				}
+			}
+		}
+		if isActiveArchiveStage(job.Stage) {
+			job.Stage, job.ErrorCode, job.Error = "interrupted", "STORAGE_RESTARTED", "Storage khởi động lại; tác vụ có thể tiếp tục bằng Retry."
+		}
+		archiveJobs.Lock()
+		archiveJobs.items[job.ID] = job
+		archiveJobs.Unlock()
+		persistArchiveJob(job)
+	}
+}
+
+func isActiveArchiveStage(stage string) bool {
+	switch stage {
+	case "queued", "downloading", "extracting", "scanning", "converting", "finalizing":
+		return true
+	default:
+		return false
+	}
 }
 
 func setArchiveStage(job *ArchiveJob, stage string) {
 	job.mu.Lock()
-	job.Stage = stage
+	job.Stage, job.UpdatedAt = stage, time.Now().UTC()
 	job.mu.Unlock()
+	persistArchiveJob(job)
 	LogInfo("[ARCHIVE] [%s] trạng thái -> %s", job.ID, stage)
 }
 
 func setArchiveError(job *ArchiveJob, code, message string) {
 	job.mu.Lock()
-	job.Stage, job.ErrorCode, job.Error = "error", code, message
+	job.Stage, job.ErrorCode, job.Error, job.UpdatedAt = "error", code, message, time.Now().UTC()
 	job.mu.Unlock()
+	persistArchiveJob(job)
 	LogInfo("[ARCHIVE] [%s] lỗi %s: %s", job.ID, code, message)
 }
 
 func StartArchiveJob(id, sourceURL, filename, destination, password string) error {
+	return StartArchiveJobWithCanonicalID(id, sourceURL, filename, destination, password, id)
+}
+
+// StartArchiveJobWithCanonicalID retains the Coordinator public parent ID as
+// safe metadata while task execution continues to use the distinct child ID.
+func StartArchiveJobWithCanonicalID(id, sourceURL, filename, destination, password, canonicalID string) error {
 	if id == "" || sourceURL == "" {
 		return fmt.Errorf("thiếu task_id hoặc URL tải")
 	}
@@ -170,7 +348,11 @@ func StartArchiveJob(id, sourceURL, filename, destination, password string) erro
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	job := &ArchiveJob{ID: id, URL: sourceURL, Filename: archiveSafeName(filename), Destination: destination, Stage: "downloading", ctx: ctx, cancel: cancel}
+	now := time.Now().UTC()
+	if strings.TrimSpace(canonicalID) == "" {
+		canonicalID = id
+	}
+	job := &ArchiveJob{ID: id, CanonicalID: canonicalID, URL: sourceURL, Filename: archiveSafeName(filename), Destination: destination, Stage: "downloading", CreatedAt: now, UpdatedAt: now, ctx: ctx, cancel: cancel}
 	archiveJobs.Lock()
 	if old := archiveJobs.items[id]; old != nil {
 		old.cancel()
@@ -178,9 +360,27 @@ func StartArchiveJob(id, sourceURL, filename, destination, password string) erro
 	}
 	archiveJobs.items[id] = job
 	archiveJobs.Unlock()
+	persistArchiveJob(job)
 	LogInfo("[ARCHIVE] [%s] nhận job tải %s vào thư mục tương đối %s", id, job.Filename, destination)
 	go runArchiveJob(job, password, false)
 	return nil
+}
+
+func SetArchiveJobCanonicalID(id, canonicalID string) bool {
+	if strings.TrimSpace(canonicalID) == "" {
+		return false
+	}
+	archiveJobs.RLock()
+	job := archiveJobs.items[id]
+	archiveJobs.RUnlock()
+	if job == nil {
+		return false
+	}
+	job.mu.Lock()
+	job.CanonicalID, job.UpdatedAt = canonicalID, time.Now().UTC()
+	job.mu.Unlock()
+	persistArchiveJob(job)
+	return true
 }
 
 func RetryArchiveExtraction(id, password string) error {
@@ -199,9 +399,48 @@ func RetryArchiveExtraction(id, password string) error {
 		job.cancel()
 	}
 	job.ctx, job.cancel = context.WithCancel(context.Background())
-	job.PasswordNeeded, job.Error, job.ErrorCode, job.Stage = false, "", "", "extracting"
+	job.PasswordNeeded, job.Error, job.ErrorCode, job.Stage, job.UpdatedAt = false, "", "", "extracting", time.Now().UTC()
 	job.mu.Unlock()
+	persistArchiveJob(job)
 	go runArchiveJob(job, password, true)
+	return nil
+}
+
+// RetryArchiveJob resumes from the furthest durable local artifact. It never
+// restarts an already downloaded archive just because Storage was restarted.
+// Password is accepted for this invocation only and is never persisted.
+func RetryArchiveJob(id, password string) error {
+	archiveJobs.RLock()
+	job := archiveJobs.items[id]
+	archiveJobs.RUnlock()
+	if job == nil {
+		return fmt.Errorf("không tìm thấy archive job")
+	}
+	job.mu.Lock()
+	if job.cancel != nil {
+		job.cancel()
+	}
+	job.ctx, job.cancel = context.WithCancel(context.Background())
+	job.Error, job.ErrorCode, job.PasswordNeeded, job.UpdatedAt = "", "", false, time.Now().UTC()
+	archivePath, extractedPath := job.archivePath, job.extractedPath
+	if extractedPath != "" {
+		job.Stage = "scanning"
+	} else if archivePath != "" {
+		job.Stage = "extracting"
+	} else {
+		job.Stage = "downloading"
+	}
+	job.mu.Unlock()
+	persistArchiveJob(job)
+	if extractedPath != "" {
+		startArchiveConversion(job, extractedPath)
+		return nil
+	}
+	if archivePath != "" {
+		go runArchiveJob(job, password, true)
+		return nil
+	}
+	go runArchiveJob(job, password, false)
 	return nil
 }
 
@@ -234,6 +473,7 @@ func DeleteArchiveJob(id string) {
 	if job != nil && job.archivePath != "" {
 		_ = os.Remove(job.archivePath)
 	}
+	removePersistedArchiveJob(id)
 }
 
 func runArchiveJob(job *ArchiveJob, password string, extractionOnly bool) {
@@ -327,6 +567,7 @@ func downloadArchive(job *ArchiveJob) error {
 			if _, err := file.Write(buffer[:count]); err != nil {
 				return err
 			}
+			shouldPersist := false
 			job.mu.Lock()
 			job.DownloadedBytes += int64(count)
 			now := time.Now()
@@ -334,8 +575,13 @@ func downloadArchive(job *ArchiveJob) error {
 			if elapsed >= .5 {
 				job.SpeedBytes = int64(float64(job.DownloadedBytes-lastBytes) / elapsed)
 				lastBytes, lastTime = job.DownloadedBytes, now
+				job.UpdatedAt = now.UTC()
+				shouldPersist = true
 			}
 			job.mu.Unlock()
+			if shouldPersist {
+				persistArchiveJob(job)
+			}
 		}
 		if readErr == io.EOF {
 			break
@@ -357,7 +603,10 @@ func downloadArchive(job *ArchiveJob) error {
 	}
 	job.mu.Lock()
 	job.archivePath = finalPath
+	job.ArchiveDownloaded = true
+	job.UpdatedAt = time.Now().UTC()
 	job.mu.Unlock()
+	persistArchiveJob(job)
 	LogInfo("[ARCHIVE] [%s] tải xong: %s", job.ID, job.Filename)
 	return nil
 }
@@ -411,7 +660,7 @@ func extractArchive(job *ArchiveJob, password string) error {
 		return ctx.Err()
 	}
 	job.mu.Lock()
-	job.ExtractedPct = 100
+	job.ExtractedPct, job.ArchiveExtracted, job.UpdatedAt = 100, true, time.Now().UTC()
 	job.mu.Unlock()
 	entries, err := os.ReadDir(staging)
 	if err != nil {
@@ -428,6 +677,7 @@ func extractArchive(job *ArchiveJob, password string) error {
 	job.extractedPath = source
 	job.extractedName = name
 	job.mu.Unlock()
+	persistArchiveJob(job)
 	LogInfo("[ARCHIVE] [%s] giải nén xong trong SSD workspace: %s", job.ID, source)
 	startArchiveConversion(job, source)
 	return nil
@@ -563,6 +813,9 @@ func copyFileContext(ctx context.Context, source, target string, mode os.FileMod
 }
 
 func startArchiveConversion(job *ArchiveJob, folder string) {
+	job.mu.Lock()
+	job.VideoScanState, job.UpdatedAt = "scanning", time.Now().UTC()
+	job.mu.Unlock()
 	setArchiveStage(job, "scanning")
 	job.mu.RLock()
 	ctx := job.ctx
@@ -575,14 +828,15 @@ func startArchiveConversion(job *ArchiveJob, folder string) {
 		case <-ctx.Done():
 			return
 		}
-		total := StartConvertJobWithContext(ctx, job.ID, folder)
+		invalidTotal, videoTotal := StartConvertJobWithContextSummary(ctx, job.ID, folder)
 		if ctx.Err() != nil {
 			return
 		}
 		job.mu.Lock()
-		job.ConvertTotal = total
+		job.ConvertTotal, job.TotalVideoCount, job.VideoScanState, job.UpdatedAt = invalidTotal, videoTotal, "completed", time.Now().UTC()
 		job.mu.Unlock()
-		if total == 0 {
+		persistArchiveJob(job)
+		if invalidTotal == 0 {
 			if err := commitArchiveResult(job); err != nil {
 				if ctx.Err() == nil {
 					setArchiveError(job, "FINALIZE_FAILED", err.Error())
@@ -601,8 +855,9 @@ func startArchiveConversion(job *ArchiveJob, folder string) {
 			}
 			total, current, failed, _, _, done := GetConvertJobSnapshot(job.ID)
 			job.mu.Lock()
-			job.ConvertTotal, job.ConvertCurrent, job.ConvertFailed = total, current, failed
+			job.ConvertTotal, job.ConvertCurrent, job.ConvertFailed, job.UpdatedAt = total, current, failed, time.Now().UTC()
 			job.mu.Unlock()
+			persistArchiveJob(job)
 			if done {
 				if ctx.Err() != nil {
 					return
@@ -612,7 +867,7 @@ func startArchiveConversion(job *ArchiveJob, folder string) {
 					return
 				}
 				if failed > 0 {
-					setArchiveError(job, "VIDEO_CONVERT_UNAVAILABLE", fmt.Sprintf("Không tối ưu được %d/%d video", failed, total))
+					setArchiveError(job, "VIDEO_CONVERT_UNAVAILABLE", fmt.Sprintf("Không tối ưu được %d/%d video", failed, invalidTotal))
 				} else {
 					setArchiveStage(job, "completed")
 				}

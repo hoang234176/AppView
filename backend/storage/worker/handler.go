@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 type ArchiveOperations interface {
 	Start(id, sourceURL, filename, destination, password string) error
 	Snapshot(id string) (pythonapi.ArchiveJobSnapshot, bool)
+	Snapshots() []pythonapi.ArchiveJobSnapshot
 }
 
 type archiveOperations struct{}
@@ -27,6 +29,18 @@ func (archiveOperations) Start(id, sourceURL, filename, destination, password st
 
 func (archiveOperations) Snapshot(id string) (pythonapi.ArchiveJobSnapshot, bool) {
 	return pythonapi.GetArchiveJobSnapshot(id)
+}
+
+func (archiveOperations) Snapshots() []pythonapi.ArchiveJobSnapshot {
+	return pythonapi.GetArchiveJobSnapshots()
+}
+
+func (archiveOperations) SetCanonicalID(id, canonicalID string) bool {
+	return pythonapi.SetArchiveJobCanonicalID(id, canonicalID)
+}
+
+type canonicalArchiveOperations interface {
+	SetCanonicalID(id, canonicalID string) bool
 }
 
 type SendFunc func(Message) error
@@ -45,6 +59,36 @@ func NewHandler(archive ArchiveOperations) *Handler {
 
 func (h *Handler) Capabilities() []string {
 	return []string{CapabilityDownloadFile}
+}
+
+func (h *Handler) History() StorageHistoryPayload {
+	snapshots := h.archive.Snapshots()
+	jobs := make([]StorageJobSnapshot, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		jobs = append(jobs, storageSnapshot(snapshot))
+	}
+	return StorageHistoryPayload{Jobs: jobs}
+}
+
+func storageSnapshot(snapshot pythonapi.ArchiveJobSnapshot) StorageJobSnapshot {
+	return StorageJobSnapshot{
+		ID: snapshot.ID, CanonicalID: snapshot.CanonicalID, SourceURL: safeHistoryURL(snapshot.URL), Filename: snapshot.Filename, Destination: snapshot.Destination, State: snapshot.State,
+		DownloadedBytes: snapshot.DownloadedBytes, TotalBytes: snapshot.TotalBytes, SpeedBytes: snapshot.SpeedBytes,
+		ExtractedPercent: snapshot.ExtractedPct, ConversionTotal: snapshot.Conversion.Total, ConversionCurrent: snapshot.Conversion.Current,
+		ConversionFailed: snapshot.Conversion.Failed, ErrorCode: snapshot.ErrorCode, Error: snapshot.Error,
+		PasswordRequired: snapshot.PasswordNeeded, ArchiveDownloaded: snapshot.ArchiveDownloaded, ArchiveExtracted: snapshot.ArchiveExtracted,
+		VideoScanState: snapshot.VideoScanState, TotalVideoCount: snapshot.TotalVideoCount, InvalidVideoCount: snapshot.InvalidVideoCount,
+		CreatedAt: snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt,
+	}
+}
+
+func safeHistoryURL(value string) string {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	parsed.RawQuery, parsed.Fragment, parsed.User = "", "", nil
+	return parsed.String()
 }
 
 func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
@@ -80,6 +124,11 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 			return
 		}
 	}
+	if request.ParentJobID != "" {
+		if archive, ok := h.archive.(canonicalArchiveOperations); ok {
+			archive.SetCanonicalID(task.TaskID, request.ParentJobID)
+		}
+	}
 	h.monitor(ctx, task.TaskID, send)
 }
 
@@ -88,6 +137,7 @@ type downloadRequest struct {
 	Filename    string `json:"filename"`
 	Destination string `json:"destination"`
 	Password    string `json:"password"`
+	ParentJobID string `json:"parentJobId"`
 }
 
 func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
@@ -98,6 +148,7 @@ func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
 	request.URL = strings.TrimSpace(request.URL)
 	request.Filename = strings.TrimSpace(request.Filename)
 	request.Destination = strings.TrimSpace(request.Destination)
+	request.ParentJobID = strings.TrimSpace(request.ParentJobID)
 	if request.URL == "" || request.Filename == "" {
 		return downloadRequest{}, fmt.Errorf("payload.url và payload.filename không được để trống")
 	}
@@ -109,6 +160,11 @@ func (h *Handler) monitor(ctx context.Context, taskID string, send SendFunc) {
 		snapshot, exists := h.archive.Snapshot(taskID)
 		if !exists {
 			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ tải được giao.")
+			return
+		}
+		// Keep Coordinator's public projection current without exposing a local
+		// path. This is one small snapshot per active job, not a full history.
+		if err := send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{storageSnapshot(snapshot)}}}); err != nil {
 			return
 		}
 

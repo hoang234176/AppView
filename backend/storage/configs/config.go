@@ -2,6 +2,7 @@ package configs
 
 import (
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -10,10 +11,20 @@ import (
 
 var DEFAULT_ROOT_PATH = "/Volumes/HDD/Albums"
 
-// APPVIEW_WORKSPACE_PATH là SSD workspace độc lập với thư mục thư viện cuối.
-// Mỗi archive job có một thư mục con riêng ở đây để tải, giải nén và convert
-// không tạo I/O ngẫu nhiên trực tiếp trên HDD.
-var APPVIEW_WORKSPACE_PATH = "/Users/hoang/.tmp-appview"
+// AppViewStateDir is Storage's local durable state root.  It intentionally
+// belongs to the local Storage process: Coordinator can be remote and must
+// never assume a path on this machine. APPVIEW_STATE_DIR is useful for tests,
+// containers, and an alternate local SSD.
+func AppViewStateDir() (string, error) {
+	if configured := strings.TrimSpace(os.Getenv("APPVIEW_STATE_DIR")); configured != "" {
+		return filepath.Clean(configured), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".tmp-appview"), nil
+}
 
 func GetRootFolderPath(c *fiber.Ctx) string {
 	root := c.Query("root_path", "")

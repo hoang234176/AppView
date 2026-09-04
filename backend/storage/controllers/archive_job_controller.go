@@ -49,6 +49,21 @@ func RetryArchiveJobExtraction(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"job": job})
 }
 
+// RetryArchiveJob resumes only the earliest incomplete local stage. Storage
+// chooses from its durable workspace (partial download, archive, or extracted
+// result); the password is forwarded in-memory for this attempt only.
+func RetryArchiveJob(c *fiber.Ctx) error {
+	var req struct {
+		Password string `json:"password"`
+	}
+	_ = c.BodyParser(&req)
+	if err := pythonapi.RetryArchiveJob(c.Params("job_id"), req.Password); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+	job, _ := pythonapi.GetArchiveJobSnapshot(c.Params("job_id"))
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"job": job})
+}
+
 func CancelArchiveJob(c *fiber.Ctx) error {
 	if !pythonapi.CancelArchiveJob(c.Params("job_id")) {
 		return c.Status(404).JSON(fiber.Map{"error": "không tìm thấy archive job"})

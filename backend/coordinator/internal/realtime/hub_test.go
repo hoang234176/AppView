@@ -20,10 +20,10 @@ func TestHubFansOutAndRecoversAfterDisconnect(t *testing.T) {
 	if count := hub.Broadcast(event); count != 2 {
 		t.Fatalf("subscriber count = %d, want 2", count)
 	}
-	if got := <-first; got != event {
+	if got := <-first; got.Event == nil || *got.Event != event {
 		t.Fatalf("first event = %#v, want %#v", got, event)
 	}
-	if got := <-second; got != event {
+	if got := <-second; got.Event == nil || *got.Event != event {
 		t.Fatalf("second event = %#v, want %#v", got, event)
 	}
 	hub.Unsubscribe(firstID)
@@ -31,8 +31,58 @@ func TestHubFansOutAndRecoversAfterDisconnect(t *testing.T) {
 	if count := hub.Broadcast(event); count != 1 {
 		t.Fatalf("subscriber count after disconnect = %d, want 1", count)
 	}
-	if got := <-second; got != event {
+	if got := <-second; got.Event == nil || *got.Event != event {
 		t.Fatalf("remaining subscriber event = %#v, want %#v", got, event)
+	}
+}
+
+func TestRealtimeWebSocketBroadcastsDownloadEventsToTwoClients(t *testing.T) {
+	hub := NewHub()
+	mux := http.NewServeMux()
+	NewServer(hub).Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	endpoint := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws/events"
+	first, _, err := websocket.DefaultDialer.Dial(endpoint, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, _, err := websocket.DefaultDialer.Dial(endpoint, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	waitForSubscribers(t, hub, 2)
+
+	hub.BroadcastDownload(protocol.DownloadEvent{JobID: "job-1", Kind: "created"})
+	assertDownloadEvent(t, first, "job-1", "created")
+	assertDownloadEvent(t, second, "job-1", "created")
+	hub.BroadcastDownload(protocol.DownloadEvent{JobID: "job-1", Kind: "state_changed"})
+	assertDownloadEvent(t, first, "job-1", "state_changed")
+	assertDownloadEvent(t, second, "job-1", "state_changed")
+}
+
+func waitForSubscribers(t *testing.T, hub *Hub, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for hub.SubscriberCount() != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("subscriber count = %d, want %d", hub.SubscriberCount(), want)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func assertDownloadEvent(t *testing.T, conn *websocket.Conn, id, kind string) {
+	t.Helper()
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+	var message protocol.Message
+	if err := conn.ReadJSON(&message); err != nil {
+		t.Fatal(err)
+	}
+	if message.Type != protocol.DownloadEventMessage || message.DownloadEvent == nil || message.DownloadEvent.JobID != id || message.DownloadEvent.Kind != kind {
+		t.Fatalf("event = %#v, want download_event %s/%s", message, id, kind)
 	}
 }
 

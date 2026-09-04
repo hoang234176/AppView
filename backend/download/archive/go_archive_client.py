@@ -43,6 +43,21 @@ class GoArchiveClient:
         if response.status_code not in (200, 202):
             raise RuntimeError(f"Go không thể giải nén lại (HTTP {response.status_code})")
 
+    async def retry(self, task_id: str, password: Optional[str] = None) -> None:
+        """Resume the furthest durable Storage stage without re-resolving URL.
+
+        Storage owns the local workspace and decides whether that means a
+        ranged download continuation, extraction, video scan, or conversion.
+        The password is sent for this one request only.
+        """
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{self.base_url}/api/v1/jobs/archive/{task_id}/retry",
+                json={"password": password or ""},
+            )
+        if response.status_code not in (200, 202):
+            raise RuntimeError(f"Go không thể tải tiếp (HTTP {response.status_code})")
+
     async def cancel(self, task_id: str) -> None:
         async with httpx.AsyncClient(timeout=10.0) as client:
             await client.post(f"{self.base_url}/api/v1/jobs/archive/{task_id}/cancel")

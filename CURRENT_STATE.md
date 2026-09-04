@@ -22,7 +22,9 @@ Improve backend observability and verify the end-to-end Coordinator download pat
 - Worker cancellation/disconnect stops monitoring only; it deliberately does not cancel an existing local archive job, so Coordinator can requeue/reattach safely.
 - Storage startup now loads optional local `.env`, launches the worker alongside Fiber, and cancels worker work on graceful process shutdown without removing HTTP routes.
 - Added Coordinator parent `DownloadJob` registry with distinct resolve and Storage child task IDs.
-- Added `POST /api/v1/download` and `GET /api/v1/download/{id}` without changing generic `/api/v1/tasks`.
+- Added `POST /api/v1/download`, `GET /api/v1/download`, and `GET /api/v1/download/{id}` without changing generic `/api/v1/tasks`.
+- Storage now owns a versioned durable archive-job snapshot under `APPVIEW_STATE_DIR/downloads/jobs` (defaulting through `os.UserHomeDir()` to `~/.tmp-appview`). It restores history at startup, marks interrupted active work as resumable rather than silently losing it, retains partial/archive/extracted artifacts, and exposes per-job `POST /api/v1/jobs/archive/:job_id/retry`. Passwords are never persisted.
+- Storage now synchronizes its password-free durable archive snapshots through the existing `download_file` worker connection using `storage.history`. Coordinator merges by stable ID and worker identity, exposes recovered records through `GET /api/v1/download`, and broadcasts bounded `download_event` invalidations to every `/ws/events` subscriber. Coordinator never accesses Storage state files.
 - Successful Python resolver result maps exact fields `downloadUrl` and `filename` into one Storage payload `{url, filename, destination, password}`.
 - Parent progress mirrors child progress; child failure maps to `failureStage` `resolve` or `storage`. Requeue retains the parent current stage, while terminal disconnect failure is synchronized to the parent.
 - Storage child creation is atomically gated by parent registry state, preventing duplicate `download_file` tasks.
@@ -91,6 +93,7 @@ Improve backend observability and verify the end-to-end Coordinator download pat
 - `cd backend/download && python3 -m compileall -q .`
 - Python config baseline and OS override checks: localhost `.env` values resolve, while supplied `PYTHON_DOWNLOAD_PORT` and `COORDINATOR_WS_URL` win.
 - `cd backend/coordinator && go test ./... && go vet ./...`
+- Persistent archive-state, restart-to-`interrupted`, state-directory override, and independent video validation/resolution-class tests: `cd backend/storage && go test ./... && go vet ./...`.
 - `cd frontend/web && npm run build`
 - `cd frontend/mobile && dart analyze`
 - Ignore-policy check: local `.env` files are ignored, `.env.example` files are not ignored, and no local `.env` is tracked.
@@ -105,7 +108,7 @@ Improve backend observability and verify the end-to-end Coordinator download pat
 - The Coordinator task registry is in memory, so task status does not survive a Coordinator restart by design.
 - Flutter configuration is compile-time (`--dart-define`) by design; it does not read `.env` files at runtime.
 - `download_file` is currently tied to the archive-oriented existing Storage API; the Coordinator now chains resolved URL/filename into it, but broader raw-file/provider pipelines remain future work.
-- DownloadJob/task registries are in-memory, so Coordinator restart loses active orchestration state by design.
+- DownloadJob/task registries are in-memory. Storage now preserves local recovery state, but automatic Storage-to-Coordinator history reconciliation after a remote Coordinator restart still needs a worker protocol sync message; clients can currently recover it through the local Storage/Python compatibility path.
 
 ## Next step
 

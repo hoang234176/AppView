@@ -179,7 +179,7 @@ POST /api/v1/download
 → parent completed / failed
 ```
 
-`DownloadJob` has an ID distinct from both child task IDs. Web and Mobile retain the accepted parent ID in runtime state, poll `GET /api/v1/download/{id}` every second, and stop at `completed` or `failed`. Parent state and child mapping are in memory; a Coordinator restart loses active jobs/tasks. The legacy HTTP pipeline remains available for compatibility.
+`DownloadJob` has an ID distinct from both child task IDs. `GET /api/v1/download` returns the Coordinator's canonical in-memory projection. Local Storage persists archive/partial/extraction/conversion recovery state under `APPVIEW_STATE_DIR` (default: the current user's `~/.tmp-appview`) and replays safe `storage.history` snapshots after each worker registration, so a restarted Coordinator rebuilds history without filesystem access. `/ws/events` also broadcasts small all-client `download_event` invalidations; clients refetch the list after reconnect. The legacy HTTP pipeline remains available for compatibility.
 
 ## HTTP API Map
 
@@ -188,15 +188,15 @@ POST /api/v1/download
 | Storage | GET/POST/PUT/DELETE | `/api/v1/folder`, `/file`, `/item/move` | `controllers/storage_controller.go` | Folder/file management. |
 | Storage | GET | `/api/v1/pictures/*`, `/thumbnails/*`, `/videos/*` | picture/video controllers | Serve media and streams. |
 | Storage | POST/GET | `/api/v1/jobs/convert...` | `convert_controller.go` | Convert job start/status. |
-| Storage | POST/GET/DELETE | `/api/v1/jobs/archive...` | `archive_job_controller.go` | Go archive job lifecycle. |
+| Storage | POST/GET/DELETE | `/api/v1/jobs/archive...` | `archive_job_controller.go` | Go archive lifecycle, including per-job retry from durable local artifacts. |
 | Download | POST | `/api/v1/download/archive` | `main.py` | Create MediaFire archive task. |
 | Download | GET/POST/DELETE | `/api/v1/download/tasks...`, `/summary` | `main.py` | Task state, retry/password/cancel/delete, summary. |
 | Download | WebSocket | `/api/v1/download/ws` | `main.py` | Frontend real-time task events. |
 | Coordinator | POST/GET | `/api/v1/tasks`, `/api/v1/tasks/{id}` | `internal/httpapi` | Generic capability task lifecycle. |
-| Coordinator | POST/GET | `/api/v1/download`, `/api/v1/download/{id}` | `internal/httpapi/download_handler.go` | Parent two-stage resolve-to-Storage download lifecycle. |
+| Coordinator | POST/GET | `/api/v1/download`, `/api/v1/download/{id}` | `internal/httpapi/download_handler.go` | Parent two-stage resolve-to-Storage download lifecycle and current job list. |
 | Coordinator | GET | `/health` | `internal/httpapi` | Health and worker count. |
 | Coordinator | WebSocket | `/ws/workers` by default | `internal/websocket` | Worker registration and task protocol. |
-| Coordinator | WebSocket | `/ws/events` | `internal/realtime` | Best-effort frontend filesystem invalidation. |
+| Coordinator | WebSocket | `/ws/events` | `internal/realtime` | Best-effort frontend filesystem and download-history invalidation. |
 
 ## WebSocket Map
 
@@ -247,7 +247,7 @@ Do not place secret values here.
 - Root `.gitignore` ignores `.env` and `.env.*` at every depth, but explicitly allows `.env.example`. Real `.env` files are local-only and never overwrite process/Render variables.
 - Coordinator: `backend/coordinator/.env.example` documents `COORDINATOR_HTTP_ADDR`, `COORDINATOR_WORKER_WS_PATH`, `COORDINATOR_HEARTBEAT_TIMEOUT`, `COORDINATOR_HEARTBEAT_CHECK_INTERVAL`, and `COORDINATOR_DEFAULT_MAX_ATTEMPTS`. Its optional local `.env` is loaded only for unset variables. On Render, `PORT` is supported and binds `0.0.0.0:<PORT>` unless `COORDINATOR_HTTP_ADDR` is explicitly supplied.
 - Download: `backend/download/.env.example` documents `GO_STORAGE_BASE_URL`, `PYTHON_DOWNLOAD_PORT`, `PYTHON_DOWNLOAD_HOST`, `COORDINATOR_WS_URL` (local default `ws://localhost:8090/ws/workers`), and `COORDINATOR_WORKER_ID`. Its outbound worker has finite connect/ping timeouts and bounded reconnect backoff, so a sleeping Coordinator does not stop FastAPI.
-- Storage: `backend/storage/.env.example` documents `COORDINATOR_WS_URL` and `COORDINATOR_WORKER_ID`; `configs.LoadEnvironment()` loads its optional local `.env` without overriding OS values. The worker has finite dial timeouts, heartbeat, serialized writes and bounded reconnect backoff. Archive/file processing behavior is reused unchanged.
+- Storage: `backend/storage/.env.example` documents `COORDINATOR_WS_URL`, `COORDINATOR_WORKER_ID`, and optional `APPVIEW_STATE_DIR`. `configs.LoadEnvironment()` loads its optional local `.env` without overriding OS values. `APPVIEW_STATE_DIR` otherwise resolves from `os.UserHomeDir()` to `~/.tmp-appview`; it is owned solely by the local Storage process. The worker has finite dial timeouts, heartbeat, serialized writes and bounded reconnect backoff.
 - Web: `frontend/web/.env.example` includes the public `VITE_COORDINATOR_API_BASE_URL` used by normal download submission/polling, alongside legacy Download variables. Browser localStorage keys beginning `appview_server_...` still configure Storage.
 - Mobile: `ApiConfig` reads `APPVIEW_COORDINATOR_API_BASE_URL` from public compile-time `--dart-define` for normal download submission/polling. Legacy Download values remain available only for compatibility code.
 
@@ -255,6 +255,7 @@ Do not place secret values here.
 
 - **Download task:** defined by Python `models/download_task.py`; consumed by Web `downloadApi.js`/`App.jsx` and Mobile `api/download_api.dart`/`download_provider.dart`.
 - **Go archive snapshot:** defined in Go `api/python/archive_task.go`; consumed by Python `archive/go_archive_client.py` and `archive/service.py`.
+- **Storage archive recovery:** `POST /api/v1/jobs/archive/:job_id/retry` resumes only the furthest durable local stage (partial download, extraction, scan, or conversion). `POST /api/v1/jobs/archive/:job_id/extract` remains password-only extraction retry. Passwords are request-only and are omitted from snapshots, logs, and local state files.
 - **Coordinator worker envelope:** source of truth is `backend/coordinator/internal/protocol/message.go`, documented by `backend/coordinator/docs/PROTOCOL.md`.
 - **Python Download coordinator action:** `resolve_download` accepts payload `{ "url": "https://..." }` and returns resolved URL, filename, extension, and optional estimated size in the opaque Coordinator result.
 - **Storage coordinator action:** `download_file` accepts an archive-oriented direct URL payload with `url`, `filename`, relative `destination`, and optional `password`. It delegates to `pythonapi.StartArchiveJob`, sends snapshot-derived progress, and returns only job/filename/conversion metadata.

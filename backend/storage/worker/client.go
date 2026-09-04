@@ -117,6 +117,12 @@ func (c *Client) connectOnce(ctx context.Context) error {
 	}
 
 	utils.LogEvent("INFO", "storage worker registered", map[string]any{"workerId": c.config.WorkerID, "capability": CapabilityDownloadFile})
+	// Coordinator has no local filesystem access. Send the Storage-owned,
+	// password-free history after every registration so it can rebuild its
+	// public projection after a remote restart.
+	if err := safeConn.Send(Message{Type: StorageHistory, WorkerID: c.config.WorkerID, StorageHistory: ptrHistory(c.handler.History())}); err != nil {
+		return err
+	}
 	events.SetPublisher(func(event events.FilesystemEvent) error {
 		return safeConn.Send(Message{Type: FilesystemEvent, WorkerID: c.config.WorkerID, Event: &event})
 	})
@@ -161,6 +167,8 @@ func (c *Client) connectOnce(ctx context.Context) error {
 		}
 	}
 }
+
+func ptrHistory(history StorageHistoryPayload) *StorageHistoryPayload { return &history }
 
 func (c *Client) heartbeat(ctx context.Context, conn *serializedConnection, done chan<- struct{}) {
 	defer close(done)

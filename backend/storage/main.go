@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	pythonapi "backend/api/python"
 	"backend/configs"
 	"backend/routes"
 	"backend/utils"
@@ -18,6 +19,7 @@ import (
 
 func main() {
 	configs.LoadEnvironment()
+	pythonapi.LoadPersistentArchiveJobs()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

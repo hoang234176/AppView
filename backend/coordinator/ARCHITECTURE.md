@@ -56,7 +56,7 @@ Defines opaque-payload tasks, legal lifecycle transitions and concurrent in-memo
 
 ### `internal/downloadjob/model.go`, `registry.go`
 
-Defines the in-memory parent `DownloadJob` and its child-task mapping. A parent stores separate resolve/storage task IDs, exposes resolving/downloading/completed/failed state, maps child progress/errors, and atomically permits at most one Storage child after a successful resolver result. Password is internal-only and omitted from JSON responses.
+Defines the in-memory public `DownloadJob` projection and child-task mapping. It merges safe Storage-owned durable snapshots by stable archive ID, keeps Storage worker identity to reject cross-library collisions, and preserves parent IDs for live child tasks. Password is internal-only and omitted from JSON responses.
 
 ### `internal/scheduler/scheduler.go`
 
@@ -72,7 +72,7 @@ Gorilla WebSocket upgrade and read loop. `Connection` serializes all outbound wr
 
 ### `internal/realtime`
 
-Small bounded WebSocket fanout for frontend filesystem invalidation. It is best-effort rather than durable: each client has a bounded queue and reconnecting clients must refetch canonical folder/tree state.
+Small bounded WebSocket fanout for frontend filesystem and download-history invalidation. It is best-effort rather than durable: each client has a bounded queue and reconnecting clients must refetch canonical state.
 
 ### `internal/httpapi/*.go`
 
@@ -86,9 +86,10 @@ Minimal standard-library HTTP API: task creation/query and health. Inspect for c
 | `POST` | `/api/v1/tasks` | Create a capability/action task. |
 | `GET` | `/api/v1/tasks/{id}` | Return the in-memory task snapshot. |
 | `POST` | `/api/v1/download` | Create a parent two-stage resolve-to-Storage download job. |
+| `GET` | `/api/v1/download` | Return current Coordinator parent-job snapshots, newest first. |
 | `GET` | `/api/v1/download/{id}` | Return its in-memory parent job snapshot. |
 | `GET` | configured `/ws/workers` | Worker WebSocket upgrade. |
-| `GET` | `/ws/events` | Frontend filesystem-invalidation WebSocket. |
+| `GET` | `/ws/events` | Frontend filesystem/download invalidation WebSocket. |
 
 ## Configuration
 
@@ -117,7 +118,7 @@ Valid states: `queued`, `assigned`, `processing`, `completed`, `failed`.
 - `task.accepted` starts processing.
 - `task.completed`/`task.failed` frees the worker.
 - On disconnect, `assigned` or `processing` tasks requeue only when `retryable` and `attempts < maxAttempts`; otherwise they fail as `WORKER_DISCONNECTED`.
-- A DownloadJob follows its child state: requeued children leave the parent in its current stage; a terminal child failure marks the parent failed at `resolve` or `storage`. Coordinator restart loses both registries by design.
+- A DownloadJob follows its child state: requeued children leave the parent in its current stage; a terminal child failure marks the parent failed at `resolve` or `storage`. Coordinator restart loses task runtime state, but Storage reconnect sends `storage.history` and rebuilds the safe in-memory history projection. Durable local archive/partial/conversion snapshots remain Storage-owned; Coordinator never accesses that directory.
 
 ## Change Map
 
