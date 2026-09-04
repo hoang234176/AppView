@@ -399,6 +399,21 @@ class DownloadApi {
     }
   }
 
+  static Future<bool> applyVideoDecisions(
+    String jobId,
+    Map<String, String> decisions,
+  ) async {
+    try {
+      await _createCoordinatorDio().post(
+        '/download/${Uri.encodeComponent(jobId)}/videos/apply',
+        data: {'decisions': decisions},
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<bool> cancelCoordinatorArchive(String jobId) async {
     try {
       await _createCoordinatorDio().post(

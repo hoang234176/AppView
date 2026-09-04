@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -328,8 +329,14 @@ func ScanVideoValidationContext(ctx context.Context, folderPath string) []VideoV
 		if err != nil {
 			return nil
 		}
-		if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
-			return filepath.SkipDir
+		if info.IsDir() {
+			name := info.Name()
+			if strings.HasPrefix(name, ".") || name == "original-video" {
+				if name == ".convert-video" {
+					_ = os.RemoveAll(path)
+				}
+				return filepath.SkipDir
+			}
 		}
 		if info.IsDir() || strings.HasPrefix(info.Name(), ".") || !videoExtensions[strings.ToLower(filepath.Ext(info.Name()))] {
 			return nil
@@ -439,7 +446,6 @@ func StartConvertJobWithContextPlans(parent context.Context, taskID string, fold
 	convertJobsMu.Unlock()
 
 	go func() {
-		stagingDirs := make(map[string]struct{})
 		defer func() {
 			job.mu.Lock()
 			job.Done = true
@@ -451,13 +457,11 @@ func StartConvertJobWithContextPlans(parent context.Context, taskID string, fold
 			} else {
 				LogInfo("[CONVERT] [%s] Hoàn tất tất cả %d video.", taskID, total)
 			}
-			for dir := range stagingDirs {
-				if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
-					LogInfo("[CONVERT] [%s] Giữ lại thư mục tạm %s: %v", taskID, dir, err)
-				}
-			}
 			time.AfterFunc(5*time.Minute, func() { deleteConvertJob(taskID) })
 		}()
+
+		// Dọn dẹp thư mục .convert-video lỗi thời nếu có
+		_ = os.RemoveAll(filepath.Join(folderPath, ".convert-video"))
 
 		// Scan có thể hoàn tất đồng thời, nhưng ffmpeg phải xếp hàng theo từng
 		// archive job để không xen kẽ video giữa hai thư mục và không tràn RAM.
@@ -473,7 +477,42 @@ func StartConvertJobWithContextPlans(parent context.Context, taskID string, fold
 		}
 		defer func() { <-convertJobSemaphore }()
 
-		for i, srcPath := range files {
+		// Bảo tồn trước tất cả video gốc vào original-video/ trước khi chạy encode.
+		// Giữ nguyên đường dẫn con cho video lồng nhau, không bao giờ ghi đè file có sẵn.
+		type convertItem struct {
+			originalPath string
+			finalPath    string
+			relPath      string
+		}
+		items := make([]convertItem, 0, len(files))
+		for _, srcPath := range files {
+			rel, err := filepath.Rel(folderPath, srcPath)
+			if err != nil {
+				continue
+			}
+			originalPath := filepath.Join(folderPath, "original-video", rel)
+			if err := os.MkdirAll(filepath.Dir(originalPath), 0755); err != nil {
+				LogInfo("[CONVERT] [%s] Không tạo được thư mục original-video: %v", taskID, err)
+			}
+			if _, statErr := os.Stat(originalPath); os.IsNotExist(statErr) {
+				if renameErr := os.Rename(srcPath, originalPath); renameErr != nil {
+					if copyErr := copyFile(srcPath, originalPath); copyErr == nil {
+						_ = os.Remove(srcPath)
+					} else {
+						LogInfo("[CONVERT] [%s] Lỗi bảo tồn video nguồn sang %s: %v", taskID, originalPath, copyErr)
+					}
+				}
+			}
+			finalRel := strings.TrimSuffix(rel, filepath.Ext(rel)) + ".mp4"
+			finalPath := filepath.Join(folderPath, finalRel)
+			items = append(items, convertItem{
+				originalPath: originalPath,
+				finalPath:    finalPath,
+				relPath:      rel,
+			})
+		}
+
+		for i, item := range items {
 			if job.ctx.Err() != nil {
 				LogInfo("[CONVERT] [%s] Dừng convert theo yêu cầu hủy.", taskID)
 				break
@@ -481,38 +520,28 @@ func StartConvertJobWithContextPlans(parent context.Context, taskID string, fold
 			idx := i + 1
 
 			job.mu.Lock()
-			job.CurrentName = filepath.Base(srcPath)
+			job.CurrentName = filepath.Base(item.originalPath)
 			job.CurrentPercent = 0
 			job.mu.Unlock()
 
-			finalPath := strings.TrimSuffix(srcPath, filepath.Ext(srcPath)) + ".mp4"
-			stagingDir := filepath.Join(filepath.Dir(srcPath), ".convert-video")
-			stagedPath := filepath.Join(stagingDir, filepath.Base(finalPath))
-			if err := os.MkdirAll(stagingDir, 0755); err != nil {
-				LogInfo("[CONVERT] [%s] [%d/%d] Không tạo được thư mục tạm: %v", taskID, idx, total, err)
-				job.mu.Lock()
-				job.Failed++
-				job.Current = idx // only expose this file after processing ended
-				job.CurrentPercent = 100
-				job.mu.Unlock()
-				continue
-			}
-			stagingDirs[stagingDir] = struct{}{}
+			stagedPath := item.finalPath + ".tmp.mp4"
 			_ = os.Remove(stagedPath)
 
-			LogInfo("[CONVERT] [%s] [%d/%d] Bắt đầu convert: %s", taskID, idx, total, filepath.Base(srcPath))
+			LogInfo("[CONVERT] [%s] [%d/%d] Bắt đầu convert: %s", taskID, idx, total, filepath.Base(item.originalPath))
 
-			compatibility := probeVideoCompatibility(srcPath)
-			rel, _ := filepath.Rel(folderPath, srcPath)
-			if !convertSingleFile(job, taskID, srcPath, stagedPath, idx, total, compatibility, job.Qualities[filepath.Clean(filepath.ToSlash(rel))]) {
+			compatibility := probeVideoCompatibility(item.originalPath)
+			quality := job.Qualities[filepath.Clean(filepath.ToSlash(item.relPath))]
+			if !convertSingleFile(job, taskID, item.originalPath, stagedPath, idx, total, compatibility, quality) {
+				_ = os.Remove(stagedPath)
 				if job.ctx.Err() == nil {
 					job.mu.Lock()
 					job.Failed++
 					job.mu.Unlock()
 				}
 			} else if job.ctx.Err() != nil {
+				_ = os.Remove(stagedPath)
 				break
-			} else if err := publishConvertedVideo(srcPath, stagedPath, finalPath, stagingDir); err != nil {
+			} else if err := publishConvertedVideo(stagedPath, item.finalPath); err != nil {
 				LogInfo("[CONVERT] [%s] [%d/%d] Không thể đưa video đã convert ra ngoài: %v", taskID, idx, total, err)
 				job.mu.Lock()
 				job.Failed++
@@ -535,24 +564,49 @@ func StartConvertJobWithContextPlans(parent context.Context, taskID string, fold
 	return total, len(validations)
 }
 
-// publishConvertedVideo thay thế nguồn bằng file đã convert một cách an toàn:
-// di chuyển nguồn vào thư mục tạm, đưa MP4 ra vị trí cũ, sau đó xóa nguồn tạm.
-func publishConvertedVideo(srcPath, stagedPath, finalPath, stagingDir string) error {
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
+}
+
+func cleanIncompleteOutputs(folder string) {
+	_ = filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.IsDir() {
+			name := info.Name()
+			if strings.HasSuffix(name, ".tmp.mp4") || strings.HasSuffix(name, ".appview-copying") {
+				_ = os.Remove(path)
+			}
+		}
+		return nil
+	})
+}
+
+// publishConvertedVideo xác thực định dạng file đã convert và đổi tên nguyên tử về vị trí đích.
+// Video gốc vẫn an toàn dưới original-video/ và không bao giờ bị xóa.
+func publishConvertedVideo(stagedPath, finalPath string) error {
+	defer os.Remove(stagedPath)
 	compatible, _ := isBrowserCompatibleVideo(stagedPath)
 	if !compatible {
 		return fmt.Errorf("file convert không đạt định dạng tương thích")
 	}
-	backupPath := filepath.Join(stagingDir, "."+filepath.Base(srcPath)+".original")
-	_ = os.Remove(backupPath)
-	if err := os.Rename(srcPath, backupPath); err != nil {
-		return fmt.Errorf("không thể di chuyển file nguồn: %w", err)
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0755); err != nil {
+		return fmt.Errorf("không thể tạo thư mục đích: %w", err)
 	}
 	if err := os.Rename(stagedPath, finalPath); err != nil {
-		_ = os.Rename(backupPath, srcPath)
 		return fmt.Errorf("không thể chuyển file đã convert: %w", err)
-	}
-	if err := os.Remove(backupPath); err != nil {
-		return fmt.Errorf("không thể xóa file nguồn sau convert: %w", err)
 	}
 	return nil
 }
@@ -568,10 +622,7 @@ func convertSingleFile(job *ConvertJob, taskID, srcPath, dstPath string, idx, to
 	// A selected downscale necessarily re-encodes video, while still copying
 	// compatible audio whenever the MP4 container allows it.
 	if quality == "4k" || quality == "2k" || quality == "1080p" {
-		if c.AudioOK {
-			return transcodeVideoOnlyQuality(job, taskID, srcPath, dstPath, idx, total, quality)
-		}
-		return transcodeVideoAndAudioQuality(job, taskID, srcPath, dstPath, idx, total, quality)
+		return transcodeVideoOnlyQuality(job, taskID, srcPath, dstPath, idx, total, quality)
 	}
 	switch {
 	case c.VideoOK && c.AudioOK:
@@ -581,12 +632,17 @@ func convertSingleFile(job *ConvertJob, taskID, srcPath, dstPath string, idx, to
 	case c.AudioOK:
 		return transcodeVideoOnly(job, taskID, srcPath, dstPath, idx, total)
 	default:
-		return transcodeVideoAndAudio(job, taskID, srcPath, dstPath, idx, total)
+		return transcodeVideoOnly(job, taskID, srcPath, dstPath, idx, total)
 	}
 }
 
 func transcodeVideoOnlyQuality(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int, quality string) bool {
-	return runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264 "+quality, append(browserVideoArgs(quality), "-map", "0:a?", "-c:a", "copy", "-movflags", "+faststart", "-brand", "mp42"))
+	ok := runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264 "+quality, append(browserVideoArgs(quality), "-map", "0:a?", "-c:a", "copy", "-movflags", "+faststart", "-brand", "mp42"))
+	if !ok && job.ctx.Err() == nil {
+		LogInfo("[CONVERT] [%s] [%d/%d] Audio stream copy không thành công hoặc không tương thích, chuyển sang AAC fallback", taskID, idx, total)
+		return transcodeVideoAndAudioQuality(job, taskID, srcPath, dstPath, idx, total, quality)
+	}
+	return ok
 }
 
 func transcodeVideoAndAudioQuality(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int, quality string) bool {
@@ -595,10 +651,15 @@ func transcodeVideoAndAudioQuality(job *ConvertJob, taskID, srcPath, dstPath str
 
 func remuxContainer(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int) bool {
 	LogInfo("[CONVERT] [%s] [%d/%d] Chỉ đổi container sang MP4, giữ nguyên video/audio: %s", taskID, idx, total, filepath.Base(srcPath))
-	return runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "remux container", []string{
+	ok := runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "remux container", []string{
 		"-map", "0:v:0", "-map", "0:a?", "-c", "copy",
 		"-movflags", "+faststart", "-brand", "mp42",
 	})
+	if !ok && job.ctx.Err() == nil {
+		LogInfo("[CONVERT] [%s] [%d/%d] Remux thất bại, fallback sang transcode", taskID, idx, total)
+		return transcodeVideoAndAudio(job, taskID, srcPath, dstPath, idx, total)
+	}
+	return ok
 }
 
 func transcodeAudioOnly(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int) bool {
@@ -612,9 +673,14 @@ func transcodeAudioOnly(job *ConvertJob, taskID, srcPath, dstPath string, idx, t
 
 func transcodeVideoOnly(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int) bool {
 	LogInfo("[CONVERT] [%s] [%d/%d] Chỉ tối ưu video H.264, giữ nguyên audio: %s", taskID, idx, total, filepath.Base(srcPath))
-	return runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264", append(browserVideoArgs(""),
+	ok := runFFmpegConversion(job, taskID, srcPath, dstPath, idx, total, "video H.264", append(browserVideoArgs(""),
 		"-map", "0:a?", "-c:a", "copy", "-movflags", "+faststart", "-brand", "mp42",
 	))
+	if !ok && job.ctx.Err() == nil {
+		LogInfo("[CONVERT] [%s] [%d/%d] Audio stream copy không thành công hoặc không tương thích, chuyển sang AAC fallback", taskID, idx, total)
+		return transcodeVideoAndAudio(job, taskID, srcPath, dstPath, idx, total)
+	}
+	return ok
 }
 
 func transcodeVideoAndAudio(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int) bool {
@@ -627,7 +693,7 @@ func transcodeVideoAndAudio(job *ConvertJob, taskID, srcPath, dstPath string, id
 
 func browserVideoArgs(quality string) []string {
 	args := []string{
-		"-map", "0:v:0", "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-threads", "2",
+		"-map", "0:v:0", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-threads", "2",
 		"-profile:v", "high", "-level:v", "5.1", "-pix_fmt", "yuv420p", "-tag:v", "avc1",
 	}
 	if target := map[string]int{"4k": 2160, "2k": 1440, "1080p": 1080}[quality]; target > 0 {

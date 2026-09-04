@@ -202,6 +202,46 @@ func (c *Coordinator) DecideVideo(jobID, videoID, quality string) error {
 	return c.controlDownloadPayload(jobID, map[string]string{"operation": "video_decision", "archiveTaskId": job.StorageTaskID, "videoId": videoID, "quality": strings.ToLower(strings.TrimSpace(quality))})
 }
 
+// ApplyVideoDecisions forwards complete decisions and an apply signal to the
+// owning Storage worker.
+func (c *Coordinator) ApplyVideoDecisions(jobID string, decisions map[string]string) error {
+	job, ok := c.downloads.Get(jobID)
+	if !ok {
+		return fmt.Errorf("download job not found")
+	}
+	if decisions != nil {
+		for videoID, quality := range decisions {
+			found := false
+			quality = strings.ToLower(strings.TrimSpace(quality))
+			for _, video := range job.Videos {
+				if video.ID == strings.TrimSpace(videoID) {
+					found = true
+					allowed := false
+					for _, opt := range video.AllowedQualities {
+						if opt == quality {
+							allowed = true
+							break
+						}
+					}
+					if !allowed && len(video.AllowedQualities) > 0 {
+						return fmt.Errorf("quality is not allowed for video %s", videoID)
+					}
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("video not found: %s", videoID)
+			}
+		}
+	}
+	decisionsBytes, _ := json.Marshal(decisions)
+	return c.controlDownloadPayload(jobID, map[string]string{
+		"operation":     "video_apply",
+		"archiveTaskId": job.StorageTaskID,
+		"decisions":     string(decisionsBytes),
+	})
+}
+
 func (c *Coordinator) controlDownload(jobID, operation, password string) error {
 	job, ok := c.downloads.Get(jobID)
 	if !ok {
@@ -238,7 +278,7 @@ func (c *Coordinator) controlDownloadPayload(jobID string, payload map[string]st
 	}
 	logging.Event("INFO", "task created", map[string]any{"taskId": control.ID, "action": control.Action})
 	c.pinnedTasks.Store(control.ID, workerID)
-	if (operation == "cancel" || operation == "video_decision") && registered.Status == worker.Busy {
+	if (operation == "cancel" || operation == "video_decision" || operation == "video_apply") && registered.Status == worker.Busy {
 		// Cancellation is a cooperative control message for the job already
 		// running on this worker; waiting for it to become idle would make
 		// cancel/decision ineffective. It does not start a second archive workflow.

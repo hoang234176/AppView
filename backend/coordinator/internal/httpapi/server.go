@@ -19,5 +19,6 @@ func Register(mux *http.ServeMux, coordinator *service.Coordinator) {
 	mux.HandleFunc("POST /api/v1/download/{id}/extract", downloads.Extract)
 	mux.HandleFunc("POST /api/v1/download/{id}/cancel", downloads.Cancel)
 	mux.HandleFunc("POST /api/v1/download/{id}/videos/{videoId}/decision", downloads.DecideVideo)
+	mux.HandleFunc("POST /api/v1/download/{id}/videos/apply", downloads.ApplyVideoDecisions)
 	mux.HandleFunc("GET /health", Health(coordinator))
 }

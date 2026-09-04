@@ -154,3 +154,14 @@ func assertCORSHeaders(t *testing.T, response *httptest.ResponseRecorder, origin
 		t.Fatalf("missing CORS headers: %#v", response.Header())
 	}
 }
+
+func TestDownloadVideoApplyRoute(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/download/missing/videos/apply", bytes.NewBufferString(`{"decisions":{"v1":"1080p"}}`)))
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+}

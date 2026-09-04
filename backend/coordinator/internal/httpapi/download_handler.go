@@ -127,3 +127,18 @@ func (h *DownloadHandler) DecideVideo(writer http.ResponseWriter, request *http.
 	}
 	writer.WriteHeader(http.StatusAccepted)
 }
+
+type applyVideoDecisionsRequest struct {
+	Decisions map[string]string `json:"decisions"`
+}
+
+func (h *DownloadHandler) ApplyVideoDecisions(writer http.ResponseWriter, request *http.Request) {
+	defer request.Body.Close()
+	var body applyVideoDecisionsRequest
+	_ = json.NewDecoder(request.Body).Decode(&body)
+	if err := h.coordinator.ApplyVideoDecisions(request.PathValue("id"), body.Decisions); err != nil {
+		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writer.WriteHeader(http.StatusAccepted)
+}

@@ -43,8 +43,13 @@ func (archiveOperations) SetVideoDecision(id, videoID, quality string) error {
 	return pythonapi.SetVideoDecision(id, videoID, quality)
 }
 
+func (archiveOperations) ApplyVideoDecisions(id string, decisions map[string]string) error {
+	return pythonapi.ApplyVideoDecisions(id, decisions)
+}
+
 type videoDecisionOperations interface {
 	SetVideoDecision(id, videoID, quality string) error
+	ApplyVideoDecisions(id string, decisions map[string]string) error
 }
 
 func (archiveOperations) Snapshot(id string) (pythonapi.ArchiveJobSnapshot, bool) {
@@ -159,11 +164,12 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 }
 
 type archiveControl struct {
-	Operation     string `json:"operation"`
-	ArchiveTaskID string `json:"archiveTaskId"`
-	Password      string `json:"password"`
-	VideoID       string `json:"videoId"`
-	Quality       string `json:"quality"`
+	Operation     string          `json:"operation"`
+	ArchiveTaskID string          `json:"archiveTaskId"`
+	Password      string          `json:"password"`
+	VideoID       string          `json:"videoId"`
+	Quality       string          `json:"quality"`
+	Decisions     json.RawMessage `json:"decisions"`
 }
 
 func decodeArchiveControl(payload json.RawMessage) (archiveControl, bool) {
@@ -173,7 +179,7 @@ func decodeArchiveControl(payload json.RawMessage) (archiveControl, bool) {
 	}
 	control.Operation = strings.TrimSpace(control.Operation)
 	control.ArchiveTaskID = strings.TrimSpace(control.ArchiveTaskID)
-	if control.ArchiveTaskID == "" || (control.Operation != "retry" && control.Operation != "extract" && control.Operation != "cancel" && control.Operation != "video_decision") {
+	if control.ArchiveTaskID == "" || (control.Operation != "retry" && control.Operation != "extract" && control.Operation != "cancel" && control.Operation != "video_decision" && control.Operation != "video_apply") {
 		return archiveControl{}, false
 	}
 	return control, true
@@ -191,6 +197,22 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		} else {
 			err = operations.SetVideoDecision(control.ArchiveTaskID, control.VideoID, control.Quality)
 		}
+	} else if control.Operation == "video_apply" {
+		operations, ok := h.archive.(videoDecisionOperations)
+		if !ok {
+			err = fmt.Errorf("video apply không được hỗ trợ")
+		} else {
+			var decisions map[string]string
+			if len(control.Decisions) > 0 {
+				if unmarshalErr := json.Unmarshal(control.Decisions, &decisions); unmarshalErr != nil {
+					var str string
+					if json.Unmarshal(control.Decisions, &str) == nil {
+						_ = json.Unmarshal([]byte(str), &decisions)
+					}
+				}
+			}
+			err = operations.ApplyVideoDecisions(control.ArchiveTaskID, decisions)
+		}
 	} else if control.Operation == "extract" {
 		err = h.archive.RetryExtraction(control.ArchiveTaskID, control.Password)
 	} else if control.Operation == "cancel" {
@@ -204,14 +226,14 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		h.fail(send, controlTaskID, "ARCHIVE_RETRY_FAILED", "Storage không thể tiếp tục archive.")
 		return
 	}
-	if control.Operation == "video_decision" {
-		// A decision is a short control operation while the original archive
+	if control.Operation == "video_decision" || control.Operation == "video_apply" {
+		// A decision/apply is a short control operation while the original archive
 		// monitor remains busy/waiting. Persist + publish one canonical snapshot
 		// then finish this control task; do not attach a second long monitor.
 		if snapshot, ok := h.archive.Snapshot(control.ArchiveTaskID); ok {
 			_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{storageSnapshot(snapshot)}}})
 		}
-		_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": "video_decision"}})
+		_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
 		return
 	}
 	// Storage history updates the canonical parent. This short-lived control

@@ -644,6 +644,8 @@ class _DownloadScreenState extends State<DownloadScreen> {
   final Set<String> _passwordSubmissions = {};
   final Set<String> _retrySubmissions = {};
   final Set<String> _cancelSubmissions = {};
+  final Map<String, String> _pendingDecisions = {};
+  final Set<String> _applySubmissions = {};
 
   @override
   void dispose() {
@@ -1240,16 +1242,123 @@ class _DownloadScreenState extends State<DownloadScreen> {
 
 		  if (task.stage == 'video_decision_required') ...[
 			const SizedBox(height: 12),
-			for (final video in task.videos.where((v) => v.allowedQualities.isNotEmpty))
-			  Container(
-				margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
-				decoration: BoxDecoration(color: Colors.purple.withValues(alpha: .08), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.purple.withValues(alpha: .35))),
-				child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-				  Text(video.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-				  Text('${video.width}×${video.height} • ${Formatters.formatFileSize(video.sourceSizeBytes)}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
-				  const SizedBox(height: 6), Wrap(spacing: 6, runSpacing: 5, children: video.allowedQualities.map((quality) => OutlinedButton(onPressed: () => provider.submitVideoDecision(task.taskId, video.id, quality), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), foregroundColor: Colors.purpleAccent, side: BorderSide(color: video.selectedQuality == quality ? Colors.purpleAccent : Colors.purple.withValues(alpha: .5))), child: Text('${quality.toUpperCase()} ~${Formatters.formatFileSize(video.estimates[quality] ?? 0)}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))).toList()),
-				]),
-			  ),
+			Builder(
+			  builder: (context) {
+				final decisionVideos = task.videos.where((v) => v.allowedQualities.isNotEmpty).toList();
+				final allSelected = decisionVideos.isNotEmpty && decisionVideos.every((v) {
+				  final val = _pendingDecisions['${task.taskId}:${v.id}'] ?? (v.selectedQuality.isNotEmpty ? v.selectedQuality : null);
+				  return val != null && val.isNotEmpty;
+				});
+				final isSubmitting = _applySubmissions.contains(task.taskId);
+
+				return Column(
+				  crossAxisAlignment: CrossAxisAlignment.stretch,
+				  children: [
+					for (final video in decisionVideos)
+					  Container(
+						margin: const EdgeInsets.only(bottom: 8),
+						padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+						decoration: BoxDecoration(
+						  color: Colors.purple.withValues(alpha: .08),
+						  borderRadius: BorderRadius.circular(12),
+						  border: Border.all(color: Colors.purple.withValues(alpha: .35)),
+						),
+						child: Row(
+						  children: [
+							Expanded(
+							  child: Column(
+								crossAxisAlignment: CrossAxisAlignment.start,
+								children: [
+								  Text(
+									video.displayName,
+									maxLines: 1,
+									overflow: TextOverflow.ellipsis,
+									style: const TextStyle(
+									  color: Colors.white,
+									  fontSize: 12,
+									  fontWeight: FontWeight.bold,
+									),
+								  ),
+								  const SizedBox(height: 2),
+								  Text(
+									'${video.width}×${video.height} • ${Formatters.formatFileSize(video.sourceSizeBytes)}',
+									style: const TextStyle(color: Colors.white54, fontSize: 10),
+								  ),
+								],
+							  ),
+							),
+							const SizedBox(width: 8),
+							DropdownButton<String>(
+							  value: _pendingDecisions['${task.taskId}:${video.id}'] ?? (video.selectedQuality.isNotEmpty ? video.selectedQuality : null),
+							  hint: const Text('Chọn...', style: TextStyle(color: Colors.white54, fontSize: 11)),
+							  dropdownColor: AppTheme.bgCard,
+							  underline: const SizedBox(),
+							  icon: const Icon(Icons.arrow_drop_down, color: Colors.purpleAccent, size: 18),
+							  style: const TextStyle(
+								color: Colors.purpleAccent,
+								fontSize: 11,
+								fontWeight: FontWeight.bold,
+							  ),
+							  items: video.allowedQualities.map((quality) {
+								final est = video.estimates[quality];
+								final estStr = est != null && est > 0 ? ' ~${Formatters.formatFileSize(est)}' : '';
+								return DropdownMenuItem<String>(
+								  value: quality,
+								  child: Text('${quality.toUpperCase()}$estStr'),
+								);
+							  }).toList(),
+							  onChanged: isSubmitting ? null : (selected) {
+								if (selected != null) {
+								  setState(() {
+									_pendingDecisions['${task.taskId}:${video.id}'] = selected;
+								  });
+								}
+							  },
+							),
+						  ],
+						),
+					  ),
+					const SizedBox(height: 4),
+					Align(
+					  alignment: Alignment.centerRight,
+					  child: ElevatedButton(
+						onPressed: (!allSelected || isSubmitting) ? null : () async {
+						  final decisions = <String, String>{};
+						  for (final v in decisionVideos) {
+							final chosen = _pendingDecisions['${task.taskId}:${v.id}'] ?? v.selectedQuality;
+							if (chosen.isNotEmpty) {
+							  decisions[v.id] = chosen;
+							}
+						  }
+						  setState(() => _applySubmissions.add(task.taskId));
+						  final ok = await provider.applyVideoDecisions(task.taskId, decisions);
+						  if (!context.mounted) return;
+						  setState(() => _applySubmissions.remove(task.taskId));
+						  if (!ok) {
+							AppToast.showError(context, 'Không thể áp dụng lựa chọn video');
+						  }
+						},
+						style: ElevatedButton.styleFrom(
+						  backgroundColor: Colors.purpleAccent.shade700,
+						  foregroundColor: Colors.white,
+						  disabledBackgroundColor: Colors.purple.withValues(alpha: .25),
+						  disabledForegroundColor: Colors.white38,
+						  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+						  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+						),
+						child: isSubmitting
+							? const SizedBox(
+								width: 14,
+								height: 14,
+								child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+							  )
+							: const Text('Áp dụng', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+					  ),
+					),
+				  ],
+				);
+			  },
+			),
 		  ],
 
           // Password Input Field when required

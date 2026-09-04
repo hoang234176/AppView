@@ -98,6 +98,14 @@ export const submitVideoDecision = async (jobId, videoId, quality) => {
   try { await createCoordinatorClient().post(`/download/${encodeURIComponent(jobId)}/videos/${encodeURIComponent(videoId)}/decision`, { quality }); return { success: true }; }
   catch (error) { return { success: false, message: error.response?.data?.error || 'Không thể lưu lựa chọn video.' }; }
 };
+export const applyCoordinatorVideoDecisions = async (jobId, decisions) => {
+  try {
+    await createCoordinatorClient().post(`/download/${encodeURIComponent(jobId)}/videos/apply`, { decisions });
+    return { success: true };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.error || 'Không thể áp dụng lựa chọn video.' };
+  }
+};
 
 /**
  * Fetch all tasks

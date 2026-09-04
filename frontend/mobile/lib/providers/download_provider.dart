@@ -87,6 +87,12 @@ class DownloadProvider extends ChangeNotifier {
     return ok;
   }
 
+  Future<bool> applyVideoDecisions(String jobId, Map<String, String> decisions) async {
+    final ok = await DownloadApi.applyVideoDecisions(jobId, decisions);
+    if (ok) scheduleCanonicalRefresh(immediate: true);
+    return ok;
+  }
+
   Future<Map<String, dynamic>> startCoordinatorDownload({
     required String url,
     String destination = '',

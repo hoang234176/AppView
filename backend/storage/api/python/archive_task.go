@@ -461,15 +461,33 @@ func CancelArchiveJob(id string) bool {
 	if job == nil {
 		return false
 	}
+	job.mu.Lock()
+	stage := job.Stage
+	if stage == "cancelled" {
+		job.mu.Unlock()
+		return true
+	}
+	if stage == "cancelling" {
+		job.mu.Unlock()
+		return true
+	}
+	if stage == "converting" {
+		job.Stage = "cancelling"
+		job.UpdatedAt = time.Now().UTC()
+		job.mu.Unlock()
+		persistArchiveJob(job)
+		CancelConvertJob(id)
+		return true
+	}
+	job.mu.Unlock()
 	job.cancel()
 	CancelConvertJob(id)
 	setArchiveStage(job, "cancelled")
 	return true
 }
 
-// SetVideoDecision persists one independent choice.  It never trusts a UI
-// index, never accepts an upscale, and begins conversion only once every
-// video that needs a selector has a valid decision.
+// SetVideoDecision persists one independent choice. It never trusts a UI
+// index, never accepts an upscale, and does NOT start conversion.
 func SetVideoDecision(id, videoID, quality string) error {
 	archiveJobs.RLock()
 	job := archiveJobs.items[id]
@@ -508,19 +526,80 @@ func SetVideoDecision(id, videoID, quality string) error {
 		job.mu.Unlock()
 		return fmt.Errorf("không tìm thấy video")
 	}
-	ready := true
-	for _, video := range job.Videos {
-		if video.OptimizationNeeded && video.SelectedQuality == "" {
-			ready = false
-			break
+	job.UpdatedAt = time.Now().UTC()
+	job.mu.Unlock()
+	persistArchiveJob(job)
+	// Partial or single decisions never trigger conversion; conversion requires explicit Apply.
+	return nil
+}
+
+// ApplyVideoDecisions applies complete video choices and starts conversion.
+// Partial decisions or missing required choices cannot start conversion.
+// Duplicate apply when already converting is rejected and cannot start duplicate conversion.
+func ApplyVideoDecisions(id string, decisions map[string]string) error {
+	archiveJobs.RLock()
+	job := archiveJobs.items[id]
+	archiveJobs.RUnlock()
+	if job == nil {
+		return fmt.Errorf("không tìm thấy archive job")
+	}
+	job.mu.Lock()
+	if job.Stage == "converting" {
+		job.mu.Unlock()
+		return fmt.Errorf("tác vụ đang trong quá trình tối ưu")
+	}
+	if job.Stage != "video_decision_required" {
+		job.mu.Unlock()
+		return fmt.Errorf("job không ở trạng thái chờ quyết định video")
+	}
+
+	if len(decisions) > 0 {
+		for vID, q := range decisions {
+			q = strings.ToLower(strings.TrimSpace(q))
+			found := false
+			for i := range job.Videos {
+				video := &job.Videos[i]
+				if video.ID == vID {
+					found = true
+					allowed := false
+					for _, opt := range video.AllowedQualities {
+						if opt == q {
+							allowed = true
+							break
+						}
+					}
+					if len(video.AllowedQualities) == 0 || !allowed {
+						job.mu.Unlock()
+						return fmt.Errorf("chất lượng không được hỗ trợ cho video %s", vID)
+					}
+					video.SelectedQuality, video.State, video.Error = q, "ready", ""
+					break
+				}
+			}
+			if !found {
+				job.mu.Unlock()
+				return fmt.Errorf("không tìm thấy video %s", vID)
+			}
 		}
 	}
+
+	// Verify all required videos have a selection
+	for _, video := range job.Videos {
+		if video.OptimizationNeeded && video.SelectedQuality == "" {
+			job.mu.Unlock()
+			return fmt.Errorf("chưa chọn chất lượng cho tất cả video yêu cầu")
+		}
+	}
+
+	job.Stage = "converting"
 	job.UpdatedAt = time.Now().UTC()
 	folder := job.extractedPath
 	ctx := job.ctx
 	job.mu.Unlock()
+	setArchiveStage(job, "converting")
 	persistArchiveJob(job)
-	if ready && folder != "" {
+
+	if folder != "" {
 		go runSelectedArchiveConversion(job, folder, ctx)
 	}
 	return nil
@@ -772,12 +851,16 @@ func uniqueDirectory(parent, name string) string {
 	}
 }
 
-// commitArchiveResult là bước duy nhất ghi vào thư viện HDD. Dữ liệu được copy
-// sang một thư mục cùng volume có hậu tố tạm, rồi rename nguyên tử thành tên
-// cuối. Vì vậy thư viện không bao giờ thấy một folder kết quả chưa copy xong.
 func commitArchiveResult(job *ArchiveJob) error {
 	job.mu.RLock()
-	source, name, destination, ctx := job.extractedPath, job.extractedName, job.Destination, job.ctx
+	ctx := job.ctx
+	job.mu.RUnlock()
+	return commitArchiveResultWithContext(ctx, job)
+}
+
+func commitArchiveResultWithContext(ctx context.Context, job *ArchiveJob) error {
+	job.mu.RLock()
+	source, name, destination := job.extractedPath, job.extractedName, job.Destination
 	job.mu.RUnlock()
 	if source == "" || name == "" {
 		return fmt.Errorf("không tìm thấy thư mục đã giải nén trong workspace")
@@ -948,16 +1031,13 @@ func startArchiveConversion(job *ArchiveJob, folder string) {
 
 func runSelectedArchiveConversion(job *ArchiveJob, folder string, ctx context.Context) {
 	job.mu.Lock()
-	if job.Stage == "converting" {
-		job.mu.Unlock()
-		return
-	}
 	plans := make(map[string]string)
 	for _, video := range job.Videos {
 		if video.OptimizationNeeded {
 			plans[video.RelativePath] = video.SelectedQuality
 		}
 	}
+	job.Stage = "converting"
 	job.mu.Unlock()
 	setArchiveStage(job, "converting")
 	go func() {
@@ -974,6 +1054,24 @@ func runSelectedArchiveConversion(job *ArchiveJob, folder string, ctx context.Co
 			job.mu.Unlock()
 			persistArchiveJob(job)
 			if done {
+				cleanIncompleteOutputs(folder)
+
+				job.mu.RLock()
+				stage := job.Stage
+				job.mu.RUnlock()
+
+				if stage == "cancelling" {
+					detachedCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+					defer cancel()
+					if err := commitArchiveResultWithContext(detachedCtx, job); err != nil {
+						LogInfo("[ARCHIVE] [%s] commit sau hủy thất bại: %v", job.ID, err)
+						setArchiveError(job, "FINALIZE_FAILED", err.Error())
+						return
+					}
+					setArchiveStage(job, "cancelled")
+					return
+				}
+
 				if ctx.Err() != nil {
 					return
 				}
