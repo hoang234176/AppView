@@ -1,9 +1,9 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -24,27 +24,105 @@ func LogDebug(format string, a ...interface{}) {
 	LogEvent("DEBUG", fmt.Sprintf(format, a...), nil)
 }
 
-// LogEvent emits one stdout-safe JSON line. Never pass request payloads,
+// LogEvent emits one clean human-readable log line. Never pass request payloads,
 // passwords, headers, or direct URLs that may contain signed query strings.
 func LogEvent(level, message string, fields map[string]any) {
 	if !enabled(level) {
 		return
 	}
-	entry := map[string]any{
-		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
-		"level":     strings.ToUpper(level),
-		"service":   "storage",
-		"message":   message,
+	fmt.Println(formatEvent(level, message, fields))
+}
+
+func formatEvent(level, message string, fields map[string]any) string {
+	now := time.Now().Format("15:04:05")
+	lvl := padLevel(level)
+
+	msg := strings.TrimSpace(message)
+	// Strip redundant storage service prefixes: [STORAGE SERVICE] or [STORAGE]
+	if strings.HasPrefix(strings.ToUpper(msg), "[STORAGE SERVICE]") {
+		msg = strings.TrimSpace(msg[len("[STORAGE SERVICE]"):])
+	} else if strings.HasPrefix(strings.ToUpper(msg), "[STORAGE]") {
+		msg = strings.TrimSpace(msg[len("[STORAGE]"):])
 	}
-	for key, value := range fields {
-		entry[key] = value
+
+	formattedFields := formatFields(fields)
+	if formattedFields != "" {
+		return fmt.Sprintf("%s %s [STORAGE] %s | %s", now, lvl, msg, formattedFields)
 	}
-	encoded, err := json.Marshal(entry)
-	if err != nil {
-		fmt.Printf(`{"timestamp":%q,"level":"ERROR","service":"storage","message":"log marshal failed"}`+"\n", time.Now().UTC().Format(time.RFC3339Nano))
-		return
+	return fmt.Sprintf("%s %s [STORAGE] %s", now, lvl, msg)
+}
+
+func padLevel(level string) string {
+	switch strings.ToUpper(strings.TrimSpace(level)) {
+	case "INFO":
+		return "INFO "
+	case "WARN", "WARNING":
+		return "WARN "
+	case "ERROR":
+		return "ERROR"
+	case "DEBUG":
+		return "DEBUG"
+	default:
+		lvl := strings.ToUpper(strings.TrimSpace(level))
+		if len(lvl) < 5 {
+			return lvl + strings.Repeat(" ", 5-len(lvl))
+		}
+		return lvl
 	}
-	fmt.Println(string(encoded))
+}
+
+func formatFields(fields map[string]any) string {
+	if len(fields) == 0 {
+		return ""
+	}
+
+	// Check if this is an error structure with errorCode and error/message
+	errorCode, hasErrorCode := fields["errorCode"].(string)
+	errMsg, hasErrMsg := fields["error"].(string)
+	if !hasErrMsg {
+		errMsg, hasErrMsg = fields["message"].(string)
+	}
+
+	keys := make([]string, 0, len(fields))
+	for k := range fields {
+		if hasErrorCode && (k == "errorCode" || k == "error" || (k == "message" && hasErrMsg)) {
+			continue
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var parts []string
+	if hasErrorCode && errorCode != "" {
+		if hasErrMsg && errMsg != "" {
+			parts = append(parts, fmt.Sprintf("[%s] %s", errorCode, errMsg))
+		} else {
+			parts = append(parts, fmt.Sprintf("[%s]", errorCode))
+		}
+	}
+
+	for _, k := range keys {
+		v := fields[k]
+		if v == nil {
+			continue
+		}
+		switch val := v.(type) {
+		case string:
+			if val != "" {
+				parts = append(parts, fmt.Sprintf("%s=%s", k, val))
+			}
+		case []any:
+			var strItems []string
+			for _, item := range val {
+				strItems = append(strItems, fmt.Sprint(item))
+			}
+			parts = append(parts, fmt.Sprintf("%s=[%s]", k, strings.Join(strItems, ", ")))
+		default:
+			parts = append(parts, fmt.Sprintf("%s=%v", k, val))
+		}
+	}
+
+	return strings.Join(parts, " ")
 }
 
 func enabled(level string) bool {
