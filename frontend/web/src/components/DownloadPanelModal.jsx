@@ -3,10 +3,24 @@ import { X, Download, Video, Image, Trash2, AlertTriangle, RotateCw } from 'luci
 import { formatFileSize, formatSpeed, getFileCategory } from '../utils/formatters';
 import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask, retryCoordinatorArchive, submitCoordinatorArchivePassword, cancelCoordinatorArchive, submitVideoDecision, applyCoordinatorVideoDecisions } from '../api/downloadApi';
 import { FileTypeIcon } from './icons/FileTypeIcon';
-import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload } from '../utils/downloadPresentation';
+import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload, isCancelledOptimization } from '../utils/downloadPresentation';
 
 const isRetryableDownloadError = isRetryableDownload;
-const isCancelledOptimization = (task) => task.stage === 'cancelled' && task.cancelled_from_stage === 'converting';
+const getUnoptimizedCount = (t) => {
+  if (t?.unoptimized_video_count != null && t?.unoptimized_video_count !== undefined) {
+    return Number(t.unoptimized_video_count);
+  }
+  if (t?.unoptimizedVideoCount != null && t?.unoptimizedVideoCount !== undefined) {
+    return Number(t.unoptimizedVideoCount);
+  }
+  if (Array.isArray(t?.videos) && t.videos.length > 0) {
+    return t.videos.filter((v) => v.optimizationRequired && v.state !== 'completed').length;
+  }
+  const total = Number(t?.convert_total) || Number(t?.conversionTotal) || Number(t?.invalid_video_count) || Number(t?.invalidVideoCount) || 0;
+  const current = Number(t?.convert_current) || Number(t?.conversionCurrent) || 0;
+  return Math.max(0, total - current);
+};
+
 const COMPLETED_GROUPS = [
   ['File nén', 'archive', ({ className }) => <FileTypeIcon fallback="ZIP" className={className} />],
   ['Video', 'video', Video],
@@ -29,8 +43,8 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
   const selectedTab = controlledTab ?? localTab;
   const setSelectedTab = onSelectedTabChange ?? setLocalTab;
   const active = useMemo(() => tasks.filter((t) => isActiveDownload(t) || isRetryableDownloadError(t)), [tasks]);
-  const cancelled = useMemo(() => tasks.filter((t) => t.stage === 'cancelled'), [tasks]);
-  const completed = useMemo(() => tasks.filter((t) => t.stage !== 'cancelled' && !isActiveDownload(t) && !isRetryableDownloadError(t)), [tasks]);
+  const cancelled = useMemo(() => tasks.filter((t) => t.stage === 'cancelled' && !isCancelledOptimization(t)), [tasks]);
+  const completed = useMemo(() => tasks.filter((t) => !isActiveDownload(t) && !isRetryableDownloadError(t) && (t.stage === 'completed' || isCancelledOptimization(t))), [tasks]);
   const completedByGroup = useMemo(() => Object.fromEntries(
     COMPLETED_GROUPS.map(([, category]) => [
       category,
@@ -141,10 +155,11 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
     const loading = ['queued', 'resolving', 'waiting_extract', 'extracting', 'scanning', 'converting'].includes(t.stage);
     const cancelledOptimization = isCancelledOptimization(t);
     const taskColor = cancelledOptimization || needsDownloadAttention(t) ? 'text-amber-400' : color(t.stage);
+    const unoptimizedCount = getUnoptimizedCount(t);
     return <div key={t.task_id} className="min-h-[108px] space-y-3 rounded-2xl border border-[#383c42] bg-[#202124] p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center">{icon(t, taskColor)}</div>
-        <div className="min-w-0 flex-1"><h5 className="truncate text-xs font-bold text-white">{t.filename || 'Đang phân tích liên kết...'}</h5>{t.stage === 'downloading' ? <p className="mt-1 flex items-center justify-between gap-3 text-[11px] font-medium"><span className="truncate text-gray-400">{formatFileSize(t.downloaded_bytes)} / {t.download_total_bytes ? formatFileSize(t.download_total_bytes) : 'Không rõ'}</span><span className="flex-shrink-0 text-emerald-400">{formatSpeed(t.download_speed_bytes)}</span></p> : cancelledOptimization ? <p className="mt-1 text-[11px] font-medium"><span className="text-emerald-400">Đã giải nén hoàn tất</span><span className="text-gray-400"> - </span><span className="text-amber-400">Đã hủy tối ưu video</span></p> : <p className={`mt-1 text-[11px] font-medium ${taskColor}`}>{status(t)}</p>}</div>
+        <div className="min-w-0 flex-1"><h5 className="truncate text-xs font-bold text-white">{t.filename || 'Đang phân tích liên kết...'}</h5>{t.stage === 'downloading' ? <p className="mt-1 flex items-center justify-between gap-3 text-[11px] font-medium"><span className="truncate text-gray-400">{formatFileSize(t.downloaded_bytes)} / {t.download_total_bytes ? formatFileSize(t.download_total_bytes) : 'Không rõ'}</span><span className="flex-shrink-0 text-emerald-400">{formatSpeed(t.download_speed_bytes)}</span></p> : cancelledOptimization ? <div className="mt-1 text-[11px] font-medium leading-tight"><span className="text-emerald-400">Đã tải và giải nén</span><br /><span className="text-amber-400">{unoptimizedCount} video chưa được tối ưu hóa</span></div> : <p className={`mt-1 text-[11px] font-medium ${taskColor}`}>{status(t)}</p>}</div>
         <div className="flex items-center gap-1">{isRetryableDownloadError(t) && <button disabled={pendingRetries[t.task_id]} onClick={() => retry(t)} title="Tải tiếp" className="rounded-full p-1 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50"><RotateCw className="h-4 w-4" /></button>}{canCancelDownload(t) && <button disabled={pendingCancels[t.task_id]} onClick={() => cancel(t)} title="Hủy tác vụ" className="rounded-full p-1 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50"><X className="h-4 w-4" /></button>}</div>
       </div>
       {t.stage === 'downloading' && <div className="h-2 overflow-hidden rounded-full bg-[#18191c]"><div className="h-full rounded-full bg-blue-500" style={{ width: `${t.download_percent || 0}%` }} /></div>}
@@ -154,10 +169,30 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
     </div>;
   };
 
-  const historyCard = (t) => { const isOptimizationError = t.error_code === 'VIDEO_CONVERT_UNAVAILABLE'; return <div key={t.task_id} className="flex items-center gap-3 rounded-2xl border border-[#383c42]/60 bg-[#202124]/60 p-3">
-    {icon(t, isOptimizationError ? 'text-amber-400' : 'text-gray-400')}<div className="min-w-0 flex-1"><h5 className="truncate text-xs font-semibold text-gray-200">{t.filename || t.original_url}</h5><p className={`text-[10px] ${isOptimizationError ? 'text-amber-400' : t.stage === 'completed' ? 'text-emerald-400' : t.stage === 'cancelled' ? 'text-gray-400' : 'text-red-400'}`}>{isOptimizationError ? '⚠ Đã giải nén — chưa tối ưu được video' : t.stage === 'completed' ? (t.convert_total > 0 ? `✓ Đã giải nén - tối ưu ${t.convert_total} video` : '✓ Đã giải nén hoàn tất') : t.stage === 'cancelled' ? '⊘ Đã hủy' : `✕ ${t.error || 'Có lỗi xảy ra'}`}</p></div>
-    {t.stage === 'error' && <button onClick={() => retryDownloadTask(t.task_id)} className="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-bold text-white">Thử lại</button>}<button onClick={() => remove(t.task_id)} title="Xóa" className="text-gray-500 hover:text-gray-300"><Trash2 className="h-4 w-4" /></button>
-  </div>; };
+  const historyCard = (t) => {
+    const isOptimizationError = t.error_code === 'VIDEO_CONVERT_UNAVAILABLE';
+    const cancelledOptimization = isCancelledOptimization(t);
+    const unoptimizedCount = getUnoptimizedCount(t);
+    return <div key={t.task_id} className="flex items-center gap-3 rounded-2xl border border-[#383c42]/60 bg-[#202124]/60 p-3">
+      {icon(t, cancelledOptimization || isOptimizationError ? 'text-amber-400' : 'text-gray-400')}
+      <div className="min-w-0 flex-1">
+        <h5 className="truncate text-xs font-semibold text-gray-200">{t.filename || t.original_url}</h5>
+        {cancelledOptimization ? (
+          <div className="text-[10px] font-medium leading-tight">
+            <span className="text-emerald-400">Đã tải và giải nén</span>
+            <br />
+            <span className="text-amber-400">{unoptimizedCount} video chưa được tối ưu hóa</span>
+          </div>
+        ) : (
+          <p className={`text-[10px] ${isOptimizationError ? 'text-amber-400' : t.stage === 'completed' ? 'text-emerald-400' : t.stage === 'cancelled' ? 'text-gray-400' : 'text-red-400'}`}>
+            {isOptimizationError ? '⚠ Đã giải nén — chưa tối ưu được video' : t.stage === 'completed' ? (t.convert_total > 0 ? `✓ Đã giải nén - tối ưu ${t.convert_total} video` : '✓ Đã giải nén hoàn tất') : t.stage === 'cancelled' ? '⊘ Đã hủy' : `✕ ${t.error || 'Có lỗi xảy ra'}`}
+          </p>
+        )}
+      </div>
+      {t.stage === 'error' && <button onClick={() => retryDownloadTask(t.task_id)} className="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-bold text-white">Thử lại</button>}
+      <button onClick={() => remove(t.task_id)} title="Xóa" className="text-gray-500 hover:text-gray-300"><Trash2 className="h-4 w-4" /></button>
+    </div>;
+  };
   return <div onClick={onClose} className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 animate-fade-in"><div onClick={(e) => e.stopPropagation()} className="flex h-[80vh] w-full max-w-3xl flex-col rounded-3xl border border-[#383c42] bg-[#1c1d21] p-6 shadow-2xl animate-modal-enter">
     <div className="mb-4 flex items-center justify-between border-b border-[#383c42] pb-3"><div className="flex items-center gap-2.5"><Download className="h-5 w-5 text-blue-400" /><div><h3 className="text-sm font-bold text-white">Quản lý tải xuống</h3><p className="text-[11px] text-gray-400">{tasks.length} nhiệm vụ</p></div></div><button onClick={onClose} className="p-1.5 text-gray-400"><X className="h-5 w-5" /></button></div>
     <div className="mb-4 grid grid-cols-3 rounded-2xl border border-[#383c42] bg-[#28292d] p-1">

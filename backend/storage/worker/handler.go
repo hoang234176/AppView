@@ -103,6 +103,7 @@ func storageSnapshot(snapshot pythonapi.ArchiveJobSnapshot) StorageJobSnapshot {
 		ConversionFailed: snapshot.Conversion.Failed, ErrorCode: snapshot.ErrorCode, Error: snapshot.Error,
 		PasswordRequired: snapshot.PasswordNeeded, ArchiveDownloaded: snapshot.ArchiveDownloaded, ArchiveExtracted: snapshot.ArchiveExtracted,
 		VideoScanState: snapshot.VideoScanState, TotalVideoCount: snapshot.TotalVideoCount, InvalidVideoCount: snapshot.InvalidVideoCount,
+		OptimizationCancelled: snapshot.OptimizationCancelled, UnoptimizedVideoCount: snapshot.UnoptimizedVideoCount, CancelledFromStage: snapshot.CancelledFromStage,
 		Videos:    snapshot.Videos,
 		CreatedAt: snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt,
 	}

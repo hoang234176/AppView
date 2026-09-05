@@ -35,6 +35,12 @@ It is local-first by design and MUST NOT be redesigned to a remote storage servi
 - DO NOT fix special-character paths by reintroducing URI parsing of an already-resolved filesystem path.
 - Multipart multi-range is a known limitation, not a bug. Document it rather than introducing fragile workarounds.
 
+## Preserved video directory invariants
+
+- Untouched original videos preserved during optimization MUST be stored in `.original-video/` (hidden by default), preserving relative directory structure.
+- `.original-video/` and legacy `original-video/` MUST be excluded from recursive video discovery.
+- Finalization and cancellation preserve `.original-video/` at destination alongside converted/unoptimized media.
+
 ## Worker adapter invariants
 
 - Registers only `download_file`; re-registers after reconnect.

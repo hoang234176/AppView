@@ -113,6 +113,7 @@ func (r *Registry) MergeStorageHistory(workerID string, snapshots []protocol.Sto
 		next.State, next.Stage = State(snapshot.State), snapshot.State
 		next.ArchiveDownloaded, next.ArchiveExtracted, next.PasswordRequired = snapshot.ArchiveDownloaded, snapshot.ArchiveExtracted, snapshot.PasswordRequired
 		next.TotalVideoCount, next.InvalidVideoCount, next.VideoScanState = snapshot.TotalVideoCount, snapshot.InvalidVideoCount, snapshot.VideoScanState
+		next.OptimizationCancelled, next.UnoptimizedVideoCount, next.CancelledFromStage = snapshot.OptimizationCancelled, snapshot.UnoptimizedVideoCount, snapshot.CancelledFromStage
 		next.ConversionTotal, next.ConversionCurrent, next.ConversionFailed = snapshot.ConversionTotal, snapshot.ConversionCurrent, snapshot.ConversionFailed
 		next.Videos = append([]protocol.VideoOptimization(nil), snapshot.Videos...)
 		next.CreatedAt, next.UpdatedAt, next.storageWorkerID, next.storageSnapshotUpdatedAt = snapshot.CreatedAt, snapshot.UpdatedAt, workerID, snapshot.UpdatedAt
@@ -160,6 +161,8 @@ func storageProgress(snapshot protocol.StorageJobSnapshot) json.RawMessage {
 	encoded, _ := json.Marshal(map[string]any{
 		"state": snapshot.State, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes,
 		"speedBytes": snapshot.SpeedBytes, "extractedPercent": snapshot.ExtractedPercent,
+		"optimizationCancelled": snapshot.OptimizationCancelled, "unoptimizedVideoCount": snapshot.UnoptimizedVideoCount,
+		"cancelledFromStage": snapshot.CancelledFromStage,
 		"conversion": map[string]int{"total": snapshot.ConversionTotal, "current": snapshot.ConversionCurrent, "failed": snapshot.ConversionFailed},
 	})
 	return encoded

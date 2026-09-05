@@ -68,6 +68,8 @@ class DownloadTaskModel {
   final bool coordinatorJob;
   final bool archiveDownloaded, archiveExtracted;
   final int totalVideoCount, invalidVideoCount;
+  final bool optimizationCancelled;
+  final int unoptimizedVideoCount;
   final List<VideoOptimizationModel> videos;
 
   DownloadTaskModel({
@@ -94,10 +96,17 @@ class DownloadTaskModel {
     this.archiveExtracted = false,
     this.totalVideoCount = 0,
     this.invalidVideoCount = 0,
+    this.optimizationCancelled = false,
+    this.unoptimizedVideoCount = 0,
     this.videos = const [],
   });
 
   factory DownloadTaskModel.fromJson(Map<String, dynamic> json) {
+    final optCancelled = json['optimization_cancelled'] == true ||
+        json['optimizationCancelled'] == true;
+    final unoptimized = (json['unoptimized_video_count'] as num?)?.toInt() ??
+        (json['unoptimizedVideoCount'] as num?)?.toInt() ??
+        0;
     return DownloadTaskModel(
       taskId: json['task_id'] ?? '',
       originalUrl: json['original_url'] ?? '',
@@ -124,6 +133,8 @@ class DownloadTaskModel {
       convertCurrent: json['convert_current'] ?? 0,
       cancelledFromStage: json['cancelled_from_stage'],
       failureStage: json['failure_stage'],
+      optimizationCancelled: optCancelled,
+      unoptimizedVideoCount: unoptimized,
     );
   }
 
@@ -151,6 +162,19 @@ class DownloadTaskModel {
         progress['conversion'] is Map
             ? Map<String, dynamic>.from(progress['conversion'] as Map)
             : <String, dynamic>{};
+    final optCancelled = json['optimizationCancelled'] == true ||
+        json['optimization_cancelled'] == true ||
+        progress['optimizationCancelled'] == true ||
+        progress['optimization_cancelled'] == true;
+    final unoptimized = (json['unoptimizedVideoCount'] as num?)?.toInt() ??
+        (json['unoptimized_video_count'] as num?)?.toInt() ??
+        (progress['unoptimizedVideoCount'] as num?)?.toInt() ??
+        (progress['unoptimized_video_count'] as num?)?.toInt() ??
+        0;
+    final cancelledStage = json['cancelledFromStage']?.toString() ??
+        json['cancelled_from_stage']?.toString() ??
+        progress['cancelledFromStage']?.toString() ??
+        progress['cancelled_from_stage']?.toString();
     return DownloadTaskModel(
       taskId: json['id']?.toString() ?? '',
       originalUrl: json['url']?.toString() ?? '',
@@ -171,14 +195,17 @@ class DownloadTaskModel {
       error: error['message']?.toString(),
       errorCode: error['code']?.toString(),
       failureStage: json['failureStage']?.toString(),
-      convertTotal: (conversion['total'] as num?)?.toInt() ?? 0,
-      convertCurrent: (conversion['current'] as num?)?.toInt() ?? 0,
+      convertTotal: (conversion['total'] as num?)?.toInt() ?? (json['conversionTotal'] as num?)?.toInt() ?? 0,
+      convertCurrent: (conversion['current'] as num?)?.toInt() ?? (json['conversionCurrent'] as num?)?.toInt() ?? 0,
+      cancelledFromStage: cancelledStage,
       coordinatorJob: true,
       passwordRequired: json['passwordRequired'] == true,
       archiveDownloaded: json['archiveDownloaded'] == true,
       archiveExtracted: json['archiveExtracted'] == true,
       totalVideoCount: (json['totalVideoCount'] as num?)?.toInt() ?? 0,
       invalidVideoCount: (json['invalidVideoCount'] as num?)?.toInt() ?? 0,
+      optimizationCancelled: optCancelled,
+      unoptimizedVideoCount: unoptimized,
       videos:
           (json['videos'] as List? ?? const [])
               .whereType<Map>()

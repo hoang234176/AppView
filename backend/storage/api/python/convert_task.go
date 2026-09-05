@@ -331,7 +331,7 @@ func ScanVideoValidationContext(ctx context.Context, folderPath string) []VideoV
 		}
 		if info.IsDir() {
 			name := info.Name()
-			if strings.HasPrefix(name, ".") || name == "original-video" {
+			if strings.HasPrefix(name, ".") || name == "original-video" || name == ".original-video" {
 				if name == ".convert-video" {
 					_ = os.RemoveAll(path)
 				}
@@ -477,7 +477,10 @@ func StartConvertJobWithContextPlans(parent context.Context, taskID string, fold
 		}
 		defer func() { <-convertJobSemaphore }()
 
-		// Bảo tồn trước tất cả video gốc vào original-video/ trước khi chạy encode.
+		// Di chuyển thư mục cũ original-video sang .original-video nếu có
+		MigrateLegacyOriginalVideoDir(folderPath)
+
+		// Bảo tồn trước tất cả video gốc vào .original-video/ trước khi chạy encode.
 		// Giữ nguyên đường dẫn con cho video lồng nhau, không bao giờ ghi đè file có sẵn.
 		type convertItem struct {
 			originalPath string
@@ -490,9 +493,9 @@ func StartConvertJobWithContextPlans(parent context.Context, taskID string, fold
 			if err != nil {
 				continue
 			}
-			originalPath := filepath.Join(folderPath, "original-video", rel)
+			originalPath := filepath.Join(folderPath, ".original-video", rel)
 			if err := os.MkdirAll(filepath.Dir(originalPath), 0755); err != nil {
-				LogInfo("[CONVERT] [%s] Không tạo được thư mục original-video: %v", taskID, err)
+				LogInfo("[CONVERT] [%s] Không tạo được thư mục .original-video: %v", taskID, err)
 			}
 			if _, statErr := os.Stat(originalPath); os.IsNotExist(statErr) {
 				if renameErr := os.Rename(srcPath, originalPath); renameErr != nil {
@@ -594,8 +597,46 @@ func cleanIncompleteOutputs(folder string) {
 	})
 }
 
+// MigrateLegacyOriginalVideoDir di chuyển an toàn thư mục cũ original-video sang .original-video.
+func MigrateLegacyOriginalVideoDir(folderPath string) {
+	legacyDir := filepath.Join(folderPath, "original-video")
+	targetDir := filepath.Join(folderPath, ".original-video")
+	info, err := os.Stat(legacyDir)
+	if err != nil || !info.IsDir() {
+		return
+	}
+	if _, targetErr := os.Stat(targetDir); os.IsNotExist(targetErr) {
+		if renameErr := os.Rename(legacyDir, targetDir); renameErr == nil {
+			LogInfo("[CONVERT] Đã chuyển thư mục cũ original-video sang .original-video: %s", folderPath)
+			return
+		}
+	}
+	_ = filepath.Walk(legacyDir, func(path string, fi os.FileInfo, walkErr error) error {
+		if walkErr != nil || path == legacyDir {
+			return nil
+		}
+		rel, err := filepath.Rel(legacyDir, path)
+		if err != nil {
+			return nil
+		}
+		destPath := filepath.Join(targetDir, rel)
+		if fi.IsDir() {
+			return os.MkdirAll(destPath, 0755)
+		}
+		if _, destStat := os.Stat(destPath); os.IsNotExist(destStat) {
+			if renameErr := os.Rename(path, destPath); renameErr != nil {
+				if copyErr := copyFile(path, destPath); copyErr == nil {
+					_ = os.Remove(path)
+				}
+			}
+		}
+		return nil
+	})
+	_ = os.RemoveAll(legacyDir)
+}
+
 // publishConvertedVideo xác thực định dạng file đã convert và đổi tên nguyên tử về vị trí đích.
-// Video gốc vẫn an toàn dưới original-video/ và không bao giờ bị xóa.
+// Video gốc vẫn an toàn dưới .original-video/ và không bao giờ bị xóa.
 func publishConvertedVideo(stagedPath, finalPath string) error {
 	defer os.Remove(stagedPath)
 	compatible, _ := isBrowserCompatibleVideo(stagedPath)

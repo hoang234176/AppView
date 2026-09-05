@@ -913,7 +913,14 @@ class _DownloadScreenState extends State<DownloadScreen> {
     final isConverting = task.stage == 'converting';
 	final isVideoDecisionRequired = task.stage == 'video_decision_required';
     final isCancelledOptimization =
-        task.stage == 'cancelled' && task.cancelledFromStage == 'converting';
+        DownloadProvider.isCancelledOptimization(task);
+    final unoptimizedCount = task.unoptimizedVideoCount > 0
+        ? task.unoptimizedVideoCount
+        : (task.videos.isNotEmpty
+            ? task.videos.where((v) => v.state != 'completed').length
+            : (task.convertTotal > 0
+                ? (task.convertTotal - task.convertCurrent).clamp(0, task.convertTotal)
+                : task.invalidVideoCount));
     final convertDisplayIndex =
         task.convertTotal > 0
             ? (task.convertCurrent + 1 > task.convertTotal
@@ -1057,28 +1064,28 @@ class _DownloadScreenState extends State<DownloadScreen> {
                             ),
                           ),
                         ] else if (isCancelledOptimization) ...[
-                          const Text(
-                            'Đã giải nén hoàn tất',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.greenAccent,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const Text(
-                            ' - ',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.white54,
-                            ),
-                          ),
-                          const Text(
-                            'Đã hủy tối ưu video',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.amberAccent,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Đã tải và giải nén',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.greenAccent,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$unoptimizedCount video chưa được tối ưu hóa',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.amberAccent,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ] else if (isCompleted) ...[
                           Text(

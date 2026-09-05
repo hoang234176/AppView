@@ -75,12 +75,15 @@ type StorageJobSnapshot struct {
 	PasswordRequired  bool                `json:"passwordRequired"`
 	ArchiveDownloaded bool                `json:"archiveDownloaded"`
 	ArchiveExtracted  bool                `json:"archiveExtracted"`
-	VideoScanState    string              `json:"videoScanState,omitempty"`
-	TotalVideoCount   int                 `json:"totalVideoCount,omitempty"`
-	InvalidVideoCount int                 `json:"invalidVideoCount,omitempty"`
-	Videos            []VideoOptimization `json:"videos,omitempty"`
-	CreatedAt         time.Time           `json:"createdAt"`
-	UpdatedAt         time.Time           `json:"updatedAt"`
+	VideoScanState        string              `json:"videoScanState,omitempty"`
+	TotalVideoCount       int                 `json:"totalVideoCount,omitempty"`
+	InvalidVideoCount     int                 `json:"invalidVideoCount,omitempty"`
+	OptimizationCancelled bool                `json:"optimizationCancelled,omitempty"`
+	UnoptimizedVideoCount int                 `json:"unoptimizedVideoCount,omitempty"`
+	CancelledFromStage    string              `json:"cancelledFromStage,omitempty"`
+	Videos                []VideoOptimization `json:"videos,omitempty"`
+	CreatedAt             time.Time           `json:"createdAt"`
+	UpdatedAt             time.Time           `json:"updatedAt"`
 }
 
 // VideoOptimization is small, persisted media metadata projected by Storage.

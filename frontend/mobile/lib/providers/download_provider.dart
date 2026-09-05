@@ -19,8 +19,16 @@ class DownloadProvider extends ChangeNotifier {
 
   List<DownloadTaskModel> get tasks => List.unmodifiable(_tasks);
   int get activeCount => _tasks.where((task) => isActiveDownload(task)).length;
+  static bool isCancelledOptimization(DownloadTaskModel task) =>
+      task.optimizationCancelled ||
+      (task.stage == 'cancelled' &&
+          (task.cancelledFromStage == 'converting' ||
+              task.cancelledFromStage == 'video_decision_required')) ||
+      (task.stage == 'completed' &&
+          (task.optimizationCancelled || task.cancelledFromStage != null));
+
   static String downloadGroup(DownloadTaskModel task) =>
-      task.stage == 'completed'
+      (task.stage == 'completed' || isCancelledOptimization(task))
           ? 'completed'
           : task.stage == 'cancelled'
           ? 'cancelled'

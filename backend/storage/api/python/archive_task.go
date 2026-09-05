@@ -44,49 +44,54 @@ type ArchiveJob struct {
 	ErrorCode         string
 	Error             string
 	PasswordNeeded    bool
-	ArchiveDownloaded bool
-	ArchiveExtracted  bool
-	VideoScanState    string
-	TotalVideoCount   int
-	Videos            []VideoOptimization
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	archivePath       string
-	extractedPath     string
-	extractedName     string
-	ctx               context.Context
-	cancel            context.CancelFunc
-	mu                sync.RWMutex
+	ArchiveDownloaded     bool
+	ArchiveExtracted      bool
+	VideoScanState        string
+	TotalVideoCount       int
+	OptimizationCancelled bool
+	CancelledFromStage    string
+	Videos                []VideoOptimization
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	archivePath           string
+	extractedPath         string
+	extractedName         string
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	mu                    sync.RWMutex
 }
 
 type ArchiveJobSnapshot struct {
-	ID              string  `json:"id"`
-	CanonicalID     string  `json:"canonical_job_id,omitempty"`
-	State           string  `json:"state"`
-	Filename        string  `json:"filename"`
-	URL             string  `json:"url,omitempty"`
-	Destination     string  `json:"destination,omitempty"`
-	DownloadedBytes int64   `json:"downloaded_bytes"`
-	TotalBytes      int64   `json:"total_bytes,omitempty"`
-	SpeedBytes      int64   `json:"speed_bytes"`
-	ExtractedPct    float64 `json:"extracted_percent,omitempty"`
-	Conversion      struct {
+	ID                    string  `json:"id"`
+	CanonicalID           string  `json:"canonical_job_id,omitempty"`
+	State                 string  `json:"state"`
+	Filename              string  `json:"filename"`
+	URL                   string  `json:"url,omitempty"`
+	Destination           string  `json:"destination,omitempty"`
+	DownloadedBytes       int64   `json:"downloaded_bytes"`
+	TotalBytes            int64   `json:"total_bytes,omitempty"`
+	SpeedBytes            int64   `json:"speed_bytes"`
+	ExtractedPct          float64 `json:"extracted_percent,omitempty"`
+	Conversion            struct {
 		Total   int `json:"total"`
 		Current int `json:"current"`
 		Failed  int `json:"failed"`
 	} `json:"conversion"`
-	ErrorCode         string              `json:"error_code,omitempty"`
-	Error             string              `json:"error,omitempty"`
-	PasswordNeeded    bool                `json:"password_required"`
-	ArchiveDownloaded bool                `json:"archive_downloaded"`
-	ArchiveExtracted  bool                `json:"archive_extracted"`
-	VideoScanState    string              `json:"video_scan_state,omitempty"`
-	TotalVideoCount   int                 `json:"total_video_count,omitempty"`
-	InvalidVideoCount int                 `json:"invalid_video_count,omitempty"`
-	Videos            []VideoOptimization `json:"videos,omitempty"`
-	ExtractedName     string              `json:"extracted_name,omitempty"`
-	CreatedAt         time.Time           `json:"created_at"`
-	UpdatedAt         time.Time           `json:"updated_at"`
+	ErrorCode             string              `json:"error_code,omitempty"`
+	Error                 string              `json:"error,omitempty"`
+	PasswordNeeded        bool                `json:"password_required"`
+	ArchiveDownloaded     bool                `json:"archive_downloaded"`
+	ArchiveExtracted      bool                `json:"archive_extracted"`
+	VideoScanState        string              `json:"video_scan_state,omitempty"`
+	TotalVideoCount       int                 `json:"total_video_count,omitempty"`
+	InvalidVideoCount     int                 `json:"invalid_video_count,omitempty"`
+	OptimizationCancelled bool                `json:"optimization_cancelled,omitempty"`
+	UnoptimizedVideoCount int                 `json:"unoptimized_video_count,omitempty"`
+	CancelledFromStage    string              `json:"cancelled_from_stage,omitempty"`
+	Videos                []VideoOptimization `json:"videos,omitempty"`
+	ExtractedName         string              `json:"extracted_name,omitempty"`
+	CreatedAt             time.Time           `json:"created_at"`
+	UpdatedAt             time.Time           `json:"updated_at"`
 }
 
 // persistedArchiveJob is deliberately separate from ArchiveJob. It is the
@@ -205,6 +210,16 @@ func archiveJobSnapshot(job *ArchiveJob) ArchiveJobSnapshot {
 	result.ArchiveDownloaded, result.ArchiveExtracted = job.ArchiveDownloaded, job.ArchiveExtracted
 	result.VideoScanState, result.TotalVideoCount, result.ExtractedName = job.VideoScanState, job.TotalVideoCount, job.extractedName
 	result.InvalidVideoCount = job.ConvertTotal
+	result.OptimizationCancelled = job.OptimizationCancelled
+	result.CancelledFromStage = job.CancelledFromStage
+	unoptimized := 0
+	if job.ConvertTotal > 0 {
+		unoptimized = job.ConvertTotal - job.ConvertCurrent
+		if unoptimized < 0 {
+			unoptimized = 0
+		}
+	}
+	result.UnoptimizedVideoCount = unoptimized
 	result.Videos = append([]VideoOptimization(nil), job.Videos...)
 	result.CreatedAt, result.UpdatedAt = job.CreatedAt, job.UpdatedAt
 	return result
@@ -283,6 +298,7 @@ func LoadPersistentArchiveJobs() {
 			ErrorCode: snapshot.ErrorCode, Error: snapshot.Error, PasswordNeeded: snapshot.PasswordNeeded,
 			ArchiveDownloaded: snapshot.ArchiveDownloaded, ArchiveExtracted: snapshot.ArchiveExtracted,
 			VideoScanState: snapshot.VideoScanState, TotalVideoCount: snapshot.TotalVideoCount,
+			OptimizationCancelled: snapshot.OptimizationCancelled, CancelledFromStage: snapshot.CancelledFromStage,
 			Videos:    append([]VideoOptimization(nil), snapshot.Videos...),
 			CreatedAt: snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt, ctx: ctx, cancel: cancel,
 		}
@@ -463,7 +479,7 @@ func CancelArchiveJob(id string) bool {
 	}
 	job.mu.Lock()
 	stage := job.Stage
-	if stage == "cancelled" {
+	if stage == "cancelled" || stage == "completed" {
 		job.mu.Unlock()
 		return true
 	}
@@ -473,10 +489,33 @@ func CancelArchiveJob(id string) bool {
 	}
 	if stage == "converting" {
 		job.Stage = "cancelling"
+		job.OptimizationCancelled = true
+		job.CancelledFromStage = "converting"
 		job.UpdatedAt = time.Now().UTC()
 		job.mu.Unlock()
 		persistArchiveJob(job)
 		CancelConvertJob(id)
+		return true
+	}
+	if stage == "video_decision_required" {
+		job.Stage = "cancelling"
+		job.OptimizationCancelled = true
+		job.CancelledFromStage = "video_decision_required"
+		job.UpdatedAt = time.Now().UTC()
+		extractedPath := job.extractedPath
+		job.mu.Unlock()
+		persistArchiveJob(job)
+		go func() {
+			cleanIncompleteOutputs(extractedPath)
+			detachedCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			defer cancel()
+			if err := commitArchiveResultWithContext(detachedCtx, job); err != nil {
+				LogInfo("[ARCHIVE] [%s] commit sau hủy quyết định video thất bại: %v", job.ID, err)
+				setArchiveError(job, "FINALIZE_FAILED", err.Error())
+				return
+			}
+			setArchiveStage(job, "completed")
+		}()
 		return true
 	}
 	job.mu.Unlock()
@@ -1051,6 +1090,15 @@ func runSelectedArchiveConversion(job *ArchiveJob, folder string, ctx context.Co
 			total, current, failed, _, _, done := GetConvertJobSnapshot(job.ID)
 			job.mu.Lock()
 			job.ConvertTotal, job.ConvertCurrent, job.ConvertFailed, job.UpdatedAt = total, current, failed, time.Now().UTC()
+			convertedCount := current
+			for i := range job.Videos {
+				if job.Videos[i].OptimizationNeeded {
+					if convertedCount > 0 {
+						job.Videos[i].State = "completed"
+						convertedCount--
+					}
+				}
+			}
 			job.mu.Unlock()
 			persistArchiveJob(job)
 			if done {
@@ -1068,7 +1116,7 @@ func runSelectedArchiveConversion(job *ArchiveJob, folder string, ctx context.Co
 						setArchiveError(job, "FINALIZE_FAILED", err.Error())
 						return
 					}
-					setArchiveStage(job, "cancelled")
+					setArchiveStage(job, "completed")
 					return
 				}
 

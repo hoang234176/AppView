@@ -47,13 +47,16 @@ type Job struct {
 	ArchiveDownloaded bool                         `json:"archiveDownloaded"`
 	ArchiveExtracted  bool                         `json:"archiveExtracted"`
 	PasswordRequired  bool                         `json:"passwordRequired"`
-	TotalVideoCount   int                          `json:"totalVideoCount,omitempty"`
-	InvalidVideoCount int                          `json:"invalidVideoCount,omitempty"`
-	VideoScanState    string                       `json:"videoScanState,omitempty"`
-	ConversionTotal   int                          `json:"conversionTotal,omitempty"`
-	ConversionCurrent int                          `json:"conversionCurrent,omitempty"`
-	ConversionFailed  int                          `json:"conversionFailed,omitempty"`
-	Videos            []protocol.VideoOptimization `json:"videos,omitempty"`
+	TotalVideoCount       int                          `json:"totalVideoCount,omitempty"`
+	InvalidVideoCount     int                          `json:"invalidVideoCount,omitempty"`
+	OptimizationCancelled bool                         `json:"optimizationCancelled,omitempty"`
+	UnoptimizedVideoCount int                          `json:"unoptimizedVideoCount,omitempty"`
+	CancelledFromStage    string                       `json:"cancelledFromStage,omitempty"`
+	VideoScanState        string                       `json:"videoScanState,omitempty"`
+	ConversionTotal       int                          `json:"conversionTotal,omitempty"`
+	ConversionCurrent     int                          `json:"conversionCurrent,omitempty"`
+	ConversionFailed      int                          `json:"conversionFailed,omitempty"`
+	Videos                []protocol.VideoOptimization `json:"videos,omitempty"`
 
 	password                 string
 	storagePending           bool
