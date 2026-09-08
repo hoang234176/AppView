@@ -257,7 +257,7 @@ Do not place secret values here.
 - **Go archive snapshot:** defined in Go `api/python/archive_task.go`; consumed by Python `archive/go_archive_client.py` and `archive/service.py`.
 - **Storage archive recovery:** `POST /api/v1/jobs/archive/:job_id/retry` resumes only the furthest durable local stage (partial download, extraction, scan, or conversion). `POST /api/v1/jobs/archive/:job_id/extract` remains password-only extraction retry. Passwords are request-only and are omitted from snapshots, logs, and local state files.
 - **Coordinator worker envelope:** source of truth is `backend/coordinator/internal/protocol/message.go`, documented by `backend/coordinator/docs/PROTOCOL.md`.
-- **Python Download coordinator action:** `resolve_download` accepts payload `{ "url": "https://..." }` and returns resolved URL, filename, extension, and optional estimated size in the opaque Coordinator result.
+- **Python Download coordinator action:** `resolve_download` accepts payload `{ "url": "https://..." }` and returns resolved URL, filename, and extension in the opaque Coordinator result.
 - **Storage coordinator action:** `download_file` accepts an archive-oriented direct URL payload with `url`, `filename`, relative `destination`, and optional `password`. It delegates to `pythonapi.StartArchiveJob`, sends snapshot-derived progress, and returns only job/filename/conversion metadata.
 - **Coordinator DownloadJob:** created by `POST /api/v1/download`; owns `resolveTaskId`, `storageTaskId`, current state/progress/result/error and a private password. The resolver result fields used for transition are exactly `downloadUrl` and `filename`.
 - **Storage folder/media response:** produced by Storage controllers; consumed by Web/Mobile folder APIs and models.

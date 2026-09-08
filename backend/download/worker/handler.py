@@ -77,7 +77,6 @@ class DownloadWorkerHandler:
             "downloadUrl": resolved.download_url,
             "filename": resolved.filename,
             "extension": resolved.extension,
-            "estimatedSize": resolved.estimated_size,
         }
 
     @staticmethod

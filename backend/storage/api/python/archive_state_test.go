@@ -115,3 +115,50 @@ func TestPersistentArchiveStateRestoresInterruptedJobWithoutPassword(t *testing.
 		t.Fatalf("restored metadata = %#v", restored)
 	}
 }
+
+func TestPersistentArchiveStateIgnoresLegacyVideoEstimates(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("APPVIEW_STATE_DIR", stateDir)
+	resetArchiveJobsForTest(t)
+	now := time.Now().UTC()
+	job := &ArchiveJob{
+		ID: "legacy-estimates", Filename: "archive.zip", Destination: "albums/test", Stage: "completed",
+		Videos:    []VideoOptimization{{ID: "video-1", RelativePath: "movie.mkv", SourceSizeBytes: 262282311, AllowedQualities: []string{"4k", "2k", "1080p"}, State: "decision_required"}},
+		CreatedAt: now, UpdatedAt: now,
+	}
+	archiveJobs.Lock()
+	archiveJobs.items[job.ID] = job
+	archiveJobs.Unlock()
+	persistArchiveJob(job)
+
+	statePath := filepath.Join(stateDir, "downloads", "jobs", "legacy-estimates.json")
+	contents, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var persisted map[string]any
+	if err := json.Unmarshal(contents, &persisted); err != nil {
+		t.Fatal(err)
+	}
+	videos := persisted["job"].(map[string]any)["videos"].([]any)
+	videos[0].(map[string]any)["estimates"] = map[string]int64{"4k": 230808433, "2k": 152123740, "1080p": 78684693}
+	legacyContents, err := json.Marshal(persisted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, legacyContents, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	archiveJobs.Lock()
+	archiveJobs.items = make(map[string]*ArchiveJob)
+	archiveJobs.Unlock()
+	LoadPersistentArchiveJobs()
+	restored, ok := GetArchiveJobSnapshot(job.ID)
+	if !ok || len(restored.Videos) != 1 {
+		t.Fatalf("legacy snapshot was not restored: %#v", restored)
+	}
+	if restored.Videos[0].SourceSizeBytes != 262282311 || len(restored.Videos[0].AllowedQualities) != 3 {
+		t.Fatalf("legacy video fields were not preserved: %#v", restored.Videos[0])
+	}
+}

@@ -129,7 +129,7 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
                     <option value="" disabled>Chọn chất lượng...</option>
                     {v.allowedQualities.map((q) => (
                       <option key={q} value={q}>
-                        {q.toUpperCase()}{v.estimates?.[q] ? ` (~${formatFileSize(v.estimates[q])})` : ''}
+                        {q.toUpperCase()}
                       </option>
                     ))}
                   </select>

@@ -5,7 +5,7 @@ extractor và video pipeline không cần biết URL đến từ MediaFire hay n
 """
 
 from dataclasses import dataclass
-from typing import Optional, Protocol
+from typing import Protocol
 
 
 @dataclass(frozen=True)
@@ -14,7 +14,6 @@ class ResolvedDownload:
     download_url: str
     filename: str
     extension: str
-    estimated_size: Optional[int] = None
 
 
 class DownloadResolver(Protocol):

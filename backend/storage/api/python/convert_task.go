@@ -221,23 +221,22 @@ func probeVideoCompatibilityContext(parent context.Context, path string) VideoCo
 // RelativePath and ID are stable across Storage/Coordinator restarts; never
 // expose the SSD workspace's absolute path outside Storage.
 type VideoOptimization struct {
-	ID                 string           `json:"id"`
-	RelativePath       string           `json:"relativePath"`
-	DisplayName        string           `json:"displayName"`
-	Width              int              `json:"width"`
-	Height             int              `json:"height"`
-	ResolutionClass    string           `json:"resolutionClass"`
-	SourceSizeBytes    int64            `json:"sourceSizeBytes"`
-	ContainerOK        bool             `json:"containerCompatible"`
-	MetadataOK         bool             `json:"metadataCompatible"`
-	VideoOK            bool             `json:"videoCompatible"`
-	AudioOK            bool             `json:"audioCompatible"`
-	OptimizationNeeded bool             `json:"optimizationRequired"`
-	AllowedQualities   []string         `json:"allowedQualities,omitempty"`
-	SelectedQuality    string           `json:"selectedQuality,omitempty"`
-	Estimates          map[string]int64 `json:"estimates,omitempty"`
-	State              string           `json:"state"`
-	Error              string           `json:"error,omitempty"`
+	ID                 string   `json:"id"`
+	RelativePath       string   `json:"relativePath"`
+	DisplayName        string   `json:"displayName"`
+	Width              int      `json:"width"`
+	Height             int      `json:"height"`
+	ResolutionClass    string   `json:"resolutionClass"`
+	SourceSizeBytes    int64    `json:"sourceSizeBytes"`
+	ContainerOK        bool     `json:"containerCompatible"`
+	MetadataOK         bool     `json:"metadataCompatible"`
+	VideoOK            bool     `json:"videoCompatible"`
+	AudioOK            bool     `json:"audioCompatible"`
+	OptimizationNeeded bool     `json:"optimizationRequired"`
+	AllowedQualities   []string `json:"allowedQualities,omitempty"`
+	SelectedQuality    string   `json:"selectedQuality,omitempty"`
+	State              string   `json:"state"`
+	Error              string   `json:"error,omitempty"`
 }
 
 func videoID(relativePath string) string {
@@ -256,31 +255,6 @@ func allowedQualities(class string) []string {
 	}
 }
 
-// estimateOutputSize uses the same coarse plan information as conversion:
-// copied streams stay close to source size; CRF video output remains explicitly
-// approximate and is never represented as an exact promise.
-func estimateOutputSize(source int64, c VideoCompatibility, quality string) int64 {
-	if source <= 0 {
-		return 0
-	}
-	if quality == "" && c.ContainerOK && c.VideoOK && c.AudioOK {
-		return source
-	}
-	factor := 0.92 // remux / audio-only repair overhead is normally small.
-	switch quality {
-	case "2k":
-		factor = 0.58
-	case "1080p":
-		factor = 0.30
-	case "4k":
-		factor = 0.88
-	}
-	if c.VideoOK && quality == "" {
-		factor = 1.0
-	}
-	return int64(float64(source) * factor)
-}
-
 // ScanVideoOptimizations performs one metadata scan and derives all canonical
 // UI/conversion data. The caller persists the result and does not re-ffprobe
 // it for history GETs.
@@ -297,19 +271,13 @@ func ScanVideoOptimizations(ctx context.Context, folderPath string) []VideoOptim
 		if info != nil {
 			size = info.Size()
 		}
-		compat := VideoCompatibility{ContainerOK: validation.ContainerOK, MetadataOK: validation.MetadataOK, VideoOK: validation.VideoOK, AudioOK: validation.AudioOK, IsVideo: validation.IsVideo, Width: validation.Width, Height: validation.Height}
 		needed := validation.IsVideo && !(validation.ContainerOK && validation.MetadataOK && validation.VideoOK && validation.AudioOK)
 		qualities := allowedQualities(validation.ResolutionClass)
-		item := VideoOptimization{ID: videoID(rel), RelativePath: filepath.ToSlash(rel), DisplayName: filepath.Base(rel), Width: validation.Width, Height: validation.Height, ResolutionClass: validation.ResolutionClass, SourceSizeBytes: size, ContainerOK: validation.ContainerOK, MetadataOK: validation.MetadataOK, VideoOK: validation.VideoOK, AudioOK: validation.AudioOK, OptimizationNeeded: needed, AllowedQualities: qualities, Estimates: map[string]int64{}, State: "compatible"}
+		item := VideoOptimization{ID: videoID(rel), RelativePath: filepath.ToSlash(rel), DisplayName: filepath.Base(rel), Width: validation.Width, Height: validation.Height, ResolutionClass: validation.ResolutionClass, SourceSizeBytes: size, ContainerOK: validation.ContainerOK, MetadataOK: validation.MetadataOK, VideoOK: validation.VideoOK, AudioOK: validation.AudioOK, OptimizationNeeded: needed, AllowedQualities: qualities, State: "compatible"}
 		if needed {
 			item.State = "decision_required"
 			if len(qualities) == 0 {
 				item.SelectedQuality, item.State = "preserve", "ready"
-				item.Estimates["preserve"] = estimateOutputSize(size, compat, "")
-			} else {
-				for _, quality := range qualities {
-					item.Estimates[quality] = estimateOutputSize(size, compat, quality)
-				}
 			}
 		}
 		items = append(items, item)
