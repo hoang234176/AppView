@@ -48,6 +48,60 @@ class YouTubeQualityTests(unittest.TestCase):
             with self.subTest(quality=quality), self.assertRaises(QualityUnavailableError):
                 YouTubeExtractor()._select_best_streams("id", "title", FORMATS, quality=quality)
 
+    def test_regression_progressive_and_video_only_with_audio_qualities(self):
+        # 360p progressive + 720p/1080p video-only + audio => [1080, 720, 360]
+        formats = [
+            {"url": "https://media.test/v360", "height": 360, "vcodec": "avc1", "acodec": "aac", "ext": "mp4"},
+            {"url": "https://media.test/v720", "height": 720, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/v1080", "height": 1080, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/audio", "height": None, "vcodec": "none", "acodec": "aac", "ext": "m4a"},
+        ]
+        qualities = YouTubeExtractor.available_qualities(formats)
+        self.assertEqual(qualities, [1080, 720, 360])
+
+    def test_regression_duplicate_heights_normalized_unique(self):
+        # duplicate heights => unique values
+        formats = [
+            {"url": "https://media.test/v1080_mp4", "height": 1080, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/v1080_webm", "height": 1080, "vcodec": "vp9", "acodec": "none", "ext": "webm"},
+            {"url": "https://media.test/v720_prog", "height": 720, "vcodec": "avc1", "acodec": "aac", "ext": "mp4"},
+            {"url": "https://media.test/v720_video", "height": 720, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+        ]
+        qualities = YouTubeExtractor.available_qualities(formats)
+        self.assertEqual(qualities, [1080, 720])
+
+    def test_regression_select_1080_resolves_exact_1080_video(self):
+        # select 1080 => exact 1080 video
+        formats = [
+            {"url": "https://media.test/v360", "height": 360, "vcodec": "avc1", "acodec": "aac", "ext": "mp4"},
+            {"url": "https://media.test/v720", "height": 720, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/v1080", "height": 1080, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/audio", "height": None, "vcodec": "none", "acodec": "aac", "ext": "m4a"},
+        ]
+        item = YouTubeExtractor()._select_best_streams("vid123", "Test_Video", formats, quality=1080)
+        self.assertEqual(item.height, 1080)
+        self.assertEqual(item.download_url, "https://media.test/v1080")
+
+    def test_regression_unavailable_quality_errors_without_fallback(self):
+        # unavailable quality => error
+        formats = [
+            {"url": "https://media.test/v720", "height": 720, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/audio", "height": None, "vcodec": "none", "acodec": "aac", "ext": "m4a"},
+        ]
+        with self.assertRaises(QualityUnavailableError):
+            YouTubeExtractor()._select_best_streams("vid123", "Test_Video", formats, quality=1080)
+
+    def test_regression_adaptive_video_only_pairs_audio(self):
+        # adaptive video-only => audio pairing still works
+        formats = [
+            {"url": "https://media.test/v1080", "height": 1080, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/audio_m4a", "height": None, "vcodec": "none", "acodec": "aac", "ext": "m4a", "abr": 128},
+        ]
+        item = YouTubeExtractor()._select_best_streams("vid123", "Test_Video", formats, quality=1080)
+        self.assertEqual(item.height, 1080)
+        self.assertEqual(item.download_url, "https://media.test/v1080")
+        self.assertEqual(item.audio_url, "https://media.test/audio_m4a")
+
 
 class YouTubePreviewTests(unittest.IsolatedAsyncioTestCase):
     def mock_extraction(self):

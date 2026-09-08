@@ -134,11 +134,6 @@ class YouTubeExtractor:
                 "skip_download": True,
                 "extract_flat": False,
                 "socket_timeout": 10,
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["ios", "android", "web"],
-                    }
-                },
             }
             ydl_opts.update(get_youtube_ydl_auth_opts())
 
