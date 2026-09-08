@@ -31,13 +31,20 @@ class YouTubeResolver(DownloadResolver):
         except Exception:
             return False
 
-    async def resolve(self, url: str) -> ResolvedDownload:
+    async def preview(self, url: str) -> dict:
+        if not self.supports(url):
+            raise UnsupportedSourceError("URL không phải là liên kết YouTube hợp lệ.")
+        post = await self._extractor.extract(url.strip(), preview=True)
+        return {"source": post.source, "title": post.title, "thumbnail": post.thumbnail,
+                "uploader": post.uploader, "qualities": post.qualities}
+
+    async def resolve(self, url: str, *, quality: Optional[int] = None) -> ResolvedDownload:
         """Resolve YouTube URL to normalized media descriptor."""
         clean_url = url.strip()
         if not self.supports(clean_url):
             raise UnsupportedSourceError("URL không phải là liên kết YouTube hợp lệ.")
 
-        post = await self._extractor.extract(clean_url)
+        post = await self._extractor.extract(clean_url, quality=quality) if quality is not None else await self._extractor.extract(clean_url)
         if not post.items:
             raise NoDownloadableMediaError("Không tìm thấy tệp phương tiện để tải xuống từ video YouTube này.")
 

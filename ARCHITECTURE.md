@@ -253,6 +253,8 @@ Do not place secret values here.
 
 ## Shared Contracts
 
+- **Media preview/source quality:** Coordinator `POST /api/v1/download/preview` dispatches transient `resolve_download` work (`operation: "preview"`) through Python `SourceRouter` to `services/youtube/`. It returns normalized title/thumbnail/uploader and descending available source resolutions without creating a download. Confirmation uses existing `POST /api/v1/download` with `quality`; Python resolves that source rendition and optional audio. Storage remains platform-agnostic, downloading resolved streams and reusing its existing mux/preparation/optimization flow. See `backend/coordinator/docs/PROTOCOL.md` for cancellation and payloads. Home archive and media actions open separate forms in both clients.
+
 - **Download task:** defined by Python `models/download_task.py`; consumed by Web `downloadApi.js`/`App.jsx` and Mobile `api/download_api.dart`/`download_provider.dart`.
 - **Go archive snapshot:** defined in Go `api/python/archive_task.go`; consumed by Python `archive/go_archive_client.py` and `archive/service.py`.
 - **Storage archive recovery:** `POST /api/v1/jobs/archive/:job_id/retry` resumes only the furthest durable local stage (partial download, extraction, scan, or conversion). `POST /api/v1/jobs/archive/:job_id/extract` remains password-only extraction retry. Passwords are request-only and are omitted from snapshots, logs, and local state files.

@@ -16,6 +16,8 @@ from worker.protocol import (
     ERROR,
     RESOLVE_DOWNLOAD,
     TASK_ASSIGN,
+    TASK_CANCEL,
+    TASK_FAILED,
     WORKER_HEARTBEAT,
     WORKER_REGISTER,
     WORKER_REGISTERED,
@@ -47,6 +49,7 @@ class CoordinatorWorkerClient:
         self._websocket: Any = None
         self._send_lock = asyncio.Lock()
         self._assignment_tasks: set[asyncio.Task[None]] = set()
+        self._assignments_by_id: dict[str, asyncio.Task[None]] = {}
 
     def start(self) -> None:
         """Start in the background; coordinator failure cannot stop HTTP API."""
@@ -131,6 +134,11 @@ class CoordinatorWorkerClient:
                     envelope = self._decode(raw)
                     if envelope.get("type") == TASK_ASSIGN:
                         self._start_assignment(envelope)
+                    elif envelope.get("type") == TASK_CANCEL:
+                        # Let a just-created coroutine enter its cleanup
+                        # wrapper before cancellation. Repeated controls must
+                        # not interrupt the extractor's cancellation cleanup.
+                        asyncio.get_running_loop().call_soon(self._cancel_assignment, envelope.get("taskId"))
                     elif envelope.get("type") == ERROR:
                         error = envelope.get("error") or {}
                         log_warning("COORDINATOR WORKER", f"Coordinator báo lỗi: {error.get('message', 'unknown')}")
@@ -143,9 +151,29 @@ class CoordinatorWorkerClient:
 
     def _start_assignment(self, envelope: dict[str, Any]) -> None:
         log_event("INFO", "coordinator assignment received", "COORDINATOR WORKER", workerId=self._worker_id, taskId=envelope.get("taskId"), action=envelope.get("action"))
-        assignment = asyncio.create_task(self._handler.handle(envelope, self.send))
+        task_id = envelope.get("taskId")
+        assignment = asyncio.create_task(self._run_assignment(envelope))
+        self._assignments_by_id[task_id] = assignment
+        assignment.add_done_callback(lambda done: self._assignments_by_id.pop(task_id, None))
         self._assignment_tasks.add(assignment)
         assignment.add_done_callback(self._assignment_done)
+
+    async def _run_assignment(self, envelope: dict[str, Any]) -> None:
+        try:
+            await self._handler.handle(envelope, self.send)
+        except asyncio.CancelledError:
+            # The extractor has finished its cancellation cleanup before we
+            # acknowledge, so Coordinator cannot reuse this worker too early.
+            if self._websocket is not None:
+                with suppress(Exception):
+                    await self.send(message(TASK_FAILED, taskId=envelope.get("taskId"),
+                                            error={"code": "CANCELLED", "message": "Đã hủy phân tích liên kết."}))
+            raise
+
+    def _cancel_assignment(self, task_id: str) -> None:
+        assignment = self._assignments_by_id.get(task_id)
+        if assignment is not None and not assignment.done() and not assignment.cancelling():
+            assignment.cancel()
 
     def _assignment_done(self, assignment: asyncio.Task[None]) -> None:
         self._assignment_tasks.discard(assignment)
@@ -158,7 +186,8 @@ class CoordinatorWorkerClient:
     async def _cancel_assignments(self) -> None:
         assignments = tuple(self._assignment_tasks)
         for assignment in assignments:
-            assignment.cancel()
+            if not assignment.cancelling():
+                assignment.cancel()
         if assignments:
             await asyncio.gather(*assignments, return_exceptions=True)
         self._assignment_tasks.clear()

@@ -16,6 +16,7 @@ type createDownloadRequest struct {
 	Filename    string `json:"filename,omitempty"`
 	Destination string `json:"destination,omitempty"`
 	Password    string `json:"password,omitempty"`
+	Quality     *int   `json:"quality,omitempty"`
 }
 
 type extractDownloadRequest struct {
@@ -42,8 +43,16 @@ func (h *DownloadHandler) Create(writer http.ResponseWriter, request *http.Reque
 		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "url is required"})
 		return
 	}
+	quality := 0
+	if body.Quality != nil {
+		if *body.Quality <= 0 {
+			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "Chất lượng tải xuống không hợp lệ."})
+			return
+		}
+		quality = *body.Quality
+	}
 	job, err := h.coordinator.CreateDownload(service.DownloadRequest{
-		URL: body.URL, Filename: body.Filename, Destination: body.Destination, Password: body.Password,
+		URL: body.URL, Filename: body.Filename, Destination: body.Destination, Password: body.Password, Quality: quality,
 	})
 	if err != nil {
 		logging.Event("WARN", "download request rejected", map[string]any{"error": err.Error()})

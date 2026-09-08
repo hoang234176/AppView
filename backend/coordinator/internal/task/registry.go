@@ -36,6 +36,22 @@ func (r *Registry) Get(id string) (Task, bool) {
 	return task.Clone(), ok
 }
 
+// ReleaseTransient removes queued/terminal preview work. Active work is
+// returned so its owner can cancel it and await the worker acknowledgement.
+func (r *Registry) ReleaseTransient(id string) (Task, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, ok := r.tasks[id]
+	if !ok {
+		return Task{}, false
+	}
+	if current.State == Queued || current.State == Completed || current.State == Failed {
+		delete(r.tasks, id)
+		return Task{}, false
+	}
+	return current.Clone(), true
+}
+
 func (r *Registry) Assign(id, workerID string) (Task, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -54,27 +70,31 @@ func (r *Registry) Accept(id, workerID string) (Task, error) {
 	return r.transitionOwned(id, workerID, Processing)
 }
 func (r *Registry) Complete(id, workerID string, result json.RawMessage) (Task, error) {
-	_, err := r.transitionOwned(id, workerID, Completed)
-	if err != nil {
-		return Task{}, err
-	}
-	r.mu.Lock()
-	current := r.tasks[id]
-	current.Result = append(json.RawMessage(nil), result...)
-	r.tasks[id] = current
-	r.mu.Unlock()
-	return current.Clone(), nil
+	return r.finishOwned(id, workerID, Completed, result, nil)
 }
 func (r *Registry) Fail(id, workerID string, failure *protocol.ErrorPayload) (Task, error) {
-	_, err := r.transitionOwned(id, workerID, Failed)
-	if err != nil {
+	return r.finishOwned(id, workerID, Failed, nil, failure)
+}
+
+// Publish terminal state and its result atomically: transient preview cleanup
+// may remove the record as soon as observers see a terminal state.
+func (r *Registry) finishOwned(id, workerID string, next State, result json.RawMessage, failure *protocol.ErrorPayload) (Task, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, ok := r.tasks[id]
+	if !ok {
+		return Task{}, fmt.Errorf("task not found")
+	}
+	if current.AssignedWorkerID != workerID {
+		return Task{}, fmt.Errorf("worker does not own task")
+	}
+	if err := ValidateTransition(current.State, next); err != nil {
 		return Task{}, err
 	}
-	r.mu.Lock()
-	current := r.tasks[id]
+	current.State, current.UpdatedAt = next, time.Now().UTC()
+	current.Result = append(json.RawMessage(nil), result...)
 	current.Error = failure
 	r.tasks[id] = current
-	r.mu.Unlock()
 	return current.Clone(), nil
 }
 func (r *Registry) Progress(id, workerID string, progress json.RawMessage) error {

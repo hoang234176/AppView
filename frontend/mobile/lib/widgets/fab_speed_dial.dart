@@ -4,11 +4,13 @@ import '../theme/app_theme.dart';
 class FabSpeedDial extends StatefulWidget {
   final VoidCallback onCreateFolder;
   final VoidCallback onDownloadArchive;
+  final VoidCallback onDownloadMedia;
 
   const FabSpeedDial({
     super.key,
     required this.onCreateFolder,
     required this.onDownloadArchive,
+    required this.onDownloadMedia,
   });
 
   @override
@@ -108,7 +110,61 @@ class _FabSpeedDialState extends State<FabSpeedDial> with SingleTickerProviderSt
           ),
           const SizedBox(height: 10),
 
-          // OPTION 2: TẠO THƯ MỤC
+          // OPTION 2: TẢI ẢNH/VIDEO
+          InkWell(
+            onTap: () => _handleAction(widget.onDownloadMedia),
+            borderRadius: BorderRadius.circular(24),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgBlock,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.borderColor),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    'Tải ảnh/video',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgCard,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.video_library_rounded, color: Colors.redAccent, size: 20),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // OPTION 3: TẠO THƯ MỤC
           InkWell(
             onTap: () => _handleAction(widget.onCreateFolder),
             borderRadius: BorderRadius.circular(24),

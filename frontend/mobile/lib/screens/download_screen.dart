@@ -300,6 +300,12 @@ class _AddMediaFireArchiveDialogState
       setState(() => _errorMessage = 'Vui lòng nhập liên kết tải xuống.');
       return;
     }
+    final parsed = Uri.tryParse(url);
+    if (parsed == null || !['http', 'https'].contains(parsed.scheme) ||
+        !(parsed.host == 'mediafire.com' || parsed.host.endsWith('.mediafire.com'))) {
+      setState(() => _errorMessage = 'Vui lòng nhập liên kết MediaFire hợp lệ.');
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -347,7 +353,7 @@ class _AddMediaFireArchiveDialogState
             Icon(Icons.download_rounded, color: AppTheme.googleBlue, size: 22),
             SizedBox(width: 8),
             Text(
-              'Tải xuống từ liên kết',
+              'Tải file nén',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -387,7 +393,7 @@ class _AddMediaFireArchiveDialogState
                 ],
 
                 const Text(
-                  'Liên kết MediaFire / YouTube:',
+                  'Liên kết MediaFire:',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -405,7 +411,7 @@ class _AddMediaFireArchiveDialogState
                     fontFamily: 'monospace',
                   ),
                   decoration: InputDecoration(
-                    hintText: 'https://... (MediaFire hoặc YouTube)',
+                    hintText: 'https://www.mediafire.com/...',
                     hintStyle: const TextStyle(
                       color: Colors.white38,
                       fontSize: 12,

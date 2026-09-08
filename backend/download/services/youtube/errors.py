@@ -51,6 +51,13 @@ class NoDownloadableMediaError(YouTubeError):
         super().__init__(message, code=self.code)
 
 
+class QualityUnavailableError(YouTubeError):
+    code = "QUALITY_UNAVAILABLE"
+
+    def __init__(self):
+        super().__init__("Chất lượng đã chọn không còn khả dụng. Vui lòng xem trước lại video.", code=self.code)
+
+
 class UnsupportedSourceError(YouTubeError):
     """Raised when URL is not a recognized or supported YouTube URL."""
     code: str = "UNSUPPORTED_SOURCE"

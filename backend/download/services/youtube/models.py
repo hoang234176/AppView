@@ -32,3 +32,5 @@ class YouTubePost:
     items: list[YouTubeMediaItem] = field(default_factory=list)
     uploader: Optional[str] = None
     source: str = "youtube"
+    thumbnail: Optional[str] = None
+    qualities: list[int] = field(default_factory=list)

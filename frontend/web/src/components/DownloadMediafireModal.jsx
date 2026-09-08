@@ -187,6 +187,16 @@ export const DownloadMediafireModal = ({
       setErrorMsg('Vui lòng nhập liên kết tải xuống.');
       return;
     }
+    try {
+      const parsed = new URL(url.trim());
+      if (!['http:', 'https:'].includes(parsed.protocol) || !(parsed.hostname === 'mediafire.com' || parsed.hostname.endsWith('.mediafire.com'))) {
+        setErrorMsg('Vui lòng nhập liên kết MediaFire hợp lệ.');
+        return;
+      }
+    } catch {
+      setErrorMsg('Vui lòng nhập liên kết MediaFire hợp lệ.');
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMsg(null);
@@ -218,8 +228,8 @@ export const DownloadMediafireModal = ({
               <Download className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Tải xuống từ liên kết</h3>
-              <p className="text-[11px] text-gray-400">MediaFire & YouTube</p>
+              <h3 className="text-sm font-bold text-white">Tải file nén</h3>
+              <p className="text-[11px] text-gray-400">MediaFire</p>
             </div>
           </div>
 
@@ -244,13 +254,13 @@ export const DownloadMediafireModal = ({
           {/* Download URL */}
           <div>
             <label className="block text-gray-300 font-semibold mb-1">
-              Liên kết tải (MediaFire / YouTube):
+              Liên kết MediaFire:
             </label>
             <input
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.mediafire.com/... hoặc https://youtube.com/..."
+              placeholder="https://www.mediafire.com/..."
               required
               className="w-full bg-[#202124] border border-[#383c42] focus:border-blue-400 rounded-xl px-3 py-2 text-white font-mono placeholder-gray-500 outline-none"
             />

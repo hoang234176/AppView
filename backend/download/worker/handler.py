@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from archive.contracts import DownloadResolver, ResolvedDownload
 from archive.service import archive_service
+from services.youtube.errors import YouTubeError
 from logger import log_error, log_event, log_warning
 from worker.protocol import (
     RESOLVE_DOWNLOAD,
@@ -59,13 +60,20 @@ class DownloadWorkerHandler:
         log_event("INFO", "resolve task accepted", "COORDINATOR WORKER", taskId=task_id)
         try:
             log_event("INFO", "resolver started", "COORDINATOR WORKER", taskId=task_id)
-            resolved = await self._resolver.resolve(url.strip())
+            if payload.get("operation") == "preview":
+                preview = await self._resolver.preview(url.strip())
+                await send(message(TASK_COMPLETED, taskId=task_id, result=preview))
+                return
+            quality = payload.get("quality")
+            if quality is not None and (type(quality) is not int or quality <= 0):
+                await self._fail(send, task_id, "INVALID_QUALITY", "Chất lượng tải xuống không hợp lệ.")
+                return
+            resolved = await self._resolver.resolve(url.strip(), quality=quality) if quality is not None else await self._resolver.resolve(url.strip())
         except Exception as error:
             # Provider errors are logged locally. The coordinator gets a
             # stable, non-sensitive response with domain-appropriate error codes.
-            log_error("COORDINATOR WORKER", f"Không thể resolve task [{task_id}]: {error}")
-            code = getattr(error, "code", None) or "RESOLVE_FAILED"
-            msg = getattr(error, "message", None) or str(error) or "Không thể phân tích liên kết tải."
+            code = error.code if isinstance(error, YouTubeError) else "RESOLVE_FAILED"
+            msg = error.message if isinstance(error, YouTubeError) else "Không thể phân tích liên kết tải."
             await self._fail(send, task_id, code, msg)
             return
 

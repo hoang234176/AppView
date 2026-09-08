@@ -31,12 +31,22 @@ class SourceRouter(DownloadResolver):
                 return True
         return False
 
-    async def resolve(self, url: str) -> ResolvedDownload:
+    async def preview(self, url: str) -> dict:
+        for resolver in self._resolvers:
+            if isinstance(resolver, YouTubeResolver) and resolver.supports(url):
+                return await resolver.preview(url)
+        raise UnsupportedSourceError("Liên kết không được hỗ trợ. Hiện chỉ hỗ trợ video YouTube.")
+
+    async def resolve(self, url: str, *, quality: Optional[int] = None) -> ResolvedDownload:
         """Resolve the URL using the first supporting resolver."""
         clean_url = url.strip()
         for resolver in self._resolvers:
             supports_fn = getattr(resolver, "supports", None)
             if callable(supports_fn) and supports_fn(clean_url):
+                if quality is not None:
+                    if not isinstance(resolver, YouTubeResolver):
+                        raise UnsupportedSourceError("Nguồn tải không hỗ trợ lựa chọn chất lượng.")
+                    return await resolver.resolve(clean_url, quality=quality)
                 return await resolver.resolve(clean_url)
 
         raise UnsupportedSourceError(

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import re
 import threading
+from functools import partial
 import urllib.parse
 from typing import Any, Optional
 
@@ -18,6 +19,7 @@ from services.youtube.auth import classify_extraction_error, get_youtube_ydl_aut
 from services.youtube.errors import (
     NoDownloadableMediaError,
     PlaylistNotSupportedError,
+    QualityUnavailableError,
     YouTubeError,
 )
 from services.youtube.models import YouTubeMediaItem, YouTubePost
@@ -76,7 +78,7 @@ def filter_safe_headers(headers: Optional[dict[str, Any]]) -> dict[str, str]:
 class YouTubeExtractor:
     """Isolates yt-dlp invocation and normalizes YouTube results into AppView models."""
 
-    async def extract(self, url: str) -> YouTubePost:
+    async def extract(self, url: str, *, quality: Optional[int] = None, preview: bool = False) -> YouTubePost:
         if is_playlist_url(url):
             raise PlaylistNotSupportedError(
                 "Danh sách phát (playlist) chưa được hỗ trợ. Vui lòng cung cấp liên kết video đơn lẻ."
@@ -89,7 +91,7 @@ class YouTubeExtractor:
         loop = asyncio.get_running_loop()
         future = loop.run_in_executor(
             None,
-            self._extract_sync,
+            partial(self._extract_sync, quality=quality, preview=preview) if quality is not None or preview else self._extract_sync,
             url,
             cancel_event,
             ydl_ref,
@@ -105,8 +107,11 @@ class YouTubeExtractor:
                     ydl.close()
                 except Exception:
                     pass
-            # Wait briefly for thread to terminate cleanly
-            finished.wait(timeout=5.0)
+            # Preserve the bounded cleanup wait without blocking heartbeats
+            # or depending on another free slot in the extraction executor.
+            deadline = loop.time() + 5.0
+            while not finished.is_set() and loop.time() < deadline:
+                await asyncio.sleep(0.01)
             raise
 
     def _extract_sync(
@@ -115,6 +120,9 @@ class YouTubeExtractor:
         cancel_event: Optional[threading.Event] = None,
         ydl_ref: Optional[list[Optional[yt_dlp.YoutubeDL]]] = None,
         finished: Optional[threading.Event] = None,
+        *,
+        quality: Optional[int] = None,
+        preview: bool = False,
     ) -> YouTubePost:
         try:
             if cancel_event and cancel_event.is_set():
@@ -166,34 +174,65 @@ class YouTubeExtractor:
         clean_title = sanitize_filename(title)
         video_id = str(info.get("id") or "video")
         canonical_url = str(info.get("webpage_url") or f"https://www.youtube.com/watch?v={video_id}")
-        uploader = info.get("uploader")
+        uploader = info.get("uploader") or info.get("channel")
 
         formats = info.get("formats", [])
         if not formats and "url" in info:
             # Single direct format returned
             formats = [info]
 
-        media_item = self._select_best_streams(video_id, clean_title, formats)
+        qualities = self.available_qualities(formats)
+        if preview and not qualities:
+            raise NoDownloadableMediaError()
+        media_item = None if preview else self._select_best_streams(video_id, clean_title, formats, quality=quality)
+        thumbnail = info.get("thumbnail")
+        if not isinstance(thumbnail, str) or urllib.parse.urlparse(thumbnail).scheme not in ("http", "https"):
+            thumbnail = None
         return YouTubePost(
             id=video_id,
             title=title,
             canonical_url=canonical_url,
-            items=[media_item],
+            items=[media_item] if media_item else [],
             uploader=uploader,
             source="youtube",
+            thumbnail=thumbnail,
+            qualities=qualities,
         )
+
+    @staticmethod
+    def _transfer_formats(formats: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # Storage downloads direct byte streams; manifests, storyboards and
+        # DRM formats cannot be offered as downloadable renditions.
+        return [f for f in formats if isinstance(f, dict)
+                and isinstance(f.get("url"), str)
+                and urllib.parse.urlparse(f["url"]).scheme in ("http", "https")
+                and f.get("protocol", "https") in ("http", "https")
+                and not f.get("has_drm")
+                and f.get("ext") not in ("mhtml", "none")
+                and not (f.get("format_note") or "").startswith("storyboard")]
+
+    @classmethod
+    def available_qualities(cls, formats: list[dict[str, Any]]) -> list[int]:
+        return sorted({f["height"] for f in cls._transfer_formats(formats)
+                       if f.get("vcodec") not in ("none", None)
+                       and type(f.get("height")) is int and f["height"] > 0}, reverse=True)
 
     def _select_best_streams(
         self,
         video_id: str,
         clean_title: str,
         formats: list[dict[str, Any]],
+        *,
+        quality: Optional[int] = None,
     ) -> YouTubeMediaItem:
         """Select either the highest quality progressive stream or separate video+audio streams."""
-        valid_formats = [
-            f for f in formats
-            if f.get("url") and f.get("ext") not in ("mhtml", "none") and not f.get("format_note", "").startswith("storyboard")
-        ]
+        valid_formats = self._transfer_formats(formats)
+        if quality is not None:
+            if type(quality) is not int or quality not in self.available_qualities(valid_formats):
+                raise QualityUnavailableError()
+            # Keep the matching source video and all audio candidates. Never
+            # select a larger source and rely on Storage to downscale it.
+            valid_formats = [f for f in valid_formats if f.get("vcodec") in ("none", None) or f.get("height") == quality]
 
         # 1. Progressive streams (contain both video and audio)
         progressive = [

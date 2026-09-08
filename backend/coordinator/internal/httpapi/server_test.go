@@ -68,6 +68,11 @@ func TestVersionedCoordinatorRoutes(t *testing.T) {
 	}{
 		{name: "generic task", method: http.MethodPost, path: "/api/v1/tasks", body: `{"action":"test"}`, status: http.StatusAccepted},
 		{name: "download job", method: http.MethodPost, path: "/api/v1/download", body: `{"url":"https://example.test/file"}`, status: http.StatusAccepted},
+		{name: "selected source quality", method: http.MethodPost, path: "/api/v1/download", body: `{"url":"https://youtube.com/watch?v=id","quality":1080}`, status: http.StatusAccepted},
+		{name: "zero quality rejected", method: http.MethodPost, path: "/api/v1/download", body: `{"url":"https://youtube.com/watch?v=id","quality":0}`, status: http.StatusBadRequest},
+		{name: "negative quality rejected", method: http.MethodPost, path: "/api/v1/download", body: `{"url":"https://youtube.com/watch?v=id","quality":-1}`, status: http.StatusBadRequest},
+		{name: "format ID rejected", method: http.MethodPost, path: "/api/v1/download", body: `{"url":"https://youtube.com/watch?v=id","quality":"137"}`, status: http.StatusBadRequest},
+		{name: "invalid preview URL", method: http.MethodPost, path: "/api/v1/download/preview", body: `{"url":"invalid"}`, status: http.StatusBadRequest},
 		{name: "download history", method: http.MethodGet, path: "/api/v1/download", status: http.StatusOK},
 		{name: "legacy generic path removed", method: http.MethodPost, path: "/api/tasks", body: `{"action":"test"}`, status: http.StatusNotFound},
 		{name: "legacy plural download path removed", method: http.MethodPost, path: "/api/downloads", body: `{"url":"https://example.test/file"}`, status: http.StatusNotFound},

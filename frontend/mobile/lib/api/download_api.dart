@@ -9,6 +9,18 @@ String canonicalDownloadDestination(String selectedPath) {
   return selected.isEmpty ? '/' : '/$selected';
 }
 
+class MediaDownloadPreview {
+  final String source, title, thumbnail, uploader;
+  final List<int> qualities;
+
+  MediaDownloadPreview.fromJson(Map<String, dynamic> json)
+    : source = json['source'] as String,
+      title = json['title'] as String,
+      thumbnail = json['thumbnail'] as String? ?? '',
+      uploader = json['uploader'] as String? ?? '',
+      qualities = (json['qualities'] as List).cast<int>();
+}
+
 class VideoOptimizationModel {
   final String id, displayName, resolutionClass, selectedQuality, state;
   final int width, height, sourceSizeBytes;
@@ -315,6 +327,7 @@ class DownloadApi {
     required String url,
     String destination = '',
     String? password,
+    int? quality,
   }) async {
     try {
       final response = await _createCoordinatorDio().post(
@@ -323,6 +336,7 @@ class DownloadApi {
           'url': url,
           'destination': destination,
           if (password != null && password.isNotEmpty) 'password': password,
+          if (quality != null) 'quality': quality,
         },
       );
       return {
@@ -343,6 +357,16 @@ class DownloadApi {
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
+  }
+
+  static Future<MediaDownloadPreview> previewMediaDownload(String url, CancelToken cancelToken) async {
+    final response = await _createCoordinatorDio().post(
+      '/download/preview',
+      data: {'url': url},
+      cancelToken: cancelToken,
+      options: Options(receiveTimeout: const Duration(seconds: 70)),
+    );
+    return MediaDownloadPreview.fromJson(Map<String, dynamic>.from(response.data as Map));
   }
 
   static Future<Map<String, dynamic>> fetchCoordinatorDownload(

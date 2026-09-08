@@ -10,6 +10,7 @@ All messages use the `internal/protocol.Message` JSON envelope. Fields not relev
 | `worker.registered` | coordinator → worker | `workerId` | Registration acknowledgement. |
 | `worker.heartbeat` | worker → coordinator | optional `workerId` | Keeps the worker online. |
 | `task.assign` | coordinator → worker | `taskId`, `action`, `payload` | Capability-routed task. |
+| `task.cancel` | coordinator → Download worker | `taskId` | Cancel an active preview extraction; worker acknowledges through `task.failed` after cleanup. |
 | `task.accepted` | worker → coordinator | `taskId` | Worker began processing. |
 | `task.progress` | worker → coordinator | `taskId`, `progress` | Opaque task progress snapshot. |
 | `task.completed` | worker → coordinator | `taskId`, optional `result` | Terminal successful result. |
@@ -21,6 +22,16 @@ All messages use the `internal/protocol.Message` JSON envelope. Fields not relev
 | `error` | coordinator → worker | `error.code`, `error.message` | Protocol validation error. |
 
 Workers must register before sending any task event. A task is assigned only to an idle worker advertising a capability exactly matching `action`.
+
+## Media preview and source quality
+
+`POST /api/v1/download/preview` accepts `{ "url": "https://youtube.com/..." }` and waits up to 60 seconds for one transient, non-retryable `resolve_download` task with `operation: "preview"`. It creates no parent download job and never dispatches Storage. Python's SourceRouter delegates preview to the YouTube resolver. The response is limited to `{ "source": "youtube", "title", "thumbnail"?, "uploader"?, "qualities": [2160, 1080, 720] }`. Qualities are unique positive source-video heights, descending, discovered from direct downloadable formats for that video. Neither formats, transfer URLs, headers nor auth data are public preview fields.
+
+When the HTTP request is cancelled or times out, queued preview work is removed; assigned work receives `task.cancel`. Python cancels the assignment and waits for the existing extractor cleanup (cancellation event, yt-dlp close, bounded thread wait) before acknowledging `task.failed` with `CANCELLED`. The worker remains busy until the terminal acknowledgement or disconnect. Transient queued/terminal preview records are removed; previews are not persisted.
+
+Confirmation uses the existing `POST /api/v1/download` with optional positive integer `quality`, e.g. `{ "url": "https://youtube.com/...", "destination": "/Albums", "quality": 1080 }`. Coordinator forwards `quality` only to `resolve_download`; Python re-extracts and selects that exact available source height, retaining separate audio selection. Missing/invalid choices fail with `QUALITY_UNAVAILABLE` or `INVALID_QUALITY` instead of silently falling back or downscaling. Omitting quality preserves the Phase 1 automatic selection contract and MediaFire behavior.
+
+The resolver result continues to carry `downloadUrl`, `filename`, optional `audioUrl`, and allowlisted safe `headers`. Storage receives only resolved streams and the existing logical destination; it has no source-quality or yt-dlp concepts. Existing stream-copy muxing, compatibility preparation, and optimization continue unchanged. Web/Mobile media entry and preview are separate from their MediaFire archive/password forms.
 
 On disconnect or heartbeat expiry, an `assigned`/`processing` task is requeued only if `retryable` is true and its `attempts` count is below `maxAttempts`; otherwise it becomes `failed` with `WORKER_DISCONNECTED`.
 

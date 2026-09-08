@@ -17,6 +17,7 @@ import '../widgets/empty_state_view.dart';
 import '../widgets/config_api_dialog.dart';
 import '../widgets/folder_action_dialogs.dart';
 import '../widgets/fab_speed_dial.dart';
+import '../widgets/download_media_dialog.dart';
 import 'download_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -94,6 +95,14 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             final currentPath = context.read<AppStateProvider>().currentPath;
             DownloadScreen.showAddMediaFireDialog(context, currentPath);
+          },
+          onDownloadMedia: () {
+            if (!context.read<AppStateProvider>().isServerConnected) {
+              ConfigApiDialog.show(context);
+              return;
+            }
+            final currentPath = context.read<AppStateProvider>().currentPath;
+            DownloadMediaDialog.show(context, currentPath);
           },
         ),
         body: SafeArea(

@@ -30,9 +30,10 @@ type Coordinator struct {
 		sync.Mutex
 		lastProgress map[string]time.Time
 	}
-	pinnedTasks  sync.Map // map[task ID]Storage worker ID for durable controls
-	busyControls sync.Map // map[task ID]struct{}; completion must not idle an active archive worker
-	storageInfo  struct {
+	pinnedTasks       sync.Map // map[task ID]Storage worker ID for durable controls
+	busyControls      sync.Map // map[task ID]struct{}; completion must not idle an active archive worker
+	abandonedPreviews sync.Map // active previews waiting for cancellation acknowledgement
+	storageInfo       struct {
 		sync.RWMutex
 		workerID string
 		value    protocol.StorageInfo
@@ -100,6 +101,7 @@ type DownloadRequest struct {
 	Filename    string
 	Destination string
 	Password    string
+	Quality     int
 }
 
 func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, error) {
@@ -109,6 +111,9 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 	if request.URL == "" {
 		return downloadjob.Job{}, fmt.Errorf("url is required")
 	}
+	if request.Quality < 0 {
+		return downloadjob.Job{}, fmt.Errorf("quality must be a positive resolution")
+	}
 	created, err := c.downloads.Create(downloadjob.NewJob(newID(), downloadjob.CreateRequest{
 		URL: request.URL, Filename: request.Filename, Destination: request.Destination, Password: request.Password,
 	}))
@@ -116,7 +121,11 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 		return downloadjob.Job{}, err
 	}
 	logging.Event("INFO", "download job created", map[string]any{"jobId": created.ID, "state": downloadjob.Resolving, "destination": created.Destination})
-	createdTask, err := c.createTask(string(protocol.ResolveDownload), mustJSON(map[string]string{"url": request.URL}), true, 0, func(child task.Task) error {
+	resolvePayload := map[string]any{"url": request.URL}
+	if request.Quality > 0 {
+		resolvePayload["quality"] = request.Quality
+	}
+	createdTask, err := c.createTask(string(protocol.ResolveDownload), mustJSON(resolvePayload), true, 0, func(child task.Task) error {
 		return c.downloads.AttachResolve(created.ID, child.ID)
 	})
 	if err != nil {
@@ -302,6 +311,9 @@ func (c *Coordinator) controlDownloadPayload(jobID string, payload map[string]st
 func (c *Coordinator) TaskAccepted(workerID, taskID string) error {
 	_, err := c.tasks.Accept(taskID, workerID)
 	if err == nil {
+		if _, abandoned := c.abandonedPreviews.Load(taskID); abandoned {
+			c.cancelPreviewWorker(workerID, taskID)
+		}
 		logging.Event("INFO", "task accepted", map[string]any{"taskId": taskID, "workerId": workerID})
 	}
 	return err
@@ -327,6 +339,7 @@ func (c *Coordinator) TaskCompleted(workerID, taskID string, result json.RawMess
 	}
 	logging.Event("INFO", "task completed", map[string]any{"taskId": taskID, "workerId": workerID, "action": completed.Action})
 	c.handleDownloadCompletion(completed)
+	c.releaseAbandonedPreview(taskID)
 	return c.dispatchQueued()
 }
 func (c *Coordinator) TaskFailed(workerID, taskID string, failure *protocol.ErrorPayload) error {
@@ -335,6 +348,7 @@ func (c *Coordinator) TaskFailed(workerID, taskID string, failure *protocol.Erro
 	}
 	c.workers.SetStatus(workerID, worker.Idle)
 	c.downloads.FailChild(taskID, failure)
+	c.releaseAbandonedPreview(taskID)
 	fields := map[string]any{"taskId": taskID, "workerId": workerID}
 	if job, ok := c.downloads.JobForChild(taskID); ok {
 		fields["jobId"] = job.ID
@@ -354,6 +368,13 @@ func (c *Coordinator) WorkerDisconnected(workerID string) {
 	}
 	logging.Event("WARN", "worker disconnected; requeueing eligible tasks", map[string]any{"workerId": workerID})
 	c.tasks.RequeueForWorker(workerID)
+	c.abandonedPreviews.Range(func(key, _ any) bool {
+		id := key.(string)
+		if current, ok := c.tasks.Get(id); ok && current.AssignedWorkerID == workerID {
+			c.releaseAbandonedPreview(id)
+		}
+		return true
+	})
 	c.syncFailedDownloadChildren()
 	_ = c.dispatchQueued()
 }
@@ -440,6 +461,9 @@ func validFilesystemPath(value string) bool {
 }
 
 func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
+	if _, ok := c.downloads.JobForChild(completed.ID); !ok {
+		return
+	}
 	if completed.Action == string(protocol.ResolveDownload) {
 		var result struct {
 			DownloadURL string            `json:"downloadUrl"`

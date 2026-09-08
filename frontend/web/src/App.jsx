@@ -19,6 +19,7 @@ import { ContextMenu } from './components/ContextMenu';
 import { FabSpeedDial } from './components/FabSpeedDial';
 import { SettingsModal } from './components/SettingsModal';
 import { DownloadMediafireModal } from './components/DownloadMediafireModal';
+import { DownloadMediaModal } from './components/DownloadMediaModal';
 import { DownloadPanelModal } from './components/DownloadPanelModal';
 import { DownloadSnackbar } from './components/DownloadSnackbar';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder } from './api/folderApi';
@@ -79,6 +80,7 @@ function App() {
   const [showDownloadPanel, setShowDownloadPanel] = useState(false);
   const [downloadPanelTab, setDownloadPanelTab] = useState('active');
   const [showDownloadMediafireModal, setShowDownloadMediafireModal] = useState(false);
+  const [showDownloadMediaModal, setShowDownloadMediaModal] = useState(false);
   const coordinatorPollersRef = useRef(new Map());
   const isMountedRef = useRef(true);
   const realtimeSocketRef = useRef(null);
@@ -771,6 +773,7 @@ function App() {
         <FabSpeedDial
           onCreateFolder={() => setShowCreateFolderModal(true)}
           onDownloadArchive={() => setShowDownloadMediafireModal(true)}
+          onDownloadMedia={() => setShowDownloadMediaModal(true)}
         />
 
         {/* Custom Context Menu */}
@@ -830,6 +833,15 @@ function App() {
         />
 
         {/* Download MediaFire Modal */}
+        {showDownloadMediaModal && <DownloadMediaModal
+          currentPath={currentPath}
+          onClose={() => setShowDownloadMediaModal(false)}
+          onSuccess={(job) => {
+            handleCoordinatorJobCreated(job);
+            setDownloadPanelTab('active');
+            setShowDownloadPanel(true);
+          }}
+        />}
         <DownloadMediafireModal
           isOpen={showDownloadMediafireModal}
           onClose={() => setShowDownloadMediafireModal(false)}

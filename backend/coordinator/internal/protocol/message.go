@@ -12,6 +12,7 @@ const (
 	WorkerRegistered       MessageType = "worker.registered"
 	WorkerHeartbeat        MessageType = "worker.heartbeat"
 	TaskAssign             MessageType = "task.assign"
+	TaskCancel             MessageType = "task.cancel"
 	TaskAccepted           MessageType = "task.accepted"
 	TaskProgress           MessageType = "task.progress"
 	TaskCompleted          MessageType = "task.completed"
