@@ -62,9 +62,11 @@ class DownloadWorkerHandler:
             resolved = await self._resolver.resolve(url.strip())
         except Exception as error:
             # Provider errors are logged locally. The coordinator gets a
-            # useful but non-sensitive response without a traceback/URL.
+            # stable, non-sensitive response with domain-appropriate error codes.
             log_error("COORDINATOR WORKER", f"Không thể resolve task [{task_id}]: {error}")
-            await self._fail(send, task_id, "RESOLVE_FAILED", "Không thể phân tích liên kết tải.")
+            code = getattr(error, "code", None) or "RESOLVE_FAILED"
+            msg = getattr(error, "message", None) or str(error) or "Không thể phân tích liên kết tải."
+            await self._fail(send, task_id, code, msg)
             return
 
         await send(message(TASK_COMPLETED, taskId=task_id, result=self._result(resolved)))
@@ -72,12 +74,19 @@ class DownloadWorkerHandler:
 
     @staticmethod
     def _result(resolved: ResolvedDownload) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "originalUrl": resolved.original_url,
             "downloadUrl": resolved.download_url,
             "filename": resolved.filename,
             "extension": resolved.extension,
         }
+        if getattr(resolved, "audio_url", None):
+            result["audioUrl"] = resolved.audio_url
+        if getattr(resolved, "headers", None):
+            result["headers"] = resolved.headers
+        if getattr(resolved, "source", None):
+            result["source"] = resolved.source
+        return result
 
     @staticmethod
     async def _fail(send: SendMessage, task_id: str, code: str, description: str) -> None:

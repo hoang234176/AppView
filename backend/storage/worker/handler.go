@@ -68,6 +68,14 @@ type canonicalArchiveOperations interface {
 	SetCanonicalID(id, canonicalID string) bool
 }
 
+type streamArchiveOperations interface {
+	StartWithStreams(id, sourceURL, filename, destination, password, audioURL string, headers map[string]string) error
+}
+
+func (archiveOperations) StartWithStreams(id, sourceURL, filename, destination, password, audioURL string, headers map[string]string) error {
+	return pythonapi.StartArchiveJobWithStreams(id, sourceURL, filename, destination, password, audioURL, headers)
+}
+
 type SendFunc func(Message) error
 
 type Handler struct {
@@ -151,7 +159,13 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 	// a second download or cancel the existing one.
 	if _, exists := h.archive.Snapshot(task.TaskID); !exists {
 		utils.LogEvent("INFO", "storage archive start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
-		if err := h.archive.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.Password); err != nil {
+		var startErr error
+		if streamer, ok := h.archive.(streamArchiveOperations); ok && (request.AudioURL != "" || len(request.Headers) > 0) {
+			startErr = streamer.StartWithStreams(task.TaskID, request.URL, request.Filename, request.Destination, request.Password, request.AudioURL, request.Headers)
+		} else {
+			startErr = h.archive.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.Password)
+		}
+		if startErr != nil {
 			h.fail(send, task.TaskID, "STORAGE_START_FAILED", "Storage không thể bắt đầu tác vụ tải.")
 			return
 		}
@@ -243,11 +257,13 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 }
 
 type downloadRequest struct {
-	URL         string `json:"url"`
-	Filename    string `json:"filename"`
-	Destination string `json:"destination"`
-	Password    string `json:"password"`
-	ParentJobID string `json:"parentJobId"`
+	URL         string            `json:"url"`
+	AudioURL    string            `json:"audioUrl,omitempty"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	Filename    string            `json:"filename"`
+	Destination string            `json:"destination"`
+	Password    string            `json:"password"`
+	ParentJobID string            `json:"parentJobId"`
 }
 
 func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
@@ -256,6 +272,7 @@ func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
 		return downloadRequest{}, fmt.Errorf("payload phải chứa url và filename")
 	}
 	request.URL = strings.TrimSpace(request.URL)
+	request.AudioURL = strings.TrimSpace(request.AudioURL)
 	request.Filename = strings.TrimSpace(request.Filename)
 	request.Destination = strings.TrimSpace(request.Destination)
 	request.ParentJobID = strings.TrimSpace(request.ParentJobID)

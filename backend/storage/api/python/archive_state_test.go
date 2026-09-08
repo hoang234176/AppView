@@ -162,3 +162,62 @@ func TestPersistentArchiveStateIgnoresLegacyVideoEstimates(t *testing.T) {
 		t.Fatalf("legacy video fields were not preserved: %#v", restored.Videos[0])
 	}
 }
+
+func TestDirectMediaFileStagesWithout7zExtraction(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("APPVIEW_STATE_DIR", stateDir)
+	resetArchiveJobsForTest(t)
+
+	workspace := filepath.Join(stateDir, "direct-media-job")
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		t.Fatal(err)
+	}
+	mediaFile := filepath.Join(workspace, "Never Gonna Give You Up.mp4")
+	if err := os.WriteFile(mediaFile, []byte("fake mp4 content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	job := &ArchiveJob{
+		ID:          "direct-media-job",
+		Filename:    "Never Gonna Give You Up.mp4",
+		Destination: "music",
+		archivePath: mediaFile,
+		ctx:         ctx,
+		cancel:      cancel,
+	}
+
+	if isArchiveFilename(job.Filename) {
+		t.Fatalf("expected .mp4 to NOT be detected as archive")
+	}
+	if !isArchiveFilename("archive.zip") || !isArchiveFilename("package.tar.gz") {
+		t.Fatalf("expected .zip and .tar.gz to be detected as archive")
+	}
+
+	if err := prepareDirectMedia(job); err != nil {
+		t.Fatal(err)
+	}
+
+	job.mu.RLock()
+	extractedPct := job.ExtractedPct
+	archiveExtracted := job.ArchiveExtracted
+	archivePath := job.archivePath
+	extractedPath := job.extractedPath
+	extractedName := job.extractedName
+	job.mu.RUnlock()
+
+	if extractedPct != 100 || !archiveExtracted {
+		t.Fatalf("expected extracted 100%%, got pct=%.1f extracted=%v", extractedPct, archiveExtracted)
+	}
+	if archivePath != "" {
+		t.Fatalf("expected archivePath to be cleared, got %s", archivePath)
+	}
+	if extractedName != "Never Gonna Give You Up" {
+		t.Fatalf("expected extractedName without .mp4 extension, got %s", extractedName)
+	}
+	stagedFile := filepath.Join(extractedPath, "Never Gonna Give You Up.mp4")
+	if _, err := os.Stat(stagedFile); err != nil {
+		t.Fatalf("staged media file does not exist: %v", err)
+	}
+}

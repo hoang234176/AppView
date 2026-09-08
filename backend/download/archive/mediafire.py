@@ -13,6 +13,13 @@ class MediaFireResolver:
         "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
     }
 
+    def supports(self, url: str) -> bool:
+        try:
+            parsed = urllib.parse.urlparse(url.strip())
+            return parsed.scheme in ("http", "https") and "mediafire.com" in parsed.netloc.lower()
+        except Exception:
+            return False
+
     async def resolve(self, url: str) -> ResolvedDownload:
         log_info("DOWNLOAD SERVICE", f"Đang phân tích MediaFire URL: {url}")
         

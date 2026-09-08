@@ -33,9 +33,13 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
 
 ## Boundaries
 
+- Python Download owns source-specific media resolution. Each platform must have its own resolver/service.
+- `yt-dlp` is strictly an implementation detail of the YouTube resolver (`services/youtube/`) and must not become a generic social-media resolver.
+- Future platforms (Facebook, etc.) must have independent platform parsers/resolvers without inheriting yt-dlp abstractions.
+- Go Storage remains platform-agnostic and owns actual byte transfer, filesystem operations, and media processing.
 - DO NOT introduce new direct frontend → Download worker WebSocket/API paths for normal downloads.
 - Preserve intentional legacy API compatibility for `/api/v1/download/archive` and task endpoints.
-- DO NOT log passwords, tokens, signed URL query strings, or unnecessary payload details.
+- DO NOT log passwords, tokens, cookies, signed URL query strings, or sensitive auth payload details.
 
 ## Configuration
 

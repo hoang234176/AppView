@@ -56,6 +56,8 @@ type ArchiveJob struct {
 	archivePath           string
 	extractedPath         string
 	extractedName         string
+	audioURL              string
+	headers               map[string]string
 	ctx                   context.Context
 	cancel                context.CancelFunc
 	mu                    sync.RWMutex
@@ -358,12 +360,20 @@ func setArchiveError(job *ArchiveJob, code, message string) {
 }
 
 func StartArchiveJob(id, sourceURL, filename, destination, password string) error {
-	return StartArchiveJobWithCanonicalID(id, sourceURL, filename, destination, password, id)
+	return StartArchiveJobWithCanonicalIDAndStreams(id, sourceURL, filename, destination, password, id, "", nil)
+}
+
+func StartArchiveJobWithStreams(id, sourceURL, filename, destination, password, audioURL string, headers map[string]string) error {
+	return StartArchiveJobWithCanonicalIDAndStreams(id, sourceURL, filename, destination, password, id, audioURL, headers)
 }
 
 // StartArchiveJobWithCanonicalID retains the Coordinator public parent ID as
 // safe metadata while task execution continues to use the distinct child ID.
 func StartArchiveJobWithCanonicalID(id, sourceURL, filename, destination, password, canonicalID string) error {
+	return StartArchiveJobWithCanonicalIDAndStreams(id, sourceURL, filename, destination, password, canonicalID, "", nil)
+}
+
+func StartArchiveJobWithCanonicalIDAndStreams(id, sourceURL, filename, destination, password, canonicalID, audioURL string, headers map[string]string) error {
 	if id == "" || sourceURL == "" {
 		return fmt.Errorf("thiếu task_id hoặc URL tải")
 	}
@@ -378,7 +388,20 @@ func StartArchiveJobWithCanonicalID(id, sourceURL, filename, destination, passwo
 	if strings.TrimSpace(canonicalID) == "" {
 		canonicalID = id
 	}
-	job := &ArchiveJob{ID: id, CanonicalID: canonicalID, URL: sourceURL, Filename: archiveSafeName(filename), Destination: destination, Stage: "downloading", CreatedAt: now, UpdatedAt: now, ctx: ctx, cancel: cancel}
+	job := &ArchiveJob{
+		ID:          id,
+		CanonicalID: canonicalID,
+		URL:         sourceURL,
+		Filename:    archiveSafeName(filename),
+		Destination: destination,
+		Stage:       "downloading",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		audioURL:    audioURL,
+		headers:     headers,
+		ctx:         ctx,
+		cancel:      cancel,
+	}
 	archiveJobs.Lock()
 	if old := archiveJobs.items[id]; old != nil {
 		old.cancel()
@@ -675,6 +698,14 @@ func runArchiveJob(job *ArchiveJob, password string, extractionOnly bool) {
 	if job.ctx.Err() != nil {
 		return
 	}
+	if !isArchiveFilename(job.Filename) {
+		if err := prepareDirectMedia(job); err != nil {
+			if job.ctx.Err() == nil {
+				setArchiveError(job, "STAGE_FAILED", err.Error())
+			}
+		}
+		return
+	}
 	if err := extractArchive(job, password); err != nil {
 		if job.ctx.Err() != nil {
 			return
@@ -690,38 +721,37 @@ func runArchiveJob(job *ArchiveJob, password string, extractionOnly bool) {
 	}
 }
 
-func downloadArchive(job *ArchiveJob) error {
-	workspace, err := archiveWorkspace(job.ID)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(workspace, 0755); err != nil {
-		return err
-	}
-	partPath := filepath.Join(workspace, "download.part")
+func downloadSingleStream(ctx context.Context, job *ArchiveJob, targetURL string, headers map[string]string, partPath string, initialBytes int64) (int64, error) {
 	var existingBytes int64
 	if info, statErr := os.Stat(partPath); statErr == nil {
 		existingBytes = info.Size()
 	}
-	request, err := http.NewRequestWithContext(job.ctx, http.MethodGet, job.URL, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	request.Header.Set("User-Agent", "Mozilla/5.0 AppView/1.0")
+	for k, v := range headers {
+		lk := strings.ToLower(k)
+		if lk == "user-agent" || lk == "referer" || lk == "accept" || lk == "accept-language" {
+			request.Header.Set(k, v)
+		}
+	}
+	if request.Header.Get("User-Agent") == "" {
+		request.Header.Set("User-Agent", "Mozilla/5.0 AppView/1.0")
+	}
 	if existingBytes > 0 {
 		request.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingBytes))
 	}
 	response, err := (&http.Client{Timeout: 0}).Do(request)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("máy chủ tải trả HTTP %d", response.StatusCode)
+		return 0, fmt.Errorf("máy chủ tải trả HTTP %d", response.StatusCode)
 	}
 	appendMode := existingBytes > 0 && response.StatusCode == http.StatusPartialContent
 	if existingBytes > 0 && !appendMode {
-		// Source did not honour Range; safely restart rather than corrupting the file.
 		existingBytes = 0
 	}
 	fileFlags := os.O_CREATE | os.O_WRONLY
@@ -732,28 +762,26 @@ func downloadArchive(job *ArchiveJob) error {
 	}
 	file, err := os.OpenFile(partPath, fileFlags, 0644)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer file.Close()
+
 	job.mu.Lock()
-	job.DownloadedBytes = existingBytes
+	job.DownloadedBytes = initialBytes + existingBytes
 	if response.ContentLength > 0 {
-		job.TotalBytes = existingBytes + response.ContentLength
-	} else {
-		job.TotalBytes = response.ContentLength
+		job.TotalBytes = job.DownloadedBytes + response.ContentLength
 	}
 	job.mu.Unlock()
-	if appendMode {
-		LogInfo("[DOWNLOAD SERVICE] Task [%s] tiếp tục tải từ %.1f MB", job.ID, float64(existingBytes)/(1024*1024))
-	}
+
 	buffer := make([]byte, 1024*1024)
-	lastBytes, lastTime := int64(0), time.Now()
+	lastBytes, lastTime := job.DownloadedBytes, time.Now()
 	for {
 		count, readErr := response.Body.Read(buffer)
 		if count > 0 {
 			if _, err := file.Write(buffer[:count]); err != nil {
-				return err
+				return existingBytes, err
 			}
+			existingBytes += int64(count)
 			shouldPersist := false
 			job.mu.Lock()
 			job.DownloadedBytes += int64(count)
@@ -774,10 +802,63 @@ func downloadArchive(job *ArchiveJob) error {
 			break
 		}
 		if readErr != nil {
-			return readErr
+			return existingBytes, readErr
 		}
 	}
-	if err := file.Close(); err != nil {
+	return existingBytes, file.Close()
+}
+
+func downloadArchive(job *ArchiveJob) error {
+	workspace, err := archiveWorkspace(job.ID)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		return err
+	}
+	job.mu.RLock()
+	audioURL := job.audioURL
+	job.mu.RUnlock()
+
+	if audioURL != "" {
+		videoPart := filepath.Join(workspace, "video.part")
+		audioPart := filepath.Join(workspace, "audio.part")
+		videoBytes, err := downloadSingleStream(job.ctx, job, job.URL, job.headers, videoPart, 0)
+		if err != nil {
+			return err
+		}
+		if job.ctx.Err() != nil {
+			return job.ctx.Err()
+		}
+		_, err = downloadSingleStream(job.ctx, job, audioURL, job.headers, audioPart, videoBytes)
+		if err != nil {
+			return err
+		}
+		if job.ctx.Err() != nil {
+			return job.ctx.Err()
+		}
+		finalPath := filepath.Join(workspace, job.Filename)
+		_ = os.Remove(finalPath)
+		LogInfo("[ARCHIVE] [%s] ghép luồng video và audio bằng ffmpeg", job.ID)
+		cmd := exec.CommandContext(job.ctx, "ffmpeg", "-y", "-i", videoPart, "-i", audioPart, "-c", "copy", "-movflags", "+faststart", finalPath)
+		if output, runErr := cmd.CombinedOutput(); runErr != nil {
+			return fmt.Errorf("ghép video/audio thất bại: %s", strings.TrimSpace(string(output)))
+		}
+		_ = os.Remove(videoPart)
+		_ = os.Remove(audioPart)
+		job.mu.Lock()
+		job.archivePath = finalPath
+		job.ArchiveDownloaded = true
+		job.UpdatedAt = time.Now().UTC()
+		job.mu.Unlock()
+		persistArchiveJob(job)
+		LogInfo("[ARCHIVE] [%s] tải và ghép xong: %s", job.ID, job.Filename)
+		return nil
+	}
+
+	partPath := filepath.Join(workspace, "download.part")
+	_, err = downloadSingleStream(job.ctx, job, job.URL, job.headers, partPath, 0)
+	if err != nil {
 		return err
 	}
 	if job.ctx.Err() != nil {
@@ -870,9 +951,55 @@ func extractArchive(job *ArchiveJob, password string) error {
 	return nil
 }
 
-func archiveFolderName(filename string) string {
+func isArchiveFilename(filename string) bool {
 	lower := strings.ToLower(filename)
 	for _, ext := range []string{".tar.gz", ".tar.bz2", ".tar.xz", ".rar", ".zip", ".7z", ".tar", ".gz", ".xz", ".bz2", ".cbr", ".cbz", ".tgz"} {
+		if strings.HasSuffix(lower, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+func prepareDirectMedia(job *ArchiveJob) error {
+	job.mu.RLock()
+	archivePath := job.archivePath
+	job.mu.RUnlock()
+	if archivePath == "" {
+		return fmt.Errorf("file tải tạm không còn tồn tại")
+	}
+	workspace, err := archiveWorkspace(job.ID)
+	if err != nil {
+		return err
+	}
+	staging := filepath.Join(workspace, "extracted")
+	_ = os.RemoveAll(staging)
+	if err := os.MkdirAll(staging, 0755); err != nil {
+		return err
+	}
+	targetFile := filepath.Join(staging, job.Filename)
+	_ = os.Remove(targetFile)
+	if err := os.Rename(archivePath, targetFile); err != nil {
+		return fmt.Errorf("không thể chuyển file media vào thư mục chuẩn bị: %w", err)
+	}
+	name := archiveFolderName(job.Filename)
+	job.mu.Lock()
+	job.archivePath = ""
+	job.ExtractedPct = 100
+	job.ArchiveExtracted = true
+	job.extractedPath = staging
+	job.extractedName = name
+	job.UpdatedAt = time.Now().UTC()
+	job.mu.Unlock()
+	persistArchiveJob(job)
+	LogInfo("[ARCHIVE] [%s] file phương tiện đã sẵn sàng trong workspace: %s", job.ID, targetFile)
+	startArchiveConversion(job, staging)
+	return nil
+}
+
+func archiveFolderName(filename string) string {
+	lower := strings.ToLower(filename)
+	for _, ext := range []string{".tar.gz", ".tar.bz2", ".tar.xz", ".rar", ".zip", ".7z", ".tar", ".gz", ".xz", ".bz2", ".cbr", ".cbz", ".tgz", ".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"} {
 		if strings.HasSuffix(lower, ext) {
 			return strings.TrimSpace(filename[:len(filename)-len(ext)])
 		}

@@ -313,3 +313,60 @@ func TestMultipleDownloadJobsRemainIsolated(t *testing.T) {
 		}
 	}
 }
+
+func TestDownloadForwardsAudioURLAndSafeHeadersToStorage(t *testing.T) {
+	coordinator, resolver, storage := newDownloadCoordinator(t)
+	job, err := coordinator.CreateDownload(DownloadRequest{
+		URL: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", Destination: "music",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resolver.assignments()) != 1 {
+		t.Fatalf("expected 1 resolver assignment, got %d", len(resolver.assignments()))
+	}
+	if err := coordinator.TaskAccepted("resolver", job.ResolveTaskID); err != nil {
+		t.Fatal(err)
+	}
+	resolvePayload := json.RawMessage(`{
+		"downloadUrl": "https://googlevideo.test/video",
+		"audioUrl": "https://googlevideo.test/audio",
+		"headers": {"User-Agent": "AppViewTest", "Cookie": "secret-cookie-123", "Authorization": "Bearer secret-token"},
+		"filename": "Rick Astley.mp4"
+	}`)
+	if err := coordinator.TaskCompleted("resolver", job.ResolveTaskID, resolvePayload); err != nil {
+		t.Fatal(err)
+	}
+	assignments := storage.assignments()
+	if len(assignments) != 1 {
+		t.Fatalf("expected 1 storage assignment, got %d", len(assignments))
+	}
+	var storagePayload struct {
+		URL         string            `json:"url"`
+		AudioURL    string            `json:"audioUrl"`
+		Headers     map[string]string `json:"headers"`
+		Filename    string            `json:"filename"`
+		Destination string            `json:"destination"`
+	}
+	if err := json.Unmarshal(assignments[0].Payload, &storagePayload); err != nil {
+		t.Fatal(err)
+	}
+	if storagePayload.URL != "https://googlevideo.test/video" {
+		t.Fatalf("unexpected video url: %s", storagePayload.URL)
+	}
+	if storagePayload.AudioURL != "https://googlevideo.test/audio" {
+		t.Fatalf("unexpected audio url: %s", storagePayload.AudioURL)
+	}
+	if storagePayload.Filename != "Rick Astley.mp4" {
+		t.Fatalf("unexpected filename: %s", storagePayload.Filename)
+	}
+	if storagePayload.Headers["User-Agent"] != "AppViewTest" {
+		t.Fatalf("missing safe User-Agent header: %#v", storagePayload.Headers)
+	}
+	if _, cookiePresent := storagePayload.Headers["Cookie"]; cookiePresent {
+		t.Fatalf("cookie must never be forwarded to storage: %#v", storagePayload.Headers)
+	}
+	if _, authPresent := storagePayload.Headers["Authorization"]; authPresent {
+		t.Fatalf("authorization token must never be forwarded to storage: %#v", storagePayload.Headers)
+	}
+}

@@ -297,7 +297,7 @@ class _AddMediaFireArchiveDialogState
   Future<void> _handleSubmit() async {
     final url = _urlController.text.trim();
     if (url.isEmpty) {
-      setState(() => _errorMessage = 'Vui lòng nhập liên kết MediaFire.');
+      setState(() => _errorMessage = 'Vui lòng nhập liên kết tải xuống.');
       return;
     }
 
@@ -347,7 +347,7 @@ class _AddMediaFireArchiveDialogState
             Icon(Icons.download_rounded, color: AppTheme.googleBlue, size: 22),
             SizedBox(width: 8),
             Text(
-              'Thêm link MediaFire',
+              'Tải xuống từ liên kết',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -387,7 +387,7 @@ class _AddMediaFireArchiveDialogState
                 ],
 
                 const Text(
-                  'URL MediaFire:',
+                  'Liên kết MediaFire / YouTube:',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -405,7 +405,7 @@ class _AddMediaFireArchiveDialogState
                     fontFamily: 'monospace',
                   ),
                   decoration: InputDecoration(
-                    hintText: 'https://www.mediafire.com/file/...',
+                    hintText: 'https://... (MediaFire hoặc YouTube)',
                     hintStyle: const TextStyle(
                       color: Colors.white38,
                       fontSize: 12,

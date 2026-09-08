@@ -187,7 +187,7 @@ func (r *Registry) AttachResolve(jobID, taskID string) error {
 // PrepareStorage marks the one permitted transition before a storage child is
 // created. This makes duplicate resolve completions harmless even if callers
 // race: only the first one obtains shouldCreate=true.
-func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename string) (Job, StorageRequest, bool, error) {
+func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, audioURL string, headers map[string]string) (Job, StorageRequest, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	ref, ok := r.children[resolveTaskID]
@@ -207,7 +207,14 @@ func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename s
 	job.Filename, job.DisplayName = filename, filename
 	job.State, job.Stage, job.storagePending, job.UpdatedAt = Downloading, string(Downloading), true, time.Now().UTC()
 	r.jobs[job.ID] = job
-	return job.Clone(), StorageRequest{URL: resolvedURL, Filename: filename, Destination: job.Destination, Password: job.password}, true, nil
+	return job.Clone(), StorageRequest{
+		URL:         resolvedURL,
+		AudioURL:    strings.TrimSpace(audioURL),
+		Headers:     headers,
+		Filename:    filename,
+		Destination: job.Destination,
+		Password:    job.password,
+	}, true, nil
 }
 
 func (r *Registry) AttachStorage(jobID, taskID string) error {

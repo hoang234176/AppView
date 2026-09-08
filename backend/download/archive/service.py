@@ -14,6 +14,7 @@ from archive.go_archive_client import (
     go_archive_client,
 )
 from archive.mediafire import MediaFireResolver
+from services.source_router import source_router
 from logger import log_error, log_info, log_warning
 from models.download_task import TaskStage
 from services.task_manager import task_manager
@@ -21,7 +22,7 @@ from services.task_manager import task_manager
 
 class ArchiveService:
     def __init__(self, resolver: Optional[DownloadResolver] = None):
-        self.resolver: DownloadResolver = resolver or MediaFireResolver()
+        self.resolver: DownloadResolver = resolver or source_router
 
     async def process_task(self, task_id: str):
         task = await task_manager.get_task(task_id)

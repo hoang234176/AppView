@@ -96,6 +96,8 @@ func NewJob(id string, request CreateRequest) Job {
 
 type StorageRequest struct {
 	URL         string
+	AudioURL    string
+	Headers     map[string]string
 	Filename    string
 	Destination string
 	Password    string

@@ -442,8 +442,10 @@ func validFilesystemPath(value string) bool {
 func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 	if completed.Action == string(protocol.ResolveDownload) {
 		var result struct {
-			DownloadURL string `json:"downloadUrl"`
-			Filename    string `json:"filename"`
+			DownloadURL string            `json:"downloadUrl"`
+			AudioURL    string            `json:"audioUrl,omitempty"`
+			Headers     map[string]string `json:"headers,omitempty"`
+			Filename    string            `json:"filename"`
 		}
 		if err := json.Unmarshal(completed.Result, &result); err != nil {
 			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver returned an invalid result"})
@@ -452,7 +454,15 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 			}
 			return
 		}
-		job, storageRequest, shouldCreate, err := c.downloads.PrepareStorage(completed.ID, strings.TrimSpace(result.DownloadURL), strings.TrimSpace(result.Filename))
+		// Filter safe headers, strictly preventing leakage of cookies or authorization tokens
+		safeHeaders := make(map[string]string)
+		for k, v := range result.Headers {
+			lk := strings.ToLower(strings.TrimSpace(k))
+			if lk == "user-agent" || lk == "referer" || lk == "accept" || lk == "accept-language" {
+				safeHeaders[k] = v
+			}
+		}
+		job, storageRequest, shouldCreate, err := c.downloads.PrepareStorage(completed.ID, strings.TrimSpace(result.DownloadURL), strings.TrimSpace(result.Filename), strings.TrimSpace(result.AudioURL), safeHeaders)
 		if err != nil {
 			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver result is missing required download metadata"})
 			if failedJob, ok := c.downloads.JobForChild(completed.ID); ok {
@@ -464,10 +474,17 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 			return
 		}
 		logging.Event("INFO", "download job transition", map[string]any{"jobId": job.ID, "state": downloadjob.Downloading, "resolveTaskId": completed.ID, "filename": storageRequest.Filename})
-		payload := mustJSON(map[string]string{
+		payloadMap := map[string]any{
 			"url": storageRequest.URL, "filename": storageRequest.Filename,
 			"destination": storageRequest.Destination, "password": storageRequest.Password, "parentJobId": job.ID,
-		})
+		}
+		if storageRequest.AudioURL != "" {
+			payloadMap["audioUrl"] = storageRequest.AudioURL
+		}
+		if len(storageRequest.Headers) > 0 {
+			payloadMap["headers"] = storageRequest.Headers
+		}
+		payload := mustJSON(payloadMap)
 		if storageTask, err := c.createTask(string(protocol.DownloadFile), payload, true, 0, func(child task.Task) error {
 			return c.downloads.AttachStorage(job.ID, child.ID)
 		}); err != nil {
