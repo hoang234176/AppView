@@ -57,11 +57,11 @@ function App() {
 	// Server-backed UI becomes usable only after Coordinator /health succeeds.
 	// Presence of a configured host is intentionally not treated as connected.
   const [isConnected, setIsConnected] = useState(false);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [lightbox, setLightbox] = useState(null);
   const [videoModalIndex, setVideoModalIndex] = useState(null);
-  
+
   const [apiBaseUrl, setApiBaseUrl] = useState(getApiBaseUrl());
   const [configVersion, setConfigVersion] = useState(0);
   const [showConfigModal, setShowConfigModal] = useState(!isServerConfigured());
@@ -526,7 +526,7 @@ function App() {
 
   const filteredFolders = useMemo(() => {
     if (!searchQuery.trim()) return folders;
-    return folders.filter((f) => 
+    return folders.filter((f) =>
       f.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       f.path?.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -534,7 +534,7 @@ function App() {
 
   const filteredPictures = useMemo(() => {
     if (!searchQuery.trim()) return pictures;
-    return pictures.filter((p) => 
+    return pictures.filter((p) =>
       p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.path?.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -542,7 +542,7 @@ function App() {
 
   const filteredVideos = useMemo(() => {
     if (!searchQuery.trim()) return videos;
-    return videos.filter((v) => 
+    return videos.filter((v) =>
       v.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       v.path?.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -554,8 +554,8 @@ function App() {
 
   const hasMore = (totalFolders > folders.length) || (totalPictures > pictures.length) || (totalVideos > videos.length);
 
-  const remainingCount = Math.max(0, totalFolders - folders.length) + 
-                         Math.max(0, totalPictures - pictures.length) + 
+  const remainingCount = Math.max(0, totalFolders - folders.length) +
+                         Math.max(0, totalPictures - pictures.length) +
                          Math.max(0, totalVideos - videos.length);
 
   const handleLoadMore = useCallback(() => {
@@ -586,7 +586,7 @@ function App() {
   // animation mũi tên Header xuất hiện ngay từ lúc Go bắt đầu tải.
   const downloadingTask = downloadTasks.find((t) => t.stage === 'downloading');
   const isDownloadingMode = Boolean(downloadingTask);
-  const downloadProgressPercent = isDownloadingMode 
+  const downloadProgressPercent = isDownloadingMode
     ? (downloadingTask?.download_percent ?? 0)
     : 0;
   const hasPasswordError = downloadTasks.some(needsDownloadAttention);
@@ -595,7 +595,7 @@ function App() {
 
   return (
     <div className="tahoe-app-wrapper overflow-hidden">
-      
+
       {/* Sidebar */}
       <FolderTreeSidebar
         currentPath={currentPath}
@@ -607,7 +607,7 @@ function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden gap-2">
-        
+
         {/* Header */}
         <Header
           searchQuery={searchQuery}
@@ -630,7 +630,7 @@ function App() {
 
         {/* Main Content Canvas */}
         <div className="tahoe-block flex-1 flex flex-col min-w-0 overflow-hidden">
-          
+
           {/* Breadcrumbs Navigation */}
           <div className="flex-shrink-0 bg-[#1c1d21] border-b border-[#383c42]/40 z-10">
             <Breadcrumbs
@@ -643,7 +643,7 @@ function App() {
           </div>
 
           {/* Scrollable Content Body */}
-          <main 
+          <main
             onContextMenu={handleEmptyContextMenu}
             className="flex-1 overflow-y-auto custom-scrollbar p-2 pb-4 min-h-0"
           >
@@ -663,8 +663,8 @@ function App() {
                 <div>
                   <h3 className="text-base font-semibold text-white">Thư mục này trống</h3>
                   <p className="text-xs text-gray-400 mt-1">
-                    {searchQuery 
-                      ? `Không tìm thấy mục khớp với "${searchQuery}"` 
+                    {searchQuery
+                      ? `Không tìm thấy mục khớp với "${searchQuery}"`
                       : 'Chưa có thư mục con, hình ảnh hoặc video nào tại đường dẫn này.'}
                   </p>
                 </div>
@@ -832,9 +832,10 @@ function App() {
           onRename={handleRenameFolderSubmit}
         />
 
-        {/* Download MediaFire Modal */}
+        {/* Download Media (YouTube) Modal */}
         {showDownloadMediaModal && <DownloadMediaModal
           currentPath={currentPath}
+          treeData={treeData}
           onClose={() => setShowDownloadMediaModal(false)}
           onSuccess={(job) => {
             handleCoordinatorJobCreated(job);

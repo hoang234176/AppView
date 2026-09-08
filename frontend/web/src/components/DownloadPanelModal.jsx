@@ -4,6 +4,7 @@ import { formatFileSize, formatSpeed, getFileCategory } from '../utils/formatter
 import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask, retryCoordinatorArchive, submitCoordinatorArchivePassword, cancelCoordinatorArchive, submitVideoDecision, applyCoordinatorVideoDecisions } from '../api/downloadApi';
 import { FileTypeIcon } from './icons/FileTypeIcon';
 import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload, isCancelledOptimization } from '../utils/downloadPresentation';
+import { CustomSelect } from './CustomSelect';
 
 const isRetryableDownloadError = isRetryableDownload;
 const getUnoptimizedCount = (t) => {
@@ -119,20 +120,20 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
                   <div className="truncate font-semibold text-white" title={v.displayName}>{v.displayName}</div>
                   <div className="text-[10px] text-gray-400">{v.width}×{v.height} • {formatFileSize(v.sourceSizeBytes || 0)}</div>
                 </div>
-                <div className="flex-shrink-0">
-                  <select
+                <div className="flex-shrink-0 min-w-[125px]">
+                  <CustomSelect
+                    options={v.allowedQualities.map((q) => ({
+                      value: q,
+                      label: q.toUpperCase(),
+                    }))}
                     value={currentVal}
-                    onChange={(e) => handleSelectQuality(t.task_id, v.id, e.target.value)}
+                    onChange={(newVal) => handleSelectQuality(t.task_id, v.id, newVal)}
                     disabled={isSubmitting}
-                    className="rounded-lg border border-purple-400/40 bg-[#1c1d21] px-2.5 py-1.5 text-xs font-bold text-purple-200 outline-none hover:border-purple-300 focus:border-purple-400 disabled:opacity-50"
-                  >
-                    <option value="" disabled>Chọn chất lượng...</option>
-                    {v.allowedQualities.map((q) => (
-                      <option key={q} value={q}>
-                        {q.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Chọn chất lượng..."
+                    size="sm"
+                    accent="purple"
+                    ariaLabel="Chọn chất lượng chuyển đổi"
+                  />
                 </div>
               </div>
             );
