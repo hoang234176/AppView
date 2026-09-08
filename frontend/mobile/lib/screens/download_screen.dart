@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/download_provider.dart';
-import '../providers/app_state_provider.dart';
-import '../models/tree_node.dart';
 import '../api/download_api.dart';
-import '../api/folder_api.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/file_type_icon.dart';
+import '../widgets/app_select_menu.dart';
+import '../widgets/folder_picker_view.dart';
 
 class DownloadScreen extends StatefulWidget {
   final String currentPath;
@@ -59,7 +58,6 @@ class _AddMediaFireArchiveDialogState
   late TextEditingController _urlController;
   late TextEditingController _pwdController;
   String _selectedDest = '';
-  final Set<String> _expandedPaths = {};
   bool _isSubmitting = false;
   bool _obscurePassword = true;
   String? _errorMessage;
@@ -70,15 +68,6 @@ class _AddMediaFireArchiveDialogState
     _urlController = TextEditingController();
     _pwdController = TextEditingController();
     _selectedDest = widget.currentPath;
-
-    if (widget.currentPath.isNotEmpty) {
-      final parts = widget.currentPath.split('/');
-      String accPath = '';
-      for (final part in parts) {
-        accPath = accPath.isEmpty ? part : '$accPath/$part';
-        _expandedPaths.add(accPath);
-      }
-    }
   }
 
   @override
@@ -86,212 +75,6 @@ class _AddMediaFireArchiveDialogState
     _urlController.dispose();
     _pwdController.dispose();
     super.dispose();
-  }
-
-  Future<void> _handleCreateFolderInDialog() async {
-    final folderNameController = TextEditingController();
-    final newFolderName = await showDialog<String>(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            backgroundColor: AppTheme.bgBlock,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: const BorderSide(color: AppTheme.borderColor),
-            ),
-            title: Row(
-              children: [
-                const Icon(
-                  Icons.create_new_folder_rounded,
-                  color: Colors.amber,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Tạo folder mới trong ${_selectedDest.isEmpty ? "Root" : "/$_selectedDest"}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            content: TextField(
-              controller: folderNameController,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'Tên thư mục mới...',
-                hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
-                filled: true,
-                fillColor: AppTheme.bgCard,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppTheme.borderColor),
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text(
-                  'Hủy',
-                  style: TextStyle(color: Colors.white54),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  final val = folderNameController.text.trim();
-                  if (val.isNotEmpty) {
-                    Navigator.of(ctx).pop(val);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber,
-                  foregroundColor: Colors.black,
-                ),
-                child: const Text(
-                  'Tạo',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-    );
-
-    if (newFolderName != null && newFolderName.isNotEmpty && mounted) {
-      final appState = context.read<AppStateProvider>();
-      final res = await FolderApi.createFolder(_selectedDest, newFolderName);
-      if (res.success) {
-        await appState.loadTreeData();
-        if (mounted) {
-          setState(() {
-            final newPath =
-                _selectedDest.isEmpty
-                    ? newFolderName
-                    : '$_selectedDest/$newFolderName';
-            _selectedDest = newPath;
-            _expandedPaths.add(_selectedDest);
-            _expandedPaths.add(newPath);
-          });
-          AppToast.showSuccess(context, 'Đã tạo thư mục mới thành công!');
-        }
-      } else {
-        if (mounted) {
-          AppToast.showError(
-            context,
-            res.message.isNotEmpty ? res.message : 'Không thể tạo thư mục',
-          );
-        }
-      }
-    }
-  }
-
-  List<Widget> _buildTreeNodeWidgets(List<TreeNode> nodes, int depth) {
-    final List<Widget> list = [];
-
-    for (final node in nodes) {
-      final isSelected = _selectedDest == node.path;
-      final isExpanded = _expandedPaths.contains(node.path);
-
-      list.add(
-        InkWell(
-          onTap: () {
-            setState(() {
-              _selectedDest = node.path;
-              if (node.hasChildren && !isExpanded) {
-                _expandedPaths.add(node.path);
-              }
-            });
-          },
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-            padding: EdgeInsets.only(
-              left: depth * 14.0 + 6.0,
-              right: 8,
-              top: 7,
-              bottom: 7,
-            ),
-            decoration: BoxDecoration(
-              color:
-                  isSelected
-                      ? AppTheme.googleBlue.withValues(alpha: 0.25)
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-              border:
-                  isSelected
-                      ? Border.all(
-                        color: AppTheme.googleBlue.withValues(alpha: 0.5),
-                      )
-                      : null,
-            ),
-            child: Row(
-              children: [
-                if (node.hasChildren)
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        if (isExpanded) {
-                          _expandedPaths.remove(node.path);
-                        } else {
-                          _expandedPaths.add(node.path);
-                        }
-                      });
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Icon(
-                        isExpanded
-                            ? Icons.expand_more_rounded
-                            : Icons.chevron_right_rounded,
-                        size: 18,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  )
-                else
-                  const SizedBox(width: 24),
-
-                Icon(
-                  isExpanded ? Icons.folder_open_rounded : Icons.folder_rounded,
-                  size: 18,
-                  color: isSelected ? Colors.white : AppTheme.folderYellow,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    node.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? Colors.white : Colors.white70,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-
-      if (node.hasChildren && isExpanded) {
-        list.addAll(_buildTreeNodeWidgets(node.children, depth + 1));
-      }
-    }
-
-    return list;
   }
 
   Future<void> _handleSubmit() async {
@@ -337,8 +120,6 @@ class _AddMediaFireArchiveDialogState
 
   @override
   Widget build(BuildContext context) {
-    final treeNodes = context.watch<AppStateProvider>().treeData;
-
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       behavior: HitTestBehavior.translucent,
@@ -430,137 +211,12 @@ class _AddMediaFireArchiveDialogState
                 ),
                 const SizedBox(height: 12),
 
-                const Text(
-                  'Chọn thư mục lưu trữ:',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
+                FolderPickerView(
+                  destination: _selectedDest,
+                  onChanged: (newDest) => setState(() => _selectedDest = newDest),
+                  disabled: _isSubmitting,
+                  accentColor: AppTheme.googleBlue,
                   height: 180,
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgCard,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.borderColor),
-                  ),
-                  child: ListView(
-                    padding: const EdgeInsets.all(4),
-                    children: [
-                      InkWell(
-                        onTap: () => setState(() => _selectedDest = ''),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                _selectedDest == ''
-                                    ? AppTheme.googleBlue.withValues(
-                                      alpha: 0.25,
-                                    )
-                                    : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
-                            border:
-                                _selectedDest == ''
-                                    ? Border.all(
-                                      color: AppTheme.googleBlue.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                    )
-                                    : null,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.home_rounded,
-                                color: AppTheme.googleBlue,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'Thư viện gốc (Root)',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight:
-                                      _selectedDest == ''
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                  color:
-                                      _selectedDest == ''
-                                          ? Colors.white
-                                          : Colors.white70,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Divider(color: AppTheme.borderColor, height: 8),
-                      ..._buildTreeNodeWidgets(treeNodes, 1),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgCard.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppTheme.borderColor),
-                  ),
-                  child: Row(
-                    children: [
-                      const Text(
-                        'Vị trí lưu:',
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _selectedDest.isEmpty
-                              ? 'Thư viện gốc (Root)'
-                              : '/$_selectedDest',
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(
-                            color: Colors.amber,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: 'monospace',
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      InkWell(
-                        onTap: _handleCreateFolderInDialog,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.amber.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.create_new_folder_rounded,
-                            color: Colors.amber,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
 
                 const SizedBox(height: 12),
@@ -1330,49 +986,25 @@ class _DownloadScreenState extends State<DownloadScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            DropdownButton<String>(
-                              value:
-                                  _pendingDecisions['${task.taskId}:${video.id}'] ??
+                            AppSelectMenu<String>(
+                              items: video.allowedQualities
+                                  .map((q) => AppSelectItem<String>(
+                                        value: q,
+                                        label: q.toUpperCase(),
+                                      ))
+                                  .toList(),
+                              value: _pendingDecisions['${task.taskId}:${video.id}'] ??
                                   (video.selectedQuality.isNotEmpty
                                       ? video.selectedQuality
                                       : null),
-                              hint: const Text(
-                                'Chọn...',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 11,
-                                ),
-                              ),
-                              dropdownColor: AppTheme.bgCard,
-                              underline: const SizedBox(),
-                              icon: const Icon(
-                                Icons.arrow_drop_down,
-                                color: Colors.purpleAccent,
-                                size: 18,
-                              ),
-                              style: const TextStyle(
-                                color: Colors.purpleAccent,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              items:
-                                  video.allowedQualities.map((quality) {
-                                    return DropdownMenuItem<String>(
-                                      value: quality,
-                                      child: Text(quality.toUpperCase()),
-                                    );
-                                  }).toList(),
-                              onChanged:
-                                  isSubmitting
-                                      ? null
-                                      : (selected) {
-                                        if (selected != null) {
-                                          setState(() {
-                                            _pendingDecisions['${task.taskId}:${video.id}'] =
-                                                selected;
-                                          });
-                                        }
-                                      },
+                              onChanged: (selected) {
+                                setState(() {
+                                  _pendingDecisions['${task.taskId}:${video.id}'] = selected;
+                                });
+                              },
+                              disabled: isSubmitting,
+                              accent: AppSelectAccent.purple,
+                              size: AppSelectSize.sm,
                             ),
                           ],
                         ),
