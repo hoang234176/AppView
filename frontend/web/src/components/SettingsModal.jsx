@@ -164,7 +164,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
           </button>
         </div>
 
-		<div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 custom-scrollbar">
+		<div className="min-h-0 flex-1 space-y-4 overflow-y-auto pt-4 pr-1 custom-scrollbar">
 		{/* Storage Info */}
 		<div className="border border-[#383c42] rounded-[20px] bg-[#202124]/60 p-4 text-xs">
 		  <div className="flex items-center gap-2 font-bold text-gray-200"><HardDrive className="w-4 h-4 text-blue-400" />Storage</div>
