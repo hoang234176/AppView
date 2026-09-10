@@ -299,21 +299,28 @@ function App() {
     const oldParentPath = event?.oldParentPath || parentPath(oldPath);
     const newParentPath = event?.newParentPath || event?.parentPath || parentPath(newPath);
 
+    const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
+    const normCurrent = normalize(currentPath);
+    const normOldParent = normalize(oldParentPath);
+    const normNewParent = normalize(newParentPath);
+    const normOld = normalize(oldPath);
+    const normNew = normalize(newPath);
+
     if (type === 'folder_deleted') {
-      if (isSameOrDescendantPath(currentPath, oldPath)) {
+      if (isSameOrDescendantPath(normCurrent, normOld)) {
         nextPath = oldParentPath;
         refreshCurrent = true;
-      } else if (currentPath === oldParentPath) {
+      } else if (normCurrent === normOldParent) {
         refreshCurrent = true;
       }
     } else if (type === 'folder_moved' || type === 'folder_renamed') {
-      if (isSameOrDescendantPath(currentPath, oldPath)) {
+      if (isSameOrDescendantPath(normCurrent, normOld)) {
         nextPath = replacePathPrefix(currentPath, oldPath, newPath);
         refreshCurrent = true;
-      } else if (currentPath === oldParentPath || currentPath === newParentPath) {
+      } else if (normCurrent === normOldParent || normCurrent === normNewParent) {
         refreshCurrent = true;
       }
-    } else if (type === 'folder_created' && currentPath === newParentPath) {
+    } else if (type === 'folder_created' && (normCurrent === normNewParent || normCurrent === normNew)) {
       refreshCurrent = true;
     }
 
@@ -362,7 +369,12 @@ function App() {
             realtimeRefreshRef.current?.(payload.event);
           } else if (payload?.type === 'download_event') {
             if (downloadRefreshTimerRef.current) window.clearTimeout(downloadRefreshTimerRef.current);
-            downloadRefreshTimerRef.current = window.setTimeout(() => refreshCoordinatorDownloadsRef.current?.(), 200);
+            downloadRefreshTimerRef.current = window.setTimeout(() => {
+              refreshCoordinatorDownloadsRef.current?.();
+              if (payload.download?.kind === 'state_changed') {
+                realtimeRefreshRef.current?.();
+              }
+            }, 200);
           }
         } catch {
           // Ignore malformed best-effort invalidation messages.
@@ -419,9 +431,11 @@ function App() {
     const downloadedBytes = Number(progress.downloadedBytes) || 0;
     const totalBytes = Number(progress.totalBytes) || 0;
     const stage = job.stage || (job.state === 'downloading' ? (progress.state || 'downloading') : job.state === 'failed' ? 'error' : job.state);
+    const source = job.source || (job.url?.includes('youtube.com') || job.url?.includes('youtu.be') ? 'youtube' : '');
     return {
       task_id: job.id,
       original_url: job.url,
+      source,
       filename: job.displayName || job.filename || progress.filename || '',
       destination: job.destination || '',
       stage,
@@ -430,8 +444,8 @@ function App() {
       download_percent: totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : null,
       download_speed_bytes: Number(progress.speedBytes) || 0,
       extracted_percent: progress.extractedPercent ?? null,
-      convert_total: Number(progress.conversion?.total) || 0,
-      convert_current: Number(progress.conversion?.current) || 0,
+      convert_total: Number(job.conversionTotal ?? progress.conversion?.total) || 0,
+      convert_current: Number(job.conversionCurrent ?? progress.conversion?.current) || 0,
       error: job.error?.message || null,
       error_code: job.error?.code || null,
       failure_stage: job.failureStage || null,

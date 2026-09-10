@@ -24,6 +24,7 @@ class MediaDownloadPreview {
 class VideoOptimizationModel {
   final String id, displayName, resolutionClass, selectedQuality, state;
   final int width, height, sourceSizeBytes;
+  final bool optimizationRequired;
   final List<String> allowedQualities;
   const VideoOptimizationModel({
     required this.id,
@@ -33,6 +34,7 @@ class VideoOptimizationModel {
     required this.height,
     required this.sourceSizeBytes,
     required this.allowedQualities,
+    this.optimizationRequired = false,
     this.selectedQuality = '',
     this.state = '',
   });
@@ -48,6 +50,9 @@ class VideoOptimizationModel {
             (json['allowedQualities'] as List? ?? const [])
                 .map((e) => e.toString())
                 .toList(),
+        optimizationRequired: json['optimizationRequired'] == true ||
+            json['optimization_required'] == true ||
+            json['optimizationNeeded'] == true,
         selectedQuality: json['selectedQuality']?.toString() ?? '',
         state: json['state']?.toString() ?? '',
       );
@@ -57,6 +62,7 @@ class DownloadTaskModel {
   final String taskId;
   final String originalUrl;
   final String? resolvedUrl;
+  final String source;
   final String? filename;
   final String destination;
   final String stage;
@@ -83,6 +89,7 @@ class DownloadTaskModel {
     required this.taskId,
     required this.originalUrl,
     this.resolvedUrl,
+    this.source = '',
     this.filename,
     required this.destination,
     required this.stage,
@@ -144,6 +151,7 @@ class DownloadTaskModel {
       failureStage: json['failure_stage'],
       optimizationCancelled: optCancelled,
       unoptimizedVideoCount: unoptimized,
+      source: json['source']?.toString() ?? '',
     );
   }
 
@@ -182,14 +190,26 @@ class DownloadTaskModel {
         (progress['unoptimizedVideoCount'] as num?)?.toInt() ??
         (progress['unoptimized_video_count'] as num?)?.toInt() ??
         0;
-    final cancelledStage =
+    final rawCancelledStage =
         json['cancelledFromStage']?.toString() ??
         json['cancelled_from_stage']?.toString() ??
         progress['cancelledFromStage']?.toString() ??
         progress['cancelled_from_stage']?.toString();
+    final cancelledStage =
+        (rawCancelledStage != null && rawCancelledStage.trim().isNotEmpty)
+            ? rawCancelledStage.trim()
+            : null;
+    final rawSource = json['source']?.toString() ?? '';
+    final url = json['url']?.toString() ?? '';
+    final source = rawSource.isNotEmpty
+        ? rawSource
+        : (url.contains('youtube.com') || url.contains('youtu.be')
+            ? 'youtube'
+            : '');
     return DownloadTaskModel(
       taskId: json['id']?.toString() ?? '',
-      originalUrl: json['url']?.toString() ?? '',
+      originalUrl: url,
+      source: source,
       filename:
           json['displayName']?.toString() ??
           json['filename']?.toString() ??

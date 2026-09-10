@@ -2,6 +2,7 @@ package downloadjob
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"appview/coordinator/internal/protocol"
@@ -30,6 +31,7 @@ type Job struct {
 	ID                string                       `json:"id"`
 	URL               string                       `json:"url"`
 	SourceURL         string                       `json:"sourceUrl,omitempty"`
+	Source            string                       `json:"source,omitempty"`
 	Filename          string                       `json:"filename,omitempty"`
 	DisplayName       string                       `json:"displayName,omitempty"`
 	Destination       string                       `json:"destination,omitempty"`
@@ -83,10 +85,15 @@ type CreateRequest struct {
 }
 
 func NewJob(id string, request CreateRequest) Job {
+	source := ""
+	if strings.Contains(request.URL, "youtube.com") || strings.Contains(request.URL, "youtu.be") {
+		source = "youtube"
+	}
 	return Job{
 		ID:          id,
 		URL:         request.URL,
 		SourceURL:   request.URL,
+		Source:      source,
 		Filename:    request.Filename,
 		DisplayName: request.Filename,
 		Destination: request.Destination,
@@ -101,4 +108,5 @@ type StorageRequest struct {
 	Filename    string
 	Destination string
 	Password    string
+	Source      string
 }

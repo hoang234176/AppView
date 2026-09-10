@@ -25,4 +25,11 @@ func TestFilesystemEventIsRelayedOnlyFromRegisteredWorker(t *testing.T) {
 	if err := coordinator.FilesystemEvent("storage-01", &protocol.FilesystemEvent{Type: "folder_created", NewPath: "../outside"}); err == nil {
 		t.Fatal("unsafe event path was accepted")
 	}
+	leadingSlashEvent := &protocol.FilesystemEvent{Type: "folder_created", Path: "/Downloads/test.mp4", NewPath: "/Downloads/test.mp4", ParentPath: "/Downloads"}
+	if err := coordinator.FilesystemEvent("storage-01", leadingSlashEvent); err != nil {
+		t.Fatalf("event with leading slashes should be normalized and accepted: %v", err)
+	}
+	if leadingSlashEvent.NewPath != "Downloads/test.mp4" || leadingSlashEvent.ParentPath != "Downloads" {
+		t.Fatalf("expected paths to be stripped of leading slashes, got newPath=%s, parentPath=%s", leadingSlashEvent.NewPath, leadingSlashEvent.ParentPath)
+	}
 }

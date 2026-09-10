@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { X, Download, Video, Image, Trash2, AlertTriangle, RotateCw } from 'lucide-react';
 import { formatFileSize, formatSpeed, getFileCategory } from '../utils/formatters';
-import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask, retryCoordinatorArchive, submitCoordinatorArchivePassword, cancelCoordinatorArchive, submitVideoDecision, applyCoordinatorVideoDecisions } from '../api/downloadApi';
+import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask, retryCoordinatorArchive, submitCoordinatorArchivePassword, cancelCoordinatorArchive, applyCoordinatorVideoDecisions } from '../api/downloadApi';
 import { FileTypeIcon } from './icons/FileTypeIcon';
 import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload, isCancelledOptimization } from '../utils/downloadPresentation';
 import { CustomSelect } from './CustomSelect';
@@ -157,10 +157,11 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
     const cancelledOptimization = isCancelledOptimization(t);
     const taskColor = cancelledOptimization || needsDownloadAttention(t) ? 'text-amber-400' : color(t.stage);
     const unoptimizedCount = getUnoptimizedCount(t);
+    const isMedia = t.source === 'youtube' || (!t.archive_downloaded && !t.archive_extracted && getFileCategory(t.filename || t.original_url) === 'video');
     return <div key={t.task_id} className="min-h-[108px] space-y-3 rounded-2xl border border-[#383c42] bg-[#202124] p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center">{icon(t, taskColor)}</div>
-        <div className="min-w-0 flex-1"><h5 className="truncate text-xs font-bold text-white">{t.filename || 'Đang phân tích liên kết...'}</h5>{t.stage === 'downloading' ? <p className="mt-1 flex items-center justify-between gap-3 text-[11px] font-medium"><span className="truncate text-gray-400">{formatFileSize(t.downloaded_bytes)} / {t.download_total_bytes ? formatFileSize(t.download_total_bytes) : 'Không rõ'}</span><span className="flex-shrink-0 text-emerald-400">{formatSpeed(t.download_speed_bytes)}</span></p> : cancelledOptimization ? <div className="mt-1 text-[11px] font-medium leading-tight"><span className="text-emerald-400">Đã tải và giải nén</span><br /><span className="text-amber-400">{unoptimizedCount} video chưa được tối ưu hóa</span></div> : <p className={`mt-1 text-[11px] font-medium ${taskColor}`}>{status(t)}</p>}</div>
+        <div className="min-w-0 flex-1"><h5 className="truncate text-xs font-bold text-white">{t.filename || 'Đang phân tích liên kết...'}</h5>{t.stage === 'downloading' ? <p className="mt-1 flex items-center justify-between gap-3 text-[11px] font-medium"><span className="truncate text-gray-400">{formatFileSize(t.downloaded_bytes)} / {t.download_total_bytes ? formatFileSize(t.download_total_bytes) : 'Không rõ'}</span><span className="flex-shrink-0 text-emerald-400">{formatSpeed(t.download_speed_bytes)}</span></p> : cancelledOptimization ? <div className="mt-1 text-[11px] font-medium leading-tight"><span className="text-emerald-400">{isMedia ? 'Đã tải video gốc' : 'Đã tải và giải nén'}</span><br /><span className="text-amber-400">{unoptimizedCount} video chưa được tối ưu hóa</span></div> : <p className={`mt-1 text-[11px] font-medium ${taskColor}`}>{status(t)}</p>}</div>
         <div className="flex items-center gap-1">{isRetryableDownloadError(t) && <button disabled={pendingRetries[t.task_id]} onClick={() => retry(t)} title="Tải tiếp" className="rounded-full p-1 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50"><RotateCw className="h-4 w-4" /></button>}{canCancelDownload(t) && <button disabled={pendingCancels[t.task_id]} onClick={() => cancel(t)} title="Hủy tác vụ" className="rounded-full p-1 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50"><X className="h-4 w-4" /></button>}</div>
       </div>
       {t.stage === 'downloading' && <div className="h-2 overflow-hidden rounded-full bg-[#18191c]"><div className="h-full rounded-full bg-blue-500" style={{ width: `${t.download_percent || 0}%` }} /></div>}
@@ -174,19 +175,28 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
     const isOptimizationError = t.error_code === 'VIDEO_CONVERT_UNAVAILABLE';
     const cancelledOptimization = isCancelledOptimization(t);
     const unoptimizedCount = getUnoptimizedCount(t);
+    const isMedia = t.source === 'youtube' || (!t.archive_downloaded && !t.archive_extracted && getFileCategory(t.filename || t.original_url) === 'video');
     return <div key={t.task_id} className="flex items-center gap-3 rounded-2xl border border-[#383c42]/60 bg-[#202124]/60 p-3">
       {icon(t, cancelledOptimization || isOptimizationError ? 'text-amber-400' : 'text-gray-400')}
       <div className="min-w-0 flex-1">
         <h5 className="truncate text-xs font-semibold text-gray-200">{t.filename || t.original_url}</h5>
         {cancelledOptimization ? (
           <div className="text-[10px] font-medium leading-tight">
-            <span className="text-emerald-400">Đã tải và giải nén</span>
+            <span className="text-emerald-400">{isMedia ? 'Đã tải video gốc' : 'Đã tải và giải nén'}</span>
             <br />
             <span className="text-amber-400">{unoptimizedCount} video chưa được tối ưu hóa</span>
           </div>
         ) : (
           <p className={`text-[10px] ${isOptimizationError ? 'text-amber-400' : t.stage === 'completed' ? 'text-emerald-400' : t.stage === 'cancelled' ? 'text-gray-400' : 'text-red-400'}`}>
-            {isOptimizationError ? '⚠ Đã giải nén — chưa tối ưu được video' : t.stage === 'completed' ? (t.convert_total > 0 ? `✓ Đã giải nén - tối ưu ${t.convert_total} video` : '✓ Đã giải nén hoàn tất') : t.stage === 'cancelled' ? '⊘ Đã hủy' : `✕ ${t.error || 'Có lỗi xảy ra'}`}
+            {isOptimizationError
+              ? (isMedia ? '⚠ Đã tải — chưa tối ưu được video' : '⚠ Đã giải nén — chưa tối ưu được video')
+              : t.stage === 'completed'
+                ? (isMedia
+                    ? (t.convert_total > 0 ? '✓ Đã tải và tối ưu video' : '✓ Đã tải hoàn tất')
+                    : (t.convert_total > 0 ? `✓ Đã giải nén - tối ưu ${t.convert_total} video` : '✓ Đã giải nén hoàn tất'))
+                : t.stage === 'cancelled'
+                  ? '⊘ Đã hủy'
+                  : `✕ ${t.error || 'Có lỗi xảy ra'}`}
           </p>
         )}
       </div>

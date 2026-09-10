@@ -339,14 +339,21 @@ class _DownloadScreenState extends State<DownloadScreen> {
             )
             .toList();
     final cancelledTasks =
-        tasks.where((task) => task.stage == 'cancelled').toList();
+        tasks
+            .where(
+              (task) =>
+                  task.stage == 'cancelled' &&
+                  !DownloadProvider.isCancelledOptimization(task),
+            )
+            .toList();
     final completedTasks =
         tasks
             .where(
               (task) =>
-                  task.stage != 'cancelled' &&
                   !DownloadProvider.isActiveDownload(task) &&
-                  !isRetryableDownloadError(task),
+                  !isRetryableDownloadError(task) &&
+                  (task.stage == 'completed' ||
+                      DownloadProvider.isCancelledOptimization(task)),
             )
             .toList();
 
@@ -577,11 +584,24 @@ class _DownloadScreenState extends State<DownloadScreen> {
     final isCancelledOptimization = DownloadProvider.isCancelledOptimization(
       task,
     );
+    final category = Formatters.getFileCategory(
+      task.filename ?? task.originalUrl,
+    );
+    final isMedia =
+        task.source == 'youtube' ||
+        (!task.archiveDownloaded &&
+            !task.archiveExtracted &&
+            category == 'video');
     final unoptimizedCount =
         task.unoptimizedVideoCount > 0
             ? task.unoptimizedVideoCount
             : (task.videos.isNotEmpty
-                ? task.videos.where((v) => v.state != 'completed').length
+                ? task.videos
+                    .where(
+                      (v) =>
+                          v.optimizationRequired && v.state != 'completed',
+                    )
+                    .length
                 : (task.convertTotal > 0
                     ? (task.convertTotal - task.convertCurrent).clamp(
                       0,
@@ -594,10 +614,6 @@ class _DownloadScreenState extends State<DownloadScreen> {
                 ? task.convertTotal
                 : task.convertCurrent + 1)
             : 0;
-
-    final category = Formatters.getFileCategory(
-      task.filename ?? task.originalUrl,
-    );
 
     Color iconColor = AppTheme.googleBlue;
 
@@ -742,30 +758,38 @@ class _DownloadScreenState extends State<DownloadScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text(
-                                'Đã tải và giải nén',
-                                style: TextStyle(
+                              Text(
+                                isMedia
+                                    ? 'Đã tải video gốc'
+                                    : 'Đã tải và giải nén',
+                                style: const TextStyle(
                                   fontSize: 11,
                                   color: Colors.greenAccent,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '$unoptimizedCount video chưa được tối ưu hóa',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.amberAccent,
-                                  fontWeight: FontWeight.w500,
+                              if (unoptimizedCount > 0) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  '$unoptimizedCount video chưa được tối ưu hóa',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.amberAccent,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ] else if (isCompleted) ...[
                           Text(
-                            task.convertTotal > 0
-                                ? '✓ Đã giải nén - tối ưu ${task.convertTotal} video'
-                                : '✓ Đã giải nén hoàn tất',
+                            isMedia
+                                ? (task.convertTotal > 0
+                                    ? '✓ Đã tải và tối ưu video'
+                                    : '✓ Đã tải hoàn tất')
+                                : (task.convertTotal > 0
+                                    ? '✓ Đã giải nén - tối ưu ${task.convertTotal} video'
+                                    : '✓ Đã giải nén hoàn tất'),
                             style: const TextStyle(
                               fontSize: 11,
                               color: Colors.greenAccent,
@@ -782,9 +806,11 @@ class _DownloadScreenState extends State<DownloadScreen> {
                             ),
                           ),
                         ] else if (isOptimizationError) ...[
-                          const Text(
-                            '⚠ Đã giải nén — chưa tối ưu được video',
-                            style: TextStyle(
+                          Text(
+                            isMedia
+                                ? '⚠ Đã tải — chưa tối ưu được video'
+                                : '⚠ Đã giải nén — chưa tối ưu được video',
+                            style: const TextStyle(
                               fontSize: 11,
                               color: Colors.amberAccent,
                               fontWeight: FontWeight.w500,

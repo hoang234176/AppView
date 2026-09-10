@@ -25,7 +25,9 @@ class DownloadProvider extends ChangeNotifier {
           (task.cancelledFromStage == 'converting' ||
               task.cancelledFromStage == 'video_decision_required')) ||
       (task.stage == 'completed' &&
-          (task.optimizationCancelled || task.cancelledFromStage != null));
+          (task.optimizationCancelled ||
+              (task.cancelledFromStage != null &&
+                  task.cancelledFromStage!.isNotEmpty)));
 
   static String downloadGroup(DownloadTaskModel task) =>
       (task.stage == 'completed' || isCancelledOptimization(task))

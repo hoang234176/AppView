@@ -390,7 +390,24 @@ func (c *Coordinator) FilesystemEvent(workerID string, event *protocol.Filesyste
 	if _, ok := c.workers.Get(workerID); !ok {
 		return fmt.Errorf("unknown worker")
 	}
-	if event == nil || !validFilesystemEvent(*event) {
+	if event == nil {
+		return fmt.Errorf("invalid filesystem event")
+	}
+	cleanRel := func(p string) string {
+		p = strings.TrimSpace(p)
+		p = strings.TrimPrefix(p, "/")
+		if p == "." {
+			return ""
+		}
+		return p
+	}
+	event.Path = cleanRel(event.Path)
+	event.OldPath = cleanRel(event.OldPath)
+	event.NewPath = cleanRel(event.NewPath)
+	event.ParentPath = cleanRel(event.ParentPath)
+	event.OldParentPath = cleanRel(event.OldParentPath)
+	event.NewParentPath = cleanRel(event.NewParentPath)
+	if !validFilesystemEvent(*event) {
 		return fmt.Errorf("invalid filesystem event")
 	}
 	count := c.realtime.Broadcast(*event)
@@ -470,6 +487,7 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 			AudioURL    string            `json:"audioUrl,omitempty"`
 			Headers     map[string]string `json:"headers,omitempty"`
 			Filename    string            `json:"filename"`
+			Source      string            `json:"source,omitempty"`
 		}
 		if err := json.Unmarshal(completed.Result, &result); err != nil {
 			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver returned an invalid result"})
@@ -486,7 +504,7 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 				safeHeaders[k] = v
 			}
 		}
-		job, storageRequest, shouldCreate, err := c.downloads.PrepareStorage(completed.ID, strings.TrimSpace(result.DownloadURL), strings.TrimSpace(result.Filename), strings.TrimSpace(result.AudioURL), safeHeaders)
+		job, storageRequest, shouldCreate, err := c.downloads.PrepareStorage(completed.ID, strings.TrimSpace(result.DownloadURL), strings.TrimSpace(result.Filename), strings.TrimSpace(result.AudioURL), safeHeaders, strings.TrimSpace(result.Source))
 		if err != nil {
 			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver result is missing required download metadata"})
 			if failedJob, ok := c.downloads.JobForChild(completed.ID); ok {
@@ -507,6 +525,9 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 		}
 		if len(storageRequest.Headers) > 0 {
 			payloadMap["headers"] = storageRequest.Headers
+		}
+		if storageRequest.Source != "" {
+			payloadMap["source"] = storageRequest.Source
 		}
 		payload := mustJSON(payloadMap)
 		if storageTask, err := c.createTask(string(protocol.DownloadFile), payload, true, 0, func(child task.Task) error {

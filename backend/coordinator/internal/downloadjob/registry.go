@@ -110,6 +110,9 @@ func (r *Registry) MergeStorageHistory(workerID string, snapshots []protocol.Sto
 			next.StorageTaskID = snapshot.ID
 		}
 		next.Filename, next.DisplayName, next.Destination = snapshot.Filename, snapshot.Filename, snapshot.Destination
+		if next.Source == "" && (strings.Contains(next.URL, "youtube.com") || strings.Contains(next.URL, "youtu.be") || strings.Contains(next.SourceURL, "youtube.com") || strings.Contains(next.SourceURL, "youtu.be")) {
+			next.Source = "youtube"
+		}
 		next.State, next.Stage = State(snapshot.State), snapshot.State
 		next.ArchiveDownloaded, next.ArchiveExtracted, next.PasswordRequired = snapshot.ArchiveDownloaded, snapshot.ArchiveExtracted, snapshot.PasswordRequired
 		next.TotalVideoCount, next.InvalidVideoCount, next.VideoScanState = snapshot.TotalVideoCount, snapshot.InvalidVideoCount, snapshot.VideoScanState
@@ -187,7 +190,7 @@ func (r *Registry) AttachResolve(jobID, taskID string) error {
 // PrepareStorage marks the one permitted transition before a storage child is
 // created. This makes duplicate resolve completions harmless even if callers
 // race: only the first one obtains shouldCreate=true.
-func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, audioURL string, headers map[string]string) (Job, StorageRequest, bool, error) {
+func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, audioURL string, headers map[string]string, source string) (Job, StorageRequest, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	ref, ok := r.children[resolveTaskID]
@@ -205,6 +208,11 @@ func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, 
 	// optional filename is only a temporary display hint before resolution.
 	filename := resolvedFilename
 	job.Filename, job.DisplayName = filename, filename
+	if strings.TrimSpace(source) != "" {
+		job.Source = strings.TrimSpace(source)
+	} else if job.Source == "" && (strings.Contains(job.URL, "youtube.com") || strings.Contains(job.URL, "youtu.be")) {
+		job.Source = "youtube"
+	}
 	job.State, job.Stage, job.storagePending, job.UpdatedAt = Downloading, string(Downloading), true, time.Now().UTC()
 	r.jobs[job.ID] = job
 	return job.Clone(), StorageRequest{
@@ -214,6 +222,7 @@ func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, 
 		Filename:    filename,
 		Destination: job.Destination,
 		Password:    job.password,
+		Source:      strings.TrimSpace(source),
 	}, true, nil
 }
 
