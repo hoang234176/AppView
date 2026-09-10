@@ -18,6 +18,10 @@ All messages use the `internal/protocol.Message` JSON envelope. Fields not relev
 | `filesystem_event` | Storage worker → coordinator → frontend | `event.type`, relative paths | Best-effort canonical filesystem invalidation. |
 | `storage.history` | Storage worker → coordinator | `storageHistory.jobs[]` | Password-free durable archive metadata from one identified Storage worker. |
 | `storage.info` | Storage worker → coordinator | `storageInfo` | Small ROOT_PATH filesystem capacity projection for Settings. |
+| `cookie.status` | coordinator ↔ Storage worker | `taskId`, `payload`/`result` | Queries cookie file existence and timestamp on Storage. |
+| `cookie.save` | coordinator ↔ Storage worker | `taskId`, `payload`/`result` | Persists verified cookies with 0600 file permissions on Storage. |
+| `cookie.get` | Download worker ↔ coordinator ↔ Storage | `taskId`, `payload`/`result` | In-memory cookie retrieval for media extraction without filesystem access. |
+| `cookie.verify` | coordinator ↔ Download worker | `taskId`, `payload`/`result` | In-memory candidate cookie verification against platform extraction. |
 | `download_event` | coordinator → frontend | `download.jobId`, `download.kind` | Small all-client download-history invalidation. |
 | `error` | coordinator → worker | `error.code`, `error.message` | Protocol validation error. |
 
@@ -46,3 +50,13 @@ For `POST /api/v1/download/{id}/retry` and `POST /api/v1/download/{id}/extract`,
 `POST /api/v1/download/{id}/videos/{videoId}/decision` uses a worker-pinned `download_file` control with `operation: "video_decision"`, `archiveTaskId`, `videoId`, and one requested quality. Storage validates that stable video ID and allowed option, persists it in the archive snapshot, then starts conversion only after all required per-video decisions exist. Video records in `storage.history` contain relative paths, source size, compatibility dimensions, and state only; they never contain absolute workspace paths or secrets. `GET /api/v1/storage` projects the last registered Storage worker's small filesystem usage metadata.
 
 Coordinator broadcasts `{ "type": "download_event", "download": { "jobId": "...", "kind": "created|updated|progress|state_changed" } }` to every `/ws/events` subscriber. Clients refetch `GET /api/v1/download`. Progress is throttled per job to one event per 750ms; state changes bypass that throttle. The fanout remains bounded/best-effort, so reconnecting clients refetch canonical history.
+
+## Social Platform Cookies Management
+
+Social cookies storage, verification, and retrieval are orchestrated across Storage, Coordinator, and Download:
+
+- `GET /api/v1/cookies/status?platform=youtube`: Coordinator queries Storage worker via WebSocket RPC (`cookie.status`) for file existence and updated timestamp.
+- `POST /api/v1/cookies/verify`: Body `{ "platform": "youtube", "cookies": "..." }`. Coordinator routes candidate Netscape cookies to Download worker via WebSocket RPC (`cookie.verify`) to test extraction in-memory against YouTube. Returns `{ "valid": bool, "message": string }`.
+- `POST /api/v1/cookies/save`: Body `{ "platform": "youtube", "cookies": "..." }`. Coordinator routes to Storage worker via WebSocket RPC (`cookie.save`) to persist into `~/.tmp-appview/cookies/<platform>.txt` with `0700` dir and `0600` file permissions. Returns `{ "success": true, "updated_at": timestamp }`.
+
+Python Download does not access or persist to the host filesystem for cookies. When resolving or extracting YouTube media, it requests the platform cookies from Coordinator over WebSocket RPC (`cookie.get`), which fetches them from Storage in-memory and loads them into a transient `YoutubeDLCookieJar`. Raw cookie contents are never exposed in Coordinator or Download logs.

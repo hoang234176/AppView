@@ -20,6 +20,9 @@ TASK_COMPLETED = "task.completed"
 TASK_FAILED = "task.failed"
 ERROR = "error"
 
+COOKIE_GET = "cookie.get"
+COOKIE_VERIFY = "cookie.verify"
+
 RESOLVE_DOWNLOAD = "resolve_download"
 
 

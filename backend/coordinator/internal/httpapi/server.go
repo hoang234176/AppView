@@ -21,5 +21,9 @@ func Register(mux *http.ServeMux, coordinator *service.Coordinator) {
 	mux.HandleFunc("POST /api/v1/download/{id}/cancel", downloads.Cancel)
 	mux.HandleFunc("POST /api/v1/download/{id}/videos/{videoId}/decision", downloads.DecideVideo)
 	mux.HandleFunc("POST /api/v1/download/{id}/videos/apply", downloads.ApplyVideoDecisions)
+	cookies := NewCookieHandler(coordinator)
+	mux.HandleFunc("GET /api/v1/cookies/status", cookies.Status)
+	mux.HandleFunc("POST /api/v1/cookies/verify", cookies.Verify)
+	mux.HandleFunc("POST /api/v1/cookies/save", cookies.Save)
 	mux.HandleFunc("GET /health", Health(coordinator))
 }

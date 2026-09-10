@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -302,5 +303,78 @@ func TestHandlerRoutesArchiveTaskToArchiveOperations(t *testing.T) {
 	}
 	if yt.started {
 		t.Fatal("Archive task was unexpectedly routed to youtube operations!")
+	}
+}
+
+func TestHandlerCookieMessages(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("APPVIEW_STATE_DIR", tempDir)
+
+	handler := NewHandler(nil, nil)
+
+	// 1. Initial status query
+	var sent []Message
+	handler.HandleCookieMessage(Message{
+		Type:    CookieStatus,
+		TaskID:  "task-status-1",
+		Payload: []byte(`{"platform":"youtube"}`),
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Type != CookieStatus {
+		t.Fatalf("expected CookieStatus response, got %+v", sent)
+	}
+	statusRes, ok := sent[0].Result.(CookieStatusResult)
+	if !ok || statusRes.Exists {
+		t.Fatalf("expected exists=false, got %+v", sent[0].Result)
+	}
+
+	// 2. Save cookies
+	sent = nil
+	sampleCookies := "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tTEST\tVALUE\n"
+	savePayload, _ := json.Marshal(CookieRequestPayload{Platform: "youtube", Cookies: sampleCookies})
+	handler.HandleCookieMessage(Message{
+		Type:    CookieSave,
+		TaskID:  "task-save-1",
+		Payload: savePayload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Type != CookieSave {
+		t.Fatalf("expected CookieSave response, got %+v", sent)
+	}
+	saveRes, ok := sent[0].Result.(CookieSaveResult)
+	if !ok || !saveRes.Success {
+		t.Fatalf("expected success=true, got %+v", sent[0].Result)
+	}
+
+	// 3. Status query after save
+	sent = nil
+	handler.HandleCookieMessage(Message{
+		Type:    CookieStatus,
+		TaskID:  "task-status-2",
+		Payload: []byte(`{"platform":"youtube"}`),
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Type != CookieStatus {
+		t.Fatalf("expected CookieStatus response, got %+v", sent)
+	}
+	statusRes, ok = sent[0].Result.(CookieStatusResult)
+	if !ok || !statusRes.Exists || statusRes.UpdatedAt == nil {
+		t.Fatalf("expected exists=true with non-nil updated_at, got %+v", sent[0].Result)
+	}
+
+	// 4. Get cookies
+	sent = nil
+	handler.HandleCookieMessage(Message{
+		Type:    CookieGet,
+		TaskID:  "task-get-1",
+		Payload: []byte(`{"platform":"youtube"}`),
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Type != CookieGet {
+		t.Fatalf("expected CookieGet response, got %+v", sent)
+	}
+	getRes, ok := sent[0].Result.(CookieGetResult)
+	if !ok || !getRes.Exists || getRes.Cookies != sampleCookies {
+		t.Fatalf("expected matches sample cookies, got %+v", sent[0].Result)
 	}
 }

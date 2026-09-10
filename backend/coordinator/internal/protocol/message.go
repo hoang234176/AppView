@@ -21,6 +21,10 @@ const (
 	StorageHistory         MessageType = "storage.history"
 	StorageInfoMessage     MessageType = "storage.info"
 	DownloadEventMessage   MessageType = "download_event"
+	CookieStatus           MessageType = "cookie.status"
+	CookieSave             MessageType = "cookie.save"
+	CookieGet              MessageType = "cookie.get"
+	CookieVerify           MessageType = "cookie.verify"
 	Error                  MessageType = "error"
 )
 
@@ -133,4 +137,31 @@ type ErrorPayload struct {
 
 func NewError(code, message string) Message {
 	return Message{Type: Error, Error: &ErrorPayload{Code: code, Message: message}}
+}
+
+type CookieRequestPayload struct {
+	Platform string `json:"platform"`
+	Cookies  string `json:"cookies,omitempty"`
+}
+
+type CookieStatusResult struct {
+	Platform  string     `json:"platform"`
+	Exists    bool       `json:"exists"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
+type CookieSaveResult struct {
+	Success   bool      `json:"success"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type CookieGetResult struct {
+	Platform string `json:"platform"`
+	Exists   bool   `json:"exists"`
+	Cookies  string `json:"cookies,omitempty"`
+}
+
+type CookieVerifyResult struct {
+	Valid   bool   `json:"valid"`
+	Message string `json:"message"`
 }

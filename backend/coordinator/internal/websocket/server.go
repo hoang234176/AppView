@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -90,8 +91,51 @@ func (s *Server) handleMessage(connection *Connection, currentWorkerID string, m
 		return "", s.coordinator.StorageHistory(currentWorkerID, message.StorageHistory)
 	case protocol.StorageInfoMessage:
 		return "", s.coordinator.StorageInfo(currentWorkerID, message.StorageInfo)
+	case protocol.CookieStatus, protocol.CookieSave, protocol.CookieVerify:
+		if s.coordinator.ResolveRPC(message.TaskID, message) {
+			return "", nil
+		}
+		return "", nil
+	case protocol.CookieGet:
+		if s.coordinator.ResolveRPC(message.TaskID, message) {
+			return "", nil
+		}
+		go s.handleWorkerCookieGet(currentWorkerID, message)
+		return "", nil
 	default:
 		return "", fmtError("unsupported message type")
+	}
+}
+
+func (s *Server) handleWorkerCookieGet(workerID string, msg protocol.Message) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var req protocol.CookieRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+	platform := req.Platform
+	if platform == "" {
+		platform = "youtube"
+	}
+
+	result, err := s.coordinator.GetCookieContent(ctx, platform)
+	resp := protocol.Message{
+		Type:   protocol.CookieGet,
+		TaskID: msg.TaskID,
+	}
+	if err != nil {
+		resp.Result, _ = json.Marshal(protocol.CookieGetResult{
+			Platform: platform,
+			Exists:   false,
+		})
+	} else {
+		resp.Result, _ = json.Marshal(result)
+	}
+
+	if registered, ok := s.coordinator.GetWorker(workerID); ok {
+		_ = registered.Sender.Send(resp)
 	}
 }
 func (s *Server) RunHeartbeatMonitor(ctx context.Context) {

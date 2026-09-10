@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pythonapi "backend/api/python"
+	"backend/cookies"
 	"backend/media_download/youtube"
 	"backend/utils"
 )
@@ -578,4 +579,77 @@ func completedResult(snapshot pythonapi.ArchiveJobSnapshot) map[string]any {
 func (h *Handler) fail(send SendFunc, taskID, code, description string) {
 	utils.LogEvent("ERROR", "storage worker task failed", map[string]any{"taskId": taskID, "errorCode": code})
 	_ = send(Message{Type: TaskFailed, TaskID: taskID, Error: &ErrorPayload{Code: code, Message: description}})
+}
+
+func (h *Handler) HandleCookieMessage(msg Message, send SendFunc) {
+	var req CookieRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+	switch msg.Type {
+	case CookieStatus:
+		exists, modTime, err := cookies.GetStatus(req.Platform)
+		if err != nil {
+			_ = send(Message{
+				Type:   CookieStatus,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "STATUS_FAILED", Message: err.Error()},
+			})
+			return
+		}
+		_ = send(Message{
+			Type:   CookieStatus,
+			TaskID: msg.TaskID,
+			Result: CookieStatusResult{
+				Platform:  req.Platform,
+				Exists:    exists,
+				UpdatedAt: modTime,
+			},
+		})
+	case CookieSave:
+		if strings.TrimSpace(req.Cookies) == "" {
+			_ = send(Message{
+				Type:   CookieSave,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "EMPTY_COOKIES", Message: "Cookies cannot be empty"},
+			})
+			return
+		}
+		modTime, err := cookies.Save(req.Platform, req.Cookies)
+		if err != nil {
+			_ = send(Message{
+				Type:   CookieSave,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "SAVE_FAILED", Message: err.Error()},
+			})
+			return
+		}
+		_ = send(Message{
+			Type:   CookieSave,
+			TaskID: msg.TaskID,
+			Result: CookieSaveResult{
+				Success:   true,
+				UpdatedAt: modTime,
+			},
+		})
+	case CookieGet:
+		content, exists, err := cookies.Read(req.Platform)
+		if err != nil {
+			_ = send(Message{
+				Type:   CookieGet,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "READ_FAILED", Message: err.Error()},
+			})
+			return
+		}
+		_ = send(Message{
+			Type:   CookieGet,
+			TaskID: msg.TaskID,
+			Result: CookieGetResult{
+				Platform: req.Platform,
+				Exists:   exists,
+				Cookies:  content,
+			},
+		})
+	}
 }

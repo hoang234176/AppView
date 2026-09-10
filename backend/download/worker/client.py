@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import uuid
 from contextlib import suppress
 from typing import Any, Optional
 
@@ -13,6 +14,8 @@ from config import Config
 from logger import log_error, log_event, log_info, log_warning
 from worker.handler import DownloadWorkerHandler
 from worker.protocol import (
+    COOKIE_GET,
+    COOKIE_VERIFY,
     ERROR,
     RESOLVE_DOWNLOAD,
     TASK_ASSIGN,
@@ -50,6 +53,7 @@ class CoordinatorWorkerClient:
         self._send_lock = asyncio.Lock()
         self._assignment_tasks: set[asyncio.Task[None]] = set()
         self._assignments_by_id: dict[str, asyncio.Task[None]] = {}
+        self._pending_rpc: dict[str, asyncio.Future[dict[str, Any]]] = {}
 
     def start(self) -> None:
         """Start in the background; coordinator failure cannot stop HTTP API."""
@@ -139,6 +143,14 @@ class CoordinatorWorkerClient:
                         # wrapper before cancellation. Repeated controls must
                         # not interrupt the extractor's cancellation cleanup.
                         asyncio.get_running_loop().call_soon(self._cancel_assignment, envelope.get("taskId"))
+                    elif envelope.get("type") == COOKIE_VERIFY:
+                        asyncio.create_task(self._handle_cookie_verify(envelope))
+                    elif envelope.get("type") == COOKIE_GET:
+                        task_id = envelope.get("taskId")
+                        if task_id in self._pending_rpc:
+                            future = self._pending_rpc.pop(task_id)
+                            if not future.done():
+                                future.set_result(envelope.get("result") or {})
                     elif envelope.get("type") == ERROR:
                         error = envelope.get("error") or {}
                         log_warning("COORDINATOR WORKER", f"Coordinator báo lỗi: {error.get('message', 'unknown')}")
@@ -206,6 +218,38 @@ class CoordinatorWorkerClient:
             raise ConnectionError("Coordinator worker chưa kết nối.")
         async with self._send_lock:
             await websocket.send(json.dumps(envelope, ensure_ascii=False))
+
+    async def _handle_cookie_verify(self, envelope: dict[str, Any]) -> None:
+        task_id = envelope.get("taskId")
+        payload = envelope.get("payload") or {}
+        platform = payload.get("platform")
+        raw_cookies = payload.get("cookies") or ""
+
+        valid, message_str = False, "Nền tảng không được hỗ trợ."
+        if platform == "youtube":
+            from services.youtube.auth import verify_youtube_cookies
+            valid, message_str = await verify_youtube_cookies(raw_cookies)
+
+        with suppress(Exception):
+            await self.send(message(COOKIE_VERIFY, taskId=task_id, result={"valid": valid, "message": message_str}))
+
+    async def get_cookies(self, platform: str = "youtube", timeout: float = 5.0) -> Optional[str]:
+        if self._websocket is None:
+            return None
+        task_id = f"cookie-get-{uuid.uuid4().hex[:12]}"
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[dict[str, Any]] = loop.create_future()
+        self._pending_rpc[task_id] = future
+        try:
+            await self.send(message(COOKIE_GET, taskId=task_id, payload={"platform": platform}))
+            result = await asyncio.wait_for(future, timeout=timeout)
+            if result.get("exists") and isinstance(result.get("cookies"), str):
+                return result.get("cookies")
+            return None
+        except Exception:
+            return None
+        finally:
+            self._pending_rpc.pop(task_id, None)
 
     @staticmethod
     def _decode(raw: str | bytes) -> dict[str, Any]:

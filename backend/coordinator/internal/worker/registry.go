@@ -79,6 +79,17 @@ func (r *Registry) IdleFor(action string) []Worker {
 	return result
 }
 
+func (r *Registry) AnyFor(action string) (Worker, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, candidate := range r.workers {
+		if candidate.Supports(action) {
+			return candidate.Clone(), true
+		}
+	}
+	return Worker{}, false
+}
+
 func (r *Registry) StaleIDs(before time.Time) []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

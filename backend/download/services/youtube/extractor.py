@@ -84,6 +84,16 @@ class YouTubeExtractor:
                 "Danh sách phát (playlist) chưa được hỗ trợ. Vui lòng cung cấp liên kết video đơn lẻ."
             )
 
+        cookiejar = None
+        try:
+            from worker.client import coordinator_worker_client
+            raw_cookies = await coordinator_worker_client.get_cookies("youtube")
+            if raw_cookies:
+                from services.youtube.auth import create_cookiejar_from_netscape
+                cookiejar = create_cookiejar_from_netscape(raw_cookies)
+        except Exception:
+            cookiejar = None
+
         cancel_event = threading.Event()
         finished = threading.Event()
         ydl_ref: list[Optional[yt_dlp.YoutubeDL]] = [None]
@@ -91,7 +101,9 @@ class YouTubeExtractor:
         loop = asyncio.get_running_loop()
         future = loop.run_in_executor(
             None,
-            partial(self._extract_sync, quality=quality, preview=preview) if quality is not None or preview else self._extract_sync,
+            partial(self._extract_sync, quality=quality, preview=preview, cookiejar=cookiejar)
+            if quality is not None or preview or cookiejar is not None
+            else self._extract_sync,
             url,
             cancel_event,
             ydl_ref,
@@ -123,6 +135,7 @@ class YouTubeExtractor:
         *,
         quality: Optional[int] = None,
         preview: bool = False,
+        cookiejar: Optional[Any] = None,
     ) -> YouTubePost:
         try:
             if cancel_event and cancel_event.is_set():
@@ -139,6 +152,8 @@ class YouTubeExtractor:
 
             try:
                 with _CancellableYoutubeDL(ydl_opts, cancel_event=cancel_event) as ydl:
+                    if cookiejar is not None:
+                        ydl.cookiejar = cookiejar
                     if ydl_ref is not None:
                         ydl_ref[0] = ydl
                     if cancel_event and cancel_event.is_set():

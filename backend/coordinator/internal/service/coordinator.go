@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -33,6 +34,7 @@ type Coordinator struct {
 	pinnedTasks       sync.Map // map[task ID]Storage worker ID for durable controls
 	busyControls      sync.Map // map[task ID]struct{}; completion must not idle an active archive worker
 	abandonedPreviews sync.Map // active previews waiting for cancellation acknowledgement
+	pendingRPC        sync.Map // map[requestID (string)]chan protocol.Message
 	storageInfo       struct {
 		sync.RWMutex
 		workerID string
@@ -615,4 +617,159 @@ func newID() string {
 		return fmt.Sprintf("task-%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(bytes)
+}
+
+func (c *Coordinator) GetWorker(id string) (worker.Worker, bool) {
+	return c.workers.Get(id)
+}
+
+func (c *Coordinator) CallWorkerRPC(ctx context.Context, workerID string, msg protocol.Message) (protocol.Message, error) {
+	registered, exists := c.workers.Get(workerID)
+	if !exists {
+		return protocol.Message{}, fmt.Errorf("worker is unavailable")
+	}
+	if msg.TaskID == "" {
+		msg.TaskID = newID()
+	}
+	ch := make(chan protocol.Message, 1)
+	c.pendingRPC.Store(msg.TaskID, ch)
+	defer c.pendingRPC.Delete(msg.TaskID)
+
+	if err := registered.Sender.Send(msg); err != nil {
+		c.WorkerDisconnected(workerID)
+		return protocol.Message{}, fmt.Errorf("failed to send message to worker: %w", err)
+	}
+
+	select {
+	case <-ctx.Done():
+		return protocol.Message{}, ctx.Err()
+	case resp := <-ch:
+		return resp, nil
+	}
+}
+
+func (c *Coordinator) ResolveRPC(taskID string, resp protocol.Message) bool {
+	if val, ok := c.pendingRPC.Load(taskID); ok {
+		ch := val.(chan protocol.Message)
+		select {
+		case ch <- resp:
+		default:
+		}
+		return true
+	}
+	return false
+}
+
+func (c *Coordinator) GetCookieStatus(ctx context.Context, platform string) (protocol.CookieStatusResult, error) {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return protocol.CookieStatusResult{}, fmt.Errorf("platform is required")
+	}
+	storageWorker, ok := c.workers.AnyFor(string(protocol.DownloadFile))
+	if !ok {
+		return protocol.CookieStatusResult{}, fmt.Errorf("storage worker is unavailable")
+	}
+	payload := mustJSON(protocol.CookieRequestPayload{Platform: platform})
+	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
+		Type:    protocol.CookieStatus,
+		Payload: payload,
+	})
+	if err != nil {
+		return protocol.CookieStatusResult{}, err
+	}
+	if resp.Error != nil {
+		return protocol.CookieStatusResult{}, fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message)
+	}
+	var res protocol.CookieStatusResult
+	if err := json.Unmarshal(resp.Result, &res); err != nil {
+		return protocol.CookieStatusResult{}, fmt.Errorf("invalid response from storage worker: %w", err)
+	}
+	return res, nil
+}
+
+func (c *Coordinator) SaveCookies(ctx context.Context, platform, cookies string) (protocol.CookieSaveResult, error) {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return protocol.CookieSaveResult{}, fmt.Errorf("platform is required")
+	}
+	if strings.TrimSpace(cookies) == "" {
+		return protocol.CookieSaveResult{}, fmt.Errorf("cookies cannot be empty")
+	}
+	storageWorker, ok := c.workers.AnyFor(string(protocol.DownloadFile))
+	if !ok {
+		return protocol.CookieSaveResult{}, fmt.Errorf("storage worker is unavailable")
+	}
+	payload := mustJSON(protocol.CookieRequestPayload{Platform: platform, Cookies: cookies})
+	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
+		Type:    protocol.CookieSave,
+		Payload: payload,
+	})
+	if err != nil {
+		return protocol.CookieSaveResult{}, err
+	}
+	if resp.Error != nil {
+		return protocol.CookieSaveResult{}, fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message)
+	}
+	var res protocol.CookieSaveResult
+	if err := json.Unmarshal(resp.Result, &res); err != nil {
+		return protocol.CookieSaveResult{}, fmt.Errorf("invalid response from storage worker: %w", err)
+	}
+	return res, nil
+}
+
+func (c *Coordinator) GetCookieContent(ctx context.Context, platform string) (protocol.CookieGetResult, error) {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return protocol.CookieGetResult{}, fmt.Errorf("platform is required")
+	}
+	storageWorker, ok := c.workers.AnyFor(string(protocol.DownloadFile))
+	if !ok {
+		return protocol.CookieGetResult{}, fmt.Errorf("storage worker is unavailable")
+	}
+	payload := mustJSON(protocol.CookieRequestPayload{Platform: platform})
+	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
+		Type:    protocol.CookieGet,
+		Payload: payload,
+	})
+	if err != nil {
+		return protocol.CookieGetResult{}, err
+	}
+	if resp.Error != nil {
+		return protocol.CookieGetResult{}, fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message)
+	}
+	var res protocol.CookieGetResult
+	if err := json.Unmarshal(resp.Result, &res); err != nil {
+		return protocol.CookieGetResult{}, fmt.Errorf("invalid response from storage worker: %w", err)
+	}
+	return res, nil
+}
+
+func (c *Coordinator) VerifyCookies(ctx context.Context, platform, cookies string) (protocol.CookieVerifyResult, error) {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return protocol.CookieVerifyResult{}, fmt.Errorf("platform is required")
+	}
+	if strings.TrimSpace(cookies) == "" {
+		return protocol.CookieVerifyResult{}, fmt.Errorf("cookies cannot be empty")
+	}
+	downloadWorker, ok := c.workers.AnyFor(string(protocol.ResolveDownload))
+	if !ok {
+		return protocol.CookieVerifyResult{}, fmt.Errorf("download worker is unavailable")
+	}
+	payload := mustJSON(protocol.CookieRequestPayload{Platform: platform, Cookies: cookies})
+	resp, err := c.CallWorkerRPC(ctx, downloadWorker.ID, protocol.Message{
+		Type:    protocol.CookieVerify,
+		Payload: payload,
+	})
+	if err != nil {
+		return protocol.CookieVerifyResult{}, err
+	}
+	if resp.Error != nil {
+		return protocol.CookieVerifyResult{Valid: false, Message: resp.Error.Message}, nil
+	}
+	var res protocol.CookieVerifyResult
+	if err := json.Unmarshal(resp.Result, &res); err != nil {
+		return protocol.CookieVerifyResult{}, fmt.Errorf("invalid response from download worker: %w", err)
+	}
+	return res, nil
 }

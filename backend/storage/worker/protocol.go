@@ -22,6 +22,9 @@ const (
 	FilesystemEvent    = "filesystem_event"
 	StorageHistory     = "storage.history"
 	StorageInfoMessage = "storage.info"
+	CookieStatus       = "cookie.status"
+	CookieSave         = "cookie.save"
+	CookieGet          = "cookie.get"
 
 	CapabilityDownloadFile = "download_file"
 )
@@ -80,4 +83,26 @@ type StorageJobSnapshot struct {
 type ErrorPayload struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+type CookieRequestPayload struct {
+	Platform string `json:"platform"`
+	Cookies  string `json:"cookies,omitempty"`
+}
+
+type CookieStatusResult struct {
+	Platform  string     `json:"platform"`
+	Exists    bool       `json:"exists"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
+type CookieSaveResult struct {
+	Success   bool      `json:"success"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type CookieGetResult struct {
+	Platform string `json:"platform"`
+	Exists   bool   `json:"exists"`
+	Cookies  string `json:"cookies,omitempty"`
 }

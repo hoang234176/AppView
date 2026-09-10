@@ -6,55 +6,94 @@ or public coordinator events.
 
 from __future__ import annotations
 
+import asyncio
+import io
 import os
-import tempfile
 from typing import Any, Optional
 
-from services.youtube.errors import (
-    PlaylistNotSupportedError,
-    SourceAccessDeniedError,
-    SourceAuthRequiredError,
-    SourceNotFoundError,
-    YouTubeError,
-)
+import yt_dlp.cookies
 
-_TEMP_COOKIE_FILE: Optional[str] = None
+from services.youtube.errors import (
+	PlaylistNotSupportedError,
+	SourceAccessDeniedError,
+	SourceAuthRequiredError,
+	SourceNotFoundError,
+	YouTubeError,
+)
 
 
 def get_youtube_cookies_path() -> Optional[str]:
-    """Return path to YouTube cookie file if configured, otherwise None."""
-    global _TEMP_COOKIE_FILE
-
-    # 1. Directly configured path via environment variable
-    configured_path = os.environ.get("YOUTUBE_COOKIES_FILE")
-    if configured_path and os.path.isfile(configured_path):
-        return configured_path
-
-    # 2. Raw cookie content passed via environment variable
-    raw_cookies = os.environ.get("YOUTUBE_COOKIES")
-    if raw_cookies and raw_cookies.strip():
-        if _TEMP_COOKIE_FILE and os.path.isfile(_TEMP_COOKIE_FILE):
-            return _TEMP_COOKIE_FILE
-        # Write to secure temporary file with 0600 permissions
-        fd, path = tempfile.mkstemp(prefix="yt_cookies_", suffix=".txt")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(raw_cookies.strip())
-            os.chmod(path, 0o600)
-            _TEMP_COOKIE_FILE = path
-            return path
-        except Exception:
-            return None
-
-    return None
+	"""Return path to YouTube cookie file if configured via file path, otherwise None."""
+	configured_path = os.environ.get("YOUTUBE_COOKIES_FILE")
+	if configured_path and os.path.isfile(configured_path):
+		return configured_path
+	return None
 
 
 def get_youtube_ydl_auth_opts() -> dict[str, Any]:
-    """Return yt-dlp authentication options without exposing raw contents."""
-    cookie_path = get_youtube_cookies_path()
-    if cookie_path:
-        return {"cookiefile": cookie_path}
-    return {}
+	"""Return yt-dlp authentication options without exposing raw contents."""
+	cookie_path = get_youtube_cookies_path()
+	if cookie_path:
+		return {"cookiefile": cookie_path}
+	return {}
+
+
+def create_cookiejar_from_netscape(cookie_content: str) -> Optional[yt_dlp.cookies.YoutubeDLCookieJar]:
+	"""Parse Netscape cookie file content in-memory without touching the filesystem."""
+	if not cookie_content or not cookie_content.strip():
+		return None
+	try:
+		jar = yt_dlp.cookies.YoutubeDLCookieJar()
+		jar._really_load(io.StringIO(cookie_content), "in_memory", ignore_discard=True, ignore_expires=True)
+		if not list(jar):
+			return None
+		return jar
+	except Exception:
+		return None
+
+
+async def verify_youtube_cookies(raw_cookies: str) -> tuple[bool, str]:
+	"""Test candidate cookies against YouTube in-memory without filesystem access."""
+	if not raw_cookies or not raw_cookies.strip():
+		return False, "Nội dung cookies trống."
+
+	jar = create_cookiejar_from_netscape(raw_cookies)
+	if jar is None:
+		return False, "Định dạng cookies không hợp lệ. Vui lòng cung cấp định dạng Netscape cookie file."
+
+	yt_cookies = [c for c in jar if "youtube.com" in c.domain or "google.com" in c.domain]
+	if not yt_cookies:
+		return False, "Không tìm thấy cookies cho youtube.com hoặc google.com."
+
+	loop = asyncio.get_running_loop()
+	try:
+		return await loop.run_in_executor(None, _test_youtube_cookies_sync, jar)
+	except Exception as err:
+		return False, f"Xác thực thất bại: {err}"
+
+
+def _test_youtube_cookies_sync(jar: yt_dlp.cookies.YoutubeDLCookieJar) -> tuple[bool, str]:
+	import yt_dlp
+
+	ydl_opts: dict[str, Any] = {
+		"quiet": True,
+		"no_warnings": True,
+		"skip_download": True,
+		"extract_flat": True,
+		"socket_timeout": 10,
+	}
+	try:
+		ydl = yt_dlp.YoutubeDL(ydl_opts)
+		ydl.cookiejar = jar
+		info = ydl.extract_info("https://www.youtube.com/watch?v=dQw4w9WgXcQ", download=False)
+		if info and (info.get("id") or info.get("title")):
+			return True, "Xác thực cookies YouTube thành công."
+		return False, "Không thể xác thực cookies với YouTube."
+	except Exception as err:
+		error_msg = str(err).lower()
+		if any(w in error_msg for w in ["sign in", "login", "bot", "cookie", "forbidden", "permission"]):
+			return False, "Cookies YouTube không hợp lệ hoặc đã hết hạn."
+		return True, "Cookies hợp lệ."
 
 
 def classify_extraction_error(error_str: str) -> YouTubeError:
