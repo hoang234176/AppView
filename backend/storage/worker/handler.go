@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pythonapi "backend/api/python"
+	"backend/media_download/youtube"
 	"backend/utils"
 )
 
@@ -22,6 +23,47 @@ type ArchiveOperations interface {
 	Cancel(id string) bool
 	Snapshot(id string) (pythonapi.ArchiveJobSnapshot, bool)
 	Snapshots() []pythonapi.ArchiveJobSnapshot
+}
+
+// YouTubeOperations is the Storage-side business boundary for YouTube downloads.
+type YouTubeOperations interface {
+	Start(id, sourceURL, filename, destination, audioURL string, headers map[string]string) error
+	Cancel(id string) bool
+	SetVideoDecision(id, videoID, quality string) error
+	ApplyVideoDecisions(id string, decisions map[string]string) error
+	Snapshot(id string) (youtube.Snapshot, bool)
+	Snapshots() []youtube.Snapshot
+	SetCanonicalID(id, canonicalID string) bool
+}
+
+type youtubeOperations struct{}
+
+func (youtubeOperations) Start(id, sourceURL, filename, destination, audioURL string, headers map[string]string) error {
+	return youtube.StartJob(id, sourceURL, filename, destination, audioURL, headers)
+}
+
+func (youtubeOperations) Cancel(id string) bool {
+	return youtube.CancelJob(id)
+}
+
+func (youtubeOperations) SetVideoDecision(id, videoID, quality string) error {
+	return youtube.SetVideoDecision(id, videoID, quality)
+}
+
+func (youtubeOperations) ApplyVideoDecisions(id string, decisions map[string]string) error {
+	return youtube.ApplyVideoDecisions(id, decisions)
+}
+
+func (youtubeOperations) Snapshot(id string) (youtube.Snapshot, bool) {
+	return youtube.GetJobSnapshot(id)
+}
+
+func (youtubeOperations) Snapshots() []youtube.Snapshot {
+	return youtube.GetJobSnapshots()
+}
+
+func (youtubeOperations) SetCanonicalID(id, canonicalID string) bool {
+	return youtube.SetCanonicalID(id, canonicalID)
 }
 
 type archiveOperations struct{}
@@ -80,14 +122,21 @@ type SendFunc func(Message) error
 
 type Handler struct {
 	archive      ArchiveOperations
+	youtube      YouTubeOperations
 	pollInterval time.Duration
 }
 
-func NewHandler(archive ArchiveOperations) *Handler {
+func NewHandler(archive ArchiveOperations, youtubeOps ...YouTubeOperations) *Handler {
 	if archive == nil {
 		archive = archiveOperations{}
 	}
-	return &Handler{archive: archive, pollInterval: time.Second}
+	var yt YouTubeOperations
+	if len(youtubeOps) > 0 && youtubeOps[0] != nil {
+		yt = youtubeOps[0]
+	} else {
+		yt = youtubeOperations{}
+	}
+	return &Handler{archive: archive, youtube: yt, pollInterval: time.Second}
 }
 
 func (h *Handler) Capabilities() []string {
@@ -95,10 +144,14 @@ func (h *Handler) Capabilities() []string {
 }
 
 func (h *Handler) History() StorageHistoryPayload {
-	snapshots := h.archive.Snapshots()
-	jobs := make([]StorageJobSnapshot, 0, len(snapshots))
-	for _, snapshot := range snapshots {
+	archiveSnapshots := h.archive.Snapshots()
+	ytSnapshots := h.youtube.Snapshots()
+	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots))
+	for _, snapshot := range archiveSnapshots {
 		jobs = append(jobs, storageSnapshot(snapshot))
+	}
+	for _, snapshot := range ytSnapshots {
+		jobs = append(jobs, youtubeStorageSnapshot(snapshot))
 	}
 	return StorageHistoryPayload{Jobs: jobs}
 }
@@ -114,6 +167,37 @@ func storageSnapshot(snapshot pythonapi.ArchiveJobSnapshot) StorageJobSnapshot {
 		OptimizationCancelled: snapshot.OptimizationCancelled, UnoptimizedVideoCount: snapshot.UnoptimizedVideoCount, CancelledFromStage: snapshot.CancelledFromStage,
 		Videos:    snapshot.Videos,
 		CreatedAt: snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt,
+	}
+}
+
+func youtubeStorageSnapshot(snapshot youtube.Snapshot) StorageJobSnapshot {
+	return StorageJobSnapshot{
+		ID:                    snapshot.ID,
+		CanonicalID:           snapshot.CanonicalID,
+		SourceURL:             safeHistoryURL(snapshot.URL),
+		Filename:              snapshot.Filename,
+		Destination:           snapshot.Destination,
+		State:                 snapshot.State,
+		DownloadedBytes:       snapshot.DownloadedBytes,
+		TotalBytes:            snapshot.TotalBytes,
+		SpeedBytes:            snapshot.SpeedBytes,
+		ExtractedPercent:      0,
+		ConversionTotal:       snapshot.Conversion.Total,
+		ConversionCurrent:     snapshot.Conversion.Current,
+		ConversionFailed:      snapshot.Conversion.Failed,
+		ErrorCode:             snapshot.ErrorCode,
+		Error:                 snapshot.Error,
+		PasswordRequired:      false,
+		ArchiveDownloaded:     false,
+		ArchiveExtracted:      false,
+		VideoScanState:        snapshot.VideoScanState,
+		TotalVideoCount:       snapshot.TotalVideoCount,
+		InvalidVideoCount:     snapshot.InvalidVideoCount,
+		OptimizationCancelled: snapshot.OptimizationCancelled,
+		CancelledFromStage:    snapshot.CancelledFromStage,
+		Videos:                snapshot.Videos,
+		CreatedAt:             snapshot.CreatedAt,
+		UpdatedAt:             snapshot.UpdatedAt,
 	}
 }
 
@@ -151,6 +235,21 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 	}
 	utils.LogEvent("INFO", "storage worker accepted download", map[string]any{"taskId": task.TaskID, "action": task.Action, "filename": request.Filename, "destination": request.Destination})
 	if err := send(Message{Type: TaskAccepted, TaskID: task.TaskID}); err != nil {
+		return
+	}
+
+	if isYouTubeRequest(request) {
+		if _, exists := h.youtube.Snapshot(task.TaskID); !exists {
+			utils.LogEvent("INFO", "storage youtube start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
+			if err := h.youtube.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.AudioURL, request.Headers); err != nil {
+				h.fail(send, task.TaskID, "STORAGE_START_FAILED", "Storage không thể bắt đầu tác vụ tải YouTube.")
+				return
+			}
+		}
+		if request.ParentJobID != "" {
+			h.youtube.SetCanonicalID(task.TaskID, request.ParentJobID)
+		}
+		h.monitor(ctx, task.TaskID, send)
 		return
 	}
 
@@ -204,6 +303,47 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 	if err := send(Message{Type: TaskAccepted, TaskID: controlTaskID}); err != nil {
 		return
 	}
+
+	if _, isYT := h.youtube.Snapshot(control.ArchiveTaskID); isYT {
+		var err error
+		if control.Operation == "video_decision" {
+			err = h.youtube.SetVideoDecision(control.ArchiveTaskID, control.VideoID, control.Quality)
+		} else if control.Operation == "video_apply" {
+			var decisions map[string]string
+			if len(control.Decisions) > 0 {
+				if unmarshalErr := json.Unmarshal(control.Decisions, &decisions); unmarshalErr != nil {
+					var str string
+					if json.Unmarshal(control.Decisions, &str) == nil {
+						_ = json.Unmarshal([]byte(str), &decisions)
+					}
+				}
+			}
+			err = h.youtube.ApplyVideoDecisions(control.ArchiveTaskID, decisions)
+		} else if control.Operation == "cancel" {
+			if !h.youtube.Cancel(control.ArchiveTaskID) {
+				err = fmt.Errorf("youtube job not found")
+			}
+		} else {
+			err = fmt.Errorf("thao tác %s không được hỗ trợ cho YouTube", control.Operation)
+		}
+
+		if err != nil {
+			h.fail(send, controlTaskID, "STORAGE_CONTROL_FAILED", err.Error())
+			return
+		}
+
+		if control.Operation == "video_decision" || control.Operation == "video_apply" {
+			if snapshot, ok := h.youtube.Snapshot(control.ArchiveTaskID); ok {
+				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{youtubeStorageSnapshot(snapshot)}}})
+			}
+			_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
+			return
+		}
+
+		h.monitor(ctx, control.ArchiveTaskID, send)
+		return
+	}
+
 	var err error
 	if control.Operation == "video_decision" {
 		operations, ok := h.archive.(videoDecisionOperations)
@@ -264,6 +404,15 @@ type downloadRequest struct {
 	Destination string            `json:"destination"`
 	Password    string            `json:"password"`
 	ParentJobID string            `json:"parentJobId"`
+	Source      string            `json:"source,omitempty"`
+}
+
+func isYouTubeRequest(request downloadRequest) bool {
+	if strings.EqualFold(strings.TrimSpace(request.Source), "youtube") {
+		return true
+	}
+	u := strings.ToLower(request.URL)
+	return strings.Contains(u, "googlevideo.com") || strings.Contains(u, "youtube.com") || strings.Contains(u, "youtu.be")
 }
 
 func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
@@ -276,6 +425,7 @@ func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
 	request.Filename = strings.TrimSpace(request.Filename)
 	request.Destination = strings.TrimSpace(request.Destination)
 	request.ParentJobID = strings.TrimSpace(request.ParentJobID)
+	request.Source = strings.TrimSpace(request.Source)
 	if request.URL == "" || request.Filename == "" {
 		return downloadRequest{}, fmt.Errorf("payload.url và payload.filename không được để trống")
 	}
@@ -283,6 +433,73 @@ func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
 }
 
 func (h *Handler) monitor(ctx context.Context, taskID string, send SendFunc) {
+	if _, isYT := h.youtube.Snapshot(taskID); isYT {
+		h.monitorYouTube(ctx, taskID, send)
+		return
+	}
+	h.monitorArchive(ctx, taskID, send)
+}
+
+func (h *Handler) monitorYouTube(ctx context.Context, taskID string, send SendFunc) {
+	for {
+		snapshot, exists := h.youtube.Snapshot(taskID)
+		if !exists {
+			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ YouTube được giao.")
+			return
+		}
+		if err := send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{youtubeStorageSnapshot(snapshot)}}}); err != nil {
+			return
+		}
+
+		switch snapshot.State {
+		case "completed":
+			utils.LogEvent("INFO", "storage youtube completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
+				"jobId":    snapshot.ID,
+				"filename": snapshot.Filename,
+				"state":    snapshot.State,
+				"conversion": map[string]int{
+					"total": snapshot.Conversion.Total, "current": snapshot.Conversion.Current, "failed": snapshot.Conversion.Failed,
+				},
+			}})
+			return
+		case "cancelled":
+			utils.LogEvent("WARN", "storage youtube cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ YouTube đã bị hủy cục bộ.")
+			return
+		case "error":
+			utils.LogEvent("ERROR", "storage youtube failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải YouTube.")
+			return
+		default:
+			utils.LogEvent("DEBUG", "storage youtube progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
+				"state":           snapshot.State,
+				"filename":        snapshot.Filename,
+				"downloadedBytes": snapshot.DownloadedBytes,
+				"totalBytes":      snapshot.TotalBytes,
+				"speedBytes":      snapshot.SpeedBytes,
+				"conversion": map[string]int{
+					"total": snapshot.Conversion.Total, "current": snapshot.Conversion.Current, "failed": snapshot.Conversion.Failed,
+				},
+			}}); err != nil {
+				return
+			}
+		}
+
+		interval := h.pollInterval
+		if interval <= 0 {
+			interval = time.Millisecond
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+		}
+	}
+}
+
+func (h *Handler) monitorArchive(ctx context.Context, taskID string, send SendFunc) {
 	for {
 		snapshot, exists := h.archive.Snapshot(taskID)
 		if !exists {

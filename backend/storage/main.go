@@ -9,6 +9,7 @@ import (
 
 	pythonapi "backend/api/python"
 	"backend/configs"
+	"backend/media_download/youtube"
 	"backend/routes"
 	"backend/utils"
 	"backend/worker"
@@ -20,6 +21,7 @@ import (
 func main() {
 	configs.LoadEnvironment()
 	pythonapi.LoadPersistentArchiveJobs()
+	youtube.LoadPersistentJobs()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

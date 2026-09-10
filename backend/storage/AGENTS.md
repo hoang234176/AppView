@@ -41,13 +41,22 @@ It is local-first by design and MUST NOT be redesigned to a remote storage servi
 - `.original-video/` and legacy `original-video/` MUST be excluded from recursive video discovery.
 - Finalization and cancellation preserve `.original-video/` at destination alongside converted/unoptimized media.
 
+## Platform media vs archive downloads
+
+- Archive and platform-media downloads are separate processing flows.
+- Platform-specific Storage flows live under `media_download/<platform>` (e.g. `media_download/youtube`).
+- Do not route future platform media through archive processing.
+- Do not introduce a generic shared social-media flow prematurely.
+- YouTube runtime state lives at `APPVIEW_STATE_DIR/media_download/youtube/jobs/<id>.json` and workspaces at `media_download/youtube/workspaces/<id>/`.
+- YouTube downloads commit directly to the destination as a media file, never creating an intermediate directory named after the video.
+
 ## Worker adapter invariants
 
 - Registers only `download_file`; re-registers after reconnect.
-- Payload: `{ "url", "filename", "destination" (relative, optional), "password" (optional) }`.
-- Delegates entirely to `pythonapi.StartArchiveJob`; does not implement a separate downloader.
+- Payload: `{ "url", "filename", "destination" (relative, optional), "password" (optional), "audioUrl" (optional), "headers" (optional), "source" (optional) }`.
+- Archive payloads delegate to `pythonapi.StartArchiveJob`; platform media payloads (e.g. `source: "youtube"`) route to `media_download/youtube`.
 - Sends metadata-only progress (snapshot-derived); MUST NOT send file bytes or local filesystem paths on the WebSocket.
-- Worker cancellation/disconnect stops monitoring only — does not cancel an in-progress archive job (Coordinator can safely requeue/reattach).
+- Worker cancellation/disconnect stops monitoring only — does not cancel an in-progress archive or YouTube job (Coordinator can safely requeue/reattach).
 - Finite dial timeouts and bounded reconnect backoff — Coordinator outage MUST NOT crash Fiber.
 
 ## Logging

@@ -110,7 +110,7 @@ var archiveJobs = struct {
 	items map[string]*ArchiveJob
 }{items: make(map[string]*ArchiveJob)}
 
-func safeArchivePath(relative string) (string, error) {
+func SafeArchivePath(relative string) (string, error) {
 	root := filepath.Clean(configs.DEFAULT_ROOT_PATH)
 	// Public clients use absolute logical paths below Storage's configured root
 	// (for example /Test or /Albums/Test). No library segment is implicit.
@@ -130,6 +130,10 @@ func safeArchivePath(relative string) (string, error) {
 		return "", fmt.Errorf("đường dẫn đích nằm ngoài thư mục lưu trữ")
 	}
 	return path, nil
+}
+
+func safeArchivePath(relative string) (string, error) {
+	return SafeArchivePath(relative)
 }
 
 func archiveTempDir() (string, error) { return configs.AppViewStateDir() }
@@ -1059,10 +1063,14 @@ func commitArchiveResultWithContext(ctx context.Context, job *ArchiveJob) error 
 	}
 	// The SSD workspace is private. Emit one public destination invalidation
 	// only after its atomic final rename has succeeded.
-	publicPath := filepath.ToSlash(filepath.Join(job.Destination, filepath.Base(finalPath)))
-	parentPath := filepath.ToSlash(filepath.Clean(job.Destination))
-	if parentPath == "." {
-		parentPath = ""
+	cleanDest := strings.Trim(filepath.ToSlash(filepath.Clean(job.Destination)), "/")
+	if cleanDest == "." {
+		cleanDest = ""
+	}
+	parentPath := cleanDest
+	publicPath := filepath.Base(finalPath)
+	if parentPath != "" {
+		publicPath = parentPath + "/" + filepath.Base(finalPath)
 	}
 	if err := events.Publish(events.FilesystemEvent{Type: "folder_created", Path: publicPath, NewPath: publicPath, ParentPath: parentPath}); err != nil {
 		LogInfo("[ARCHIVE] [%s] không phát được filesystem event sau commit: %v", job.ID, err)

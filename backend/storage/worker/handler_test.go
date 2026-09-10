@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pythonapi "backend/api/python"
+	"backend/media_download/youtube"
 )
 
 type fakeArchiveOperations struct {
@@ -179,5 +180,127 @@ func TestHandlerCancellationStopsMonitoringWithoutCancellingArchive(t *testing.T
 	}
 	if archive.started {
 		t.Fatal("existing archive job must not be cancelled or restarted on worker shutdown")
+	}
+}
+
+type fakeYouTubeOperations struct {
+	started   bool
+	cancelled bool
+	decided   bool
+	applied   bool
+	snapshots map[string]youtube.Snapshot
+}
+
+func (f *fakeYouTubeOperations) Start(id, sourceURL, filename, destination, audioURL string, headers map[string]string) error {
+	f.started = true
+	if f.snapshots == nil {
+		f.snapshots = make(map[string]youtube.Snapshot)
+	}
+	f.snapshots[id] = youtube.Snapshot{
+		ID:       id,
+		State:    "completed",
+		Filename: filename,
+	}
+	return nil
+}
+
+func (f *fakeYouTubeOperations) Cancel(id string) bool {
+	f.cancelled = true
+	return true
+}
+
+func (f *fakeYouTubeOperations) SetVideoDecision(id, videoID, quality string) error {
+	f.decided = true
+	return nil
+}
+
+func (f *fakeYouTubeOperations) ApplyVideoDecisions(id string, decisions map[string]string) error {
+	f.applied = true
+	return nil
+}
+
+func (f *fakeYouTubeOperations) Snapshot(id string) (youtube.Snapshot, bool) {
+	s, ok := f.snapshots[id]
+	return s, ok
+}
+
+func (f *fakeYouTubeOperations) Snapshots() []youtube.Snapshot {
+	res := make([]youtube.Snapshot, 0, len(f.snapshots))
+	for _, s := range f.snapshots {
+		res = append(res, s)
+	}
+	return res
+}
+
+func (f *fakeYouTubeOperations) SetCanonicalID(id, canonicalID string) bool {
+	return true
+}
+
+func TestHandlerRoutesYouTubeTaskToYouTubeOperations(t *testing.T) {
+	archive := &fakeArchiveOperations{snapshots: map[string]pythonapi.ArchiveJobSnapshot{}}
+	yt := &fakeYouTubeOperations{snapshots: map[string]youtube.Snapshot{}}
+	handler := NewHandler(archive, yt)
+	handler.pollInterval = time.Millisecond
+
+	var sent []Message
+	handler.Handle(context.Background(), Message{
+		Type:   TaskAssign,
+		TaskID: "yt-task-1",
+		Action: CapabilityDownloadFile,
+		Payload: []byte(`{"url":"https://rr1---sn-example.googlevideo.com/videoplayback","filename":"video.mp4","source":"youtube"}`),
+	}, collect(&sent))
+
+	if !yt.started {
+		t.Fatal("YouTube task was NOT routed to youtube operations")
+	}
+	if archive.started {
+		t.Fatal("YouTube task was unexpectedly routed to archive operations!")
+	}
+
+	// Test control delegation to YouTube
+	ytControl := &fakeYouTubeOperations{
+		snapshots: map[string]youtube.Snapshot{
+			"yt-task-2": {ID: "yt-task-2", State: "video_decision_required"},
+		},
+	}
+	handlerControl := NewHandler(archive, ytControl)
+	var controlSent []Message
+
+	handlerControl.Handle(context.Background(), Message{
+		Type:   TaskAssign,
+		TaskID: "control-1",
+		Action: CapabilityDownloadFile,
+		Payload: []byte(`{"operation":"video_apply","archiveTaskId":"yt-task-2","decisions":{"vid1":"1080p"}}`),
+	}, collect(&controlSent))
+
+	if !ytControl.applied {
+		t.Fatal("video_apply was not delegated to YouTube operations")
+	}
+}
+
+func TestHandlerRoutesArchiveTaskToArchiveOperations(t *testing.T) {
+	archive := &fakeArchiveOperations{
+		snapshots: map[string]pythonapi.ArchiveJobSnapshot{},
+		startSnapshot: &pythonapi.ArchiveJobSnapshot{
+			State: "completed",
+		},
+	}
+	yt := &fakeYouTubeOperations{snapshots: map[string]youtube.Snapshot{}}
+	handler := NewHandler(archive, yt)
+	handler.pollInterval = time.Millisecond
+
+	var sent []Message
+	handler.Handle(context.Background(), Message{
+		Type:   TaskAssign,
+		TaskID: "archive-task-1",
+		Action: CapabilityDownloadFile,
+		Payload: []byte(`{"url":"https://download.mediafire.com/file.zip","filename":"file.zip"}`),
+	}, collect(&sent))
+
+	if !archive.started {
+		t.Fatal("Archive task was NOT routed to archive operations")
+	}
+	if yt.started {
+		t.Fatal("Archive task was unexpectedly routed to youtube operations!")
 	}
 }
