@@ -189,19 +189,19 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
                                 },
                               )
                             : null,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         filled: true,
-                        fillColor: AppTheme.bgCard,
+                        fillColor: AppTheme.bgInput,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
                           borderSide: const BorderSide(color: AppTheme.borderColor),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
                           borderSide: const BorderSide(color: AppTheme.borderColor),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
                           borderSide: const BorderSide(color: AppTheme.googleBlue, width: 1.5),
                         ),
                       ),

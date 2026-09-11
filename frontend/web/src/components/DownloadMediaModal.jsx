@@ -4,8 +4,10 @@ import {
   X,
   AlertCircle,
   Loader2,
-  Film,
-  ArrowLeft
+  Images,
+  ArrowLeft,
+  Clipboard,
+  ClipboardCheck
 } from 'lucide-react';
 import { previewMediaDownload, startMediaDownload } from '../api/downloadApi';
 import { canonicalDownloadDestination } from '../utils/downloadDestination';
@@ -25,8 +27,27 @@ export const DownloadMediaModal = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState(currentPath || '');
+  const [pasted, setPasted] = useState(false);
   const operation = useRef(null);
   const mounted = useRef(true);
+
+  const handlePaste = async () => {
+    try {
+      if (navigator?.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          setUrl(text.trim());
+          setError('');
+          setPasted(true);
+          setTimeout(() => {
+            if (mounted.current) setPasted(false);
+          }, 1500);
+        }
+      }
+    } catch {
+      // Clipboard permissions denied or unavailable
+    }
+  };
 
   useEffect(() => {
     mounted.current = true;
@@ -103,12 +124,9 @@ export const DownloadMediaModal = ({
         <div className="flex items-center justify-between pb-3 border-b border-[#383c42]">
           <div className="flex items-center gap-2.5">
             <div className="p-2.5 bg-rose-500/15 rounded-full border border-rose-500/30 text-rose-400">
-              <Film className="w-5 h-5" />
+              <Images className="w-5 h-5" />
             </div>
-            <div>
-              <h3 id="media-download-title" className="text-sm font-bold text-white">Tải ảnh/video</h3>
-              <p className="text-[11px] text-gray-400">YouTube</p>
-            </div>
+            <h3 id="media-download-title" className="text-sm font-bold text-white">Tải ảnh/video</h3>
           </div>
 
           <button
@@ -135,19 +153,56 @@ export const DownloadMediaModal = ({
               {/* URL Input */}
               <div>
                 <label className="block text-gray-300 font-semibold mb-1" htmlFor="media-url">
-                  Liên kết YouTube:
+                  Dán liên kết MXH
                 </label>
-                <input
-                  id="media-url"
-                  type="url"
-                  required
-                  autoFocus
-                  value={url}
-                  disabled={busy}
-                  onChange={(event) => setUrl(event.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full bg-[#202124] border border-[#383c42] focus:border-rose-400 rounded-xl px-3 py-2 text-white font-mono placeholder-gray-500 outline-none"
-                />
+                <div className="relative flex items-center">
+                  <input
+                    id="media-url"
+                    type="url"
+                    required
+                    autoFocus
+                    value={url}
+                    disabled={busy}
+                    onChange={(event) => setUrl(event.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-[#202124] border border-[#383c42] focus:border-rose-400 rounded-xl pl-3 pr-20 py-2 text-white font-mono placeholder-gray-500 outline-none"
+                  />
+                  <div className="absolute right-1.5 flex items-center gap-1">
+                    {url ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUrl('');
+                          setError('');
+                        }}
+                        disabled={busy}
+                        className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                        title="Xóa"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={handlePaste}
+                      disabled={busy}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 transition-colors"
+                      title="Dán từ Clipboard"
+                    >
+                      {pasted ? (
+                        <>
+                          <ClipboardCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">Đã dán</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clipboard className="w-3.5 h-3.5" />
+                          <span>Dán</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Interactive Folder Tree Selector */}

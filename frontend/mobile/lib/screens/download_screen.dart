@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/download_provider.dart';
@@ -184,8 +185,10 @@ class _AddMediaFireArchiveDialogState
                 const SizedBox(height: 4),
                 TextField(
                   controller: _urlController,
-                  autofocus: true,
-                  textInputAction: TextInputAction.next,
+                  autofocus: false,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                  onChanged: (_) => setState(() {}),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,
@@ -198,14 +201,80 @@ class _AddMediaFireArchiveDialogState
                       fontSize: 12,
                     ),
                     filled: true,
-                    fillColor: AppTheme.bgCard,
+                    fillColor: AppTheme.bgInput,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
+                      horizontal: 14,
                       vertical: 10,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: const BorderSide(color: AppTheme.borderColor),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: AppTheme.borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: AppTheme.googleBlue, width: 1.5),
+                    ),
+                    suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                    suffixIcon: Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_urlController.text.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.clear_rounded, size: 16),
+                              color: Colors.white54,
+                              splashRadius: 14,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                              tooltip: 'Xóa',
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _urlController.clear();
+                                        _errorMessage = null;
+                                      });
+                                    },
+                            ),
+                          Material(
+                            color: const Color(0xFF3B82F6).withValues(alpha: 0.10), // blue-500/10
+                            borderRadius: BorderRadius.circular(8),
+                            child: InkWell(
+                              onTap: _isSubmitting
+                                  ? null
+                                  : () async {
+                                      final data = await Clipboard.getData(Clipboard.kTextPlain);
+                                      if (data?.text != null && data!.text!.trim().isNotEmpty) {
+                                        setState(() {
+                                          _urlController.text = data.text!.trim();
+                                          _errorMessage = null;
+                                        });
+                                      }
+                                    },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.20),
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.content_paste_rounded,
+                                  size: 14,
+                                  color: Color(0xFF60A5FA), // blue-400
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -247,14 +316,22 @@ class _AddMediaFireArchiveDialogState
                       fontSize: 12,
                     ),
                     filled: true,
-                    fillColor: AppTheme.bgCard,
+                    fillColor: AppTheme.bgInput,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
+                      horizontal: 14,
                       vertical: 10,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: const BorderSide(color: AppTheme.borderColor),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: AppTheme.borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: AppTheme.googleBlue, width: 1.5),
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(

@@ -157,7 +157,7 @@ class _FabSpeedDialState extends State<FabSpeedDial> with SingleTickerProviderSt
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: const Icon(Icons.video_library_rounded, color: Colors.redAccent, size: 20),
+                  child: const Icon(Icons.perm_media_rounded, color: Colors.redAccent, size: 20),
                 ),
               ],
             ),

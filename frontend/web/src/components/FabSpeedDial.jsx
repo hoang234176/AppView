@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, FolderPlus, Archive, Video } from 'lucide-react';
+import { Plus, FolderPlus, Archive, Images } from 'lucide-react';
 
 export const FabSpeedDial = ({ onCreateFolder, onDownloadArchive, onDownloadMedia }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -49,7 +49,7 @@ export const FabSpeedDial = ({ onCreateFolder, onDownloadArchive, onDownloadMedi
           >
             <span className="text-xs font-bold text-gray-200 group-hover:text-rose-300">Tải ảnh/video</span>
             <div className="w-8 h-8 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center">
-              <Video className="w-4 h-4" />
+              <Images className="w-4 h-4" />
             </div>
           </button>
 

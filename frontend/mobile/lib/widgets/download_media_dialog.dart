@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../api/download_api.dart';
 import '../providers/download_provider.dart';
@@ -34,6 +35,9 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
   void initState() {
     super.initState();
     _destination = widget.currentPath;
+    _url.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -41,6 +45,17 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
     _previewCancel?.cancel();
     _url.dispose();
     super.dispose();
+  }
+
+  Future<void> _handlePaste() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim();
+    if (text != null && text.isNotEmpty) {
+      setState(() {
+        _url.text = text;
+        _error = null;
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -118,7 +133,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
         child: AlertDialog(
           backgroundColor: AppTheme.bgBlock,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(28),
             side: const BorderSide(color: AppTheme.borderColor),
           ),
           title: Row(
@@ -133,33 +148,19 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                   ),
                 ),
                 child: const Icon(
-                  Icons.movie_creation_outlined,
+                  Icons.perm_media_rounded,
                   color: Colors.redAccent,
                   size: 18,
                 ),
               ),
               const SizedBox(width: 10),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Tải ảnh/video',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    'YouTube',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.white54,
-                      fontWeight: FontWeight.normal,
-                    ),
-                  ),
-                ],
+              const Text(
+                'Tải ảnh/video',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
@@ -195,7 +196,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
 
                   if (preview == null) ...[
                     const Text(
-                      'Liên kết YouTube:',
+                      'Dán liên kết MXH',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
@@ -205,31 +206,87 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                     const SizedBox(height: 4),
                     TextField(
                       controller: _url,
-                      autofocus: true,
+                      autofocus: false,
                       enabled: !_busy,
                       keyboardType: TextInputType.url,
                       textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _submit(),
+                      onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
                         fontFamily: 'monospace',
                       ),
                       decoration: InputDecoration(
-                        hintText: 'https://www.youtube.com/watch?v=...',
+                        hintText: 'https://...',
                         hintStyle: const TextStyle(
                           color: Colors.white38,
                           fontSize: 12,
                         ),
                         filled: true,
-                        fillColor: AppTheme.bgCard,
+                        fillColor: AppTheme.bgInput,
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+                          horizontal: 16,
+                          vertical: 11,
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
                           borderSide: const BorderSide(color: AppTheme.borderColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: AppTheme.borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: Color(0xFFFB7185), width: 1.5), // rose-400
+                        ),
+                        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_url.text.isNotEmpty)
+                                IconButton(
+                                  icon: const Icon(Icons.clear_rounded, size: 16),
+                                  color: Colors.white54,
+                                  splashRadius: 14,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                  tooltip: 'Xóa',
+                                  onPressed: _busy
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _url.clear();
+                                            _error = null;
+                                          });
+                                        },
+                                ),
+                              Material(
+                                color: const Color(0xFFF43F5E).withValues(alpha: 0.10), // rose-500/10
+                                borderRadius: BorderRadius.circular(8),
+                                child: InkWell(
+                                  onTap: _busy ? null : _handlePaste,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: const Color(0xFFF43F5E).withValues(alpha: 0.20),
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.content_paste_rounded,
+                                      size: 14,
+                                      color: Color(0xFFFB7185), // rose-400
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

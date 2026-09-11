@@ -25,9 +25,18 @@ class AppTheme {
   static const Color downloadSizeColor = Color(0xFF9CA3AF);
   static const Color downloadSpeedColor = Color(0xFF34D399);
 
-  // Global Rounded Radius
-  static const double radius = 24.0;
+  // Global Rounded Radius Tokens
+  static const double radius = 28.0;
   static final BorderRadius borderRadius = BorderRadius.circular(radius);
+  static const double radiusCard = 18.0;
+  static final BorderRadius borderRadiusCard = BorderRadius.circular(radiusCard);
+  static const double radiusPill = 999.0;
+  static final BorderRadius borderRadiusPill = BorderRadius.circular(radiusPill);
+
+  // Surface & Input Backgrounds
+  static const Color bgDialog = Color(0xFF1C1D21);
+  static const Color bgInput = Color(0xFF131417);
+  static const Color borderStroke = Color(0x1FFFFFFF); // Colors.white.withValues(alpha: 0.12)
 
   static ThemeData get darkTheme {
     return ThemeData(
@@ -55,7 +64,7 @@ class AppTheme {
         scrolledUnderElevation: 0,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: bgBlock,
+        backgroundColor: bgDialog,
         shape: RoundedRectangleBorder(
           borderRadius: borderRadius,
           side: const BorderSide(color: borderColor),
@@ -65,7 +74,7 @@ class AppTheme {
         color: bgCard,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: borderRadius,
+          borderRadius: borderRadiusCard,
           side: const BorderSide(color: borderColor),
         ),
       ),
@@ -82,22 +91,22 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: bgSearch,
-        hintStyle: const TextStyle(color: Color(0xFF9AA0A6), fontSize: 15),
+        fillColor: bgInput,
+        hintStyle: const TextStyle(color: Color(0xFF9AA0A6), fontSize: 13.5),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
+          horizontal: 18,
           vertical: 12,
         ),
         border: OutlineInputBorder(
-          borderRadius: borderRadius,
+          borderRadius: borderRadiusPill,
           borderSide: const BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: borderRadius,
+          borderRadius: borderRadiusPill,
           borderSide: const BorderSide(color: borderColor),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: borderRadius,
+          borderRadius: borderRadiusPill,
           borderSide: const BorderSide(color: googleBlue, width: 1.5),
         ),
       ),
@@ -105,20 +114,20 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: googleBlue,
           foregroundColor: const Color(0xFF1C1D21),
-          shape: RoundedRectangleBorder(borderRadius: borderRadius),
+          shape: const StadiumBorder(),
           elevation: 0,
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFFE8EAED),
-          backgroundColor: bgSearch,
+          backgroundColor: bgCard,
           side: const BorderSide(color: borderColor),
-          shape: RoundedRectangleBorder(borderRadius: borderRadius),
-          textStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: const StadiumBorder(),
+          textStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         ),
       ),
     );

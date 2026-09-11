@@ -6,7 +6,9 @@ import {
   AlertCircle,
   Loader2,
   Eye,
-  EyeOff
+  EyeOff,
+  Clipboard,
+  ClipboardCheck
 } from 'lucide-react';
 import { startArchiveDownload } from '../api/downloadApi';
 import { canonicalDownloadDestination } from '../utils/downloadDestination';
@@ -25,6 +27,7 @@ export const DownloadMediafireModal = ({
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [pasted, setPasted] = useState(false);
 
   // Auto-preselect current path when modal opens
   useEffect(() => {
@@ -36,6 +39,20 @@ export const DownloadMediafireModal = ({
   }, [isOpen, currentPath]);
 
   if (!isOpen) return null;
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setUrl(text.trim());
+        setErrorMsg(null);
+        setPasted(true);
+        setTimeout(() => setPasted(false), 1500);
+      }
+    } catch {
+      // Clipboard access denied or unsupported
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -60,23 +77,17 @@ export const DownloadMediafireModal = ({
     const res = await startArchiveDownload(url.trim(), canonicalDownloadDestination(destination), password.trim() || null);
 
     setIsSubmitting(false);
-
     if (res.success) {
-      setUrl('');
-      setPassword('');
+      onSuccess?.(res);
       onClose();
-      if (onSuccess) onSuccess(res.data);
     } else {
-      setErrorMsg(res.message);
+      setErrorMsg(res.message || 'Lỗi khi khởi tạo task tải xuống');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/80 animate-fade-in select-none">
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-[#1c1d21] border border-[#383c42] rounded-[28px] p-6 max-w-md w-full shadow-2xl space-y-4 animate-pop-fast"
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in select-none">
+      <div className="bg-[#1c1d21] border border-[#383c42] rounded-[28px] p-6 max-w-md w-full shadow-2xl space-y-4 animate-pop-fast">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#383c42]">
           <div className="flex items-center gap-2.5">
@@ -112,14 +123,52 @@ export const DownloadMediafireModal = ({
             <label className="block text-gray-300 font-semibold mb-1">
               Liên kết MediaFire:
             </label>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.mediafire.com/..."
-              required
-              className="w-full bg-[#202124] border border-[#383c42] focus:border-blue-400 rounded-xl px-3 py-2 text-white font-mono placeholder-gray-500 outline-none"
-            />
+            <div className="relative flex items-center">
+              <input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://www.mediafire.com/..."
+                required
+                disabled={isSubmitting}
+                className="w-full bg-[#202124] border border-[#383c42] focus:border-blue-400 rounded-xl pl-3 pr-24 py-2 text-white font-mono placeholder-gray-500 outline-none"
+              />
+              <div className="absolute right-1.5 flex items-center gap-1">
+                {url ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUrl('');
+                      setErrorMsg(null);
+                    }}
+                    disabled={isSubmitting}
+                    className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                    title="Xóa"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handlePaste}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 transition-colors"
+                  title="Dán từ Clipboard"
+                >
+                  {pasted ? (
+                    <>
+                      <ClipboardCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400">Đã dán</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clipboard className="w-3.5 h-3.5" />
+                      <span>Dán</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Interactive Folder Tree Selector */}
