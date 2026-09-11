@@ -99,11 +99,13 @@ func (c *Coordinator) createTask(action string, payload json.RawMessage, retryab
 func (c *Coordinator) GetTask(id string) (task.Task, bool) { return c.tasks.Get(id) }
 
 type DownloadRequest struct {
-	URL         string
-	Filename    string
-	Destination string
-	Password    string
-	Quality     int
+	URL             string
+	Filename        string
+	Destination     string
+	Password        string
+	Quality         int
+	SelectedIndices []int
+	MediaType       string
 }
 
 func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, error) {
@@ -126,6 +128,12 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 	resolvePayload := map[string]any{"url": request.URL}
 	if request.Quality > 0 {
 		resolvePayload["quality"] = request.Quality
+	}
+	if len(request.SelectedIndices) > 0 {
+		resolvePayload["selected_indices"] = request.SelectedIndices
+	}
+	if strings.TrimSpace(request.MediaType) != "" {
+		resolvePayload["media_type"] = strings.TrimSpace(request.MediaType)
 	}
 	createdTask, err := c.createTask(string(protocol.ResolveDownload), mustJSON(resolvePayload), true, 0, func(child task.Task) error {
 		return c.downloads.AttachResolve(created.ID, child.ID)
@@ -490,6 +498,7 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 			Headers     map[string]string `json:"headers,omitempty"`
 			Filename    string            `json:"filename"`
 			Source      string            `json:"source,omitempty"`
+			Items       []any             `json:"items,omitempty"`
 		}
 		if err := json.Unmarshal(completed.Result, &result); err != nil {
 			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver returned an invalid result"})
@@ -506,7 +515,7 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 				safeHeaders[k] = v
 			}
 		}
-		job, storageRequest, shouldCreate, err := c.downloads.PrepareStorage(completed.ID, strings.TrimSpace(result.DownloadURL), strings.TrimSpace(result.Filename), strings.TrimSpace(result.AudioURL), safeHeaders, strings.TrimSpace(result.Source))
+		job, storageRequest, shouldCreate, err := c.downloads.PrepareStorage(completed.ID, strings.TrimSpace(result.DownloadURL), strings.TrimSpace(result.Filename), strings.TrimSpace(result.AudioURL), safeHeaders, strings.TrimSpace(result.Source), result.Items)
 		if err != nil {
 			c.downloads.FailChild(completed.ID, &protocol.ErrorPayload{Code: "INVALID_RESOLVE_RESULT", Message: "resolver result is missing required download metadata"})
 			if failedJob, ok := c.downloads.JobForChild(completed.ID); ok {
@@ -530,6 +539,9 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 		}
 		if storageRequest.Source != "" {
 			payloadMap["source"] = storageRequest.Source
+		}
+		if len(storageRequest.Items) > 0 {
+			payloadMap["items"] = storageRequest.Items
 		}
 		payload := mustJSON(payloadMap)
 		if storageTask, err := c.createTask(string(protocol.DownloadFile), payload, true, 0, func(child task.Task) error {

@@ -229,6 +229,9 @@ class CoordinatorWorkerClient:
         if platform == "youtube":
             from services.youtube.auth import verify_youtube_cookies
             valid, message_str = await verify_youtube_cookies(raw_cookies)
+        elif platform == "tiktok":
+            from services.tiktok.auth import verify_tiktok_cookies
+            valid, message_str = await verify_tiktok_cookies(raw_cookies)
 
         with suppress(Exception):
             await self.send(message(COOKIE_VERIFY, taskId=task_id, result={"valid": valid, "message": message_str}))

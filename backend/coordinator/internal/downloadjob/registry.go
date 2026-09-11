@@ -190,7 +190,7 @@ func (r *Registry) AttachResolve(jobID, taskID string) error {
 // PrepareStorage marks the one permitted transition before a storage child is
 // created. This makes duplicate resolve completions harmless even if callers
 // race: only the first one obtains shouldCreate=true.
-func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, audioURL string, headers map[string]string, source string) (Job, StorageRequest, bool, error) {
+func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, audioURL string, headers map[string]string, source string, items ...[]any) (Job, StorageRequest, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	ref, ok := r.children[resolveTaskID]
@@ -210,11 +210,19 @@ func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, 
 	job.Filename, job.DisplayName = filename, filename
 	if strings.TrimSpace(source) != "" {
 		job.Source = strings.TrimSpace(source)
-	} else if job.Source == "" && (strings.Contains(job.URL, "youtube.com") || strings.Contains(job.URL, "youtu.be")) {
-		job.Source = "youtube"
+	} else if job.Source == "" {
+		if strings.Contains(job.URL, "youtube.com") || strings.Contains(job.URL, "youtu.be") {
+			job.Source = "youtube"
+		} else if strings.Contains(job.URL, "tiktok.com") {
+			job.Source = "tiktok"
+		}
 	}
 	job.State, job.Stage, job.storagePending, job.UpdatedAt = Downloading, string(Downloading), true, time.Now().UTC()
 	r.jobs[job.ID] = job
+	var itemList []any
+	if len(items) > 0 && items[0] != nil {
+		itemList = items[0]
+	}
 	return job.Clone(), StorageRequest{
 		URL:         resolvedURL,
 		AudioURL:    strings.TrimSpace(audioURL),
@@ -222,7 +230,8 @@ func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, 
 		Filename:    filename,
 		Destination: job.Destination,
 		Password:    job.password,
-		Source:      strings.TrimSpace(source),
+		Source:      strings.TrimSpace(job.Source),
+		Items:       itemList,
 	}, true, nil
 }
 

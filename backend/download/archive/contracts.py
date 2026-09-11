@@ -19,6 +19,8 @@ class ResolvedDownload:
     audio_url: Optional[str] = None
     headers: Optional[dict[str, str]] = None
     source: str = "archive"
+    items: Optional[list[dict[str, Any]]] = None
+
 
 
 class DownloadResolver(Protocol):

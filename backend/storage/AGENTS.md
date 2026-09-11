@@ -49,6 +49,8 @@ It is local-first by design and MUST NOT be redesigned to a remote storage servi
 - Do not introduce a generic shared social-media flow prematurely.
 - YouTube runtime state lives at `APPVIEW_STATE_DIR/media_download/youtube/jobs/<id>.json` and workspaces at `media_download/youtube/workspaces/<id>/`.
 - YouTube downloads commit directly to the destination as a media file, never creating an intermediate directory named after the video.
+- TikTok runtime state lives at `APPVIEW_STATE_DIR/media_download/tiktok/jobs/<id>.json` and workspaces at `media_download/tiktok/workspaces/<id>/`.
+- TikTok video and photo downloads commit directly to destination without creating subfolders.
 
 ## Worker adapter invariants
 

@@ -149,3 +149,91 @@ func TestSelectedSourceQualityOnlyReachesResolver(t *testing.T) {
 		t.Fatal("unsafe header forwarded")
 	}
 }
+
+func TestPreviewTikTokSlideshow(t *testing.T) {
+	c, resolver, _ := newDownloadCoordinator(t)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		preview, failure := c.PreviewDownload(context.Background(), "https://www.tiktok.com/@user/photo/123456")
+		if failure != nil {
+			t.Errorf("preview failed: %v", failure)
+			return
+		}
+		if preview.Source != "tiktok" || preview.Type != "slideshow" || len(preview.Images) != 2 || !preview.HasAudio {
+			t.Errorf("unexpected preview: %+v", preview)
+		}
+	}()
+	assignment := waitPreviewAssignment(t, resolver)
+	if err := c.TaskAccepted("resolver", assignment.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	resJSON := `{"source":"tiktok","type":"slideshow","title":"Slideshow Post","uploader":"creator","qualities":[],"images":[{"id":"1","url":"https://cdn/1.jpg"},{"id":"2","url":"https://cdn/2.jpg"}],"has_audio":true,"has_video":false}`
+	if err := c.TaskCompleted("resolver", assignment.TaskID, json.RawMessage(resJSON)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("tiktok preview timed out")
+	}
+}
+
+func TestCreateTikTokDownload_ForwardsItemsAndIndices(t *testing.T) {
+	c, resolver, storage := newDownloadCoordinator(t)
+	indices := []int{0, 2}
+	job, err := c.CreateDownload(DownloadRequest{
+		URL:             "https://www.tiktok.com/@user/photo/123",
+		Destination:     "/Photos/TikTok",
+		SelectedIndices: indices,
+		MediaType:       "images",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Source != "tiktok" {
+		t.Fatalf("job.Source = %q; want 'tiktok'", job.Source)
+	}
+
+	// Verify resolve task payload contains selected_indices and media_type
+	var req map[string]any
+	_ = json.Unmarshal(resolver.assignments()[0].Payload, &req)
+	if req["media_type"] != "images" {
+		t.Fatalf("media_type = %v; want 'images'", req["media_type"])
+	}
+	if err := c.TaskAccepted("resolver", job.ResolveTaskID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Resolve completes with items
+	resolveRes := `{
+		"source": "tiktok",
+		"downloadUrl": "https://cdn.example.com/1.jpg",
+		"filename": "TikTok Photo Post",
+		"items": [
+			{"url": "https://cdn.example.com/1.jpg", "filename": "01_photo.jpeg", "type": "image"},
+			{"url": "https://cdn.example.com/3.jpg", "filename": "02_photo.jpeg", "type": "image"}
+		],
+		"headers": {"User-Agent": "AppView"}
+	}`
+	if err := c.TaskCompleted("resolver", job.ResolveTaskID, json.RawMessage(resolveRes)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify storage assignment received items and source
+	if len(storage.assignments()) != 1 {
+		t.Fatalf("expected 1 storage assignment, got %d", len(storage.assignments()))
+	}
+	var storageTask map[string]any
+	_ = json.Unmarshal(storage.assignments()[0].Payload, &storageTask)
+	if storageTask["source"] != "tiktok" {
+		t.Errorf("storageTask.source = %v; want 'tiktok'", storageTask["source"])
+	}
+	if storageTask["destination"] != "/Photos/TikTok" {
+		t.Errorf("storageTask.destination = %v; want '/Photos/TikTok'", storageTask["destination"])
+	}
+	items, ok := storageTask["items"].([]any)
+	if !ok || len(items) != 2 {
+		t.Fatalf("storageTask.items = %v; want 2 items", storageTask["items"])
+	}
+}

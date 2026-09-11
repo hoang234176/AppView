@@ -11,14 +11,25 @@ import (
 	"appview/coordinator/internal/task"
 )
 
+type PreviewImageItem struct {
+	ID    string `json:"id"`
+	URL   string `json:"url"`
+	Label string `json:"label,omitempty"`
+	Type  string `json:"type,omitempty"`
+}
+
 // DownloadPreview is the public metadata allowlist. Transfer URLs, headers
 // and provider format dictionaries never cross this boundary.
 type DownloadPreview struct {
-	Source    string `json:"source"`
-	Title     string `json:"title"`
-	Thumbnail string `json:"thumbnail,omitempty"`
-	Uploader  string `json:"uploader,omitempty"`
-	Qualities []int  `json:"qualities"`
+	Source    string             `json:"source"`
+	Type      string             `json:"type,omitempty"`
+	Title     string             `json:"title"`
+	Thumbnail string             `json:"thumbnail,omitempty"`
+	Uploader  string             `json:"uploader,omitempty"`
+	Qualities []int              `json:"qualities"`
+	Images    []PreviewImageItem `json:"images,omitempty"`
+	HasVideo  bool               `json:"has_video,omitempty"`
+	HasAudio  bool               `json:"has_audio,omitempty"`
 }
 
 func (c *Coordinator) PreviewDownload(ctx context.Context, sourceURL string) (DownloadPreview, *protocol.ErrorPayload) {
@@ -55,8 +66,11 @@ func (c *Coordinator) PreviewDownload(ctx context.Context, sourceURL string) (Do
 		}
 		if current.State == task.Completed {
 			var preview DownloadPreview
-			if json.Unmarshal(current.Result, &preview) != nil || preview.Source != "youtube" || preview.Title == "" || len(preview.Qualities) == 0 {
+			if json.Unmarshal(current.Result, &preview) != nil || (preview.Source != "youtube" && preview.Source != "tiktok") || preview.Title == "" {
 				return failure("PREVIEW_FAILED", "Dữ liệu xem trước không hợp lệ.")
+			}
+			if preview.Source == "youtube" && len(preview.Qualities) == 0 {
+				return failure("PREVIEW_FAILED", "Dữ liệu chất lượng không hợp lệ.")
 			}
 			for i, quality := range preview.Qualities {
 				if quality <= 0 || (i > 0 && quality >= preview.Qualities[i-1]) {

@@ -88,6 +88,8 @@ func NewJob(id string, request CreateRequest) Job {
 	source := ""
 	if strings.Contains(request.URL, "youtube.com") || strings.Contains(request.URL, "youtu.be") {
 		source = "youtube"
+	} else if strings.Contains(request.URL, "tiktok.com") {
+		source = "tiktok"
 	}
 	return Job{
 		ID:          id,
@@ -109,4 +111,5 @@ type StorageRequest struct {
 	Destination string
 	Password    string
 	Source      string
+	Items       []any
 }

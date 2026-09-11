@@ -12,11 +12,13 @@ import (
 type DownloadHandler struct{ coordinator *service.Coordinator }
 
 type createDownloadRequest struct {
-	URL         string `json:"url"`
-	Filename    string `json:"filename,omitempty"`
-	Destination string `json:"destination,omitempty"`
-	Password    string `json:"password,omitempty"`
-	Quality     *int   `json:"quality,omitempty"`
+	URL             string `json:"url"`
+	Filename        string `json:"filename,omitempty"`
+	Destination     string `json:"destination,omitempty"`
+	Password        string `json:"password,omitempty"`
+	Quality         *int   `json:"quality,omitempty"`
+	SelectedIndices []int  `json:"selectedIndices,omitempty"`
+	MediaType       string `json:"mediaType,omitempty"`
 }
 
 type extractDownloadRequest struct {
@@ -53,6 +55,7 @@ func (h *DownloadHandler) Create(writer http.ResponseWriter, request *http.Reque
 	}
 	job, err := h.coordinator.CreateDownload(service.DownloadRequest{
 		URL: body.URL, Filename: body.Filename, Destination: body.Destination, Password: body.Password, Quality: quality,
+		SelectedIndices: body.SelectedIndices, MediaType: body.MediaType,
 	})
 	if err != nil {
 		logging.Event("WARN", "download request rejected", map[string]any{"error": err.Error()})

@@ -64,11 +64,28 @@ class DownloadWorkerHandler:
                 preview = await self._resolver.preview(url.strip())
                 await send(message(TASK_COMPLETED, taskId=task_id, result=preview))
                 return
+            if payload.get("operation") == "tiktok_inspect":
+                from services.tiktok.extractor import TikTokExtractor
+                extractor = TikTokExtractor()
+                info = await extractor.inspect(url.strip())
+                await send(message(TASK_COMPLETED, taskId=task_id, result=info))
+                return
             quality = payload.get("quality")
             if quality is not None and (type(quality) is not int or quality <= 0):
                 await self._fail(send, task_id, "INVALID_QUALITY", "Chất lượng tải xuống không hợp lệ.")
                 return
-            resolved = await self._resolver.resolve(url.strip(), quality=quality) if quality is not None else await self._resolver.resolve(url.strip())
+
+            resolve_kwargs = {}
+            if quality is not None:
+                resolve_kwargs["quality"] = quality
+            selected_indices = payload.get("selected_indices") or payload.get("selectedIndices")
+            if selected_indices is not None:
+                resolve_kwargs["selected_indices"] = selected_indices
+            media_type = payload.get("media_type") or payload.get("mediaType")
+            if media_type is not None:
+                resolve_kwargs["media_type"] = media_type
+
+            resolved = await self._resolver.resolve(url.strip(), **resolve_kwargs)
         except Exception as error:
             # Provider errors are logged locally. The coordinator gets a
             # stable, non-sensitive response with domain-appropriate error codes.
@@ -94,6 +111,8 @@ class DownloadWorkerHandler:
             result["headers"] = resolved.headers
         if getattr(resolved, "source", None):
             result["source"] = resolved.source
+        if getattr(resolved, "items", None):
+            result["items"] = resolved.items
         return result
 
     @staticmethod

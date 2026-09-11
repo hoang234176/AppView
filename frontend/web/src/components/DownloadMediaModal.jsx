@@ -7,7 +7,8 @@ import {
   Images,
   ArrowLeft,
   Clipboard,
-  ClipboardCheck
+  ClipboardCheck,
+  Check
 } from 'lucide-react';
 import { previewMediaDownload, startMediaDownload } from '../api/downloadApi';
 import { canonicalDownloadDestination } from '../utils/downloadDestination';
@@ -24,6 +25,7 @@ export const DownloadMediaModal = ({
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState(null);
   const [quality, setQuality] = useState(null);
+  const [selectedIndices, setSelectedIndices] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState(currentPath || '');
@@ -79,8 +81,29 @@ export const DownloadMediaModal = ({
     setBusy(true);
     setError('');
 
+    const photos = (preview?.images || []).filter(img => img.type === 'slideshow_photo');
+    const targetImages = photos.length > 0 ? photos : (preview?.images || []);
+    const isTikTok = preview?.source === 'tiktok';
+    const isSlideshow = isTikTok && (preview?.type === 'slideshow' || (targetImages.length > 0 && !preview?.has_video));
+
     if (preview) {
-      const result = await startMediaDownload(url.trim(), canonicalDownloadDestination(destination), quality);
+      let indices = null;
+      let mediaType = null;
+      if (isTikTok) {
+        if (isSlideshow) {
+          mediaType = 'images';
+          indices = selectedIndices.length > 0 ? selectedIndices : null;
+        } else if (preview.has_video) {
+          mediaType = 'video';
+        }
+      }
+      const result = await startMediaDownload(
+        url.trim(),
+        canonicalDownloadDestination(destination),
+        quality,
+        indices,
+        mediaType
+      );
       if (!mounted.current) return;
       setBusy(false);
       if (result.success) {
@@ -98,11 +121,18 @@ export const DownloadMediaModal = ({
       const result = await previewMediaDownload(url.trim(), controller.signal);
       if (!mounted.current || controller.signal.aborted) return;
       setPreview(result);
-      setQuality(result.qualities[0]);
+      if (result.qualities && result.qualities.length > 0) {
+        setQuality(result.qualities[0]);
+      } else {
+        setQuality(null);
+      }
+      const pList = (result.images || []).filter(img => img.type === 'slideshow_photo');
+      const imgs = pList.length > 0 ? pList : (result.images || []);
+      setSelectedIndices(imgs.map((_, i) => i));
     } catch (failure) {
       if (!mounted.current || controller.signal.aborted) return;
       const detail = failure.response?.data?.error;
-      setError(typeof detail === 'string' ? detail : detail?.message || 'Không thể xem trước video. Vui lòng thử lại.');
+      setError(typeof detail === 'string' ? detail : detail?.message || 'Không thể xem trước nội dung. Vui lòng thử lại.');
     } finally {
       if (mounted.current && !controller.signal.aborted) setBusy(false);
     }
@@ -216,7 +246,7 @@ export const DownloadMediaModal = ({
             </>
           ) : (
             <div className="space-y-3">
-              {/* Video Preview Card - Horizontal on desktop, stacked on mobile */}
+              {/* Video/Post Preview Card */}
               <div className="overflow-hidden rounded-2xl border border-[#383c42] bg-[#202124] sm:flex sm:flex-row items-stretch">
                 {preview.thumbnail && (
                   <div className="relative aspect-video sm:w-[42%] sm:min-w-[140px] sm:max-w-[180px] flex-shrink-0 overflow-hidden bg-black/40">
@@ -226,8 +256,8 @@ export const DownloadMediaModal = ({
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-sm border border-white/10 text-[9px] font-bold text-rose-400">
-                      YouTube
+                    <div className={`absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-sm border border-white/10 text-[9px] font-bold ${preview.source === 'tiktok' ? 'text-cyan-400' : 'text-rose-400'}`}>
+                      {preview.source === 'tiktok' ? 'TikTok' : 'YouTube'}
                     </div>
                   </div>
                 )}
@@ -243,23 +273,93 @@ export const DownloadMediaModal = ({
                 </div>
               </div>
 
-              {/* Custom Quality Selector */}
-              <div>
-                <label className="block text-gray-300 font-semibold mb-1.5">
-                  Chất lượng tải xuống:
-                </label>
-                <CustomSelect
-                  options={(preview.qualities || []).map((q) => ({
-                    value: q,
-                    label: `${q}p`,
-                  }))}
-                  value={quality}
-                  onChange={setQuality}
-                  disabled={busy}
-                  accent="blue"
-                  ariaLabel="Chọn chất lượng tải xuống"
-                />
-              </div>
+              {/* Multi-image horizontal scrollable selector for slideshows */}
+              {((preview.images || []).filter(img => img.type === 'slideshow_photo').length > 0 || (preview.source === 'tiktok' && (preview.images || []).length > 0)) && (() => {
+                const photos = (preview.images || []).filter(img => img.type === 'slideshow_photo');
+                const targetImages = photos.length > 0 ? photos : (preview.images || []);
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-gray-300 font-semibold">
+                        Danh sách ảnh ({selectedIndices.length}/{targetImages.length}):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedIndices.length === targetImages.length) {
+                            setSelectedIndices([]);
+                          } else {
+                            setSelectedIndices(targetImages.map((_, i) => i));
+                          }
+                        }}
+                        className="text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
+                      >
+                        {selectedIndices.length === targetImages.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                      </button>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto py-1 px-0.5 scrollbar-thin">
+                      {targetImages.map((img, idx) => {
+                        const isSelected = selectedIndices.includes(idx);
+                        return (
+                          <div
+                            key={img.id || idx}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedIndices(selectedIndices.filter((i) => i !== idx));
+                              } else {
+                                setSelectedIndices([...selectedIndices, idx].sort((a, b) => a - b));
+                              }
+                            }}
+                            className={`relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-cyan-400 shadow-md ring-2 ring-cyan-400/30'
+                                : 'border-[#383c42] opacity-50 hover:opacity-80'
+                            }`}
+                          >
+                            <img
+                              src={img.url}
+                              alt={img.label || `Ảnh ${idx + 1}`}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover"
+                            />
+                            <div className={`absolute top-1 right-1 rounded-full p-0.5 ${isSelected ? 'bg-cyan-500 text-white' : 'bg-black/60 text-gray-400'}`}>
+                              <Check className="w-3 h-3" />
+                            </div>
+                            <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-center text-gray-300 py-0.5 truncate">
+                              #{idx + 1}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Custom Quality Selector or Format Info */}
+              {preview.qualities && preview.qualities.length > 0 ? (
+                <div>
+                  <label className="block text-gray-300 font-semibold mb-1.5">
+                    Chất lượng tải xuống:
+                  </label>
+                  <CustomSelect
+                    options={(preview.qualities || []).map((q) => ({
+                      value: q,
+                      label: `${q}p`,
+                    }))}
+                    value={quality}
+                    onChange={setQuality}
+                    disabled={busy}
+                    accent="blue"
+                    ariaLabel="Chọn chất lượng tải xuống"
+                  />
+                </div>
+              ) : (preview.type === 'slideshow' || (preview.images && preview.images.length > 0)) ? (
+                <div className="bg-[#24252a] border border-[#383c42] rounded-xl px-3 py-2 flex items-center justify-between">
+                  <span className="text-[11px] text-gray-400">Định dạng:</span>
+                  <span className="text-xs font-semibold text-white">Ảnh gốc (JPEG)</span>
+                </div>
+              ) : null}
 
               {/* Destination summary */}
               <div className="bg-[#24252a] border border-[#383c42] rounded-xl px-3 py-2 flex items-center justify-between gap-2">

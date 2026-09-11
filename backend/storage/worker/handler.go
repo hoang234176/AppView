@@ -10,6 +10,7 @@ import (
 
 	pythonapi "backend/api/python"
 	"backend/cookies"
+	"backend/media_download/tiktok"
 	"backend/media_download/youtube"
 	"backend/utils"
 )
@@ -35,6 +36,37 @@ type YouTubeOperations interface {
 	Snapshot(id string) (youtube.Snapshot, bool)
 	Snapshots() []youtube.Snapshot
 	SetCanonicalID(id, canonicalID string) bool
+}
+
+// TikTokOperations is the Storage-side business boundary for TikTok downloads.
+type TikTokOperations interface {
+	Start(id, sourceURL, filename, destination, audioURL string, items []tiktok.DownloadItem, headers map[string]string) error
+	Cancel(id string) bool
+	Snapshot(id string) (tiktok.Snapshot, bool)
+	Snapshots() []tiktok.Snapshot
+	SetCanonicalID(id, canonicalID string) bool
+}
+
+type tiktokOperations struct{}
+
+func (tiktokOperations) Start(id, sourceURL, filename, destination, audioURL string, items []tiktok.DownloadItem, headers map[string]string) error {
+	return tiktok.StartJob(id, sourceURL, filename, destination, audioURL, items, headers)
+}
+
+func (tiktokOperations) Cancel(id string) bool {
+	return tiktok.CancelJob(id)
+}
+
+func (tiktokOperations) Snapshot(id string) (tiktok.Snapshot, bool) {
+	return tiktok.GetJobSnapshot(id)
+}
+
+func (tiktokOperations) Snapshots() []tiktok.Snapshot {
+	return tiktok.GetJobSnapshots()
+}
+
+func (tiktokOperations) SetCanonicalID(id, canonicalID string) bool {
+	return tiktok.SetCanonicalID(id, canonicalID)
 }
 
 type youtubeOperations struct{}
@@ -124,20 +156,29 @@ type SendFunc func(Message) error
 type Handler struct {
 	archive      ArchiveOperations
 	youtube      YouTubeOperations
+	tiktok       TikTokOperations
 	pollInterval time.Duration
 }
 
-func NewHandler(archive ArchiveOperations, youtubeOps ...YouTubeOperations) *Handler {
+func NewHandler(archive ArchiveOperations, optionalOps ...any) *Handler {
 	if archive == nil {
 		archive = archiveOperations{}
 	}
-	var yt YouTubeOperations
-	if len(youtubeOps) > 0 && youtubeOps[0] != nil {
-		yt = youtubeOps[0]
-	} else {
-		yt = youtubeOperations{}
+	var yt YouTubeOperations = youtubeOperations{}
+	var tt TikTokOperations = tiktokOperations{}
+	for _, op := range optionalOps {
+		switch v := op.(type) {
+		case YouTubeOperations:
+			if v != nil {
+				yt = v
+			}
+		case TikTokOperations:
+			if v != nil {
+				tt = v
+			}
+		}
 	}
-	return &Handler{archive: archive, youtube: yt, pollInterval: time.Second}
+	return &Handler{archive: archive, youtube: yt, tiktok: tt, pollInterval: time.Second}
 }
 
 func (h *Handler) Capabilities() []string {
@@ -147,14 +188,49 @@ func (h *Handler) Capabilities() []string {
 func (h *Handler) History() StorageHistoryPayload {
 	archiveSnapshots := h.archive.Snapshots()
 	ytSnapshots := h.youtube.Snapshots()
-	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots))
+	ttSnapshots := h.tiktok.Snapshots()
+	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots)+len(ttSnapshots))
 	for _, snapshot := range archiveSnapshots {
 		jobs = append(jobs, storageSnapshot(snapshot))
 	}
 	for _, snapshot := range ytSnapshots {
 		jobs = append(jobs, youtubeStorageSnapshot(snapshot))
 	}
+	for _, snapshot := range ttSnapshots {
+		jobs = append(jobs, tiktokStorageSnapshot(snapshot))
+	}
 	return StorageHistoryPayload{Jobs: jobs}
+}
+
+func tiktokStorageSnapshot(snapshot tiktok.Snapshot) StorageJobSnapshot {
+	return StorageJobSnapshot{
+		ID:                    snapshot.ID,
+		CanonicalID:           snapshot.CanonicalID,
+		SourceURL:             safeHistoryURL(snapshot.URL),
+		Filename:              snapshot.Filename,
+		Destination:           snapshot.Destination,
+		State:                 snapshot.State,
+		DownloadedBytes:       snapshot.DownloadedBytes,
+		TotalBytes:            snapshot.TotalBytes,
+		SpeedBytes:            snapshot.SpeedBytes,
+		ExtractedPercent:      0,
+		ConversionTotal:       snapshot.Conversion.Total,
+		ConversionCurrent:     snapshot.Conversion.Current,
+		ConversionFailed:      snapshot.Conversion.Failed,
+		ErrorCode:             snapshot.ErrorCode,
+		Error:                 snapshot.Error,
+		PasswordRequired:      false,
+		ArchiveDownloaded:     false,
+		ArchiveExtracted:      false,
+		VideoScanState:        snapshot.VideoScanState,
+		TotalVideoCount:       snapshot.TotalVideoCount,
+		InvalidVideoCount:     snapshot.InvalidVideoCount,
+		OptimizationCancelled: snapshot.OptimizationCancelled,
+		CancelledFromStage:    snapshot.CancelledFromStage,
+		Videos:                snapshot.Videos,
+		CreatedAt:             snapshot.CreatedAt,
+		UpdatedAt:             snapshot.UpdatedAt,
+	}
 }
 
 func storageSnapshot(snapshot pythonapi.ArchiveJobSnapshot) StorageJobSnapshot {
@@ -254,6 +330,21 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 		return
 	}
 
+	if isTikTokRequest(request) {
+		if _, exists := h.tiktok.Snapshot(task.TaskID); !exists {
+			utils.LogEvent("INFO", "storage tiktok start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
+			if err := h.tiktok.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.AudioURL, request.Items, request.Headers); err != nil {
+				h.fail(send, task.TaskID, "STORAGE_START_FAILED", "Storage không thể bắt đầu tác vụ tải TikTok.")
+				return
+			}
+		}
+		if request.ParentJobID != "" {
+			h.tiktok.SetCanonicalID(task.TaskID, request.ParentJobID)
+		}
+		h.monitor(ctx, task.TaskID, send)
+		return
+	}
+
 	// A requeued Coordinator task keeps its original ID. If local Storage has
 	// already started that archive job, only reconnect monitoring; do not start
 	// a second download or cancel the existing one.
@@ -345,6 +436,20 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		return
 	}
 
+	if _, isTT := h.tiktok.Snapshot(control.ArchiveTaskID); isTT {
+		if control.Operation == "cancel" {
+			if !h.tiktok.Cancel(control.ArchiveTaskID) {
+				h.fail(send, controlTaskID, "STORAGE_CONTROL_FAILED", "tiktok job not found")
+				return
+			}
+			h.monitor(ctx, control.ArchiveTaskID, send)
+			return
+		}
+		h.fail(send, controlTaskID, "STORAGE_CONTROL_FAILED", fmt.Sprintf("thao tác %s không được hỗ trợ cho TikTok", control.Operation))
+		return
+	}
+
+
 	var err error
 	if control.Operation == "video_decision" {
 		operations, ok := h.archive.(videoDecisionOperations)
@@ -398,14 +503,15 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 }
 
 type downloadRequest struct {
-	URL         string            `json:"url"`
-	AudioURL    string            `json:"audioUrl,omitempty"`
-	Headers     map[string]string `json:"headers,omitempty"`
-	Filename    string            `json:"filename"`
-	Destination string            `json:"destination"`
-	Password    string            `json:"password"`
-	ParentJobID string            `json:"parentJobId"`
-	Source      string            `json:"source,omitempty"`
+	URL         string                `json:"url"`
+	AudioURL    string                `json:"audioUrl,omitempty"`
+	Headers     map[string]string     `json:"headers,omitempty"`
+	Filename    string                `json:"filename"`
+	Destination string                `json:"destination"`
+	Password    string                `json:"password"`
+	ParentJobID string                `json:"parentJobId"`
+	Source      string                `json:"source,omitempty"`
+	Items       []tiktok.DownloadItem `json:"items,omitempty"`
 }
 
 func isYouTubeRequest(request downloadRequest) bool {
@@ -414,6 +520,14 @@ func isYouTubeRequest(request downloadRequest) bool {
 	}
 	u := strings.ToLower(request.URL)
 	return strings.Contains(u, "googlevideo.com") || strings.Contains(u, "youtube.com") || strings.Contains(u, "youtu.be")
+}
+
+func isTikTokRequest(request downloadRequest) bool {
+	if strings.EqualFold(strings.TrimSpace(request.Source), "tiktok") {
+		return true
+	}
+	u := strings.ToLower(request.URL)
+	return strings.Contains(u, "tiktok.com") || strings.Contains(u, "tiktokcdn.com")
 }
 
 func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
@@ -427,7 +541,7 @@ func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
 	request.Destination = strings.TrimSpace(request.Destination)
 	request.ParentJobID = strings.TrimSpace(request.ParentJobID)
 	request.Source = strings.TrimSpace(request.Source)
-	if request.URL == "" || request.Filename == "" {
+	if (request.URL == "" && len(request.Items) == 0) || request.Filename == "" {
 		return downloadRequest{}, fmt.Errorf("payload.url và payload.filename không được để trống")
 	}
 	return request, nil
@@ -438,7 +552,64 @@ func (h *Handler) monitor(ctx context.Context, taskID string, send SendFunc) {
 		h.monitorYouTube(ctx, taskID, send)
 		return
 	}
+	if _, isTT := h.tiktok.Snapshot(taskID); isTT {
+		h.monitorTikTok(ctx, taskID, send)
+		return
+	}
 	h.monitorArchive(ctx, taskID, send)
+}
+
+func (h *Handler) monitorTikTok(ctx context.Context, taskID string, send SendFunc) {
+	for {
+		snapshot, exists := h.tiktok.Snapshot(taskID)
+		if !exists {
+			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ TikTok được giao.")
+			return
+		}
+		if err := send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{tiktokStorageSnapshot(snapshot)}}}); err != nil {
+			return
+		}
+
+		switch snapshot.State {
+		case "completed":
+			utils.LogEvent("INFO", "storage tiktok completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
+				"jobId":    snapshot.ID,
+				"filename": snapshot.Filename,
+				"state":    snapshot.State,
+			}})
+			return
+		case "cancelled":
+			utils.LogEvent("WARN", "storage tiktok cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ TikTok đã bị hủy cục bộ.")
+			return
+		case "error":
+			utils.LogEvent("ERROR", "storage tiktok failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename, "error": snapshot.Error})
+			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải TikTok: "+snapshot.Error)
+			return
+		default:
+			utils.LogEvent("DEBUG", "storage tiktok progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
+				"state":           snapshot.State,
+				"filename":        snapshot.Filename,
+				"downloadedBytes": snapshot.DownloadedBytes,
+				"totalBytes":      snapshot.TotalBytes,
+				"speedBytes":      snapshot.SpeedBytes,
+			}}); err != nil {
+				return
+			}
+		}
+
+		interval := h.pollInterval
+		if interval <= 0 {
+			interval = time.Millisecond
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+		}
+	}
 }
 
 func (h *Handler) monitorYouTube(ctx context.Context, taskID string, send SendFunc) {
