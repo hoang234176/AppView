@@ -102,6 +102,31 @@ class YouTubeQualityTests(unittest.TestCase):
         self.assertEqual(item.download_url, "https://media.test/v1080")
         self.assertEqual(item.audio_url, "https://media.test/audio_m4a")
 
+    def test_vertical_video_qualities_normalized_to_short_edge(self):
+        # Vertical video formats (Shorts/Reels 9:16) must normalize to short-edge scanlines
+        vertical_formats = [
+            {"url": "https://media.test/v360x640", "width": 360, "height": 640, "vcodec": "avc1", "acodec": "aac", "ext": "mp4"},
+            {"url": "https://media.test/v480x854", "width": 480, "height": 854, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/v720x1280", "width": 720, "height": 1280, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/v1080x1920", "width": 1080, "height": 1920, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/audio", "width": None, "height": None, "vcodec": "none", "acodec": "aac", "ext": "m4a"},
+        ]
+        qualities = YouTubeExtractor.available_qualities(vertical_formats)
+        self.assertEqual(qualities, [1080, 720, 480, 360])
+
+    def test_select_quality_on_vertical_video_succeeds(self):
+        # Requesting 1080 on a vertical 1080x1920 video must resolve without QUALITY_UNAVAILABLE
+        vertical_formats = [
+            {"url": "https://media.test/v720x1280", "width": 720, "height": 1280, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/v1080x1920", "width": 1080, "height": 1920, "vcodec": "avc1", "acodec": "none", "ext": "mp4"},
+            {"url": "https://media.test/audio", "width": None, "height": None, "vcodec": "none", "acodec": "aac", "ext": "m4a"},
+        ]
+        item = YouTubeExtractor()._select_best_streams("short_123", "Vertical_Short", vertical_formats, quality=1080)
+        self.assertEqual(item.width, 1080)
+        self.assertEqual(item.height, 1920)
+        self.assertEqual(item.download_url, "https://media.test/v1080x1920")
+        self.assertEqual(item.audio_url, "https://media.test/audio")
+
 
 class YouTubePreviewTests(unittest.IsolatedAsyncioTestCase):
     def mock_extraction(self):

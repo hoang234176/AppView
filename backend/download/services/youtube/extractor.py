@@ -15,6 +15,7 @@ from typing import Any, Optional
 
 import yt_dlp
 
+from services.resolution import extract_format_quality, format_matches_quality
 from services.youtube.auth import classify_extraction_error, get_youtube_ydl_auth_opts
 from services.youtube.errors import (
     NoDownloadableMediaError,
@@ -223,9 +224,13 @@ class YouTubeExtractor:
 
     @classmethod
     def available_qualities(cls, formats: list[dict[str, Any]]) -> list[int]:
-        return sorted({f["height"] for f in cls._transfer_formats(formats)
-                       if f.get("vcodec") not in ("none", None)
-                       and type(f.get("height")) is int and f["height"] > 0}, reverse=True)
+        qualities: set[int] = set()
+        for f in cls._transfer_formats(formats):
+            if f.get("vcodec") not in ("none", None):
+                q = extract_format_quality(f)
+                if q is not None and q > 0:
+                    qualities.add(q)
+        return sorted(qualities, reverse=True)
 
     def _select_best_streams(
         self,
@@ -242,16 +247,19 @@ class YouTubeExtractor:
                 raise QualityUnavailableError()
             # Keep the matching source video and all audio candidates. Never
             # select a larger source and rely on Storage to downscale it.
-            valid_formats = [f for f in valid_formats if f.get("vcodec") in ("none", None) or f.get("height") == quality]
+            valid_formats = [
+                f for f in valid_formats
+                if f.get("vcodec") in ("none", None) or format_matches_quality(f, quality)
+            ]
 
         # 1. Progressive streams (contain both video and audio)
         progressive = [
             f for f in valid_formats
             if f.get("vcodec") not in ("none", None) and f.get("acodec") not in ("none", None)
         ]
-        # Sort progressive by resolution / height descending
+        # Sort progressive by resolution / quality descending
         progressive.sort(
-            key=lambda f: (f.get("height") or 0, f.get("tbr") or 0),
+            key=lambda f: (extract_format_quality(f) or 0, f.get("tbr") or 0),
             reverse=True,
         )
 
@@ -260,10 +268,10 @@ class YouTubeExtractor:
             f for f in valid_formats
             if f.get("vcodec") not in ("none", None) and f.get("acodec") in ("none", None)
         ]
-        # Prefer MP4 container / H.264 when available at high resolution, sorted by height
+        # Prefer MP4 container / H.264 when available at high resolution, sorted by quality
         video_only.sort(
             key=lambda f: (
-                f.get("height") or 0,
+                extract_format_quality(f) or 0,
                 1 if f.get("ext") == "mp4" else 0,
                 f.get("tbr") or 0,
             ),
@@ -285,19 +293,19 @@ class YouTubeExtractor:
         )
 
         # Strategy:
-        # If we have separate video and audio, and the video height is >= progressive height (or no progressive):
+        # If we have separate video and audio, and the video quality is >= progressive quality (or no progressive):
         # We select best video + best audio so Storage can mux them without loss.
         # Otherwise, if progressive is equal or better, use progressive.
         chosen_video: Optional[dict[str, Any]] = None
         chosen_audio: Optional[dict[str, Any]] = None
 
         best_prog = progressive[0] if progressive else None
-        best_prog_height = (best_prog.get("height") or 0) if best_prog else 0
+        best_prog_quality = (extract_format_quality(best_prog) or 0) if best_prog else 0
 
         best_v = video_only[0] if video_only else None
-        best_v_height = (best_v.get("height") or 0) if best_v else 0
+        best_v_quality = (extract_format_quality(best_v) or 0) if best_v else 0
 
-        if best_v and audio_only and best_v_height > best_prog_height:
+        if best_v and audio_only and best_v_quality > best_prog_quality:
             chosen_video = best_v
             chosen_audio = audio_only[0]
         elif best_prog:
