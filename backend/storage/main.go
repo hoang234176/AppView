@@ -9,6 +9,7 @@ import (
 
 	pythonapi "backend/api/python"
 	"backend/configs"
+	"backend/media_download/tiktok"
 	"backend/media_download/youtube"
 	"backend/routes"
 	"backend/utils"
@@ -22,6 +23,7 @@ func main() {
 	configs.LoadEnvironment()
 	pythonapi.LoadPersistentArchiveJobs()
 	youtube.LoadPersistentJobs()
+	tiktok.LoadPersistentJobs()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

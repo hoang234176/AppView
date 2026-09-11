@@ -108,12 +108,16 @@ class DownloadProvider extends ChangeNotifier {
     String destination = '',
     String? password,
     int? quality,
+    List<int>? selectedIndices,
+    String? mediaType,
   }) async {
     final response = await DownloadApi.startCoordinatorDownload(
       url: url,
       destination: destination,
       password: password,
       quality: quality,
+      selectedIndices: selectedIndices,
+      mediaType: mediaType,
     );
     if (_disposed || response['success'] != true) return response;
     final job = response['data'] as Map<String, dynamic>?;

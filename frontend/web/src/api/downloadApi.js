@@ -34,8 +34,14 @@ export const startArchiveDownload = async (url, destination = '', password = nul
       destination,
       ...(password ? { password } : {}),
       ...(quality !== null ? { quality } : {}),
-      ...(selectedIndices !== null && selectedIndices !== undefined ? { selected_indices: selectedIndices } : {}),
-      ...(mediaType ? { media_type: mediaType } : {}),
+      ...(selectedIndices !== null && selectedIndices !== undefined ? {
+        selectedIndices,
+        selected_indices: selectedIndices,
+      } : {}),
+      ...(mediaType ? {
+        mediaType,
+        media_type: mediaType,
+      } : {}),
     };
     const response = await createCoordinatorClient().post('/download', payload);
     return {

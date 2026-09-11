@@ -60,6 +60,45 @@ def save_tiktok_cookies_to_file(content: str) -> None:
         pass
 
 
+def update_tiktok_session_cookies(session_cookies: dict[str, str]) -> None:
+    """Update or merge stream session tokens (tt_chain_token) into the persistent cookie file."""
+    if not session_cookies or "tt_chain_token" not in session_cookies:
+        return
+    chain_token = session_cookies["tt_chain_token"]
+    if not chain_token:
+        return
+
+    current_content = read_tiktok_cookies_from_file() or ""
+    lines = current_content.splitlines()
+    updated_lines: list[str] = []
+    found = False
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            updated_lines.append(line)
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 7:
+            name = parts[5]
+            if name == "tt_chain_token":
+                parts[6] = chain_token
+                updated_lines.append("\t".join(parts))
+                found = True
+            elif name in ("_waftokenid", "msToken"):
+                # Bỏ qua các token thử thách WAF tạm thời vì chúng hết hạn rất nhanh gây 403 khi tải trang
+                continue
+            else:
+                updated_lines.append(line)
+        else:
+            updated_lines.append(line)
+
+    if not found:
+        updated_lines.append(f".tiktok.com\tTRUE\t/\tTRUE\t2147483647\ttt_chain_token\t{chain_token}")
+
+    save_tiktok_cookies_to_file("\n".join(updated_lines) + "\n")
+
+
 async def load_tiktok_cookies() -> Optional[str]:
     """Load TikTok cookies either from local text file or coordinator worker client."""
     file_cookies = read_tiktok_cookies_from_file()

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Download,
   X,
@@ -8,7 +8,8 @@ import {
   ArrowLeft,
   Clipboard,
   ClipboardCheck,
-  Check
+  Check,
+  Video,
 } from 'lucide-react';
 import { previewMediaDownload, startMediaDownload } from '../api/downloadApi';
 import { canonicalDownloadDestination } from '../utils/downloadDestination';
@@ -24,6 +25,7 @@ export const DownloadMediaModal = ({
 }) => {
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState(null);
+  const [mediaTypeTab, setMediaTypeTab] = useState('video');
   const [quality, setQuality] = useState(null);
   const [selectedIndices, setSelectedIndices] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -81,26 +83,25 @@ export const DownloadMediaModal = ({
     setBusy(true);
     setError('');
 
-    const photos = (preview?.images || []).filter(img => img.type === 'slideshow_photo');
-    const targetImages = photos.length > 0 ? photos : (preview?.images || []);
-    const isTikTok = preview?.source === 'tiktok';
-    const isSlideshow = isTikTok && (preview?.type === 'slideshow' || (targetImages.length > 0 && !preview?.has_video));
-
     if (preview) {
-      let indices = null;
-      let mediaType = null;
-      if (isTikTok) {
-        if (isSlideshow) {
-          mediaType = 'images';
-          indices = selectedIndices.length > 0 ? selectedIndices : null;
-        } else if (preview.has_video) {
-          mediaType = 'video';
-        }
+      const photos = (preview?.images || []).filter(img => img.type === 'slideshow_photo');
+      const targetImages = photos.length > 0 ? photos : (preview?.images || []);
+      const isImages = mediaTypeTab === 'images' || (!preview.has_video && targetImages.length > 0);
+
+      if (isImages && selectedIndices.length === 0) {
+        setError('Vui lòng chọn ít nhất một ảnh để tải xuống.');
+        setBusy(false);
+        return;
       }
+
+      const mediaType = isImages ? 'images' : 'video';
+      const indices = isImages ? selectedIndices : null;
+      const chosenQuality = isImages ? null : quality;
+
       const result = await startMediaDownload(
         url.trim(),
         canonicalDownloadDestination(destination),
-        quality,
+        chosenQuality,
         indices,
         mediaType
       );
@@ -129,6 +130,14 @@ export const DownloadMediaModal = ({
       const pList = (result.images || []).filter(img => img.type === 'slideshow_photo');
       const imgs = pList.length > 0 ? pList : (result.images || []);
       setSelectedIndices(imgs.map((_, i) => i));
+
+      const hasImages = imgs.length > 0;
+      const hasVideo = Boolean(result.has_video || result.source === 'youtube' || (result.qualities && result.qualities.length > 0));
+      if (hasImages && !hasVideo) {
+        setMediaTypeTab('images');
+      } else {
+        setMediaTypeTab('video');
+      }
     } catch (failure) {
       if (!mounted.current || controller.signal.aborted) return;
       const detail = failure.response?.data?.error;
@@ -273,93 +282,139 @@ export const DownloadMediaModal = ({
                 </div>
               </div>
 
-              {/* Multi-image horizontal scrollable selector for slideshows */}
-              {((preview.images || []).filter(img => img.type === 'slideshow_photo').length > 0 || (preview.source === 'tiktok' && (preview.images || []).length > 0)) && (() => {
+              {/* Dynamic Post Media Controls (Video quality / Photo squares with select all button below) */}
+              {(() => {
                 const photos = (preview.images || []).filter(img => img.type === 'slideshow_photo');
                 const targetImages = photos.length > 0 ? photos : (preview.images || []);
+                const hasImages = targetImages.length > 0;
+                const hasVideo = Boolean(preview.has_video || preview.source === 'youtube' || (preview.qualities && preview.qualities.length > 0));
+
                 return (
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-gray-300 font-semibold">
-                        Danh sách ảnh ({selectedIndices.length}/{targetImages.length}):
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (selectedIndices.length === targetImages.length) {
-                            setSelectedIndices([]);
-                          } else {
-                            setSelectedIndices(targetImages.map((_, i) => i));
-                          }
-                        }}
-                        className="text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
-                      >
-                        {selectedIndices.length === targetImages.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-                      </button>
-                    </div>
-                    <div className="flex gap-2 overflow-x-auto py-1 px-0.5 scrollbar-thin">
-                      {targetImages.map((img, idx) => {
-                        const isSelected = selectedIndices.includes(idx);
-                        return (
-                          <div
-                            key={img.id || idx}
+                  <div className="space-y-3">
+                    {/* Segmented control when BOTH video and images are available */}
+                    {hasVideo && hasImages && (
+                      <div className="flex bg-[#16171a] p-1 rounded-xl border border-[#383c42] gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setMediaTypeTab('video')}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium text-xs transition-all ${
+                            mediaTypeTab === 'video'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm'
+                              : 'text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          <Video className="w-3.5 h-3.5" />
+                          <span>Tải Video</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMediaTypeTab('images')}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium text-xs transition-all ${
+                            mediaTypeTab === 'images'
+                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
+                              : 'text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          <Images className="w-3.5 h-3.5" />
+                          <span>Tải Ảnh ({targetImages.length})</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Image selector if mediaTypeTab === 'images' or pure slideshow/photos */}
+                    {(mediaTypeTab === 'images' || (!hasVideo && hasImages)) && hasImages ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-gray-300 font-semibold text-xs">
+                            Danh sách ảnh:
+                          </label>
+                          <span className="text-[11px] text-gray-400">
+                            Đã chọn: <span className="font-bold text-cyan-400">{selectedIndices.length}</span>/{targetImages.length}
+                          </span>
+                        </div>
+
+                        {/* Horizontal scrollable row of square images */}
+                        <div className="flex gap-2.5 overflow-x-auto py-2 px-1.5 scrollbar-thin bg-[#18191c] rounded-2xl border border-[#2e3136]">
+                          {targetImages.map((img, idx) => {
+                            const isSelected = selectedIndices.includes(idx);
+                            return (
+                              <div
+                                key={img.id || idx}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedIndices(selectedIndices.filter((i) => i !== idx));
+                                  } else {
+                                    setSelectedIndices([...selectedIndices, idx].sort((a, b) => a - b));
+                                  }
+                                }}
+                                className={`relative flex-shrink-0 w-[72px] h-[72px] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 select-none ${
+                                  isSelected
+                                    ? 'border-cyan-400 shadow-md ring-2 ring-cyan-400/40 opacity-100'
+                                    : 'border-[#383c42] opacity-40 hover:opacity-75'
+                                }`}
+                              >
+                                <img
+                                  src={img.url}
+                                  alt={img.label || `Ảnh ${idx + 1}`}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className={`absolute top-1 right-1 rounded-full p-0.5 ${isSelected ? 'bg-cyan-500 text-white' : 'bg-black/60 text-gray-400'}`}>
+                                  <Check className="w-3 h-3" />
+                                </div>
+                                <div className="absolute bottom-0 inset-x-0 bg-black/70 backdrop-blur-xs text-[10px] font-mono text-center text-gray-200 py-0.5 truncate">
+                                  #{idx + 1}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Button BELOW the squares: Chọn tất cả */}
+                        <div className="flex items-center justify-between pt-0.5">
+                          <button
+                            type="button"
                             onClick={() => {
-                              if (isSelected) {
-                                setSelectedIndices(selectedIndices.filter((i) => i !== idx));
+                              if (selectedIndices.length === targetImages.length) {
+                                setSelectedIndices([]);
                               } else {
-                                setSelectedIndices([...selectedIndices, idx].sort((a, b) => a - b));
+                                setSelectedIndices(targetImages.map((_, i) => i));
                               }
                             }}
-                            className={`relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${
-                              isSelected
-                                ? 'border-cyan-400 shadow-md ring-2 ring-cyan-400/30'
-                                : 'border-[#383c42] opacity-50 hover:opacity-80'
-                            }`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 active:bg-cyan-500/30 border border-cyan-500/20 transition-all"
                           >
-                            <img
-                              src={img.url}
-                              alt={img.label || `Ảnh ${idx + 1}`}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover"
-                            />
-                            <div className={`absolute top-1 right-1 rounded-full p-0.5 ${isSelected ? 'bg-cyan-500 text-white' : 'bg-black/60 text-gray-400'}`}>
-                              <Check className="w-3 h-3" />
-                            </div>
-                            <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-center text-gray-300 py-0.5 truncate">
-                              #{idx + 1}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>{selectedIndices.length === targetImages.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</span>
+                          </button>
+                          <span className="text-[11px] text-gray-400">
+                            {selectedIndices.length === 0 ? 'Chưa chọn ảnh nào' : `Sẽ tải ${selectedIndices.length} ảnh`}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Video quality selector if mediaTypeTab === 'video' */}
+                    {(mediaTypeTab === 'video' || (!hasImages && hasVideo)) && preview.qualities && preview.qualities.length > 0 ? (
+                      <div>
+                        <label className="block text-gray-300 font-semibold mb-1.5">
+                          Chất lượng tải xuống:
+                        </label>
+                        <CustomSelect
+                          options={(preview.qualities || []).map((q) => ({
+                            value: q,
+                            label: `${q}p`,
+                          }))}
+                          value={quality}
+                          onChange={setQuality}
+                          disabled={busy}
+                          accent="blue"
+                          ariaLabel="Chọn chất lượng tải xuống"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 );
               })()}
-
-              {/* Custom Quality Selector or Format Info */}
-              {preview.qualities && preview.qualities.length > 0 ? (
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1.5">
-                    Chất lượng tải xuống:
-                  </label>
-                  <CustomSelect
-                    options={(preview.qualities || []).map((q) => ({
-                      value: q,
-                      label: `${q}p`,
-                    }))}
-                    value={quality}
-                    onChange={setQuality}
-                    disabled={busy}
-                    accent="blue"
-                    ariaLabel="Chọn chất lượng tải xuống"
-                  />
-                </div>
-              ) : (preview.type === 'slideshow' || (preview.images && preview.images.length > 0)) ? (
-                <div className="bg-[#24252a] border border-[#383c42] rounded-xl px-3 py-2 flex items-center justify-between">
-                  <span className="text-[11px] text-gray-400">Định dạng:</span>
-                  <span className="text-xs font-semibold text-white">Ảnh gốc (JPEG)</span>
-                </div>
-              ) : null}
 
               {/* Destination summary */}
               <div className="bg-[#24252a] border border-[#383c42] rounded-xl px-3 py-2 flex items-center justify-between gap-2">

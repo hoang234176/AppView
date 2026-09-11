@@ -70,6 +70,21 @@ class TikTokWebScraper:
             raise TikTokError(code="RESOLVE_FAILED", message="Không thể kết nối đến TikTok.")
 
         item = self._extract_item_struct(raw_html)
+        if not item and raw_cookies:
+            # Fallback: TikTok mobile web chỉ hiển thị <script id="api-data"> khi không đính kèm cookie đăng nhập
+            try:
+                clean_headers = {
+                    "User-Agent": MOBILE_USER_AGENT,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+                }
+                req_fallback = urllib.request.Request(url, headers=clean_headers)
+                with urllib.request.urlopen(req_fallback, timeout=15, context=ssl_context) as resp:
+                    raw_html = resp.read().decode("utf-8", errors="replace")
+                item = self._extract_item_struct(raw_html)
+            except Exception as e:
+                log_error("TIKTOK_SCRAPER", f"Fallback cào dữ liệu không cookie thất bại: {e}")
+
         if not item:
             raise TikTokError(code="RESOLVE_FAILED", message="Không tìm thấy cấu trúc dữ liệu của bài viết TikTok.")
 
@@ -127,15 +142,21 @@ class TikTokWebScraper:
         author_info = item.get("author") or {}
         uploader = str(author_info.get("nickname") or author_info.get("uniqueId") or "")
         
-        # Slideshow / Photo post detection
+        # Slideshow / Photo post detection - extract highest resolution original photos
         image_post = item.get("imagePost") or {}
         raw_images = image_post.get("images") or []
         slideshow_images: list[str] = []
         for img in raw_images:
             if isinstance(img, dict):
-                url_list = img.get("imageURL", {}).get("urlList") or []
+                # Prefer displayImage (original uncompressed photo), fallback to imageURL
+                url_list = (
+                    img.get("displayImage", {}).get("urlList")
+                    or img.get("imageURL", {}).get("urlList")
+                    or []
+                )
                 if url_list:
-                    slideshow_images.append(url_list[0])
+                    clean_u = html.unescape(url_list[0]).replace(r"\u002F", "/")
+                    slideshow_images.append(clean_u)
 
         # If no images in imagePost, fallback to scanning photomode-image in HTML
         if not slideshow_images:
@@ -147,7 +168,7 @@ class TikTokWebScraper:
                     seen.add(clean_url)
                     slideshow_images.append(clean_url)
 
-        # Covers / Thumbnails
+        # Covers / Thumbnails (used ONLY for preview thumbnail, never as downloadable post photos)
         covers: list[dict[str, str]] = []
         seen_covers = set()
         video_info = item.get("video") or {}
@@ -159,30 +180,26 @@ class TikTokWebScraper:
             ("reflowCover", "Ảnh bìa reflow"),
         ]:
             c_url = video_info.get(cover_key) or image_post.get(cover_key, {}).get("imageURL", {}).get("urlList", [None])[0]
-            if c_url and isinstance(c_url, str) and c_url.startswith("http") and c_url not in seen_covers:
-                seen_covers.add(c_url)
-                covers.append({"id": cover_key, "label": label, "url": c_url})
+            if c_url and isinstance(c_url, str) and c_url.startswith("http"):
+                clean_c_url = html.unescape(c_url).replace(r"\u002F", "/")
+                if clean_c_url not in seen_covers:
+                    seen_covers.add(clean_c_url)
+                    covers.append({"id": cover_key, "label": label, "url": clean_c_url})
 
         # Video streams
-        video_url = video_info.get("playAddr") or video_info.get("downloadAddr")
+        raw_video = video_info.get("playAddr") or video_info.get("downloadAddr")
+        video_url = html.unescape(raw_video).replace(r"\u002F", "/") if raw_video else None
         duration = item.get("duration") or video_info.get("duration") or 0
         has_video = bool(video_url)
 
-        # All images combining slideshow + covers with clear labels
+        # All images containing ONLY actual slideshow photos (never covers)
         all_images: list[dict[str, str]] = []
         for idx, s_url in enumerate(slideshow_images):
             all_images.append({
                 "id": f"photo_{idx + 1}",
                 "type": "slideshow_photo",
-                "label": f"Ảnh nội dung #{idx + 1}",
+                "label": f"Ảnh gốc #{idx + 1}",
                 "url": s_url,
-            })
-        for idx, c in enumerate(covers):
-            all_images.append({
-                "id": c.get("id") or f"cover_{idx + 1}",
-                "type": "cover",
-                "label": c["label"],
-                "url": c["url"],
             })
 
         if has_video and len(slideshow_images) > 0:
@@ -204,17 +221,20 @@ class TikTokWebScraper:
                 "resolution": f"{video_info.get('width', 0)}x{video_info.get('height', 0)}",
                 "url": video_url,
             })
-        if video_info.get("downloadAddr") and video_info.get("downloadAddr") != video_url:
+        raw_dl = video_info.get("downloadAddr")
+        clean_dl = html.unescape(raw_dl).replace(r"\u002F", "/") if raw_dl else None
+        if clean_dl and clean_dl != video_url:
             video_formats.append({
                 "format_id": "download_addr",
                 "vcodec": "h264",
                 "resolution": f"{video_info.get('width', 0)}x{video_info.get('height', 0)}",
-                "url": video_info.get("downloadAddr"),
+                "url": clean_dl,
             })
 
         # Audio music
         music_info = item.get("music") or {}
-        audio_url = music_info.get("playUrl")
+        raw_audio = music_info.get("playUrl")
+        audio_url = html.unescape(raw_audio).replace(r"\u002F", "/") if raw_audio else None
 
         return {
             "source": "tiktok",
@@ -230,7 +250,7 @@ class TikTokWebScraper:
             "covers": covers,
             "slideshow_images": slideshow_images,
             "all_images": all_images,
-            "images": [item["url"] for item in all_images],
+            "images": slideshow_images,
             "qualities": [],
             "raw_info": item,
         }

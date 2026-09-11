@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from functools import partial
+import html
 import threading
 from typing import Any, Optional
 import yt_dlp
@@ -11,7 +12,7 @@ import yt_dlp.cookies
 
 from logger import log_error, log_event, log_info
 from services.resolution import compute_video_resolution
-from services.tiktok.auth import classify_tiktok_error
+from services.tiktok.auth import classify_tiktok_error, update_tiktok_session_cookies
 from services.youtube.auth import create_cookiejar_from_netscape
 
 
@@ -47,13 +48,34 @@ class TikTokExtractor:
         """Inspect a TikTok URL and return structured metadata along with raw info."""
         clean_url = url.strip()
 
-        # Nếu là bài viết ảnh /photo/, chuyển thẳng tới TikTokWebScraper để lấy ảnh chất lượng cao
+        # Nếu liên kết là bài đăng ảnh (/photo/), ưu tiên TikTokWebScraper để lấy trọn vẹn ảnh gốc chất lượng cao
         if "/photo/" in clean_url.lower():
-            from services.tiktok.scraper import TikTokWebScraper
-            return await TikTokWebScraper().scrape(clean_url)
+            try:
+                from services.tiktok.scraper import TikTokWebScraper
+                res = await TikTokWebScraper().scrape(clean_url)
+                if res and (res.get("slideshow_images") or res.get("images")):
+                    return res
+            except Exception as err:
+                log_info("TIKTOK_EXTRACTOR", f"TikTokWebScraper không thành công cho link photo ({err}), chuyển sang yt-dlp...")
+
+        # Thử yt-dlp (chuẩn hóa /photo/ thành /video/ nếu cần)
+        ytdlp_url = clean_url
+        if "/photo/" in clean_url.lower():
+            import re
+            ytdlp_url = re.sub(r"/photo/", "/video/", clean_url, flags=re.IGNORECASE)
 
         try:
-            return await self._inspect_via_ytdlp(clean_url)
+            res = await self._inspect_via_ytdlp(ytdlp_url)
+            has_real_video = any(
+                f.get("vcodec") and f.get("vcodec") != "none"
+                for f in res.get("video_formats", [])
+            )
+            has_photos = len(res.get("slideshow_images") or []) > 0
+            # Nếu yt-dlp trả về nhưng không có video thực thụ (chỉ audio) và không có ảnh, fallback sang scraper
+            if not has_real_video and not has_photos:
+                from services.tiktok.scraper import TikTokWebScraper
+                return await TikTokWebScraper().scrape(clean_url)
+            return res
         except Exception as err:
             log_info("TIKTOK_EXTRACTOR", f"yt-dlp không thành công ({err}), chuyển sang TikTokWebScraper...")
             try:
@@ -130,7 +152,21 @@ class TikTokExtractor:
             if not info_dict:
                 raise ValueError("Không tìm thấy dữ liệu từ liên kết TikTok.")
 
-            return self._process_info(info_dict)
+            session_cookies: dict[str, str] = {}
+            if ydl.cookiejar is not None:
+                for d, ddict in getattr(ydl.cookiejar, "_cookies", {}).items():
+                    for p, pdict in ddict.items():
+                        for cname, c in pdict.items():
+                            if hasattr(c, "value"):
+                                session_cookies[cname] = c.value
+
+            if session_cookies:
+                try:
+                    update_tiktok_session_cookies(session_cookies)
+                except Exception as e:
+                    log_error("TIKTOK_EXTRACTOR", f"Lỗi cập nhật session cookies: {e}")
+
+            return self._process_info(info_dict, session_cookies=session_cookies)
         except Exception as err:
             if cancel_event.is_set():
                 raise asyncio.CancelledError()
@@ -139,7 +175,11 @@ class TikTokExtractor:
         finally:
             finished.set()
 
-    def _process_info(self, info: dict[str, Any]) -> dict[str, Any]:
+    def _process_info(
+        self,
+        info: dict[str, Any],
+        session_cookies: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
         """Analyze info_dict and classify as video or slideshow with extracted images."""
         images: list[str] = []
         seen_images: set[str] = set()
@@ -153,124 +193,134 @@ class TikTokExtractor:
         formats = info.get("formats") or []
         has_video = False
         qualities_set: set[int] = set()
-        video_url: Optional[str] = info.get("url")
-        best_tbr = -1.0
-
         all_video_formats: list[dict[str, Any]] = []
-        h264_formats: list[dict[str, Any]] = []
 
-        for fmt in formats:
-            if not isinstance(fmt, dict):
+        for f in formats:
+            if not isinstance(f, dict):
                 continue
-            fmt_url = fmt.get("url")
-            vcodec = str(fmt.get("vcodec") or "").lower()
-            acodec = str(fmt.get("acodec") or "").lower()
-            width = fmt.get("width")
-            height = fmt.get("height")
-            tbr = float(fmt.get("tbr") or fmt.get("vbr") or 0)
-            format_id = str(fmt.get("format_id") or "")
+            vcodec = str(f.get("vcodec") or "none").lower()
+            if vcodec == "none":
+                continue
 
-            if vcodec and vcodec != "none":
-                has_video = True
-                norm = compute_video_resolution(width, height)
-                if norm is not None and norm > 0:
-                    qualities_set.add(norm)
-                
-                stream_entry = {
-                    "format_id": format_id,
-                    "vcodec": vcodec,
-                    "acodec": acodec,
-                    "resolution": f"{width}x{height}" if width and height else (fmt.get("resolution") or ""),
-                    "quality": norm,
-                    "tbr": tbr,
-                    "url": fmt_url,
-                }
-                all_video_formats.append(stream_entry)
-                # Ưu tiên H.264 vì tất cả trình duyệt (Chrome, Safari, Firefox) đều giải mã được HTML5 <video>
-                if "h264" in vcodec or "avc" in vcodec:
-                    h264_formats.append(stream_entry)
+            has_video = True
+            width = f.get("width")
+            height = f.get("height")
+            norm = compute_video_resolution(width, height)
+            if norm is not None and norm > 0:
+                qualities_set.add(norm)
 
-        # Chọn video_url tối ưu cho trình duyệt:
-        # Nếu có H.264 -> chọn luồng H.264 có bitrate cao nhất
-        # Nếu không có H.264 -> fallback về video có bitrate cao nhất hoặc info.url
-        if h264_formats:
-            h264_formats.sort(key=lambda x: x["tbr"], reverse=True)
-            video_url = h264_formats[0]["url"]
-        elif all_video_formats:
-            all_video_formats.sort(key=lambda x: x["tbr"], reverse=True)
+            f_url = f.get("url")
+            if not f_url:
+                continue
+
+            tbr = float(f.get("tbr") or f.get("vbr") or 0.0)
+            stream_entry = {
+                "format_id": str(f.get("format_id") or ""),
+                "vcodec": vcodec,
+                "acodec": str(f.get("acodec") or "").lower(),
+                "resolution": f"{width}x{height}" if width and height else (f.get("resolution") or ""),
+                "quality": norm,
+                "tbr": tbr,
+                "url": f_url,
+                "http_headers": f.get("http_headers") or info.get("http_headers") or {},
+            }
+            all_video_formats.append(stream_entry)
+
+        # Luôn ưu tiên luồng có bitrate cao nhất (tbr) tuyệt đối, bất kể codec vì Go Storage có cơ chế convert
+        all_video_formats.sort(key=lambda x: (x.get("tbr") or 0, x.get("quality") or 0), reverse=True)
+        best_headers: dict[str, str] = {}
+        if all_video_formats:
             video_url = all_video_formats[0]["url"]
+            best_headers = all_video_formats[0].get("http_headers") or {}
         else:
             video_url = info.get("url")
+            best_headers = info.get("http_headers") or {}
+
+        if video_url:
+            video_url = html.unescape(video_url).replace(r"\u002F", "/")
 
         if not has_video and (info.get("duration") or info.get("ext") == "mp4"):
             if info.get("url") and not info.get("url", "").endswith((".jpg", ".png", ".webp")):
                 has_video = True
 
-        # Thu thập các ảnh bìa / thumbnail (dynamicCover, cover, originCover)
-        covers: list[dict[str, str]] = []
-        seen_cover_urls: set[str] = set()
-        raw_thumbnails = info.get("thumbnails") or []
-        for i, t in enumerate(raw_thumbnails):
-            if isinstance(t, dict) and t.get("url"):
-                t_url = t.get("url")
-                if t_url not in seen_cover_urls:
-                    seen_cover_urls.add(t_url)
-                    cid = t.get("id") or f"cover_{i+1}"
-                    covers.append({
-                        "id": str(cid),
-                        "label": f"Ảnh bìa / Cover ({cid})",
-                        "url": t_url,
-                    })
-
-        if not covers and info.get("thumbnail"):
-            t_url = info.get("thumbnail")
-            seen_cover_urls.add(t_url)
-            covers.append({
-                "id": "thumbnail",
-                "label": "Ảnh bìa đại diện",
-                "url": t_url,
-            })
-
-        # Thu thập ảnh nội dung bài viết (nếu có từ entries hoặc formats ảnh)
+        # Thu thập ảnh nội dung bài viết (ảnh thật / gốc từ entries hoặc formats)
         slideshow_images: list[str] = []
         seen_slides: set[str] = set()
 
         def add_slide(s_url: Optional[str]) -> None:
-            if s_url and isinstance(s_url, str) and s_url.startswith("http") and s_url not in seen_slides and s_url not in seen_cover_urls:
-                seen_slides.add(s_url)
-                slideshow_images.append(s_url)
+            if s_url and isinstance(s_url, str) and s_url.startswith("http"):
+                clean = html.unescape(s_url).replace(r"\u002F", "/")
+                if clean not in seen_slides:
+                    seen_slides.add(clean)
+                    slideshow_images.append(clean)
 
         entries = info.get("entries")
         if isinstance(entries, list):
             for entry in entries:
                 if isinstance(entry, dict):
-                    add_slide(entry.get("url"))
-                    for thumb in entry.get("thumbnails") or []:
-                        if isinstance(thumb, dict):
-                            add_slide(thumb.get("url"))
+                    entry_url = entry.get("url")
+                    if entry_url:
+                        add_slide(entry_url)
+                    else:
+                        for thumb in entry.get("thumbnails") or []:
+                            if isinstance(thumb, dict) and thumb.get("url"):
+                                add_slide(thumb.get("url"))
+                                break
 
         for fmt in formats:
-            if isinstance(fmt, dict) and fmt.get("ext") in ("jpg", "jpeg", "png", "webp"):
-                add_slide(fmt.get("url"))
+            if isinstance(fmt, dict):
+                fmt_id = str(fmt.get("format_id") or "").lower()
+                ext = str(fmt.get("ext") or "").lower()
+                if ext in ("jpg", "jpeg", "png", "webp") or "photo" in fmt_id or "image" in fmt_id:
+                    add_slide(fmt.get("url"))
 
-        # Tổng hợp toàn bộ ảnh với phân loại rõ ràng (ảnh nội dung vs ảnh bìa)
+        # Nếu không có video và chưa tìm thấy ảnh từ entries/formats (bài chỉ có 1 ảnh), fallback về thumbnails
+        if not has_video and not slideshow_images:
+            for t in info.get("thumbnails") or []:
+                if isinstance(t, dict) and t.get("url"):
+                    add_slide(t.get("url"))
+            if not slideshow_images and info.get("thumbnail"):
+                add_slide(info.get("thumbnail"))
+
+        # Thu thập các ảnh bìa / thumbnail (dynamicCover, cover, originCover)
+        # Dùng làm thumbnail xem trước bài viết, tuyệt đối không đưa vào all_images tải về
+        covers: list[dict[str, str]] = []
+        seen_cover_urls: set[str] = set()
+        raw_thumbnails = info.get("thumbnails") or []
+        for i, t in enumerate(raw_thumbnails):
+            if isinstance(t, dict) and t.get("url"):
+                t_url = html.unescape(t.get("url")).replace(r"\u002F", "/")
+                cid = str(t.get("id") or f"cover_{i+1}")
+                # Chỉ coi là cover nếu là bài video hoặc id/url có chữ cover
+                if t_url not in seen_cover_urls and (has_video or "cover" in cid.lower()):
+                    seen_cover_urls.add(t_url)
+                    covers.append({
+                        "id": cid,
+                        "label": f"Ảnh bìa / Cover ({cid})",
+                        "url": t_url,
+                    })
+
+        if not covers and info.get("thumbnail"):
+            t_url = html.unescape(info.get("thumbnail")).replace(r"\u002F", "/")
+            if t_url not in seen_cover_urls:
+                seen_cover_urls.add(t_url)
+                covers.append({
+                    "id": "thumbnail",
+                    "label": "Ảnh bìa đại diện",
+                    "url": t_url,
+                })
+
+        # Danh sách ảnh bài viết - chỉ chứa ảnh nội dung/gốc (tuyệt đối không đưa ảnh bìa/covers vào đây)
         all_images: list[dict[str, str]] = []
         for idx, s_url in enumerate(slideshow_images):
             all_images.append({
                 "id": f"photo_{idx + 1}",
                 "type": "slideshow_photo",
-                "label": f"Ảnh nội dung #{idx + 1}",
+                "label": f"Ảnh gốc #{idx + 1}",
                 "url": s_url,
             })
-        for idx, c in enumerate(covers):
-            all_images.append({
-                "id": c.get("id") or f"cover_{idx + 1}",
-                "type": "cover",
-                "label": c["label"],
-                "url": c["url"],
-            })
 
-        images = [item["url"] for item in all_images]
+        images = list(slideshow_images)
 
         if has_video and len(slideshow_images) > 0:
             post_type = "mixed"
@@ -280,10 +330,8 @@ class TikTokExtractor:
             post_type = "slideshow"
         elif len(slideshow_images) == 1:
             post_type = "photo"
-        elif len(covers) > 0:
-            post_type = "video" if has_video else "photo"
         else:
-            post_type = "unknown"
+            post_type = "video" if has_video else "unknown"
 
         qualities = sorted(qualities_set, reverse=True)
         sanitized_info = sanitize_raw_info(info)
@@ -303,5 +351,7 @@ class TikTokExtractor:
             "all_images": all_images,
             "images": images,
             "qualities": qualities,
+            "session_cookies": session_cookies or {},
+            "http_headers": best_headers,
             "raw_info": sanitized_info,
         }

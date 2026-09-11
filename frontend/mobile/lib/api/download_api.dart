@@ -9,16 +9,46 @@ String canonicalDownloadDestination(String selectedPath) {
   return selected.isEmpty ? '/' : '/$selected';
 }
 
+class MediaImageItem {
+  final String url;
+  final String label;
+  final String type;
+
+  MediaImageItem({
+    required this.url,
+    this.label = '',
+    this.type = 'slideshow_photo',
+  });
+
+  factory MediaImageItem.fromJson(Map<String, dynamic> json) {
+    return MediaImageItem(
+      url: json['url']?.toString() ?? '',
+      label: json['label']?.toString() ?? '',
+      type: json['type']?.toString() ?? 'slideshow_photo',
+    );
+  }
+}
+
 class MediaDownloadPreview {
-  final String source, title, thumbnail, uploader;
+  final String source, title, thumbnail, uploader, type;
   final List<int> qualities;
+  final List<MediaImageItem> images;
+  final bool hasVideo;
+  final bool hasAudio;
 
   MediaDownloadPreview.fromJson(Map<String, dynamic> json)
-    : source = json['source'] as String,
-      title = json['title'] as String,
+    : source = json['source'] as String? ?? '',
+      type = json['type'] as String? ?? 'video',
+      title = json['title'] as String? ?? '',
       thumbnail = json['thumbnail'] as String? ?? '',
       uploader = json['uploader'] as String? ?? '',
-      qualities = (json['qualities'] as List).cast<int>();
+      qualities = (json['qualities'] as List? ?? const []).cast<int>(),
+      images = ((json['images'] as List? ?? const [])
+          .whereType<Map>()
+          .map((m) => MediaImageItem.fromJson(Map<String, dynamic>.from(m)))
+          .toList()),
+      hasVideo = json['has_video'] == true,
+      hasAudio = json['has_audio'] == true;
 }
 
 class VideoOptimizationModel {
@@ -448,6 +478,8 @@ class DownloadApi {
     String destination = '',
     String? password,
     int? quality,
+    List<int>? selectedIndices,
+    String? mediaType,
   }) async {
     try {
       final response = await _createCoordinatorDio().post(
@@ -457,6 +489,14 @@ class DownloadApi {
           'destination': destination,
           if (password != null && password.isNotEmpty) 'password': password,
           if (quality != null) 'quality': quality,
+          if (selectedIndices != null) ...{
+            'selectedIndices': selectedIndices,
+            'selected_indices': selectedIndices,
+          },
+          if (mediaType != null && mediaType.isNotEmpty) ...{
+            'mediaType': mediaType,
+            'media_type': mediaType,
+          },
         },
       );
       return {

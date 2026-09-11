@@ -216,7 +216,7 @@ class TestTikTokIntegration(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(res["video_url"])
         self.assertEqual(len(res["slideshow_images"]), 2)
         self.assertEqual(len(res["covers"]), 1)
-        self.assertEqual(len(res["all_images"]), 3)
+        self.assertEqual(len(res["all_images"]), 2)
 
     def test_process_info_video_does_not_leak_covers_as_images(self):
         extractor = TikTokExtractor()
@@ -242,13 +242,13 @@ class TestTikTokIntegration(unittest.IsolatedAsyncioTestCase):
         }
         res = extractor._process_info(video_payload)
         self.assertEqual(res["type"], "video")
-        # Ensure 3 covers are captured and categorized as covers
+        # Ensure 3 covers are captured in covers only and do not leak into all_images/images
         self.assertEqual(len(res["covers"]), 3)
         self.assertEqual(res["covers"][0]["id"], "dynamicCover")
         self.assertEqual(res["covers"][1]["id"], "cover")
         self.assertEqual(res["covers"][2]["id"], "originCover")
-        self.assertEqual(len(res["all_images"]), 3)
-        self.assertEqual(res["all_images"][0]["type"], "cover")
+        self.assertEqual(len(res["all_images"]), 0)
+        self.assertEqual(len(res["images"]), 0)
         self.assertIsNotNone(res["video_url"])
         self.assertEqual(res["qualities"], [720, 576])
 
@@ -302,7 +302,7 @@ class TestTikTokIntegration(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res["video_url"], "https://tiktokcdn.com/video.mp4")
         self.assertEqual(len(res["slideshow_images"]), 2)
         self.assertEqual(len(res["covers"]), 1)
-        self.assertEqual(len(res["all_images"]), 3)
+        self.assertEqual(len(res["all_images"]), 2)
 
     def test_tiktok_cookies_file_read_and_save(self):
         import tempfile

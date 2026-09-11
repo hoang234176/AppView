@@ -8,7 +8,29 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"backend/cookies"
 )
+
+func netscapeToCookieHeader(raw string) string {
+	lines := strings.Split(raw, "\n")
+	var parts []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) >= 7 {
+			name := strings.TrimSpace(fields[5])
+			val := strings.TrimSpace(fields[6])
+			if name != "" && val != "" {
+				parts = append(parts, fmt.Sprintf("%s=%s", name, val))
+			}
+		}
+	}
+	return strings.Join(parts, "; ")
+}
 
 func downloadStream(ctx context.Context, job *Job, targetURL string, headers map[string]string, partPath string, initialBytes int64) (int64, error) {
 	var existingBytes int64
@@ -23,15 +45,23 @@ func downloadStream(ctx context.Context, job *Job, targetURL string, headers map
 
 	for k, v := range headers {
 		lk := strings.ToLower(k)
-		if lk == "user-agent" || lk == "referer" || lk == "accept" || lk == "accept-language" {
+		if lk == "user-agent" || lk == "referer" || lk == "accept" || lk == "accept-language" || lk == "cookie" {
 			req.Header.Set(k, v)
 		}
 	}
 	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1")
 	}
 	if req.Header.Get("Referer") == "" {
 		req.Header.Set("Referer", "https://www.tiktok.com/")
+	}
+	if req.Header.Get("Cookie") == "" {
+		if raw, exists, err := cookies.Read("tiktok"); err == nil && exists && strings.TrimSpace(raw) != "" {
+			cookieHeader := netscapeToCookieHeader(raw)
+			if cookieHeader != "" {
+				req.Header.Set("Cookie", cookieHeader)
+			}
+		}
 	}
 	if existingBytes > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingBytes))
@@ -43,6 +73,29 @@ func downloadStream(ctx context.Context, job *Job, targetURL string, headers map
 		return 0, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusForbidden {
+		// Retry once with standard Desktop User-Agent if mobile UA got 403
+		reqAlt, errAlt := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+		if errAlt == nil {
+			reqAlt.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+			reqAlt.Header.Set("Referer", "https://www.tiktok.com/")
+			reqAlt.Header.Set("Accept", "*/*")
+			if cookieVal := req.Header.Get("Cookie"); cookieVal != "" {
+				reqAlt.Header.Set("Cookie", cookieVal)
+			}
+			if existingBytes > 0 {
+				reqAlt.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingBytes))
+			}
+			respAlt, errAlt2 := client.Do(reqAlt)
+			if errAlt2 == nil && respAlt.StatusCode >= 200 && respAlt.StatusCode < 300 {
+				resp = respAlt
+				defer resp.Body.Close()
+			} else if respAlt != nil {
+				respAlt.Body.Close()
+			}
+		}
+	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return 0, fmt.Errorf("máy chủ tải trả HTTP %d", resp.StatusCode)

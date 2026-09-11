@@ -42,6 +42,8 @@ type YouTubeOperations interface {
 type TikTokOperations interface {
 	Start(id, sourceURL, filename, destination, audioURL string, items []tiktok.DownloadItem, headers map[string]string) error
 	Cancel(id string) bool
+	SetVideoDecision(id, videoID, quality string) error
+	ApplyVideoDecisions(id string, decisions map[string]string) error
 	Snapshot(id string) (tiktok.Snapshot, bool)
 	Snapshots() []tiktok.Snapshot
 	SetCanonicalID(id, canonicalID string) bool
@@ -55,6 +57,14 @@ func (tiktokOperations) Start(id, sourceURL, filename, destination, audioURL str
 
 func (tiktokOperations) Cancel(id string) bool {
 	return tiktok.CancelJob(id)
+}
+
+func (tiktokOperations) SetVideoDecision(id, videoID, quality string) error {
+	return tiktok.SetVideoDecision(id, videoID, quality)
+}
+
+func (tiktokOperations) ApplyVideoDecisions(id string, decisions map[string]string) error {
+	return tiktok.ApplyVideoDecisions(id, decisions)
 }
 
 func (tiktokOperations) Snapshot(id string) (tiktok.Snapshot, bool) {
@@ -437,15 +447,42 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 	}
 
 	if _, isTT := h.tiktok.Snapshot(control.ArchiveTaskID); isTT {
-		if control.Operation == "cancel" {
-			if !h.tiktok.Cancel(control.ArchiveTaskID) {
-				h.fail(send, controlTaskID, "STORAGE_CONTROL_FAILED", "tiktok job not found")
-				return
+		var err error
+		if control.Operation == "video_decision" {
+			err = h.tiktok.SetVideoDecision(control.ArchiveTaskID, control.VideoID, control.Quality)
+		} else if control.Operation == "video_apply" {
+			var decisions map[string]string
+			if len(control.Decisions) > 0 {
+				if unmarshalErr := json.Unmarshal(control.Decisions, &decisions); unmarshalErr != nil {
+					var str string
+					if json.Unmarshal(control.Decisions, &str) == nil {
+						_ = json.Unmarshal([]byte(str), &decisions)
+					}
+				}
 			}
-			h.monitor(ctx, control.ArchiveTaskID, send)
+			err = h.tiktok.ApplyVideoDecisions(control.ArchiveTaskID, decisions)
+		} else if control.Operation == "cancel" {
+			if !h.tiktok.Cancel(control.ArchiveTaskID) {
+				err = fmt.Errorf("tiktok job not found")
+			}
+		} else {
+			err = fmt.Errorf("thao tác %s không được hỗ trợ cho TikTok", control.Operation)
+		}
+
+		if err != nil {
+			h.fail(send, controlTaskID, "STORAGE_CONTROL_FAILED", err.Error())
 			return
 		}
-		h.fail(send, controlTaskID, "STORAGE_CONTROL_FAILED", fmt.Sprintf("thao tác %s không được hỗ trợ cho TikTok", control.Operation))
+
+		if control.Operation == "video_decision" || control.Operation == "video_apply" {
+			if snapshot, ok := h.tiktok.Snapshot(control.ArchiveTaskID); ok {
+				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{tiktokStorageSnapshot(snapshot)}}})
+			}
+			_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
+			return
+		}
+
+		h.monitor(ctx, control.ArchiveTaskID, send)
 		return
 	}
 

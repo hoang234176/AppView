@@ -12,13 +12,15 @@ import (
 type DownloadHandler struct{ coordinator *service.Coordinator }
 
 type createDownloadRequest struct {
-	URL             string `json:"url"`
-	Filename        string `json:"filename,omitempty"`
-	Destination     string `json:"destination,omitempty"`
-	Password        string `json:"password,omitempty"`
-	Quality         *int   `json:"quality,omitempty"`
-	SelectedIndices []int  `json:"selectedIndices,omitempty"`
-	MediaType       string `json:"mediaType,omitempty"`
+	URL                  string `json:"url"`
+	Filename             string `json:"filename,omitempty"`
+	Destination          string `json:"destination,omitempty"`
+	Password             string `json:"password,omitempty"`
+	Quality              *int   `json:"quality,omitempty"`
+	SelectedIndices      []int  `json:"selectedIndices,omitempty"`
+	SelectedIndicesSnake []int  `json:"selected_indices,omitempty"`
+	MediaType            string `json:"mediaType,omitempty"`
+	MediaTypeSnake       string `json:"media_type,omitempty"`
 }
 
 type extractDownloadRequest struct {
@@ -53,9 +55,17 @@ func (h *DownloadHandler) Create(writer http.ResponseWriter, request *http.Reque
 		}
 		quality = *body.Quality
 	}
+	selectedIndices := body.SelectedIndices
+	if len(selectedIndices) == 0 && len(body.SelectedIndicesSnake) > 0 {
+		selectedIndices = body.SelectedIndicesSnake
+	}
+	mediaType := strings.TrimSpace(body.MediaType)
+	if mediaType == "" && strings.TrimSpace(body.MediaTypeSnake) != "" {
+		mediaType = strings.TrimSpace(body.MediaTypeSnake)
+	}
 	job, err := h.coordinator.CreateDownload(service.DownloadRequest{
 		URL: body.URL, Filename: body.Filename, Destination: body.Destination, Password: body.Password, Quality: quality,
-		SelectedIndices: body.SelectedIndices, MediaType: body.MediaType,
+		SelectedIndices: selectedIndices, MediaType: mediaType,
 	})
 	if err != nil {
 		logging.Event("WARN", "download request rejected", map[string]any{"error": err.Error()})
