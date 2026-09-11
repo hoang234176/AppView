@@ -47,8 +47,8 @@ func TestCookieEndpointsValidationAndNoWorker(t *testing.T) {
 		t.Fatalf("expected 503, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	// 3. Verify missing cookies -> 400
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"youtube","cookies":""}`))
+	// 3. Verify missing platform -> 400
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"","cookies":"sample"}`))
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
@@ -187,5 +187,21 @@ func TestCookieEndpointsSuccessWithWorkers(t *testing.T) {
 	}
 	if !verifyRes.Valid || verifyRes.Message != "Verification succeeded" {
 		t.Fatalf("unexpected verify result: %+v", verifyRes)
+	}
+
+	// Test Verify with fields
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"youtube","fields":{"LOGIN_INFO":"val1","SID":"val2"}}`))
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Test Save with fields
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/save", bytes.NewBufferString(`{"platform":"youtube","fields":{"LOGIN_INFO":"val1","SID":"val2"}}`))
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

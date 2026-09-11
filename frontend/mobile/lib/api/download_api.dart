@@ -343,6 +343,106 @@ class DownloadApi {
     }
   }
 
+  static Future<Map<String, dynamic>> getCookieStatus([
+    String platform = 'youtube',
+  ]) async {
+    try {
+      final response = await _createCoordinatorDio().get(
+        '/cookies/status',
+        queryParameters: {'platform': platform},
+      );
+      return {
+        'success': true,
+        'data':
+            response.data is Map
+                ? Map<String, dynamic>.from(response.data as Map)
+                : <String, dynamic>{},
+      };
+    } on DioException catch (e) {
+      final error = e.response?.data is Map ? e.response?.data['error'] : null;
+      return {
+        'success': false,
+        'message':
+            error is String ? error : 'Không thể lấy trạng thái cookie.',
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> verifyCookies({
+    String platform = 'youtube',
+    Map<String, String>? fields,
+    String? cookies,
+  }) async {
+    try {
+      final payload = <String, dynamic>{'platform': platform};
+      if (fields != null) payload['fields'] = fields;
+      if (cookies != null) payload['cookies'] = cookies;
+      final response = await _createCoordinatorDio().post(
+        '/cookies/verify',
+        data: payload,
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
+      return {
+        'success': true,
+        'data':
+            response.data is Map
+                ? Map<String, dynamic>.from(response.data as Map)
+                : <String, dynamic>{},
+      };
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      String message = 'Không thể xác thực cookie.';
+      if (data is Map) {
+        if (data['message'] is String) {
+          message = data['message'] as String;
+        } else if (data['error'] is String) {
+          message = data['error'] as String;
+        }
+      }
+      return {'success': false, 'message': message};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> saveCookies({
+    String platform = 'youtube',
+    Map<String, String>? fields,
+    String? cookies,
+  }) async {
+    try {
+      final payload = <String, dynamic>{'platform': platform};
+      if (fields != null) payload['fields'] = fields;
+      if (cookies != null) payload['cookies'] = cookies;
+      final response = await _createCoordinatorDio().post(
+        '/cookies/save',
+        data: payload,
+      );
+      return {
+        'success': true,
+        'data':
+            response.data is Map
+                ? Map<String, dynamic>.from(response.data as Map)
+                : <String, dynamic>{},
+      };
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      String message = 'Không thể lưu cookie.';
+      if (data is Map) {
+        if (data['message'] is String) {
+          message = data['message'] as String;
+        } else if (data['error'] is String) {
+          message = data['error'] as String;
+        }
+      }
+      return {'success': false, 'message': message};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   static Future<Map<String, dynamic>> startCoordinatorDownload({
     required String url,
     String destination = '',

@@ -140,8 +140,9 @@ func NewError(code, message string) Message {
 }
 
 type CookieRequestPayload struct {
-	Platform string `json:"platform"`
-	Cookies  string `json:"cookies,omitempty"`
+	Platform string            `json:"platform"`
+	Cookies  string            `json:"cookies,omitempty"`
+	Fields   map[string]string `json:"fields,omitempty"`
 }
 
 type CookieStatusResult struct {

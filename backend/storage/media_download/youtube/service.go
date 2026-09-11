@@ -209,14 +209,6 @@ func runJob(job *Job) {
 		return
 	}
 
-	sourceFile := filepath.Join(workspace, job.Filename)
-	stagedFile := filepath.Join(convertDir, job.Filename)
-	_ = os.Remove(stagedFile)
-	if err := os.Rename(sourceFile, stagedFile); err != nil {
-		setJobError(job, "CONVERT_PREPARE_FAILED", err.Error())
-		return
-	}
-
 	needsDecision := false
 	for _, v := range videos {
 		if v.OptimizationNeeded && v.SelectedQuality == "" {
@@ -234,75 +226,103 @@ func runJob(job *Job) {
 }
 
 func startConversion(job *Job, convertDir string) {
+	workspace, err := WorkspaceDir(job.ID)
+	if err != nil {
+		setJobError(job, "WORKSPACE_ERROR", err.Error())
+		return
+	}
+
+	sourcePath := filepath.Join(workspace, job.Filename)
+	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+		alt := filepath.Join(convertDir, job.Filename)
+		if _, altErr := os.Stat(alt); altErr == nil {
+			sourcePath = alt
+		} else {
+			setJobError(job, "CONVERT_PREPARE_FAILED", fmt.Sprintf("không tìm thấy file nguồn trong workspace: %s", job.Filename))
+			return
+		}
+	}
+
+	if err := os.MkdirAll(convertDir, 0755); err != nil {
+		setJobError(job, "CONVERT_PREPARE_FAILED", err.Error())
+		return
+	}
+
+	convertedFilename := strings.TrimSuffix(job.Filename, filepath.Ext(job.Filename)) + ".mp4"
+	targetPath := filepath.Join(convertDir, convertedFilename)
+
 	job.mu.Lock()
-	plans := make(map[string]string)
+	quality := ""
 	for _, v := range job.Videos {
 		if v.OptimizationNeeded {
-			plans[v.RelativePath] = v.SelectedQuality
+			quality = v.SelectedQuality
+			break
 		}
 	}
 	job.State = "converting"
+	job.ConvertTotal = 1
+	job.ConvertCurrent = 0
+	job.ConvertFailed = 0
+	for i := range job.Videos {
+		if job.Videos[i].OptimizationNeeded {
+			job.Videos[i].State = "converting"
+		}
+	}
 	job.UpdatedAt = time.Now().UTC()
 	ctx := job.ctx
+	destination := job.Destination
+	id := job.ID
 	job.mu.Unlock()
 	persistJob(job)
 
-	invalidTotal, _ := pythonapi.StartConvertJobWithContextPlans(ctx, job.ID, convertDir, plans)
-
-	for {
-		select {
-		case <-time.After(time.Second):
-		case <-ctx.Done():
-			return
-		}
-
-		total, current, failed, _, _, done := pythonapi.GetConvertJobSnapshot(job.ID)
+	// Direct single-file transcoding
+	if err := pythonapi.ConvertSingleVideoFile(ctx, id, sourcePath, targetPath, quality); err != nil {
 		job.mu.Lock()
-		job.ConvertTotal, job.ConvertCurrent, job.ConvertFailed, job.UpdatedAt = total, current, failed, time.Now().UTC()
-		convertedCount := current
-		for i := range job.Videos {
-			if job.Videos[i].OptimizationNeeded {
-				if convertedCount > 0 {
-					job.Videos[i].State = "completed"
-					convertedCount--
-				}
-			}
-		}
 		stage := job.State
 		job.mu.Unlock()
-		persistJob(job)
-
-		if done {
-			if stage == "cancelling" {
-				setJobStage(job, "cancelled")
-				return
-			}
-			if ctx.Err() != nil {
-				return
-			}
-			if failed > 0 {
-				setJobError(job, "VIDEO_CONVERT_UNAVAILABLE", fmt.Sprintf("Không tối ưu được %d/%d video", failed, invalidTotal))
-				return
-			}
-
-			// Final converted file is in convertDir (<base>.mp4)
-			convertedName := strings.TrimSuffix(job.Filename, filepath.Ext(job.Filename)) + ".mp4"
-			convertedPath := filepath.Join(convertDir, convertedName)
-			if _, statErr := os.Stat(convertedPath); statErr != nil {
-				convertedPath = filepath.Join(convertDir, job.Filename)
-			}
-
-			if _, err := commitMediaFile(ctx, convertedPath, job.Destination, filepath.Base(convertedPath), job.ID); err != nil {
-				setJobError(job, "FINALIZE_FAILED", err.Error())
-				return
-			}
-
-			workspace, _ := WorkspaceDir(job.ID)
-			_ = os.RemoveAll(workspace)
-			setJobStage(job, "completed")
+		if stage == "cancelling" || ctx.Err() != nil {
+			setJobStage(job, "cancelled")
 			return
 		}
+		job.mu.Lock()
+		job.ConvertFailed = 1
+		job.UpdatedAt = time.Now().UTC()
+		job.mu.Unlock()
+		persistJob(job)
+		setJobError(job, "VIDEO_CONVERT_FAILED", fmt.Sprintf("Không tối ưu được video: %v", err))
+		return
 	}
+
+	if ctx.Err() != nil {
+		setJobStage(job, "cancelled")
+		return
+	}
+
+	job.mu.Lock()
+	job.ConvertTotal = 1
+	job.ConvertCurrent = 1
+	for i := range job.Videos {
+		if job.Videos[i].OptimizationNeeded {
+			job.Videos[i].State = "completed"
+		}
+	}
+	job.UpdatedAt = time.Now().UTC()
+	job.mu.Unlock()
+	persistJob(job)
+
+	// Finalize & Clean
+	if _, statErr := os.Stat(targetPath); statErr != nil {
+		setJobError(job, "FINALIZE_FAILED", fmt.Sprintf("file phương tiện trong workspace không tồn tại: %v", statErr))
+		return
+	}
+
+	if _, err := commitMediaFile(ctx, targetPath, destination, convertedFilename, id); err != nil {
+		setJobError(job, "FINALIZE_FAILED", err.Error())
+		return
+	}
+
+	_ = os.RemoveAll(workspace)
+	setJobStage(job, "completed")
 }
 
 // GetJobSnapshot returns the snapshot for a given job ID.
@@ -379,7 +399,11 @@ func CancelJob(id string) bool {
 		job.OptimizationCancelled = true
 		job.CancelledFromStage = "converting"
 		job.UpdatedAt = time.Now().UTC()
+		cancel := job.cancel
 		job.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
 		persistJob(job)
 		pythonapi.CancelConvertJob(id)
 		return true

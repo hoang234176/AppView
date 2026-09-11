@@ -625,12 +625,99 @@ func ConvertFolderVideos(folderPath string) {
 	StartConvertJob(folderPath, folderPath)
 }
 
+// ConvertSingleVideoFile performs direct single-file transcoding from srcPath to dstPath.
+// It registers a ConvertJob for taskID so cancellation via CancelConvertJob is supported.
+func ConvertSingleVideoFile(parent context.Context, taskID, srcPath, dstPath, quality string) error {
+	LogInfo("[CONVERT] [%s] Bắt đầu convert single video: %s -> %s (quality: %s)", taskID, srcPath, dstPath, quality)
+	if parent.Err() != nil {
+		return parent.Err()
+	}
+
+	if _, err := os.Stat(srcPath); err != nil {
+		return fmt.Errorf("không tìm thấy file nguồn: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
+		return fmt.Errorf("không thể tạo thư mục đích cho file convert: %w", err)
+	}
+
+	ctx, cancel := context.WithCancel(parent)
+	job := &ConvertJob{
+		TaskID:         taskID,
+		Total:          1,
+		Current:        0,
+		CurrentName:    filepath.Base(srcPath),
+		CurrentPercent: 0,
+		Done:           false,
+		ctx:            ctx,
+		cancel:         cancel,
+		Qualities:      map[string]string{filepath.Base(srcPath): quality},
+	}
+	convertJobsMu.Lock()
+	convertJobs[taskID] = job
+	convertJobsMu.Unlock()
+	defer func() {
+		job.mu.Lock()
+		job.Done = true
+		job.mu.Unlock()
+		time.AfterFunc(5*time.Minute, func() { deleteConvertJob(taskID) })
+	}()
+
+	if len(convertJobSemaphore) > 0 {
+		LogInfo("[CONVERT] [%s] Đang chờ convert job khác hoàn thành.", taskID)
+	}
+	select {
+	case convertJobSemaphore <- struct{}{}:
+		LogInfo("[CONVERT] [%s] Nhận lượt convert độc quyền cho single file: %s", taskID, filepath.Base(srcPath))
+	case <-job.ctx.Done():
+		LogInfo("[CONVERT] [%s] Hủy khi đang chờ lượt convert.", taskID)
+		return job.ctx.Err()
+	}
+	defer func() { <-convertJobSemaphore }()
+
+	compatibility := probeVideoCompatibilityContext(job.ctx, srcPath)
+	if job.ctx.Err() != nil {
+		return job.ctx.Err()
+	}
+
+	_ = os.Remove(dstPath)
+	ok := convertSingleFile(job, taskID, srcPath, dstPath, 1, 1, compatibility, quality)
+	if !ok {
+		_ = os.Remove(dstPath)
+		if job.ctx.Err() != nil {
+			return job.ctx.Err()
+		}
+		return fmt.Errorf("chuyển đổi ffmpeg thất bại cho %s", filepath.Base(srcPath))
+	}
+	if job.ctx.Err() != nil {
+		_ = os.Remove(dstPath)
+		return job.ctx.Err()
+	}
+
+	compatible, _ := isBrowserCompatibleVideo(dstPath)
+	if !compatible {
+		_ = os.Remove(dstPath)
+		return fmt.Errorf("file convert không đạt định dạng tương thích trình duyệt")
+	}
+
+	job.mu.Lock()
+	job.Current = 1
+	job.CurrentPercent = 100
+	job.mu.Unlock()
+	LogInfo("[CONVERT] [%s] Hoàn tất convert single video: %s", taskID, filepath.Base(dstPath))
+	return nil
+}
+
 // convertSingleFile chọn đúng nhánh nhỏ nhất. Ba thuộc tính độc lập cho phép
 // giữ nguyên stream đã đạt thay vì luôn encode lại cả video lẫn audio.
 func convertSingleFile(job *ConvertJob, taskID, srcPath, dstPath string, idx, total int, c VideoCompatibility, quality string) bool {
 	// A selected downscale necessarily re-encodes video, while still copying
 	// compatible audio whenever the MP4 container allows it.
-	if quality == "4k" || quality == "2k" || quality == "1080p" {
+	quality = strings.ToLower(strings.TrimSpace(quality))
+	if _, ok := map[string]bool{
+		"4k": true, "2k": true, "1080p": true,
+		"720p": true, "480p": true, "360p": true, "240p": true, "144p": true,
+	}[quality]; ok {
 		return transcodeVideoOnlyQuality(job, taskID, srcPath, dstPath, idx, total, quality)
 	}
 	switch {
@@ -705,7 +792,18 @@ func browserVideoArgs(quality string) []string {
 		"-map", "0:v:0", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-threads", "2",
 		"-profile:v", "high", "-level:v", "5.1", "-pix_fmt", "yuv420p", "-tag:v", "avc1",
 	}
-	if target := map[string]int{"4k": 2160, "2k": 1440, "1080p": 1080}[quality]; target > 0 {
+	quality = strings.ToLower(strings.TrimSpace(quality))
+	targetMap := map[string]int{
+		"4k":    2160,
+		"2k":    1440,
+		"1080p": 1080,
+		"720p":  720,
+		"480p":  480,
+		"360p":  360,
+		"240p":  240,
+		"144p":  144,
+	}
+	if target := targetMap[quality]; target > 0 {
 		args = append(args, "-vf", fmt.Sprintf("scale='if(gte(iw,ih),-2,%d)':'if(gte(iw,ih),%d,-2)':force_original_aspect_ratio=decrease", target, target))
 	}
 	return args

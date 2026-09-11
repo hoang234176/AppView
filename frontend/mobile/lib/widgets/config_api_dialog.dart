@@ -39,6 +39,28 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   // Collapsible Accordion States
   bool _openSection1 = false;
   bool _openSection2 = false;
+  bool _openSection3 = false;
+
+  // Social Cookies State (YouTube)
+  String _cookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
+  bool _isCookieInputOpen = false;
+  static const List<String> _cookieFieldKeys = [
+    'LOGIN_INFO',
+    'SID',
+    'HSID',
+    'SSID',
+    'SAPISID',
+    '__Secure-1PSID',
+    '__Secure-3PSID',
+  ];
+  final Map<String, TextEditingController> _cookieControllers = {
+    for (final key in _cookieFieldKeys) key: TextEditingController(),
+  };
+  bool _isVerifyingCookie = false;
+  bool _isSavingCookie = false;
+  bool _isCookieVerified = false;
+  String? _cookieVerifyMsg;
+  bool _cookieVerifySuccess = false;
 
   CacheInfoData? _cacheInfo;
 
@@ -48,13 +70,123 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     final settings = context.read<SettingsProvider>();
     _hostController = TextEditingController(text: settings.serverHost);
     _loadCacheInfo();
+    _fetchCookieStatus();
     _checkCurrentConnectionAndLoadStorage();
   }
 
   @override
   void dispose() {
     _hostController.dispose();
+    for (final c in _cookieControllers.values) {
+      c.dispose();
+    }
     super.dispose();
+  }
+
+  Future<void> _fetchCookieStatus() async {
+    setState(() {
+      _cookieStatus = 'loading';
+    });
+    final res = await DownloadApi.getCookieStatus('youtube');
+    if (!mounted) return;
+    if (res['success'] == true && res['data'] is Map) {
+      final data = res['data'] as Map;
+      if (data['exists'] == true) {
+        setState(() => _cookieStatus = 'valid');
+      } else {
+        setState(() => _cookieStatus = 'none');
+      }
+    } else {
+      setState(() => _cookieStatus = 'none');
+    }
+  }
+
+  Future<void> _handleVerifyCookie() async {
+    setState(() {
+      _isVerifyingCookie = true;
+      _cookieVerifyMsg = null;
+    });
+
+    Map<String, String>? fields;
+    if (_isCookieInputOpen) {
+      final hasAny = _cookieControllers.values.any(
+        (c) => c.text.trim().isNotEmpty,
+      );
+      if (!hasAny) {
+        setState(() {
+          _isVerifyingCookie = false;
+          _cookieVerifySuccess = false;
+          _cookieVerifyMsg = 'Vui lòng nhập ít nhất một token cookie.';
+        });
+        return;
+      }
+      fields = _cookieControllers.map((k, v) => MapEntry(k, v.text.trim()));
+    }
+
+    final res = await DownloadApi.verifyCookies(
+      platform: 'youtube',
+      fields: fields,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _isVerifyingCookie = false;
+      if (res['success'] == true &&
+          res['data'] is Map &&
+          res['data']['valid'] == true) {
+        _isCookieVerified = true;
+        _cookieStatus = 'valid';
+        _cookieVerifySuccess = true;
+        _cookieVerifyMsg =
+            res['data']['message']?.toString() ?? '✓ Cookie hợp lệ!';
+      } else {
+        _isCookieVerified = false;
+        if (!_isCookieInputOpen) {
+          _cookieStatus = 'expired';
+        }
+        _cookieVerifySuccess = false;
+        final msg =
+            res['data'] is Map ? res['data']['message']?.toString() : null;
+        _cookieVerifyMsg =
+            msg ??
+            res['message']?.toString() ??
+            'Cookie không hợp lệ hoặc đã hết hạn.';
+      }
+    });
+  }
+
+  Future<void> _handleSaveCookie() async {
+    if (!_isCookieVerified || _isSavingCookie) return;
+    setState(() {
+      _isSavingCookie = true;
+      _cookieVerifyMsg = null;
+    });
+
+    final fields = _cookieControllers.map(
+      (k, v) => MapEntry(k, v.text.trim()),
+    );
+    final res = await DownloadApi.saveCookies(
+      platform: 'youtube',
+      fields: fields,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _isSavingCookie = false;
+      if (res['success'] == true) {
+        _isCookieInputOpen = false;
+        _isCookieVerified = false;
+        _cookieStatus = 'valid';
+        _cookieVerifySuccess = true;
+        _cookieVerifyMsg = 'Đã lưu cookie thành công!';
+        AppToast.showSuccess(context, 'Đã lưu cookie YouTube thành công!');
+      } else {
+        _cookieVerifySuccess = false;
+        _cookieVerifyMsg =
+            res['message']?.toString() ?? 'Không thể lưu cookie.';
+        AppToast.showError(context, _cookieVerifyMsg!);
+      }
+    });
   }
 
   Future<void> _checkCurrentConnectionAndLoadStorage() async {
@@ -74,6 +206,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
         _isConnected = true;
         _isLoadingStorage = true;
       });
+      _fetchCookieStatus();
       final storageData = await DownloadApi.fetchCoordinatorStorageInfo();
       if (!mounted) return;
       setState(() {
@@ -162,6 +295,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           _storageInfo = storageData;
           _isLoadingStorage = false;
         });
+        _fetchCookieStatus();
         AppToast.showSuccess(context, 'Đã lưu & kết nối máy chủ: $host');
       }
     } else {
@@ -589,15 +723,463 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                       ),
                       const SizedBox(height: 14),
 
-                      // ================= 2. DỌN DẸP BỘ NHỚ TẠM (COLLAPSIBLE) =================
+                      // ================= 2. COOKIE MXH (COLLAPSIBLE) =================
                       _buildAccordionSection(
                         isOpen: _openSection2,
                         onToggle:
                             () =>
                                 setState(() => _openSection2 = !_openSection2),
+                        icon: Icons.cookie_rounded,
+                        iconColor: Colors.amberAccent,
+                        title: '2. Cookie MXH',
+                        trailing: null,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // YouTube Card
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppTheme.bgCard,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppTheme.borderColor.withValues(alpha: 0.6),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Platform Header Row
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red.withValues(
+                                                alpha: 0.15,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: Colors.red.withValues(
+                                                  alpha: 0.3,
+                                                ),
+                                              ),
+                                            ),
+                                            child: const Icon(
+                                              Icons.play_arrow_rounded,
+                                              size: 16,
+                                              color: Colors.redAccent,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Text(
+                                            'YouTube',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      _buildCookieStatusBadge(),
+                                    ],
+                                  ),
+
+                                  // Sliding Input Container
+                                  AnimatedSize(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                    alignment: Alignment.topCenter,
+                                    child:
+                                        _isCookieInputOpen
+                                            ? Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 12,
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  const Divider(
+                                                    height: 1,
+                                                    color: AppTheme.borderColor,
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  const Text(
+                                                    'Nhập các giá trị cookie từ tài khoản YouTube của bạn:',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: Colors.white70,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  ..._cookieFieldKeys.map((
+                                                    key,
+                                                  ) {
+                                                    return Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            bottom: 8,
+                                                          ),
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            key,
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 10,
+                                                                  fontFamily:
+                                                                      'monospace',
+                                                                  color:
+                                                                      Colors
+                                                                          .white60,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 4,
+                                                          ),
+                                                          TextField(
+                                                            controller:
+                                                                _cookieControllers[key],
+                                                            onChanged: (_) {
+                                                              if (_isCookieVerified ||
+                                                                  _cookieVerifyMsg !=
+                                                                      null) {
+                                                                setState(() {
+                                                                  _isCookieVerified =
+                                                                      false;
+                                                                  _cookieVerifyMsg =
+                                                                      null;
+                                                                });
+                                                              }
+                                                            },
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 11,
+                                                                  color:
+                                                                      Colors
+                                                                          .white,
+                                                                  fontFamily:
+                                                                      'monospace',
+                                                                ),
+                                                            decoration:
+                                                                InputDecoration(
+                                                                  hintText:
+                                                                      'Nhập $key',
+                                                                  hintStyle:
+                                                                      TextStyle(
+                                                                        fontSize:
+                                                                            10,
+                                                                        color: Colors
+                                                                            .white
+                                                                            .withValues(
+                                                                              alpha:
+                                                                                  0.2,
+                                                                            ),
+                                                                      ),
+                                                                  contentPadding:
+                                                                      const EdgeInsets
+                                                                          .symmetric(
+                                                                        horizontal:
+                                                                            10,
+                                                                        vertical:
+                                                                            8,
+                                                                      ),
+                                                                  isDense: true,
+                                                                  filled: true,
+                                                                  fillColor:
+                                                                      AppTheme
+                                                                          .bgBlock,
+                                                                  border: OutlineInputBorder(
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          8,
+                                                                        ),
+                                                                    borderSide: const BorderSide(
+                                                                      color:
+                                                                          AppTheme
+                                                                              .borderColor,
+                                                                    ),
+                                                                  ),
+                                                                  focusedBorder: OutlineInputBorder(
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          8,
+                                                                        ),
+                                                                    borderSide: const BorderSide(
+                                                                      color:
+                                                                          Colors
+                                                                              .redAccent,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  }),
+                                                ],
+                                              ),
+                                            )
+                                            : const SizedBox.shrink(),
+                                  ),
+
+                                  // Feedback message
+                                  if (_cookieVerifyMsg != null) ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            _cookieVerifySuccess
+                                                ? Colors.green.withValues(
+                                                  alpha: 0.1,
+                                                )
+                                                : Colors.red.withValues(
+                                                  alpha: 0.1,
+                                                ),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color:
+                                              _cookieVerifySuccess
+                                                  ? Colors.green.withValues(
+                                                    alpha: 0.3,
+                                                  )
+                                                  : Colors.red.withValues(
+                                                    alpha: 0.3,
+                                                  ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            _cookieVerifySuccess
+                                                ? Icons.check_circle_rounded
+                                                : Icons.error_outline_rounded,
+                                            size: 14,
+                                            color:
+                                                _cookieVerifySuccess
+                                                    ? Colors.greenAccent
+                                                    : Colors.redAccent,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              _cookieVerifyMsg!,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color:
+                                                    _cookieVerifySuccess
+                                                        ? Colors.greenAccent
+                                                        : Colors.redAccent,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+
+                                  const SizedBox(height: 10),
+                                  const Divider(
+                                    height: 1,
+                                    color: AppTheme.borderColor,
+                                  ),
+                                  const SizedBox(height: 10),
+
+                                  // Action Buttons
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      if (_isCookieInputOpen)
+                                        TextButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _isCookieInputOpen = false;
+                                              _isCookieVerified = false;
+                                              _cookieVerifyMsg = null;
+                                            });
+                                          },
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
+                                            ),
+                                            minimumSize: Size.zero,
+                                          ),
+                                          child: const Text(
+                                            'Hủy',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white60,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        const SizedBox.shrink(),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          ElevatedButton.icon(
+                                            onPressed:
+                                                _isVerifyingCookie
+                                                    ? null
+                                                    : _handleVerifyCookie,
+                                            icon:
+                                                _isVerifyingCookie
+                                                    ? const SizedBox(
+                                                      width: 12,
+                                                      height: 12,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.white,
+                                                      ),
+                                                    )
+                                                    : const Icon(
+                                                      Icons.refresh_rounded,
+                                                      size: 13,
+                                                    ),
+                                            label: Text(
+                                              _isVerifyingCookie
+                                                  ? 'Đang kiểm tra...'
+                                                  : 'Kiểm tra cookie',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.white
+                                                  .withValues(alpha: 0.1),
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 7,
+                                                  ),
+                                              minimumSize: Size.zero,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          if (_isCookieInputOpen)
+                                            ElevatedButton.icon(
+                                              onPressed:
+                                                  (!_isCookieVerified ||
+                                                          _isSavingCookie)
+                                                      ? null
+                                                      : _handleSaveCookie,
+                                              icon:
+                                                  _isSavingCookie
+                                                      ? const SizedBox(
+                                                        width: 12,
+                                                        height: 12,
+                                                        child: CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: Colors.white,
+                                                        ),
+                                                      )
+                                                      : const Icon(
+                                                        Icons.check_rounded,
+                                                        size: 13,
+                                                      ),
+                                              label: Text(
+                                                _isSavingCookie
+                                                    ? 'Đang lưu...'
+                                                    : 'Lưu cookie',
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    _isCookieVerified
+                                                        ? Colors.redAccent
+                                                        : Colors.white12,
+                                                foregroundColor:
+                                                    _isCookieVerified
+                                                        ? Colors.white
+                                                        : Colors.white38,
+                                                disabledBackgroundColor:
+                                                    Colors.white10,
+                                                disabledForegroundColor:
+                                                    Colors.white24,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 7,
+                                                    ),
+                                                minimumSize: Size.zero,
+                                              ),
+                                            )
+                                          else
+                                            ElevatedButton.icon(
+                                              onPressed: () {
+                                                setState(() {
+                                                  _isCookieInputOpen = true;
+                                                  _isCookieVerified = false;
+                                                  _cookieVerifyMsg = null;
+                                                });
+                                              },
+                                              icon: const Icon(
+                                                Icons.edit_note_rounded,
+                                                size: 14,
+                                              ),
+                                              label: const Text(
+                                                'Nhập cookie',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Colors.redAccent,
+                                                foregroundColor: Colors.white,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 7,
+                                                    ),
+                                                minimumSize: Size.zero,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // ================= 3. DỌN DẸP BỘ NHỚ TẠM (COLLAPSIBLE) =================
+                      _buildAccordionSection(
+                        isOpen: _openSection3,
+                        onToggle:
+                            () =>
+                                setState(() => _openSection3 = !_openSection3),
                         icon: Icons.storage_rounded,
                         iconColor: Colors.amberAccent,
-                        title: '2. Dọn dẹp Bộ nhớ tạm',
+                        title: '3. Dọn dẹp Bộ nhớ tạm',
                         trailing: null,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -734,6 +1316,83 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCookieStatusBadge() {
+    Color bg;
+    Color border;
+    Color text;
+    Widget icon;
+    String label;
+
+    switch (_cookieStatus) {
+      case 'valid':
+        bg = Colors.green.withValues(alpha: 0.15);
+        border = Colors.greenAccent.withValues(alpha: 0.4);
+        text = Colors.greenAccent;
+        icon = const Icon(
+          Icons.check_rounded,
+          size: 11,
+          color: Colors.greenAccent,
+        );
+        label = 'Hợp lệ';
+        break;
+      case 'expired':
+        bg = Colors.red.withValues(alpha: 0.15);
+        border = Colors.redAccent.withValues(alpha: 0.4);
+        text = Colors.redAccent;
+        icon = const Icon(
+          Icons.error_outline_rounded,
+          size: 11,
+          color: Colors.redAccent,
+        );
+        label = 'Hết hạn / Lỗi';
+        break;
+      case 'loading':
+        bg = Colors.blue.withValues(alpha: 0.15);
+        border = Colors.blueAccent.withValues(alpha: 0.4);
+        text = Colors.blueAccent;
+        icon = const SizedBox(
+          width: 9,
+          height: 9,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: Colors.blueAccent,
+          ),
+        );
+        label = 'Đang tải...';
+        break;
+      default:
+        bg = Colors.white.withValues(alpha: 0.08);
+        border = Colors.white.withValues(alpha: 0.15);
+        text = Colors.white54;
+        icon = const SizedBox.shrink();
+        label = 'Chưa có cookie';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_cookieStatus != 'none') ...[icon, const SizedBox(width: 4)],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: text,
+            ),
+          ),
+        ],
       ),
     );
   }

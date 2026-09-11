@@ -367,3 +367,116 @@ func TestFFmpegMuxExecutionIfAvailable(t *testing.T) {
 		t.Fatalf("muxed.mp4 output missing or empty")
 	}
 }
+
+func TestUnicodeKoreanConvertedFilenamePreservation(t *testing.T) {
+	koreanName := "한국어_테스트_영상_2026.webm"
+	safe := safeFilename(koreanName)
+	if safe != koreanName {
+		t.Errorf("safeFilename(%q) = %q; want %q", koreanName, safe, koreanName)
+	}
+
+	converted := strings.TrimSuffix(safe, filepath.Ext(safe)) + ".mp4"
+	expected := "한국어_테스트_영상_2026.mp4"
+	if converted != expected {
+		t.Errorf("convertedFilename = %q; want %q", converted, expected)
+	}
+}
+
+func TestSingleFileConversionExecution(t *testing.T) {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil || ffmpegPath == "" {
+		t.Skip("ffmpeg not available in PATH, skipping single file conversion test")
+	}
+
+	tempState := t.TempDir()
+	t.Setenv("APPVIEW_STATE_DIR", tempState)
+
+	tempRoot := t.TempDir()
+	configs.DEFAULT_ROOT_PATH = tempRoot
+	destDir := filepath.Join(tempRoot, "Downloads")
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	jobID := "single-file-convert-test"
+	wsDir, err := WorkspaceDir(jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(wsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	koreanFilename := "한국어_테스트_영상_2026.mkv"
+	sourcePath := filepath.Join(wsDir, koreanFilename)
+
+	// Create a tiny MKV video with non-browser-standard container
+	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.2", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", "0.2", "-vcodec", "libx264", "-acodec", "aac", sourcePath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("ffmpeg cannot generate test mkv: %v, out: %s", err, string(out))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	job := &Job{
+		ID:          jobID,
+		CanonicalID: jobID,
+		URL:         "https://youtube.com/watch?v=singleconvert",
+		Filename:    koreanFilename,
+		Destination: "Downloads",
+		State:       "video_decision_required",
+		Videos: []pythonapi.VideoOptimization{
+			{
+				ID:                 "video-1",
+				DisplayName:        koreanFilename,
+				OptimizationNeeded: true,
+				SelectedQuality:    "1080p",
+				State:              "ready",
+			},
+		},
+		ctx:    ctx,
+		cancel: cancel,
+	}
+	activeJobs.Lock()
+	activeJobs.items[jobID] = job
+	activeJobs.Unlock()
+	persistJob(job)
+
+	convertDir := filepath.Join(wsDir, ".convert-video")
+	startConversion(job, convertDir)
+
+	if job.State != "completed" {
+		t.Fatalf("job.State = %q (err: %s, code: %s); want 'completed'", job.State, job.Error, job.ErrorCode)
+	}
+	if job.ConvertTotal != 1 || job.ConvertCurrent != 1 {
+		t.Errorf("job conversion metrics: total=%d, current=%d; want 1, 1", job.ConvertTotal, job.ConvertCurrent)
+	}
+	if job.ConvertFailed != 0 {
+		t.Errorf("job.ConvertFailed = %d; want 0", job.ConvertFailed)
+	}
+	if len(job.Videos) > 0 && job.Videos[0].State != "completed" {
+		t.Errorf("video state = %q; want 'completed'", job.Videos[0].State)
+	}
+
+	// Verify target committed to destination with exact Korean name
+	expectedCommitted := filepath.Join(destDir, "한국어_테스트_영상_2026.mp4")
+	info, statErr := os.Stat(expectedCommitted)
+	if statErr != nil {
+		t.Fatalf("expected committed file does not exist: %v", statErr)
+	}
+	if info.Size() == 0 {
+		t.Fatalf("committed file is empty: %s", expectedCommitted)
+	}
+
+	// Verify no title-named directory was created
+	forbiddenDir := filepath.Join(destDir, "한국어_테스트_영상_2026")
+	if dirInfo, err := os.Stat(forbiddenDir); err == nil && dirInfo.IsDir() {
+		t.Fatalf("forbidden title-named directory was created at %s", forbiddenDir)
+	}
+
+	// Verify workspace directory was cleaned up
+	if _, err := os.Stat(wsDir); !os.IsNotExist(err) {
+		t.Errorf("workspace directory %s was not cleaned up after completion", wsDir)
+	}
+}

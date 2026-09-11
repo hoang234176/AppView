@@ -8,10 +8,12 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Wifi
+  Wifi,
+  Cookie,
+  AlertCircle
 } from 'lucide-react';
 import { saveServerConfig, getServerHost, validateCoordinatorHost } from '../api/axiosConfig';
-import { fetchCoordinatorStorageInfo } from '../api/downloadApi';
+import { fetchCoordinatorStorageInfo, getCookieStatus, verifyCookies, saveCookies } from '../api/downloadApi';
 
 const formatStorage = (value) => {
   const bytes = Number(value) || 0;
@@ -28,6 +30,92 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   // Accordion Sections
   const [openSection1, setOpenSection1] = useState(false);
   const [openSection2, setOpenSection2] = useState(false);
+  const [openSection3, setOpenSection3] = useState(false);
+
+  // Social Cookies State (YouTube)
+  const [cookieStatus, setCookieStatus] = useState("loading"); // "loading" | "none" | "valid" | "expired"
+  const [isCookieInputOpen, setIsCookieInputOpen] = useState(false);
+  const [cookieFields, setCookieFields] = useState({
+    LOGIN_INFO: "",
+    SID: "",
+    HSID: "",
+    SSID: "",
+    SAPISID: "",
+    "__Secure-1PSID": "",
+    "__Secure-3PSID": "",
+  });
+  const [isVerifyingCookie, setIsVerifyingCookie] = useState(false);
+  const [isSavingCookie, setIsSavingCookie] = useState(false);
+  const [isCookieVerified, setIsCookieVerified] = useState(false);
+  const [cookieVerifyMsg, setCookieVerifyMsg] = useState(null);
+
+  const fetchYoutubeCookieStatus = async () => {
+    setCookieStatus("loading");
+    const res = await getCookieStatus("youtube");
+    if (res.success && res.data) {
+      if (res.data.exists) {
+        setCookieStatus("valid");
+      } else {
+        setCookieStatus("none");
+      }
+    } else {
+      setCookieStatus("none");
+    }
+  };
+
+  const handleCookieFieldChange = (key, value) => {
+    setCookieFields((prev) => ({ ...prev, [key]: value }));
+    setIsCookieVerified(false);
+    setCookieVerifyMsg(null);
+  };
+
+  const handleVerifyYoutubeCookie = async () => {
+    setIsVerifyingCookie(true);
+    setCookieVerifyMsg(null);
+    let payloadFields = null;
+    if (isCookieInputOpen) {
+      const hasAnyField = Object.values(cookieFields).some((v) => v && v.trim() !== "");
+      if (!hasAnyField) {
+        setIsVerifyingCookie(false);
+        setCookieVerifyMsg({ type: "error", text: "Vui lòng nhập ít nhất một token cookie." });
+        return;
+      }
+      payloadFields = cookieFields;
+    }
+
+    const res = await verifyCookies("youtube", payloadFields);
+    setIsVerifyingCookie(false);
+    if (res.success && res.data?.valid) {
+      setIsCookieVerified(true);
+      setCookieStatus("valid");
+      setCookieVerifyMsg({ type: "success", text: res.data.message || "✓ Cookie hợp lệ!" });
+    } else {
+      setIsCookieVerified(false);
+      if (!isCookieInputOpen) {
+        setCookieStatus("expired");
+      }
+      const errMsg = res.data?.message || res.message || "Cookie không hợp lệ hoặc đã hết hạn.";
+      setCookieVerifyMsg({ type: "error", text: errMsg });
+    }
+  };
+
+  const handleSaveYoutubeCookie = async () => {
+    if (!isCookieVerified || isSavingCookie) return;
+    setIsSavingCookie(true);
+    setCookieVerifyMsg(null);
+
+    const res = await saveCookies("youtube", cookieFields);
+    setIsSavingCookie(false);
+    if (res.success) {
+      setIsCookieInputOpen(false);
+      setIsCookieVerified(false);
+      setCookieStatus("valid");
+      setCookieVerifyMsg({ type: "success", text: "Đã lưu cookie thành công!" });
+      setTimeout(() => setCookieVerifyMsg(null), 3000);
+    } else {
+      setCookieVerifyMsg({ type: "error", text: res.message || "Không thể lưu cookie." });
+    }
+  };
 
   // Client Cache State
   const [cacheSizeText, setCacheSizeText] = useState('Đang tính...');
@@ -65,6 +153,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
       calculateBrowserCache();
 
       setConnectionState('checking');
+      fetchYoutubeCookieStatus();
       validateCoordinatorHost(currentHost).then((res) => {
         if (res.success) {
           setConnectionState('connected');
@@ -257,7 +346,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
           )}
         </div>
 
-		{/* Section 2: Client Cache Cleanup */}
+        {/* Section 2: Cookie MXH */}
         <div className="border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
           <button
             type="button"
@@ -265,13 +354,190 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
             className="w-full flex items-center justify-between p-4 text-xs font-bold text-gray-200 hover:bg-white/5 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <HardDrive className="w-4 h-4 text-amber-400" />
-              <span>2. Dọn dẹp Bộ nhớ tạm</span>
+              <Cookie className="w-4 h-4 text-amber-400" />
+              <span>2. Cookie MXH</span>
             </div>
             {openSection2 ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </button>
 
           {openSection2 && (
+            <div className="p-4 pt-0 space-y-3 text-xs border-t border-[#383c42]/40">
+              {/* YouTube Card */}
+              <div className="p-3 bg-[#18191c] border border-[#383c42]/60 rounded-xl space-y-3 mt-3">
+                {/* Platform Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-red-500/15 border border-red-500/30 rounded-lg text-red-500">
+                      <svg className="w-4 h-4 fill-current text-red-500" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                      </svg>
+                    </div>
+                    <span className="font-bold text-white text-sm">YouTube</span>
+                  </div>
+                  <div>
+                    {cookieStatus === "valid" ? (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Hợp lệ
+                      </span>
+                    ) : cookieStatus === "expired" ? (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Hết hạn / Lỗi
+                      </span>
+                    ) : cookieStatus === "loading" ? (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3 animate-spin" /> Đang tải...
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-500/15 text-gray-400 border border-gray-500/30">
+                        Chưa có cookie
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sliding Input Container */}
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isCookieInputOpen ? "max-h-[500px] opacity-100 pt-2 pb-1" : "max-h-0 opacity-0"
+                  }`}
+                >
+                  <div className="space-y-2 border-t border-[#383c42]/40 pt-2">
+                    <p className="text-[11px] text-gray-400 mb-2">
+                      Nhập các giá trị cookie từ tài khoản YouTube của bạn:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        { key: "LOGIN_INFO", label: "LOGIN_INFO" },
+                        { key: "SID", label: "SID" },
+                        { key: "HSID", label: "HSID" },
+                        { key: "SSID", label: "SSID" },
+                        { key: "SAPISID", label: "SAPISID" },
+                        { key: "__Secure-1PSID", label: "__Secure-1PSID" },
+                        { key: "__Secure-3PSID", label: "__Secure-3PSID" },
+                      ].map(({ key, label }) => (
+                        <div key={key} className={key === "LOGIN_INFO" ? "sm:col-span-2" : ""}>
+                          <label className="block text-[10px] font-mono text-gray-400 mb-0.5">
+                            {label}
+                          </label>
+                          <input
+                            type="text"
+                            value={cookieFields[key] || ""}
+                            onChange={(e) => handleCookieFieldChange(key, e.target.value)}
+                            placeholder={`Nhập ${label}`}
+                            className="w-full bg-[#121316] border border-[#383c42] focus:border-red-500/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono placeholder-gray-600 outline-none transition-colors"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Verification / status feedback message */}
+                {cookieVerifyMsg && (
+                  <div
+                    className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
+                      cookieVerifyMsg.type === "success"
+                        ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                        : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                    }`}
+                  >
+                    {cookieVerifyMsg.type === "success" ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{cookieVerifyMsg.text}</span>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between pt-2 border-t border-[#383c42]/40">
+                  {isCookieInputOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCookieInputOpen(false);
+                        setIsCookieVerified(false);
+                        setCookieVerifyMsg(null);
+                      }}
+                      className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
+                    >
+                      Hủy
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleVerifyYoutubeCookie}
+                      disabled={isVerifyingCookie}
+                      className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingCookie ? "animate-spin" : ""}`} />
+                      <span>{isVerifyingCookie ? "Đang kiểm tra..." : "Kiểm tra cookie"}</span>
+                    </button>
+
+                    {isCookieInputOpen ? (
+                      <button
+                        type="button"
+                        onClick={handleSaveYoutubeCookie}
+                        disabled={!isCookieVerified || isSavingCookie}
+                        className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
+                          isCookieVerified
+                            ? "text-white bg-red-600 hover:bg-red-500 active:bg-red-700 shadow-red-600/30 ring-2 ring-red-400/50"
+                            : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
+                        }`}
+                      >
+                        {isSavingCookie ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang lưu...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Lưu cookie</span>
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCookieInputOpen(true);
+                          setIsCookieVerified(false);
+                          setCookieVerifyMsg(null);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-red-600 hover:bg-red-500 active:bg-red-700 rounded-xl shadow-lg shadow-red-600/20 transition-all"
+                      >
+                        <Cookie className="w-3.5 h-3.5" />
+                        <span>Nhập cookie</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+		{/* Section 3: Client Cache Cleanup */}
+        <div className="border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setOpenSection3(!openSection3)}
+            className="w-full flex items-center justify-between p-4 text-xs font-bold text-gray-200 hover:bg-white/5 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <HardDrive className="w-4 h-4 text-amber-400" />
+              <span>3. Dọn dẹp Bộ nhớ tạm</span>
+            </div>
+            {openSection3 ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          </button>
+
+          {openSection3 && (
             <div className="p-4 pt-0 space-y-3 text-xs border-t border-[#383c42]/40">
               <div className="p-3 bg-[#18191c] border border-amber-500/20 rounded-xl space-y-1 mt-3">
                 <div className="font-bold text-amber-400 flex items-center gap-1.5">

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -15,6 +16,61 @@ type CookieHandler struct {
 
 func NewCookieHandler(coordinator *service.Coordinator) *CookieHandler {
 	return &CookieHandler{coordinator: coordinator}
+}
+
+func assembleNetscapeCookies(platform string, fields map[string]string) string {
+	if len(fields) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("# Netscape HTTP Cookie File\n")
+	domain := ".youtube.com"
+	if platform != "" && platform != "youtube" {
+		domain = "." + platform + ".com"
+	}
+	orderedKeys := []string{
+		"LOGIN_INFO",
+		"SID",
+		"HSID",
+		"SSID",
+		"SAPISID",
+		"__Secure-1PSID",
+		"__Secure-3PSID",
+	}
+	used := make(map[string]bool)
+	cleanValue := func(v string) string {
+		v = strings.ReplaceAll(v, "\r", "")
+		v = strings.ReplaceAll(v, "\n", "")
+		v = strings.ReplaceAll(v, "\t", "")
+		return strings.TrimSpace(v)
+	}
+	hasAny := false
+	for _, key := range orderedKeys {
+		if val, ok := fields[key]; ok {
+			cleaned := cleanValue(val)
+			if cleaned != "" {
+				sb.WriteString(fmt.Sprintf("%s\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", domain, key, cleaned))
+				used[key] = true
+				hasAny = true
+			}
+		}
+	}
+	for key, val := range fields {
+		if !used[key] {
+			cleaned := cleanValue(val)
+			if cleaned != "" {
+				cleanKey := cleanValue(key)
+				if cleanKey != "" {
+					sb.WriteString(fmt.Sprintf("%s\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", domain, cleanKey, cleaned))
+					hasAny = true
+				}
+			}
+		}
+	}
+	if !hasAny {
+		return ""
+	}
+	return sb.String()
 }
 
 func (h *CookieHandler) Status(writer http.ResponseWriter, request *http.Request) {
@@ -47,11 +103,35 @@ func (h *CookieHandler) Verify(writer http.ResponseWriter, request *http.Request
 		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "platform is required"})
 		return
 	}
-	if strings.TrimSpace(body.Cookies) == "" {
-		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "cookies cannot be empty"})
-		return
+	cookies := strings.TrimSpace(body.Cookies)
+	if cookies == "" && len(body.Fields) > 0 {
+		cookies = assembleNetscapeCookies(platform, body.Fields)
+		if cookies == "" {
+			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "all fields are empty"})
+			return
+		}
 	}
-	res, err := h.coordinator.VerifyCookies(request.Context(), platform, body.Cookies)
+	if cookies == "" {
+		// Attempt to verify currently saved cookies from Storage
+		saved, err := h.coordinator.GetCookieContent(request.Context(), platform)
+		if err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
+				writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		if !saved.Exists || strings.TrimSpace(saved.Cookies) == "" {
+			writeJSON(writer, http.StatusOK, protocol.CookieVerifyResult{
+				Valid:   false,
+				Message: "Chưa có cookie nào được lưu.",
+			})
+			return
+		}
+		cookies = strings.TrimSpace(saved.Cookies)
+	}
+	res, err := h.coordinator.VerifyCookies(request.Context(), platform, cookies)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
 			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
@@ -75,11 +155,15 @@ func (h *CookieHandler) Save(writer http.ResponseWriter, request *http.Request) 
 		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "platform is required"})
 		return
 	}
-	if strings.TrimSpace(body.Cookies) == "" {
-		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "cookies cannot be empty"})
+	cookies := strings.TrimSpace(body.Cookies)
+	if cookies == "" && len(body.Fields) > 0 {
+		cookies = assembleNetscapeCookies(platform, body.Fields)
+	}
+	if cookies == "" {
+		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "cookies or fields cannot be empty"})
 		return
 	}
-	res, err := h.coordinator.SaveCookies(request.Context(), platform, body.Cookies)
+	res, err := h.coordinator.SaveCookies(request.Context(), platform, cookies)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
 			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
