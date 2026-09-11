@@ -7,6 +7,7 @@ or public coordinator events.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from pathlib import Path
 from typing import Any, Optional
@@ -149,25 +150,68 @@ async def verify_tiktok_cookies(raw_cookies: str) -> tuple[bool, str]:
 
 
 def _test_tiktok_cookies_sync(jar: yt_dlp.cookies.YoutubeDLCookieJar) -> tuple[bool, str]:
-    import yt_dlp
+    """Send an authenticated request to TikTok's passport API to verify session validity with TikTok servers."""
+    import ssl
+    import urllib.request
+    import urllib.error
+    from logger import log_info, log_warning, log_error
 
-    ydl_opts: dict[str, Any] = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "extract_flat": True,
-        "socket_timeout": 10,
+    cookie_pairs = [f"{c.name}={c.value}" for c in jar if "tiktok.com" in c.domain]
+    if not cookie_pairs:
+        log_warning("TIKTOK_AUTH", "Xác thực thất bại: Không tìm thấy cookies cho tiktok.com.")
+        return False, "Không tìm thấy cookies cho tiktok.com."
+
+    cookie_names = {c.name for c in jar if "tiktok.com" in c.domain}
+    if "sessionid" not in cookie_names and "sessionid_ss" not in cookie_names:
+        log_warning("TIKTOK_AUTH", "Xác thực thất bại: Thiếu token sessionid hoặc sessionid_ss.")
+        return False, "Thiếu token phiên đăng nhập (cần ít nhất sessionid hoặc sessionid_ss)."
+
+    cookie_header = "; ".join(cookie_pairs)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.tiktok.com/",
+        "Origin": "https://www.tiktok.com",
+        "Cookie": cookie_header,
     }
+
+    ssl_context = ssl._create_unverified_context()
+    req = urllib.request.Request("https://www.tiktok.com/passport/web/account/info/", headers=headers)
+
+    log_info("TIKTOK_AUTH", "Đang gửi yêu cầu xác thực cookie đến máy chủ TikTok (passport/web/account/info)...")
+
     try:
-        ydl = yt_dlp.YoutubeDL(ydl_opts)
-        ydl.cookiejar = jar
-        # Check basic cookie validity
-        cookie_names = {c.name for c in jar if "tiktok.com" in c.domain}
-        if any(name in cookie_names for name in ["sessionid", "sessionid_ss", "sid_guard", "tt_chain_token", "msToken"]):
-            return True, "Xác thực cookies TikTok thành công (tìm thấy session token)."
-        return True, "Cookies TikTok hợp lệ."
+        with urllib.request.urlopen(req, timeout=12, context=ssl_context) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+            res = json.loads(body)
+
+            msg = res.get("message")
+            data = res.get("data") or {}
+
+            # When authenticated, TikTok returns message == "success" and user_id / user_id_str
+            if msg == "success" and (data.get("user_id") or data.get("user_id_str")):
+                uid = str(data.get("user_id_str") or data.get("user_id"))
+                username = data.get("username") or data.get("screen_name") or f"ID: {uid}"
+                log_info("TIKTOK_AUTH", f"✓ Kết quả xác thực TikTok: HỢP LỆ (tài khoản: {username})")
+                return True, f"Xác thực cookies TikTok thành công (tài khoản: {username})."
+
+            desc = data.get("description") or "Phiên đăng nhập đã hết hạn hoặc không hợp lệ."
+            if "session expired" in desc.lower():
+                desc = "Phiên đăng nhập TikTok đã hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại và lấy cookie mới."
+            log_warning("TIKTOK_AUTH", f"✕ Kết quả xác thực TikTok: KHÔNG HỢP LỆ ({desc})")
+            return False, f"TikTok phản hồi: {desc}"
+
+    except urllib.error.HTTPError as err:
+        if err.code in (401, 403):
+            log_warning("TIKTOK_AUTH", f"✕ Kết quả xác thực TikTok: Bị từ chối HTTP {err.code} (Cookie không hợp lệ hoặc đã hết hạn)")
+            return False, "TikTok từ chối phiên đăng nhập (HTTP 401/403). Cookie không hợp lệ hoặc đã hết hạn."
+        log_error("TIKTOK_AUTH", f"✕ Lỗi máy chủ TikTok khi kiểm tra cookie: HTTP {err.code}")
+        return False, f"Lỗi máy chủ TikTok khi kiểm tra cookie (HTTP {err.code})."
+    except urllib.error.URLError as err:
+        log_error("TIKTOK_AUTH", f"✕ Lỗi mạng khi kết nối máy chủ TikTok: {err.reason}")
+        return False, f"Không thể kết nối đến TikTok để xác thực cookie: {err.reason}"
     except Exception as err:
-        error_msg = str(err).lower()
-        if any(w in error_msg for w in ["sign in", "login", "bot", "cookie", "forbidden", "permission"]):
-            return False, "Cookies TikTok không hợp lệ hoặc đã hết hạn."
-        return True, "Cookies TikTok hợp lệ."
+        log_error("TIKTOK_AUTH", f"✕ Lỗi ngoại lệ khi xác thực cookie TikTok: {err}")
+        return False, f"Lỗi xác thực cookie TikTok: {err}"

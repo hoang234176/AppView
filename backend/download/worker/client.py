@@ -233,6 +233,9 @@ class CoordinatorWorkerClient:
             from services.tiktok.auth import verify_tiktok_cookies
             valid, message_str = await verify_tiktok_cookies(raw_cookies)
 
+        level = "INFO" if valid else "WARN"
+        log_event(level, "cookie verification completed", "COOKIE_VERIFY", platform=platform, valid=valid, detail=message_str)
+
         with suppress(Exception):
             await self.send(message(COOKIE_VERIFY, taskId=task_id, result={"valid": valid, "message": message_str}))
 

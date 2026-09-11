@@ -1,4 +1,5 @@
 import asyncio
+import json
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -60,14 +61,65 @@ class TestTikTokIntegration(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(valid)
         self.assertIn("Không tìm thấy cookies cho tiktok.com", msg)
 
-        # Valid tiktok cookie
+        # Missing sessionid / sessionid_ss
+        no_session_netscape = (
+            "# Netscape HTTP Cookie File\n"
+            ".tiktok.com\tTRUE\t/\tTRUE\t2147483647\ttt_chain_token\tval\n"
+        )
+        valid, msg = await verify_tiktok_cookies(no_session_netscape)
+        self.assertFalse(valid)
+        self.assertIn("Thiếu token phiên đăng nhập", msg)
+
+        # Mocked success from TikTok passport API
+        with patch("services.tiktok.auth._test_tiktok_cookies_sync") as mock_test:
+            mock_test.return_value = (True, "Xác thực cookies TikTok thành công (tài khoản: testuser).")
+            tiktok_netscape = (
+                "# Netscape HTTP Cookie File\n"
+                ".tiktok.com\tTRUE\t/\tTRUE\t2147483647\tsessionid\tabc123xyz\n"
+            )
+            valid, msg = await verify_tiktok_cookies(tiktok_netscape)
+            self.assertTrue(valid)
+            self.assertIn("thành công", msg)
+
+    def test_tiktok_cookies_sync_direct(self):
+        from services.tiktok.auth import _test_tiktok_cookies_sync, create_cookiejar_from_netscape
+        import io
+
         tiktok_netscape = (
             "# Netscape HTTP Cookie File\n"
             ".tiktok.com\tTRUE\t/\tTRUE\t2147483647\tsessionid\tabc123xyz\n"
         )
-        valid, msg = await verify_tiktok_cookies(tiktok_netscape)
-        self.assertTrue(valid)
-        self.assertIn("thành công", msg)
+        jar = create_cookiejar_from_netscape(tiktok_netscape)
+
+        # 1. Success case
+        mock_resp_data = json.dumps({
+            "message": "success",
+            "data": {"user_id": "123456", "username": "valid_user"}
+        }).encode("utf-8")
+
+        mock_resp = io.BytesIO(mock_resp_data)
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = lambda s, *args: None
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            valid, msg = _test_tiktok_cookies_sync(jar)
+            self.assertTrue(valid)
+            self.assertIn("valid_user", msg)
+
+        # 2. Expired session case
+        mock_fail_data = json.dumps({
+            "message": "error",
+            "data": {"description": "Session expired"}
+        }).encode("utf-8")
+
+        mock_fail = io.BytesIO(mock_fail_data)
+        mock_fail.__enter__ = lambda s: s
+        mock_fail.__exit__ = lambda s, *args: None
+
+        with patch("urllib.request.urlopen", return_value=mock_fail):
+            valid, msg = _test_tiktok_cookies_sync(jar)
+            self.assertFalse(valid)
+            self.assertIn("hết hạn", msg)
 
     async def test_worker_client_tiktok_cookie_verify(self):
         client = CoordinatorWorkerClient()
@@ -84,7 +136,8 @@ class TestTikTokIntegration(unittest.IsolatedAsyncioTestCase):
                 ),
             },
         }
-        await client._handle_cookie_verify(envelope)
+        with patch("services.tiktok.auth.verify_tiktok_cookies", new=AsyncMock(return_value=(True, "Xác thực cookies TikTok thành công."))):
+            await client._handle_cookie_verify(envelope)
         client.send.assert_awaited_once()
         call_args = client.send.call_args[0][0]
         self.assertEqual(call_args["type"], COOKIE_VERIFY)

@@ -65,6 +65,25 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   String? _cookieVerifyMsg;
   bool _cookieVerifySuccess = false;
 
+  // Social Cookies State (TikTok)
+  String _tiktokCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
+  bool _isTiktokCardOpen = false;
+  bool _isTiktokCookieInputOpen = false;
+  static const List<String> _tiktokCookieFieldKeys = [
+    'sessionid',
+    'sessionid_ss',
+    'sid_guard',
+    'tt_chain_token',
+  ];
+  final Map<String, TextEditingController> _tiktokCookieControllers = {
+    for (final key in _tiktokCookieFieldKeys) key: TextEditingController(),
+  };
+  bool _isVerifyingTiktokCookie = false;
+  bool _isSavingTiktokCookie = false;
+  bool _isTiktokCookieVerified = false;
+  String? _tiktokCookieVerifyMsg;
+  bool _tiktokCookieVerifySuccess = false;
+
   CacheInfoData? _cacheInfo;
 
   @override
@@ -74,6 +93,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     _hostController = TextEditingController(text: settings.serverHost);
     _loadCacheInfo();
     _fetchCookieStatus();
+    _fetchTiktokCookieStatus();
     _checkCurrentConnectionAndLoadStorage();
   }
 
@@ -81,6 +101,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   void dispose() {
     _hostController.dispose();
     for (final c in _cookieControllers.values) {
+      c.dispose();
+    }
+    for (final c in _tiktokCookieControllers.values) {
       c.dispose();
     }
     super.dispose();
@@ -188,6 +211,117 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
         _cookieVerifyMsg =
             res['message']?.toString() ?? 'Không thể lưu cookie.';
         AppToast.showError(context, _cookieVerifyMsg!);
+      }
+    });
+  }
+
+  Future<void> _fetchTiktokCookieStatus() async {
+    setState(() {
+      _tiktokCookieStatus = 'loading';
+    });
+    final res = await DownloadApi.getCookieStatus('tiktok');
+    if (!mounted) return;
+    if (res['success'] == true && res['data'] is Map) {
+      final data = res['data'] as Map;
+      if (data['exists'] == true) {
+        setState(() => _tiktokCookieStatus = 'valid');
+      } else {
+        setState(() => _tiktokCookieStatus = 'none');
+      }
+    } else {
+      setState(() => _tiktokCookieStatus = 'none');
+    }
+  }
+
+  Future<void> _handleVerifyTiktokCookie() async {
+    setState(() {
+      _isVerifyingTiktokCookie = true;
+      _tiktokCookieVerifyMsg = null;
+    });
+
+    Map<String, String>? fields;
+
+    if (_isTiktokCookieInputOpen) {
+      final hasAny = _tiktokCookieControllers.values.any(
+        (c) => c.text.trim().isNotEmpty,
+      );
+      if (!hasAny) {
+        setState(() {
+          _isVerifyingTiktokCookie = false;
+          _tiktokCookieVerifySuccess = false;
+          _tiktokCookieVerifyMsg =
+              'Vui lòng nhập ít nhất một token cookie (khuyên dùng sessionid).';
+        });
+        return;
+      }
+      fields = _tiktokCookieControllers.map(
+        (k, v) => MapEntry(k, v.text.trim()),
+      );
+    }
+
+    final res = await DownloadApi.verifyCookies(
+      platform: 'tiktok',
+      fields: fields,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _isVerifyingTiktokCookie = false;
+      if (res['success'] == true &&
+          res['data'] is Map &&
+          res['data']['valid'] == true) {
+        _isTiktokCookieVerified = true;
+        _tiktokCookieStatus = 'valid';
+        _tiktokCookieVerifySuccess = true;
+        _tiktokCookieVerifyMsg =
+            res['data']['message']?.toString() ?? '✓ Cookie hợp lệ!';
+      } else {
+        _isTiktokCookieVerified = false;
+        if (!_isTiktokCookieInputOpen) {
+          _tiktokCookieStatus = 'expired';
+        }
+        _tiktokCookieVerifySuccess = false;
+        final msg =
+            res['data'] is Map ? res['data']['message']?.toString() : null;
+        _tiktokCookieVerifyMsg =
+            msg ??
+            res['message']?.toString() ??
+            'Cookie không hợp lệ hoặc đã hết hạn.';
+      }
+    });
+  }
+
+  Future<void> _handleSaveTiktokCookie() async {
+    if (!_isTiktokCookieVerified || _isSavingTiktokCookie) return;
+    setState(() {
+      _isSavingTiktokCookie = true;
+      _tiktokCookieVerifyMsg = null;
+    });
+
+    final fields = _tiktokCookieControllers.map(
+      (k, v) => MapEntry(k, v.text.trim()),
+    );
+
+    final res = await DownloadApi.saveCookies(
+      platform: 'tiktok',
+      fields: fields,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _isSavingTiktokCookie = false;
+      if (res['success'] == true) {
+        _isTiktokCookieInputOpen = false;
+        _isTiktokCookieVerified = false;
+        _tiktokCookieStatus = 'valid';
+        _tiktokCookieVerifySuccess = true;
+        _tiktokCookieVerifyMsg = 'Đã lưu cookie thành công!';
+        AppToast.showSuccess(context, 'Đã lưu cookie TikTok thành công!');
+      } else {
+        _tiktokCookieVerifySuccess = false;
+        _tiktokCookieVerifyMsg =
+            res['message']?.toString() ?? 'Không thể lưu cookie.';
+        AppToast.showError(context, _tiktokCookieVerifyMsg!);
       }
     });
   }
@@ -1299,6 +1433,10 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                 ],
                               ),
                             ),
+                            const SizedBox(height: 10),
+
+                            // TikTok Card
+                            _buildTikTokCard(),
                           ],
                         ),
                       ),
@@ -1453,14 +1591,15 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     );
   }
 
-  Widget _buildCookieStatusBadge() {
+  Widget _buildCookieStatusBadge([String? status]) {
+    final effectiveStatus = status ?? _cookieStatus;
     Color bg;
     Color border;
     Color text;
     Widget icon;
     String label;
 
-    switch (_cookieStatus) {
+    switch (effectiveStatus) {
       case 'valid':
         bg = Colors.green.withValues(alpha: 0.15);
         border = Colors.greenAccent.withValues(alpha: 0.4);
@@ -1516,7 +1655,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_cookieStatus != 'none') ...[icon, const SizedBox(width: 4)],
+          if (effectiveStatus != 'none') ...[icon, const SizedBox(width: 4)],
           Text(
             label,
             style: TextStyle(
@@ -1524,6 +1663,591 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
               fontWeight: FontWeight.bold,
               color: text,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTikTokCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.borderColor.withValues(alpha: 0.6),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Platform Header Row (Clickable)
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isTiktokCardOpen = !_isTiktokCardOpen;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.cyanAccent.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.cyanAccent.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: SvgPicture.asset(
+                          'assets/icons/tiktok.svg',
+                          width: 16,
+                          height: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'TikTok',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildCookieStatusBadge(_tiktokCookieStatus),
+                      const SizedBox(width: 6),
+                      Icon(
+                        _isTiktokCardOpen
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white54,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Body Container
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: _isTiktokCardOpen
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Divider(
+                          height: 1,
+                          color: AppTheme.borderColor,
+                        ),
+
+                        // Sliding Input Container
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          alignment: Alignment.topCenter,
+                          child: _isTiktokCookieInputOpen
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Nhập các giá trị cookie từ tài khoản TikTok của bạn:',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      ..._tiktokCookieFieldKeys.map((key) {
+                                        final isRequired =
+                                            key == 'sessionid' ||
+                                                key == 'sessionid_ss';
+                                        final isRecommended =
+                                            key == 'sid_guard';
+                                        final subtitle = isRequired
+                                            ? '(bắt buộc)'
+                                            : isRecommended
+                                                ? '(khuyên dùng)'
+                                                : '(tùy chọn)';
+                                        return Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 8),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    key,
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                      fontFamily: 'monospace',
+                                                      color: Colors.white70,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    subtitle,
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      color: isRequired
+                                                          ? Colors.redAccent
+                                                              .withValues(
+                                                                alpha: 0.8,
+                                                              )
+                                                          : Colors.white38,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 4),
+                                              TextField(
+                                                controller:
+                                                    _tiktokCookieControllers[
+                                                      key
+                                                    ],
+                                                onChanged: (_) {
+                                                  if (_isTiktokCookieVerified ||
+                                                      _tiktokCookieVerifyMsg !=
+                                                          null) {
+                                                    setState(() {
+                                                      _isTiktokCookieVerified =
+                                                          false;
+                                                      _tiktokCookieVerifyMsg =
+                                                          null;
+                                                    });
+                                                  }
+                                                },
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.white,
+                                                  fontFamily: 'monospace',
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText: 'Nhập $key',
+                                                  hintStyle: TextStyle(
+                                                    fontSize: 10,
+                                                    color: Colors.white
+                                                        .withValues(
+                                                          alpha: 0.2,
+                                                        ),
+                                                  ),
+                                                  contentPadding:
+                                                      const EdgeInsets
+                                                          .symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 10,
+                                                  ),
+                                                  isDense: true,
+                                                  filled: true,
+                                                  fillColor:
+                                                      AppTheme.bgInput,
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      14,
+                                                    ),
+                                                    borderSide:
+                                                        const BorderSide(
+                                                      color:
+                                                          AppTheme.borderColor,
+                                                    ),
+                                                  ),
+                                                  enabledBorder:
+                                                      OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      14,
+                                                    ),
+                                                    borderSide:
+                                                        const BorderSide(
+                                                      color:
+                                                          AppTheme.borderColor,
+                                                    ),
+                                                  ),
+                                                  focusedBorder:
+                                                      OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      14,
+                                                    ),
+                                                    borderSide:
+                                                        const BorderSide(
+                                                      color:
+                                                          Colors.cyanAccent,
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  suffixIconConstraints:
+                                                      const BoxConstraints(
+                                                    minWidth: 0,
+                                                    minHeight: 0,
+                                                  ),
+                                                  suffixIcon: Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                      right: 6,
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        if ((_tiktokCookieControllers[key]
+                                                                ?.text
+                                                                .isNotEmpty ??
+                                                            false))
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .clear_rounded,
+                                                              size: 15,
+                                                            ),
+                                                            color:
+                                                                Colors.white54,
+                                                            splashRadius: 14,
+                                                            padding:
+                                                                EdgeInsets
+                                                                    .zero,
+                                                            constraints:
+                                                                const BoxConstraints(
+                                                              minWidth: 26,
+                                                              minHeight: 26,
+                                                            ),
+                                                            tooltip: 'Xóa',
+                                                            onPressed: () {
+                                                              setState(() {
+                                                                _tiktokCookieControllers[key]
+                                                                    ?.clear();
+                                                                _isTiktokCookieVerified =
+                                                                    false;
+                                                                _tiktokCookieVerifyMsg =
+                                                                    null;
+                                                              });
+                                                            },
+                                                          ),
+                                                        Material(
+                                                          color: Colors
+                                                              .cyanAccent
+                                                              .withValues(
+                                                                alpha: 0.10,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(
+                                                                    6,
+                                                                  ),
+                                                          child: InkWell(
+                                                            onTap: () async {
+                                                              final data =
+                                                                  await Clipboard.getData(
+                                                                Clipboard
+                                                                    .kTextPlain,
+                                                              );
+                                                              if (data
+                                                                          ?.text !=
+                                                                      null &&
+                                                                  data!
+                                                                      .text!
+                                                                      .trim()
+                                                                      .isNotEmpty) {
+                                                                setState(() {
+                                                                  _tiktokCookieControllers[key]
+                                                                          ?.text =
+                                                                      data.text!
+                                                                          .trim();
+                                                                  _isTiktokCookieVerified =
+                                                                      false;
+                                                                  _tiktokCookieVerifyMsg =
+                                                                      null;
+                                                                });
+                                                              }
+                                                            },
+                                                            borderRadius:
+                                                              BorderRadius
+                                                                  .circular(
+                                                                    6,
+                                                                  ),
+                                                            child: Container(
+                                                              padding:
+                                                                  const EdgeInsets
+                                                                      .all(5),
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                          6,
+                                                                        ),
+                                                                border:
+                                                                    Border.all(
+                                                                  color: Colors
+                                                                      .cyanAccent
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.30,
+                                                                      ),
+                                                                ),
+                                                              ),
+                                                              child: const Icon(
+                                                                Icons
+                                                                    .content_paste_rounded,
+                                                                size: 13,
+                                                                color: Colors
+                                                                    .cyanAccent,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+
+                        // Feedback message
+                        if (_tiktokCookieVerifyMsg != null) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _tiktokCookieVerifySuccess
+                                  ? Colors.green.withValues(alpha: 0.1)
+                                  : Colors.red.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _tiktokCookieVerifySuccess
+                                    ? Colors.green.withValues(alpha: 0.3)
+                                    : Colors.red.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _tiktokCookieVerifySuccess
+                                      ? Icons.check_circle_rounded
+                                      : Icons.error_outline_rounded,
+                                  size: 14,
+                                  color: _tiktokCookieVerifySuccess
+                                      ? Colors.greenAccent
+                                      : Colors.redAccent,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    _tiktokCookieVerifyMsg!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: _tiktokCookieVerifySuccess
+                                          ? Colors.greenAccent
+                                          : Colors.redAccent,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 10),
+                        const Divider(
+                          height: 1,
+                          color: AppTheme.borderColor,
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Action Buttons
+                        Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceBetween,
+                          children: [
+                            if (_isTiktokCookieInputOpen)
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _isTiktokCookieInputOpen = false;
+                                    _isTiktokCookieVerified = false;
+                                    _tiktokCookieVerifyMsg = null;
+                                  });
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  minimumSize: Size.zero,
+                                ),
+                                child: const Text(
+                                  'Hủy',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white60,
+                                  ),
+                                ),
+                              )
+                            else
+                              const SizedBox.shrink(),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: _isVerifyingTiktokCookie
+                                      ? null
+                                      : _handleVerifyTiktokCookie,
+                                  icon: _isVerifyingTiktokCookie
+                                      ? const SizedBox(
+                                          width: 12,
+                                          height: 12,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.refresh_rounded,
+                                          size: 13,
+                                        ),
+                                  label: Text(
+                                    _isVerifyingTiktokCookie
+                                        ? 'Đang kiểm tra...'
+                                        : 'Kiểm tra cookie',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white
+                                        .withValues(alpha: 0.1),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 7,
+                                    ),
+                                    minimumSize: Size.zero,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (_isTiktokCookieInputOpen)
+                                  ElevatedButton.icon(
+                                    onPressed: (!_isTiktokCookieVerified ||
+                                            _isSavingTiktokCookie)
+                                        ? null
+                                        : _handleSaveTiktokCookie,
+                                    icon: _isSavingTiktokCookie
+                                        ? const SizedBox(
+                                            width: 12,
+                                            height: 12,
+                                            child:
+                                                CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.check_rounded,
+                                            size: 13,
+                                          ),
+                                    label: Text(
+                                      _isSavingTiktokCookie
+                                          ? 'Đang lưu...'
+                                          : 'Lưu cookie',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _isTiktokCookieVerified
+                                          ? Colors.cyanAccent.shade700
+                                          : Colors.white12,
+                                      foregroundColor: _isTiktokCookieVerified
+                                          ? Colors.white
+                                          : Colors.white38,
+                                      disabledBackgroundColor:
+                                          Colors.white10,
+                                      disabledForegroundColor:
+                                          Colors.white24,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 7,
+                                      ),
+                                      minimumSize: Size.zero,
+                                    ),
+                                  )
+                                else
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      setState(() {
+                                        _isTiktokCookieInputOpen = true;
+                                        _isTiktokCookieVerified = false;
+                                        _tiktokCookieVerifyMsg = null;
+                                      });
+                                    },
+                                    icon: const Icon(
+                                      Icons.cookie_rounded,
+                                      size: 14,
+                                    ),
+                                    label: const Text(
+                                      'Nhập cookie',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          Colors.cyanAccent.shade700,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 7,
+                                      ),
+                                      minimumSize: Size.zero,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),

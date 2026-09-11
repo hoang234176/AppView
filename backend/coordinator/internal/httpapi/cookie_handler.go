@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"appview/coordinator/internal/logging"
 	"appview/coordinator/internal/protocol"
 	"appview/coordinator/internal/service"
 )
@@ -140,6 +141,15 @@ func (h *CookieHandler) Verify(writer http.ResponseWriter, request *http.Request
 		writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	level := "INFO"
+	if !res.Valid {
+		level = "WARN"
+	}
+	logging.Event(level, "cookie verification completed", map[string]any{
+		"platform": platform,
+		"valid":    res.Valid,
+		"message":  res.Message,
+	})
 	writeJSON(writer, http.StatusOK, res)
 }
 
@@ -172,5 +182,14 @@ func (h *CookieHandler) Save(writer http.ResponseWriter, request *http.Request) 
 		writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	saveLevel := "INFO"
+	if !res.Success {
+		saveLevel = "WARN"
+	}
+	logging.Event(saveLevel, "cookie save completed", map[string]any{
+		"platform":  platform,
+		"success":   res.Success,
+		"updatedAt": res.UpdatedAt,
+	})
 	writeJSON(writer, http.StatusOK, res)
 }

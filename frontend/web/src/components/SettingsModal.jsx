@@ -7,7 +7,6 @@ import {
   RefreshCw,
   CheckCircle2,
   ChevronDown,
-  ChevronUp,
   Wifi,
   Cookie,
   AlertCircle,
@@ -119,6 +118,90 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
     }
   };
 
+  // Social Cookies State (TikTok)
+  const [tiktokCookieStatus, setTiktokCookieStatus] = useState("loading"); // "loading" | "none" | "valid" | "expired"
+  const [isTiktokOpen, setIsTiktokOpen] = useState(false);
+  const [isTiktokCookieInputOpen, setIsTiktokCookieInputOpen] = useState(false);
+  const [tiktokCookieFields, setTiktokCookieFields] = useState({
+    sessionid: "",
+    sessionid_ss: "",
+    sid_guard: "",
+    tt_chain_token: "",
+  });
+  const [isVerifyingTiktokCookie, setIsVerifyingTiktokCookie] = useState(false);
+  const [isSavingTiktokCookie, setIsSavingTiktokCookie] = useState(false);
+  const [isTiktokCookieVerified, setIsTiktokCookieVerified] = useState(false);
+  const [tiktokCookieVerifyMsg, setTiktokCookieVerifyMsg] = useState(null);
+
+  const fetchTiktokCookieStatus = async () => {
+    setTiktokCookieStatus("loading");
+    const res = await getCookieStatus("tiktok");
+    if (res.success && res.data) {
+      if (res.data.exists) {
+        setTiktokCookieStatus("valid");
+      } else {
+        setTiktokCookieStatus("none");
+      }
+    } else {
+      setTiktokCookieStatus("none");
+    }
+  };
+
+  const handleTiktokCookieFieldChange = (key, value) => {
+    setTiktokCookieFields((prev) => ({ ...prev, [key]: value }));
+    setIsTiktokCookieVerified(false);
+    setTiktokCookieVerifyMsg(null);
+  };
+
+  const handleVerifyTiktokCookie = async () => {
+    setIsVerifyingTiktokCookie(true);
+    setTiktokCookieVerifyMsg(null);
+    let payloadFields = null;
+
+    if (isTiktokCookieInputOpen) {
+      const hasAnyField = Object.values(tiktokCookieFields).some((v) => v && v.trim() !== "");
+      if (!hasAnyField) {
+        setIsVerifyingTiktokCookie(false);
+        setTiktokCookieVerifyMsg({ type: "error", text: "Vui lòng nhập ít nhất một token cookie (khuyên dùng sessionid)." });
+        return;
+      }
+      payloadFields = tiktokCookieFields;
+    }
+
+    const res = await verifyCookies("tiktok", payloadFields);
+    setIsVerifyingTiktokCookie(false);
+    if (res.success && res.data?.valid) {
+      setIsTiktokCookieVerified(true);
+      setTiktokCookieStatus("valid");
+      setTiktokCookieVerifyMsg({ type: "success", text: res.data.message || "✓ Cookie TikTok hợp lệ!" });
+    } else {
+      setIsTiktokCookieVerified(false);
+      if (!isTiktokCookieInputOpen) {
+        setTiktokCookieStatus("expired");
+      }
+      const errMsg = res.data?.message || res.message || "Cookie không hợp lệ hoặc đã hết hạn.";
+      setTiktokCookieVerifyMsg({ type: "error", text: errMsg });
+    }
+  };
+
+  const handleSaveTiktokCookie = async () => {
+    if (!isTiktokCookieVerified || isSavingTiktokCookie) return;
+    setIsSavingTiktokCookie(true);
+    setTiktokCookieVerifyMsg(null);
+
+    const res = await saveCookies("tiktok", tiktokCookieFields);
+    setIsSavingTiktokCookie(false);
+    if (res.success) {
+      setIsTiktokCookieInputOpen(false);
+      setIsTiktokCookieVerified(false);
+      setTiktokCookieStatus("valid");
+      setTiktokCookieVerifyMsg({ type: "success", text: "Đã lưu cookie TikTok thành công!" });
+      setTimeout(() => setTiktokCookieVerifyMsg(null), 3000);
+    } else {
+      setTiktokCookieVerifyMsg({ type: "error", text: res.message || "Không thể lưu cookie." });
+    }
+  };
+
   // Client Cache State
   const [cacheSizeText, setCacheSizeText] = useState('Đang tính...');
   const [isClearingCache, setIsClearingCache] = useState(false);
@@ -156,6 +239,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
 
       setConnectionState('checking');
       fetchYoutubeCookieStatus();
+      fetchTiktokCookieStatus();
       validateCoordinatorHost(currentHost).then((res) => {
         if (res.success) {
           setConnectionState('connected');
@@ -577,6 +661,207 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                               setCookieVerifyMsg(null);
                             }}
                             className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-red-600 hover:bg-red-500 active:bg-red-700 rounded-xl shadow-lg shadow-red-600/20 transition-all"
+                          >
+                            <Cookie className="w-3.5 h-3.5" />
+                            <span>Nhập cookie</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* TikTok Card */}
+                <div className="bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
+                  {/* Layer 0: Header Row */}
+                  <div
+                    onClick={() => setIsTiktokOpen(!isTiktokOpen)}
+                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                          <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+                        </svg>
+                      </div>
+                      <span className="font-bold text-white text-sm">TikTok</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {tiktokCookieStatus === "valid" ? (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Hợp lệ
+                        </span>
+                      ) : tiktokCookieStatus === "expired" ? (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" /> Hết hạn / Lỗi
+                        </span>
+                      ) : tiktokCookieStatus === "loading" ? (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3 animate-spin" /> Đang tải...
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-500/15 text-gray-400 border border-gray-500/30">
+                          Chưa có cookie
+                        </span>
+                      )}
+                      <ChevronDown
+                        className={`w-4 h-4 text-gray-400 ml-1 transition-transform duration-200 ease-in-out ${
+                          isTiktokOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Layer 1: Body Container */}
+                  <div
+                    className={`overflow-hidden transition-all duration-200 ease-in-out ${
+                      isTiktokOpen ? "max-h-[800px] opacity-100 p-3 pt-0 space-y-3 border-t border-[#383c42]/40" : "max-h-0 opacity-0"
+                    }`}
+                  >
+                    {/* Layer 2: Sliding Input Container */}
+                    <div
+                      className={`overflow-hidden transition-all duration-200 ease-in-out ${
+                        isTiktokCookieInputOpen ? "max-h-[600px] opacity-100 pt-2 pb-1" : "max-h-0 opacity-0"
+                      }`}
+                    >
+                      <div className="space-y-2 pt-1">
+                        <p className="text-[11px] text-gray-400 mb-2">
+                          Nhập các giá trị cookie từ tài khoản TikTok của bạn (khuyên dùng ít nhất <code className="text-cyan-400">sessionid</code>):
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {[
+                            { key: "sessionid", label: "sessionid (Bắt buộc)" },
+                            { key: "sessionid_ss", label: "sessionid_ss (Bắt buộc)" },
+                            { key: "sid_guard", label: "sid_guard (Khuyên dùng)" },
+                            { key: "tt_chain_token", label: "tt_chain_token (Tùy chọn)" },
+                          ].map(({ key, label }) => (
+                            <div key={key} className={key === "sessionid" ? "sm:col-span-2" : ""}>
+                              <label className="block text-[10px] font-mono text-gray-400 mb-0.5">
+                                {label}
+                              </label>
+                              <div className="relative flex items-center">
+                                <input
+                                  type="text"
+                                  value={tiktokCookieFields[key] || ""}
+                                  onChange={(e) => handleTiktokCookieFieldChange(key, e.target.value)}
+                                  placeholder={`Nhập ${key}`}
+                                  className="w-full bg-[#121316] border border-[#383c42] focus:border-cyan-500/60 rounded-lg pl-2.5 pr-20 py-1.5 text-xs text-white font-mono placeholder-gray-600 outline-none transition-colors"
+                                />
+                                <div className="absolute right-1 flex items-center gap-1">
+                                  {tiktokCookieFields[key] ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleTiktokCookieFieldChange(key, "")}
+                                      className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                                      title="Xóa"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const text = await navigator.clipboard.readText();
+                                        if (text) handleTiktokCookieFieldChange(key, text.trim());
+                                      } catch {
+                                        // Clipboard error
+                                      }
+                                    }}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 active:bg-cyan-500/30 transition-colors"
+                                    title="Dán từ Clipboard"
+                                  >
+                                    <Clipboard className="w-3.5 h-3.5" />
+                                    <span>Dán</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Verification feedback message */}
+                    {tiktokCookieVerifyMsg && (
+                      <div
+                        className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
+                          tiktokCookieVerifyMsg.type === "success"
+                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                        }`}
+                      >
+                        {tiktokCookieVerifyMsg.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                        )}
+                        <span>{tiktokCookieVerifyMsg.text}</span>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-2 border-t border-[#383c42]/40">
+                      {isTiktokCookieInputOpen ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsTiktokCookieInputOpen(false);
+                            setIsTiktokCookieVerified(false);
+                            setTiktokCookieVerifyMsg(null);
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
+                        >
+                          Hủy
+                        </button>
+                      ) : (
+                        <div />
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleVerifyTiktokCookie}
+                          disabled={isVerifyingTiktokCookie}
+                          className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingTiktokCookie ? "animate-spin" : ""}`} />
+                          <span>{isVerifyingTiktokCookie ? "Đang kiểm tra..." : "Kiểm tra cookie"}</span>
+                        </button>
+
+                        {isTiktokCookieInputOpen ? (
+                          <button
+                            type="button"
+                            onClick={handleSaveTiktokCookie}
+                            disabled={!isTiktokCookieVerified || isSavingTiktokCookie}
+                            className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
+                              isTiktokCookieVerified
+                                ? "text-white bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 shadow-cyan-600/30 ring-2 ring-cyan-400/50"
+                                : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
+                            }`}
+                          >
+                            {isSavingTiktokCookie ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Đang lưu...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Lưu cookie</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsTiktokCookieInputOpen(true);
+                              setIsTiktokCookieVerified(false);
+                              setTiktokCookieVerifyMsg(null);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 rounded-xl shadow-lg shadow-cyan-600/20 transition-all"
                           >
                             <Cookie className="w-3.5 h-3.5" />
                             <span>Nhập cookie</span>
