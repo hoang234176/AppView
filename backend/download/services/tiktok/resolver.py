@@ -140,7 +140,7 @@ class TikTokResolver(DownloadResolver):
         cookie_header = self._build_cookie_header(info)
         image_headers: dict[str, str] = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Referer": clean_url,
+            "Referer": "https://www.tiktok.com/",
         }
         if cookie_header:
             image_headers["Cookie"] = cookie_header
@@ -192,7 +192,7 @@ class TikTokResolver(DownloadResolver):
 
         format_headers = chosen_format_headers or info.get("http_headers") or {}
         ua = format_headers.get("User-Agent") or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        referer = format_headers.get("Referer") or clean_url
+        referer = format_headers.get("Referer") or "https://www.tiktok.com/"
 
         safe_headers: dict[str, str] = {
             "User-Agent": ua,

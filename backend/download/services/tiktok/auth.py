@@ -61,17 +61,25 @@ def save_tiktok_cookies_to_file(content: str) -> None:
 
 
 def update_tiktok_session_cookies(session_cookies: dict[str, str]) -> None:
-    """Update or merge stream session tokens (tt_chain_token) into the persistent cookie file."""
-    if not session_cookies or "tt_chain_token" not in session_cookies:
+    """Update or merge newly discovered or refreshed session cookies into the persistent cookie file."""
+    if not session_cookies:
         return
-    chain_token = session_cookies["tt_chain_token"]
-    if not chain_token:
+
+    # Bỏ qua các token thử thách tạm thời WAF vì chúng hết hạn ngay lập tức gây 403 khi dùng lại
+    IGNORED_COOKIES = {"_waftokenid", "msToken"}
+
+    valid_updates = {
+        str(k).strip(): str(v).strip()
+        for k, v in session_cookies.items()
+        if k and v and str(k).strip() not in IGNORED_COOKIES
+    }
+    if not valid_updates:
         return
 
     current_content = read_tiktok_cookies_from_file() or ""
-    lines = current_content.splitlines()
+    lines = current_content.splitlines() if current_content.strip() else ["# Netscape HTTP Cookie File"]
     updated_lines: list[str] = []
-    found = False
+    seen_names: set[str] = set()
 
     for line in lines:
         stripped = line.strip()
@@ -80,21 +88,22 @@ def update_tiktok_session_cookies(session_cookies: dict[str, str]) -> None:
             continue
         parts = line.split("\t")
         if len(parts) >= 7:
-            name = parts[5]
-            if name == "tt_chain_token":
-                parts[6] = chain_token
+            name = parts[5].strip()
+            seen_names.add(name)
+            if name in valid_updates:
+                parts[6] = valid_updates[name]
                 updated_lines.append("\t".join(parts))
-                found = True
-            elif name in ("_waftokenid", "msToken"):
-                # Bỏ qua các token thử thách WAF tạm thời vì chúng hết hạn rất nhanh gây 403 khi tải trang
+            elif name in IGNORED_COOKIES:
                 continue
             else:
                 updated_lines.append(line)
         else:
             updated_lines.append(line)
 
-    if not found:
-        updated_lines.append(f".tiktok.com\tTRUE\t/\tTRUE\t2147483647\ttt_chain_token\t{chain_token}")
+    # Thêm các cookie mới xuất hiện chưa từng có trong file txt
+    for name, val in valid_updates.items():
+        if name not in seen_names:
+            updated_lines.append(f".tiktok.com\tTRUE\t/\tTRUE\t2147483647\t{name}\t{val}")
 
     save_tiktok_cookies_to_file("\n".join(updated_lines) + "\n")
 

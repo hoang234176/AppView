@@ -38,25 +38,36 @@ class TikTokWebScraper:
         return await loop.run_in_executor(None, self._scrape_sync, url.strip(), raw_cookies)
 
     def _scrape_sync(self, url: str, raw_cookies: Optional[str] = None) -> dict[str, Any]:
+        import http.cookiejar
+
         req_headers = {
             "User-Agent": MOBILE_USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
         }
 
-        # Build cookie header if cookies exist
+        cookie_jar = http.cookiejar.CookieJar()
         if raw_cookies:
-            jar = create_cookiejar_from_netscape(raw_cookies)
-            if jar:
-                cookie_pairs = [f"{c.name}={c.value}" for c in jar if "tiktok.com" in c.domain]
-                if cookie_pairs:
-                    req_headers["Cookie"] = "; ".join(cookie_pairs)
+            try:
+                saved_jar = create_cookiejar_from_netscape(raw_cookies)
+                if saved_jar:
+                    for c in saved_jar:
+                        cookie_jar.set_cookie(c)
+                    cookie_pairs = [f"{c.name}={c.value}" for c in saved_jar if "tiktok.com" in getattr(c, "domain", "")]
+                    if cookie_pairs:
+                        req_headers["Cookie"] = "; ".join(cookie_pairs)
+            except Exception:
+                pass
 
         ssl_context = ssl._create_unverified_context()
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPSHandler(context=ssl_context),
+            urllib.request.HTTPCookieProcessor(cookie_jar),
+        )
         req = urllib.request.Request(url, headers=req_headers)
 
         try:
-            with urllib.request.urlopen(req, timeout=15, context=ssl_context) as resp:
+            with opener.open(req, timeout=15) as resp:
                 raw_html = resp.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as err:
             log_error("TIKTOK_SCRAPER", f"HTTP error {err.code} on {url}: {err.reason}")
@@ -79,7 +90,7 @@ class TikTokWebScraper:
                     "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
                 }
                 req_fallback = urllib.request.Request(url, headers=clean_headers)
-                with urllib.request.urlopen(req_fallback, timeout=15, context=ssl_context) as resp:
+                with opener.open(req_fallback, timeout=15) as resp:
                     raw_html = resp.read().decode("utf-8", errors="replace")
                 item = self._extract_item_struct(raw_html)
             except Exception as e:
@@ -88,7 +99,15 @@ class TikTokWebScraper:
         if not item:
             raise TikTokError(code="RESOLVE_FAILED", message="Không tìm thấy cấu trúc dữ liệu của bài viết TikTok.")
 
-        return self._format_item(item, raw_html)
+        session_cookies: dict[str, str] = {c.name: c.value for c in cookie_jar}
+        if session_cookies:
+            try:
+                from services.tiktok.auth import update_tiktok_session_cookies
+                update_tiktok_session_cookies(session_cookies)
+            except Exception as e:
+                log_error("TIKTOK_SCRAPER", f"Lỗi cập nhật session cookies: {e}")
+
+        return self._format_item(item, raw_html, session_cookies=session_cookies)
 
     def _extract_item_struct(self, raw_html: str) -> Optional[dict[str, Any]]:
         """Find and parse JSON data from script tags."""
@@ -135,7 +154,12 @@ class TikTokWebScraper:
 
         return None
 
-    def _format_item(self, item: dict[str, Any], raw_html: str) -> dict[str, Any]:
+    def _format_item(
+        self,
+        item: dict[str, Any],
+        raw_html: str,
+        session_cookies: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
         """Convert itemStruct into AppView TikTok standardized inspect schema."""
         post_id = str(item.get("id") or "")
         desc = str(item.get("desc") or "TikTok Post")
@@ -213,6 +237,11 @@ class TikTokWebScraper:
         else:
             post_type = "unknown"
 
+        headers_for_video = {
+            "User-Agent": MOBILE_USER_AGENT,
+            "Referer": "https://www.tiktok.com/",
+        }
+
         video_formats: list[dict[str, Any]] = []
         if video_url:
             video_formats.append({
@@ -220,6 +249,7 @@ class TikTokWebScraper:
                 "vcodec": "h264",
                 "resolution": f"{video_info.get('width', 0)}x{video_info.get('height', 0)}",
                 "url": video_url,
+                "http_headers": dict(headers_for_video),
             })
         raw_dl = video_info.get("downloadAddr")
         clean_dl = html.unescape(raw_dl).replace(r"\u002F", "/") if raw_dl else None
@@ -229,6 +259,7 @@ class TikTokWebScraper:
                 "vcodec": "h264",
                 "resolution": f"{video_info.get('width', 0)}x{video_info.get('height', 0)}",
                 "url": clean_dl,
+                "http_headers": dict(headers_for_video),
             })
 
         # Audio music
@@ -252,5 +283,7 @@ class TikTokWebScraper:
             "all_images": all_images,
             "images": slideshow_images,
             "qualities": [],
+            "session_cookies": session_cookies or {},
+            "http_headers": headers_for_video,
             "raw_info": item,
         }

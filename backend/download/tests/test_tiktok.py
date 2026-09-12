@@ -382,6 +382,33 @@ class TestTikTokIntegration(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(source_router.supports("https://www.tiktok.com/@user/video/7683865133659082004"))
         self.assertTrue(source_router.supports("https://www.tiktok.com/@user/photo/7636585528929881352"))
 
+    def test_update_tiktok_session_cookies(self):
+        from services.tiktok.auth import update_tiktok_session_cookies
+        saved_content = []
+
+        with patch("services.tiktok.auth.read_tiktok_cookies_from_file") as mock_read, \
+             patch("services.tiktok.auth.save_tiktok_cookies_to_file") as mock_save:
+            mock_read.return_value = (
+                "# Netscape HTTP Cookie File\n"
+                ".tiktok.com\tTRUE\t/\tTRUE\t2147483647\tsessionid\told_session\n"
+                ".tiktok.com\tTRUE\t/\tTRUE\t2147483647\ttt_chain_token\told_token\n"
+            )
+            mock_save.side_effect = lambda content: saved_content.append(content)
+
+            # Update existing tt_chain_token and add new ttwid, ignore msToken
+            update_tiktok_session_cookies({
+                "tt_chain_token": "new_token_123",
+                "ttwid": "ttwid_fresh_456",
+                "msToken": "temp_ms_token",
+            })
+
+            self.assertEqual(len(saved_content), 1)
+            result = saved_content[0]
+            self.assertIn("new_token_123", result)
+            self.assertIn("ttwid_fresh_456", result)
+            self.assertIn("old_session", result)
+            self.assertNotIn("temp_ms_token", result)
+
 
 if __name__ == "__main__":
     unittest.main()

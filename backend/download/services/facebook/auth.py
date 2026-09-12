@@ -142,11 +142,39 @@ def _test_facebook_cookies_sync(cookie_dict: dict[str, str]) -> tuple[bool, str]
 
     log_info("FACEBOOK_AUTH", f"Đang gửi yêu cầu xác thực cookie đến Facebook (c_user={c_user[:4]}***)...")
 
+    # 1. Fast test via mbasic.facebook.com/me (lightweight, responds in 1-3 seconds)
+    try:
+        fast_req = urllib.request.Request(
+            "https://mbasic.facebook.com/me",
+            headers={**headers, "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"}
+        )
+        with opener.open(fast_req, timeout=8) as resp:
+            final_url = resp.geturl().lower()
+            set_cookies = resp.headers.get_all("Set-Cookie") or []
+
+            for sc in set_cookies:
+                if "c_user=deleted" in sc or "c_user=;" in sc:
+                    log_warning("FACEBOOK_AUTH", "Xác thực thất bại: Facebook trả về Set-Cookie: c_user=deleted.")
+                    return False, "Cookies Facebook không hợp lệ hoặc đã hết hạn (Facebook đã xóa c_user)."
+
+            if "/login" in final_url or "checkpoint" in final_url:
+                log_warning("FACEBOOK_AUTH", f"Xác thực thất bại: Bị chuyển hướng đến trang đăng nhập ({final_url}).")
+                return False, "Cookies Facebook đã hết hạn hoặc không hợp lệ (chuyển hướng login)."
+
+            if "mbasic.facebook.com" in final_url and "/login" not in final_url:
+                body_chunk = resp.read(65536).decode("utf-8", errors="replace")
+                if 'name="pass"' not in body_chunk and 'id="pass"' not in body_chunk:
+                    log_info("FACEBOOK_AUTH", f"✓ Xác thực cookies Facebook thành công (User ID: {c_user})")
+                    return True, f"Xác thực cookies Facebook thành công (User ID: {c_user})."
+    except Exception as fast_err:
+        log_info("FACEBOOK_AUTH", f"Fast check qua mbasic bỏ qua ({fast_err}), tiếp tục qua www.facebook.com...")
+
+    # 2. Fallback test via www.facebook.com
     test_url = "https://www.facebook.com/"
     req = urllib.request.Request(test_url, headers=headers)
 
     try:
-        with opener.open(req, timeout=12) as resp:
+        with opener.open(req, timeout=25) as resp:
             final_url = resp.geturl().lower()
             set_cookies = resp.headers.get_all("Set-Cookie") or []
             body = resp.read().decode("utf-8", errors="replace")

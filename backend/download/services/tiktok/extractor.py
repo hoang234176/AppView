@@ -41,6 +41,22 @@ def sanitize_raw_info(data: Any, depth: int = 0) -> Any:
     return data
 
 
+class _YtDlpQuietLogger:
+    """Quiet logger for yt-dlp to suppress console error output during fallback attempts."""
+
+    def debug(self, msg: str) -> None:
+        pass
+
+    def info(self, msg: str) -> None:
+        pass
+
+    def warning(self, msg: str) -> None:
+        pass
+
+    def error(self, msg: str) -> None:
+        pass
+
+
 class TikTokExtractor:
     """Extracts metadata, formats, and images for TikTok posts via yt-dlp."""
 
@@ -73,6 +89,7 @@ class TikTokExtractor:
             has_photos = len(res.get("slideshow_images") or []) > 0
             # Nếu yt-dlp trả về nhưng không có video thực thụ (chỉ audio) và không có ảnh, fallback sang scraper
             if not has_real_video and not has_photos:
+                log_info("TIKTOK_EXTRACTOR", "yt-dlp không tìm thấy video/ảnh hợp lệ, chuyển sang TikTokWebScraper...")
                 from services.tiktok.scraper import TikTokWebScraper
                 return await TikTokWebScraper().scrape(clean_url)
             return res
@@ -81,7 +98,8 @@ class TikTokExtractor:
             try:
                 from services.tiktok.scraper import TikTokWebScraper
                 return await TikTokWebScraper().scrape(clean_url)
-            except Exception:
+            except Exception as scraper_err:
+                log_error("TIKTOK_EXTRACTOR", f"Cả yt-dlp và TikTokWebScraper đều thất bại: {scraper_err}")
                 raise err
 
     async def _inspect_via_ytdlp(self, clean_url: str) -> dict[str, Any]:
@@ -137,6 +155,7 @@ class TikTokExtractor:
             "extract_flat": False,
             "socket_timeout": 20,
             "noplaylist": True,
+            "logger": _YtDlpQuietLogger(),
         }
 
         try:
@@ -170,7 +189,6 @@ class TikTokExtractor:
         except Exception as err:
             if cancel_event.is_set():
                 raise asyncio.CancelledError()
-            log_error("TIKTOK_EXTRACTOR", f"Lỗi extract TikTok: {err}")
             raise classify_tiktok_error(str(err)) from err
         finally:
             finished.set()

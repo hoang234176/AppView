@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"appview/coordinator/internal/logging"
 	"appview/coordinator/internal/protocol"
@@ -113,6 +115,9 @@ func (h *CookieHandler) Status(writer http.ResponseWriter, request *http.Request
 
 func (h *CookieHandler) Verify(writer http.ResponseWriter, request *http.Request) {
 	defer request.Body.Close()
+	ctx, cancel := context.WithTimeout(request.Context(), 60*time.Second)
+	defer cancel()
+
 	var body protocol.CookieRequestPayload
 	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
@@ -133,7 +138,7 @@ func (h *CookieHandler) Verify(writer http.ResponseWriter, request *http.Request
 	}
 	if cookies == "" {
 		// Attempt to verify currently saved cookies from Storage
-		saved, err := h.coordinator.GetCookieContent(request.Context(), platform)
+		saved, err := h.coordinator.GetCookieContent(ctx, platform)
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
 				writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
@@ -151,7 +156,7 @@ func (h *CookieHandler) Verify(writer http.ResponseWriter, request *http.Request
 		}
 		cookies = strings.TrimSpace(saved.Cookies)
 	}
-	res, err := h.coordinator.VerifyCookies(request.Context(), platform, cookies)
+	res, err := h.coordinator.VerifyCookies(ctx, platform, cookies)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
 			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
@@ -174,6 +179,9 @@ func (h *CookieHandler) Verify(writer http.ResponseWriter, request *http.Request
 
 func (h *CookieHandler) Save(writer http.ResponseWriter, request *http.Request) {
 	defer request.Body.Close()
+	ctx, cancel := context.WithTimeout(request.Context(), 60*time.Second)
+	defer cancel()
+
 	var body protocol.CookieRequestPayload
 	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
@@ -192,7 +200,7 @@ func (h *CookieHandler) Save(writer http.ResponseWriter, request *http.Request) 
 		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "cookies or fields cannot be empty"})
 		return
 	}
-	res, err := h.coordinator.SaveCookies(request.Context(), platform, cookies)
+	res, err := h.coordinator.SaveCookies(ctx, platform, cookies)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
 			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
