@@ -179,6 +179,52 @@ func TestPreviewTikTokSlideshow(t *testing.T) {
 	}
 }
 
+func TestPreviewFacebookPost(t *testing.T) {
+	c, resolver, _ := newDownloadCoordinator(t)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		preview, failure := c.PreviewDownload(context.Background(), "https://www.facebook.com/user/posts/123456")
+		if failure != nil {
+			t.Errorf("preview failed: %v", failure)
+			return
+		}
+		if preview.Source != "facebook" || preview.Type != "slideshow" || len(preview.Images) != 2 || preview.Title == "" {
+			t.Errorf("unexpected preview: %+v", preview)
+		}
+		if preview.Content != "Sample status text" {
+			t.Errorf("preview.Content = %v; want 'Sample status text'", preview.Content)
+		}
+	}()
+	assignment := waitPreviewAssignment(t, resolver)
+	if err := c.TaskAccepted("resolver", assignment.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	resJSON := `{
+		"source": "facebook",
+		"type": "slideshow",
+		"title": "Post Title",
+		"uploader": "Nguyễn Văn A",
+		"content": "Sample status text",
+		"qualities": [],
+		"images": [
+			{"id": "fb_1", "type": "photo", "label": "Ảnh #1", "url": "https://fbcdn.net/1.jpg"},
+			{"id": "fb_2", "type": "photo", "label": "Ảnh #2", "url": "https://fbcdn.net/2.jpg"}
+		],
+		"reactions": {"likes": 100, "comments": 20, "shares": 5},
+		"has_video": false,
+		"has_audio": false
+	}`
+	if err := c.TaskCompleted("resolver", assignment.TaskID, json.RawMessage(resJSON)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("facebook preview timed out")
+	}
+}
+
 func TestCreateTikTokDownload_ForwardsItemsAndIndices(t *testing.T) {
 	c, resolver, storage := newDownloadCoordinator(t)
 	indices := []int{0, 2}

@@ -90,6 +90,8 @@ func NewJob(id string, request CreateRequest) Job {
 		source = "youtube"
 	} else if strings.Contains(request.URL, "tiktok.com") {
 		source = "tiktok"
+	} else if strings.Contains(request.URL, "facebook.com") || strings.Contains(request.URL, "fb.watch") || strings.Contains(request.URL, "fb.com") {
+		source = "facebook"
 	}
 	return Job{
 		ID:          id,

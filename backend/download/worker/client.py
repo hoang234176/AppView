@@ -232,6 +232,9 @@ class CoordinatorWorkerClient:
         elif platform == "tiktok":
             from services.tiktok.auth import verify_tiktok_cookies
             valid, message_str = await verify_tiktok_cookies(raw_cookies)
+        elif platform == "facebook":
+            from services.facebook.auth import verify_facebook_cookies
+            valid, message_str = await verify_facebook_cookies(raw_cookies)
 
         level = "INFO" if valid else "WARN"
         log_event(level, "cookie verification completed", "COOKIE_VERIFY", platform=platform, valid=valid, detail=message_str)

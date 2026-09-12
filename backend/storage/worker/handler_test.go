@@ -8,6 +8,7 @@ import (
 	"time"
 
 	pythonapi "backend/api/python"
+	"backend/media_download/facebook"
 	"backend/media_download/youtube"
 )
 
@@ -376,5 +377,71 @@ func TestHandlerCookieMessages(t *testing.T) {
 	getRes, ok := sent[0].Result.(CookieGetResult)
 	if !ok || !getRes.Exists || getRes.Cookies != sampleCookies {
 		t.Fatalf("expected matches sample cookies, got %+v", sent[0].Result)
+	}
+}
+
+type fakeFacebookOperations struct {
+	started   bool
+	startErr  error
+	snapshots map[string]facebook.Snapshot
+}
+
+func (f *fakeFacebookOperations) Start(id, _, filename, _, _ string, _ []facebook.DownloadItem, _ map[string]string) error {
+	f.started = true
+	if f.snapshots == nil {
+		f.snapshots = make(map[string]facebook.Snapshot)
+	}
+	f.snapshots[id] = facebook.Snapshot{ID: id, State: "completed", Filename: filename}
+	return f.startErr
+}
+
+func (f *fakeFacebookOperations) Cancel(id string) bool {
+	_, ok := f.snapshots[id]
+	return ok
+}
+
+func (f *fakeFacebookOperations) SetVideoDecision(_, _, _ string) error {
+	return nil
+}
+
+func (f *fakeFacebookOperations) ApplyVideoDecisions(_ string, _ map[string]string) error {
+	return nil
+}
+
+func (f *fakeFacebookOperations) Snapshot(id string) (facebook.Snapshot, bool) {
+	s, ok := f.snapshots[id]
+	return s, ok
+}
+
+func (f *fakeFacebookOperations) Snapshots() []facebook.Snapshot {
+	var list []facebook.Snapshot
+	for _, s := range f.snapshots {
+		list = append(list, s)
+	}
+	return list
+}
+
+func (f *fakeFacebookOperations) SetCanonicalID(_, _ string) bool {
+	return true
+}
+
+func TestHandlerRoutesToFacebook(t *testing.T) {
+	fb := &fakeFacebookOperations{}
+	handler := NewHandler(nil, fb)
+	handler.pollInterval = time.Millisecond
+
+	var sent []Message
+	handler.Handle(context.Background(), Message{
+		Type:    TaskAssign,
+		TaskID:  "fb-task-1",
+		Action:  CapabilityDownloadFile,
+		Payload: []byte(`{"url":"https://www.facebook.com/share/r/1C583twmiP/","filename":"reel.mp4","source":"facebook"}`),
+	}, collect(&sent))
+
+	if !fb.started {
+		t.Fatalf("expected facebookOperations.Start to be called")
+	}
+	if len(sent) < 3 || sent[0].Type != TaskAccepted || sent[len(sent)-1].Type != TaskCompleted {
+		t.Fatalf("expected TaskAccepted and TaskCompleted, got %+v", sent)
 	}
 }

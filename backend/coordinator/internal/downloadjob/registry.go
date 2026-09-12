@@ -215,6 +215,8 @@ func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, 
 			job.Source = "youtube"
 		} else if strings.Contains(job.URL, "tiktok.com") {
 			job.Source = "tiktok"
+		} else if strings.Contains(job.URL, "facebook.com") || strings.Contains(job.URL, "fb.watch") || strings.Contains(job.URL, "fb.com") {
+			job.Source = "facebook"
 		}
 	}
 	job.State, job.Stage, job.storagePending, job.UpdatedAt = Downloading, string(Downloading), true, time.Now().UTC()

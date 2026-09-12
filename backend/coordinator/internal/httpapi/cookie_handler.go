@@ -38,6 +38,25 @@ func assembleNetscapeCookies(platform string, fields map[string]string) string {
 		"__Secure-1PSID",
 		"__Secure-3PSID",
 	}
+	if platform == "facebook" {
+		orderedKeys = []string{
+			"c_user",
+			"xs",
+			"datr",
+			"fr",
+			"sb",
+			"presence",
+			"spin",
+			"wd",
+		}
+	} else if platform == "tiktok" {
+		orderedKeys = []string{
+			"sessionid",
+			"sessionid_ss",
+			"sid_guard",
+			"tt_chain_token",
+		}
+	}
 	used := make(map[string]bool)
 	cleanValue := func(v string) string {
 		v = strings.ReplaceAll(v, "\r", "")

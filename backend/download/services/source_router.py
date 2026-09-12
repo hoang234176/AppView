@@ -6,6 +6,7 @@ from typing import Optional
 
 from archive.contracts import DownloadResolver, ResolvedDownload
 from archive.mediafire import MediaFireResolver
+from services.facebook.resolver import FacebookResolver
 from services.tiktok.resolver import TikTokResolver
 from services.youtube.errors import UnsupportedSourceError
 from services.youtube.resolver import YouTubeResolver
@@ -18,6 +19,7 @@ class SourceRouter(DownloadResolver):
         self._resolvers: list[DownloadResolver] = resolvers or [
             YouTubeResolver(),
             TikTokResolver(),
+            FacebookResolver(),
             MediaFireResolver(),
         ]
 
@@ -39,7 +41,7 @@ class SourceRouter(DownloadResolver):
             preview_fn = getattr(resolver, "preview", None)
             if callable(supports_fn) and supports_fn(url) and callable(preview_fn):
                 return await preview_fn(url)
-        raise UnsupportedSourceError("Liên kết không được hỗ trợ. Hiện chỉ hỗ trợ YouTube và TikTok.")
+        raise UnsupportedSourceError("Liên kết không được hỗ trợ. Hiện hỗ trợ YouTube, TikTok và Facebook.")
 
     async def resolve(
         self,

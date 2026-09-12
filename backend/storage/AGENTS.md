@@ -51,12 +51,14 @@ It is local-first by design and MUST NOT be redesigned to a remote storage servi
 - YouTube downloads commit directly to the destination as a media file, never creating an intermediate directory named after the video.
 - TikTok runtime state lives at `APPVIEW_STATE_DIR/media_download/tiktok/jobs/<id>.json` and workspaces at `media_download/tiktok/workspaces/<id>/`.
 - TikTok video and photo downloads commit directly to destination without creating subfolders.
+- Facebook runtime state lives at `APPVIEW_STATE_DIR/media_download/facebook/jobs/<id>.json` and workspaces at `media_download/facebook/workspaces/<id>/`.
+- Facebook video and photo downloads commit directly to destination without creating subfolders.
 
 ## Worker adapter invariants
 
 - Registers only `download_file`; re-registers after reconnect.
 - Payload: `{ "url", "filename", "destination" (relative, optional), "password" (optional), "audioUrl" (optional), "headers" (optional), "source" (optional) }`.
-- Archive payloads delegate to `pythonapi.StartArchiveJob`; platform media payloads (e.g. `source: "youtube"`) route to `media_download/youtube`.
+- Archive payloads delegate to `pythonapi.StartArchiveJob`; platform media payloads (e.g. `source: "youtube"`, `source: "tiktok"`, `source: "facebook"`) route to `media_download/<platform>`.
 - Sends metadata-only progress (snapshot-derived); MUST NOT send file bytes or local filesystem paths on the WebSocket.
 - Worker cancellation/disconnect stops monitoring only — does not cancel an in-progress archive or YouTube job (Coordinator can safely requeue/reattach).
 - Finite dial timeouts and bounded reconnect backoff — Coordinator outage MUST NOT crash Fiber.

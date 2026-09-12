@@ -70,6 +70,12 @@ class DownloadWorkerHandler:
                 info = await extractor.inspect(url.strip())
                 await send(message(TASK_COMPLETED, taskId=task_id, result=info))
                 return
+            if payload.get("operation") == "facebook_inspect":
+                from services.facebook.extractor import FacebookExtractor
+                extractor = FacebookExtractor()
+                info = await extractor.inspect(url.strip())
+                await send(message(TASK_COMPLETED, taskId=task_id, result=info))
+                return
             quality = payload.get("quality")
             if quality is not None and (type(quality) is not int or quality <= 0):
                 await self._fail(send, task_id, "INVALID_QUALITY", "Chất lượng tải xuống không hợp lệ.")
@@ -89,8 +95,8 @@ class DownloadWorkerHandler:
         except Exception as error:
             # Provider errors are logged locally. The coordinator gets a
             # stable, non-sensitive response with domain-appropriate error codes.
-            code = error.code if isinstance(error, YouTubeError) else "RESOLVE_FAILED"
-            msg = error.message if isinstance(error, YouTubeError) else "Không thể phân tích liên kết tải."
+            code = getattr(error, "code", "RESOLVE_FAILED")
+            msg = getattr(error, "message", "Không thể phân tích liên kết tải.")
             await self._fail(send, task_id, code, msg)
             return
 
