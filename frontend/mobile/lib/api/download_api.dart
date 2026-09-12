@@ -10,21 +10,76 @@ String canonicalDownloadDestination(String selectedPath) {
 }
 
 class MediaImageItem {
+  final String id;
   final String url;
   final String label;
   final String type;
+  final String thumbnail;
+  final int width;
+  final int height;
 
   MediaImageItem({
+    this.id = '',
     required this.url,
     this.label = '',
     this.type = 'slideshow_photo',
+    this.thumbnail = '',
+    this.width = 0,
+    this.height = 0,
   });
 
   factory MediaImageItem.fromJson(Map<String, dynamic> json) {
     return MediaImageItem(
+      id: json['id']?.toString() ?? '',
       url: json['url']?.toString() ?? '',
       label: json['label']?.toString() ?? '',
       type: json['type']?.toString() ?? 'slideshow_photo',
+      thumbnail: json['thumbnail']?.toString() ?? '',
+      width: (json['width'] as num?)?.toInt() ?? 0,
+      height: (json['height'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class MediaAuthorInfo {
+  final String id;
+  final String name;
+  final String avatar;
+  final String url;
+
+  const MediaAuthorInfo({
+    this.id = '',
+    this.name = '',
+    this.avatar = '',
+    this.url = '',
+  });
+
+  factory MediaAuthorInfo.fromJson(Map<String, dynamic> json) {
+    return MediaAuthorInfo(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      avatar: json['avatar']?.toString() ?? '',
+      url: json['url']?.toString() ?? '',
+    );
+  }
+}
+
+class MediaReactionsInfo {
+  final int likes;
+  final int comments;
+  final int shares;
+
+  const MediaReactionsInfo({
+    this.likes = 0,
+    this.comments = 0,
+    this.shares = 0,
+  });
+
+  factory MediaReactionsInfo.fromJson(Map<String, dynamic> json) {
+    return MediaReactionsInfo(
+      likes: (json['likes'] as num?)?.toInt() ?? 0,
+      comments: (json['comments'] as num?)?.toInt() ?? 0,
+      shares: (json['shares'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -35,6 +90,10 @@ class MediaDownloadPreview {
   final List<MediaImageItem> images;
   final bool hasVideo;
   final bool hasAudio;
+  final String content;
+  final String createdTime;
+  final MediaAuthorInfo? author;
+  final MediaReactionsInfo? reactions;
 
   MediaDownloadPreview.fromJson(Map<String, dynamic> json)
     : source = json['source'] as String? ?? '',
@@ -42,6 +101,14 @@ class MediaDownloadPreview {
       title = json['title'] as String? ?? '',
       thumbnail = json['thumbnail'] as String? ?? '',
       uploader = json['uploader'] as String? ?? '',
+      content = json['content'] as String? ?? '',
+      createdTime = json['created_time'] as String? ?? '',
+      author = json['author'] is Map
+          ? MediaAuthorInfo.fromJson(Map<String, dynamic>.from(json['author'] as Map))
+          : null,
+      reactions = json['reactions'] is Map
+          ? MediaReactionsInfo.fromJson(Map<String, dynamic>.from(json['reactions'] as Map))
+          : null,
       qualities = (json['qualities'] as List? ?? const []).cast<int>(),
       images = ((json['images'] as List? ?? const [])
           .whereType<Map>()
@@ -235,7 +302,14 @@ class DownloadTaskModel {
         ? rawSource
         : (url.contains('youtube.com') || url.contains('youtu.be')
             ? 'youtube'
-            : '');
+            : (url.contains('tiktok.com')
+                ? 'tiktok'
+                : (url.contains('facebook.com') ||
+                        url.contains('fb.watch') ||
+                        url.contains('fb.com') ||
+                        url.contains('fb.me')
+                    ? 'facebook'
+                    : '')));
     return DownloadTaskModel(
       taskId: json['id']?.toString() ?? '',
       originalUrl: url,
@@ -412,7 +486,7 @@ class DownloadApi {
       final response = await _createCoordinatorDio().post(
         '/cookies/verify',
         data: payload,
-        options: Options(receiveTimeout: const Duration(seconds: 30)),
+        options: Options(receiveTimeout: const Duration(seconds: 60)),
       );
       return {
         'success': true,
@@ -449,6 +523,7 @@ class DownloadApi {
       final response = await _createCoordinatorDio().post(
         '/cookies/save',
         data: payload,
+        options: Options(receiveTimeout: const Duration(seconds: 60)),
       );
       return {
         'success': true,

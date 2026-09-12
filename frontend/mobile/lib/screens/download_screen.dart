@@ -666,9 +666,11 @@ class _DownloadScreenState extends State<DownloadScreen> {
     );
     final isMedia =
         task.source == 'youtube' ||
+        task.source == 'tiktok' ||
+        task.source == 'facebook' ||
         (!task.archiveDownloaded &&
             !task.archiveExtracted &&
-            category == 'video');
+            (category == 'video' || category == 'picture'));
     final unoptimizedCount =
         task.unoptimizedVideoCount > 0
             ? task.unoptimizedVideoCount
@@ -750,7 +752,14 @@ class _DownloadScreenState extends State<DownloadScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      task.filename ?? 'Tệp nén MediaFire',
+                      task.filename ??
+                          (task.source == 'facebook'
+                              ? 'Bài viết Facebook'
+                              : (task.source == 'tiktok'
+                                  ? 'Video TikTok'
+                                  : (task.source == 'youtube'
+                                      ? 'Video YouTube'
+                                      : 'Tệp nén MediaFire'))),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

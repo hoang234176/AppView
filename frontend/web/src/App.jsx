@@ -431,7 +431,11 @@ function App() {
     const downloadedBytes = Number(progress.downloadedBytes) || 0;
     const totalBytes = Number(progress.totalBytes) || 0;
     const stage = job.stage || (job.state === 'downloading' ? (progress.state || 'downloading') : job.state === 'failed' ? 'error' : job.state);
-    const source = job.source || (job.url?.includes('youtube.com') || job.url?.includes('youtu.be') ? 'youtube' : '');
+    const source = job.source || (
+      job.url?.includes('youtube.com') || job.url?.includes('youtu.be') ? 'youtube' :
+      job.url?.includes('tiktok.com') ? 'tiktok' :
+      (job.url?.includes('facebook.com') || job.url?.includes('fb.watch') || job.url?.includes('fb.com') || job.url?.includes('fb.me')) ? 'facebook' : ''
+    );
     return {
       task_id: job.id,
       original_url: job.url,
@@ -846,7 +850,7 @@ function App() {
           onRename={handleRenameFolderSubmit}
         />
 
-        {/* Download Media (YouTube) Modal */}
+        {/* Download Media (Facebook, TikTok, YouTube) Modal */}
         {showDownloadMediaModal && <DownloadMediaModal
           currentPath={currentPath}
           treeData={treeData}
@@ -856,6 +860,7 @@ function App() {
             setDownloadPanelTab('active');
             setShowDownloadPanel(true);
           }}
+          onOpenSettings={() => setShowSettingsModal(true)}
         />}
         <DownloadMediafireModal
           isOpen={showDownloadMediafireModal}

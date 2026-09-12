@@ -346,15 +346,23 @@ export const verifyCookies = async (platform = 'youtube', fields = null, cookies
     const payload = { platform };
     if (fields) payload.fields = fields;
     if (cookies) payload.cookies = cookies;
-    const response = await createCoordinatorClient().post('/cookies/verify', payload);
+    const response = await createCoordinatorClient().post('/cookies/verify', payload, { timeout: 60000 });
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
+    let message = 'Không thể xác thực cookie.';
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      message = 'Quá thời gian kết nối (Timeout) khi xác thực cookie với máy chủ MXH. Vui lòng thử lại.';
+    } else if (error.response?.data?.error) {
+      message = typeof error.response.data.error === 'string'
+        ? error.response.data.error
+        : error.response.data.error.message || message;
+    }
     return {
       success: false,
-      message: error.response?.data?.error || 'Không thể xác thực cookie.',
+      message,
     };
   }
 };
@@ -364,15 +372,23 @@ export const saveCookies = async (platform = 'youtube', fields = null, cookies =
     const payload = { platform };
     if (fields) payload.fields = fields;
     if (cookies) payload.cookies = cookies;
-    const response = await createCoordinatorClient().post('/cookies/save', payload);
+    const response = await createCoordinatorClient().post('/cookies/save', payload, { timeout: 60000 });
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
+    let message = 'Không thể lưu cookie.';
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      message = 'Quá thời gian kết nối (Timeout) khi lưu cookie. Vui lòng thử lại.';
+    } else if (error.response?.data?.error) {
+      message = typeof error.response.data.error === 'string'
+        ? error.response.data.error
+        : error.response.data.error.message || message;
+    }
     return {
       success: false,
-      message: error.response?.data?.error || 'Không thể lưu cookie.',
+      message,
     };
   }
 };

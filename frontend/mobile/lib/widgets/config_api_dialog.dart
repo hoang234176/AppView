@@ -84,6 +84,27 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   String? _tiktokCookieVerifyMsg;
   bool _tiktokCookieVerifySuccess = false;
 
+  // Social Cookies State (Facebook)
+  String _fbCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
+  bool _isFbCardOpen = false;
+  bool _isFbCookieInputOpen = false;
+  static const List<String> _fbCookieFieldKeys = [
+    'c_user',
+    'xs',
+    'datr',
+    'fr',
+    'sb',
+    'presence',
+  ];
+  final Map<String, TextEditingController> _fbCookieControllers = {
+    for (final key in _fbCookieFieldKeys) key: TextEditingController(),
+  };
+  bool _isVerifyingFbCookie = false;
+  bool _isSavingFbCookie = false;
+  bool _isFbCookieVerified = false;
+  String? _fbCookieVerifyMsg;
+  bool _fbCookieVerifySuccess = false;
+
   CacheInfoData? _cacheInfo;
 
   @override
@@ -94,6 +115,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     _loadCacheInfo();
     _fetchCookieStatus();
     _fetchTiktokCookieStatus();
+    _fetchFbCookieStatus();
     _checkCurrentConnectionAndLoadStorage();
   }
 
@@ -104,6 +126,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       c.dispose();
     }
     for (final c in _tiktokCookieControllers.values) {
+      c.dispose();
+    }
+    for (final c in _fbCookieControllers.values) {
       c.dispose();
     }
     super.dispose();
@@ -326,6 +351,117 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     });
   }
 
+  Future<void> _fetchFbCookieStatus() async {
+    setState(() {
+      _fbCookieStatus = 'loading';
+    });
+    final res = await DownloadApi.getCookieStatus('facebook');
+    if (!mounted) return;
+    if (res['success'] == true && res['data'] is Map) {
+      final data = res['data'] as Map;
+      if (data['exists'] == true) {
+        setState(() => _fbCookieStatus = 'valid');
+      } else {
+        setState(() => _fbCookieStatus = 'none');
+      }
+    } else {
+      setState(() => _fbCookieStatus = 'none');
+    }
+  }
+
+  Future<void> _handleVerifyFbCookie() async {
+    setState(() {
+      _isVerifyingFbCookie = true;
+      _fbCookieVerifyMsg = null;
+    });
+
+    Map<String, String>? fields;
+
+    if (_isFbCookieInputOpen) {
+      final hasAny = _fbCookieControllers.values.any(
+        (c) => c.text.trim().isNotEmpty,
+      );
+      if (!hasAny) {
+        setState(() {
+          _isVerifyingFbCookie = false;
+          _fbCookieVerifySuccess = false;
+          _fbCookieVerifyMsg =
+              'Vui lòng nhập ít nhất c_user và xs từ cookie Facebook.';
+        });
+        return;
+      }
+      fields = _fbCookieControllers.map(
+        (k, v) => MapEntry(k, v.text.trim()),
+      );
+    }
+
+    final res = await DownloadApi.verifyCookies(
+      platform: 'facebook',
+      fields: fields,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _isVerifyingFbCookie = false;
+      if (res['success'] == true &&
+          res['data'] is Map &&
+          res['data']['valid'] == true) {
+        _isFbCookieVerified = true;
+        _fbCookieStatus = 'valid';
+        _fbCookieVerifySuccess = true;
+        _fbCookieVerifyMsg =
+            res['data']['message']?.toString() ?? '✓ Cookie Facebook hợp lệ!';
+      } else {
+        _isFbCookieVerified = false;
+        if (!_isFbCookieInputOpen) {
+          _fbCookieStatus = 'expired';
+        }
+        _fbCookieVerifySuccess = false;
+        final msg =
+            res['data'] is Map ? res['data']['message']?.toString() : null;
+        _fbCookieVerifyMsg =
+            msg ??
+            res['message']?.toString() ??
+            'Cookie không hợp lệ hoặc đã hết hạn.';
+      }
+    });
+  }
+
+  Future<void> _handleSaveFbCookie() async {
+    if (!_isFbCookieVerified || _isSavingFbCookie) return;
+    setState(() {
+      _isSavingFbCookie = true;
+      _fbCookieVerifyMsg = null;
+    });
+
+    final fields = _fbCookieControllers.map(
+      (k, v) => MapEntry(k, v.text.trim()),
+    );
+
+    final res = await DownloadApi.saveCookies(
+      platform: 'facebook',
+      fields: fields,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _isSavingFbCookie = false;
+      if (res['success'] == true) {
+        _isFbCookieInputOpen = false;
+        _isFbCookieVerified = false;
+        _fbCookieStatus = 'valid';
+        _fbCookieVerifySuccess = true;
+        _fbCookieVerifyMsg = 'Đã lưu cookie thành công!';
+        AppToast.showSuccess(context, 'Đã lưu cookie Facebook thành công!');
+      } else {
+        _fbCookieVerifySuccess = false;
+        _fbCookieVerifyMsg =
+            res['message']?.toString() ?? 'Không thể lưu cookie.';
+        AppToast.showError(context, _fbCookieVerifyMsg!);
+      }
+    });
+  }
+
   Future<void> _checkCurrentConnectionAndLoadStorage() async {
     final host = _hostController.text.trim();
     if (host.isEmpty) return;
@@ -344,6 +480,8 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
         _isLoadingStorage = true;
       });
       _fetchCookieStatus();
+      _fetchTiktokCookieStatus();
+      _fetchFbCookieStatus();
       final storageData = await DownloadApi.fetchCoordinatorStorageInfo();
       if (!mounted) return;
       setState(() {
@@ -1437,6 +1575,10 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
 
                             // TikTok Card
                             _buildTikTokCard(),
+                            const SizedBox(height: 10),
+
+                            // Facebook Card
+                            _buildFacebookCard(),
                           ],
                         ),
                       ),
@@ -2235,6 +2377,545 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                       foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 12,
+                                        vertical: 7,
+                                      ),
+                                      minimumSize: Size.zero,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFacebookCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.borderColor.withValues(alpha: 0.6),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Platform Header Row (Clickable)
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isFbCardOpen = !_isFbCardOpen;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1877F2).withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF1877F2).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: SvgPicture.asset(
+                          'assets/icons/facebook.svg',
+                          width: 16,
+                          height: 16,
+                          colorFilter: const ColorFilter.mode(
+                            Color(0xFF1877F2),
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Facebook',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildCookieStatusBadge(_fbCookieStatus),
+                      const SizedBox(width: 6),
+                      Icon(
+                        _isFbCardOpen
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white54,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Body Container
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: _isFbCardOpen
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Divider(
+                          height: 1,
+                          color: AppTheme.borderColor,
+                        ),
+
+                        // Sliding Input Container
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          alignment: Alignment.topCenter,
+                          child: _isFbCookieInputOpen
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Nhập các giá trị cookie từ tài khoản Facebook của bạn:',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      ..._fbCookieFieldKeys.map((key) {
+                                        final isRequired =
+                                            key == 'c_user' || key == 'xs';
+                                        final isRecommended =
+                                            key == 'datr' || key == 'fr';
+                                        final subtitle = isRequired
+                                            ? '(bắt buộc)'
+                                            : isRecommended
+                                                ? '(khuyên dùng)'
+                                                : '(tùy chọn)';
+                                        return Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 8),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    key,
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                      fontFamily: 'monospace',
+                                                      color: Colors.white70,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    subtitle,
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      color: isRequired
+                                                          ? Colors.redAccent
+                                                              .withValues(
+                                                                alpha: 0.8,
+                                                              )
+                                                          : Colors.white38,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 4),
+                                              TextField(
+                                                controller:
+                                                    _fbCookieControllers[key],
+                                                onChanged: (_) {
+                                                  if (_isFbCookieVerified ||
+                                                      _fbCookieVerifyMsg !=
+                                                          null) {
+                                                    setState(() {
+                                                      _isFbCookieVerified =
+                                                          false;
+                                                      _fbCookieVerifyMsg =
+                                                          null;
+                                                    });
+                                                  }
+                                                },
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.white,
+                                                  fontFamily: 'monospace',
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText: 'Nhập $key',
+                                                  hintStyle: TextStyle(
+                                                    fontSize: 10,
+                                                    color: Colors.white
+                                                        .withValues(
+                                                          alpha: 0.2,
+                                                        ),
+                                                  ),
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 10,
+                                                  ),
+                                                  isDense: true,
+                                                  filled: true,
+                                                  fillColor: AppTheme.bgInput,
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(14),
+                                                    borderSide: const BorderSide(
+                                                      color: AppTheme.borderColor,
+                                                    ),
+                                                  ),
+                                                  enabledBorder: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(14),
+                                                    borderSide: const BorderSide(
+                                                      color: AppTheme.borderColor,
+                                                    ),
+                                                  ),
+                                                  focusedBorder: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(14),
+                                                    borderSide: const BorderSide(
+                                                      color: Color(0xFF1877F2),
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  suffixIconConstraints:
+                                                      const BoxConstraints(
+                                                    minWidth: 0,
+                                                    minHeight: 0,
+                                                  ),
+                                                  suffixIcon: Padding(
+                                                    padding: const EdgeInsets.only(
+                                                      right: 6,
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        if ((_fbCookieControllers[key]
+                                                                ?.text
+                                                                .isNotEmpty ??
+                                                            false))
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                              Icons.clear_rounded,
+                                                              size: 15,
+                                                            ),
+                                                            color: Colors.white54,
+                                                            splashRadius: 14,
+                                                            padding: EdgeInsets.zero,
+                                                            constraints:
+                                                                const BoxConstraints(
+                                                              minWidth: 26,
+                                                              minHeight: 26,
+                                                            ),
+                                                            tooltip: 'Xóa',
+                                                            onPressed: () {
+                                                              setState(() {
+                                                                _fbCookieControllers[key]
+                                                                    ?.clear();
+                                                                _isFbCookieVerified =
+                                                                    false;
+                                                                _fbCookieVerifyMsg =
+                                                                    null;
+                                                              });
+                                                            },
+                                                          ),
+                                                        Material(
+                                                          color: const Color(0xFF1877F2)
+                                                              .withValues(
+                                                            alpha: 0.10,
+                                                          ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(6),
+                                                          child: InkWell(
+                                                            onTap: () async {
+                                                              final data =
+                                                                  await Clipboard.getData(
+                                                                Clipboard.kTextPlain,
+                                                              );
+                                                              if (data?.text != null &&
+                                                                  data!.text!
+                                                                      .trim()
+                                                                      .isNotEmpty) {
+                                                                setState(() {
+                                                                  _fbCookieControllers[key]
+                                                                          ?.text =
+                                                                      data.text!.trim();
+                                                                  _isFbCookieVerified =
+                                                                      false;
+                                                                  _fbCookieVerifyMsg =
+                                                                      null;
+                                                                });
+                                                              }
+                                                            },
+                                                            borderRadius:
+                                                                BorderRadius.circular(6),
+                                                            child: Container(
+                                                              padding:
+                                                                  const EdgeInsets.all(5),
+                                                              decoration: BoxDecoration(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(6),
+                                                                border: Border.all(
+                                                                  color: const Color(0xFF1877F2)
+                                                                      .withValues(
+                                                                    alpha: 0.30,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              child: const Icon(
+                                                                Icons.content_paste_rounded,
+                                                                size: 13,
+                                                                color: Color(0xFF1877F2),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+
+                        // Feedback message
+                        if (_fbCookieVerifyMsg != null) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _fbCookieVerifySuccess
+                                  ? Colors.green.withValues(alpha: 0.1)
+                                  : Colors.red.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _fbCookieVerifySuccess
+                                    ? Colors.green.withValues(alpha: 0.3)
+                                    : Colors.red.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _fbCookieVerifySuccess
+                                      ? Icons.check_circle_rounded
+                                      : Icons.error_outline_rounded,
+                                  size: 14,
+                                  color: _fbCookieVerifySuccess
+                                      ? Colors.greenAccent
+                                      : Colors.redAccent,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    _fbCookieVerifyMsg!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: _fbCookieVerifySuccess
+                                          ? Colors.greenAccent
+                                          : Colors.redAccent,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 10),
+                        const Divider(
+                          height: 1,
+                          color: AppTheme.borderColor,
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Action Buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            if (_isFbCookieInputOpen)
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _isFbCookieInputOpen = false;
+                                    _isFbCookieVerified = false;
+                                    _fbCookieVerifyMsg = null;
+                                  });
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  minimumSize: Size.zero,
+                                ),
+                                child: const Text(
+                                  'Hủy',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white60,
+                                  ),
+                                ),
+                              )
+                            else
+                              const SizedBox.shrink(),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: _isVerifyingFbCookie
+                                      ? null
+                                      : _handleVerifyFbCookie,
+                                  icon: _isVerifyingFbCookie
+                                      ? const SizedBox(
+                                          width: 12,
+                                          height: 12,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.refresh_rounded,
+                                          size: 13,
+                                        ),
+                                  label: Text(
+                                    _isVerifyingFbCookie
+                                        ? 'Đang kiểm tra...'
+                                        : 'Kiểm tra cookie',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white
+                                        .withValues(alpha: 0.1),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 7,
+                                    ),
+                                    minimumSize: Size.zero,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (_isFbCookieInputOpen)
+                                  ElevatedButton.icon(
+                                    onPressed: (!_isFbCookieVerified ||
+                                            _isSavingFbCookie)
+                                        ? null
+                                        : _handleSaveFbCookie,
+                                    icon: _isSavingFbCookie
+                                        ? const SizedBox(
+                                            width: 12,
+                                            height: 12,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.check_rounded,
+                                            size: 13,
+                                          ),
+                                    label: Text(
+                                      _isSavingFbCookie
+                                          ? 'Đang lưu...'
+                                          : 'Lưu cookie',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _isFbCookieVerified
+                                          ? const Color(0xFF1877F2)
+                                          : Colors.white12,
+                                      foregroundColor: _isFbCookieVerified
+                                          ? Colors.white
+                                          : Colors.white38,
+                                      disabledBackgroundColor: Colors.white10,
+                                      disabledForegroundColor: Colors.white24,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 7,
+                                      ),
+                                      minimumSize: Size.zero,
+                                    ),
+                                  )
+                                else
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      setState(() {
+                                        _isFbCookieInputOpen = true;
+                                        _isFbCookieVerified = false;
+                                        _fbCookieVerifyMsg = null;
+                                      });
+                                    },
+                                    icon: const Icon(
+                                      Icons.cookie_rounded,
+                                      size: 14,
+                                    ),
+                                    label: const Text(
+                                      'Nhập cookie',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF1877F2)
+                                          .withValues(alpha: 0.2),
+                                      foregroundColor: const Color(0xFF1877F2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
                                         vertical: 7,
                                       ),
                                       minimumSize: Size.zero,
