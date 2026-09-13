@@ -103,6 +103,39 @@ class TikTokExtractor:
                 raise err
 
     async def _inspect_via_ytdlp(self, clean_url: str) -> dict[str, Any]:
+        cancel_event = threading.Event()
+        finished = threading.Event()
+        ydl_ref: list[Optional[yt_dlp.YoutubeDL]] = [None]
+        loop = asyncio.get_running_loop()
+
+        # Step 1 (Guest-First Policy): Luôn thử qua yt-dlp ẩn danh không cookie trước
+        try:
+            future = loop.run_in_executor(
+                None,
+                partial(self._extract_sync, cookiejar=None),
+                clean_url,
+                cancel_event,
+                ydl_ref,
+                finished,
+            )
+            return await future
+        except asyncio.CancelledError:
+            cancel_event.set()
+            ydl = ydl_ref[0]
+            if ydl is not None:
+                try:
+                    ydl.close()
+                except Exception:
+                    pass
+            loop.run_in_executor(None, lambda: finished.wait(timeout=1.5))
+            raise
+        except Exception as err:
+            err_msg = str(err).lower()
+            if not any(k in err_msg for k in ["login", "sign in", "auth", "private", "age"]):
+                raise
+            log_info("TIKTOK_EXTRACTOR", f"yt-dlp yêu cầu xác thực ({err}), kiểm tra và nạp cookies TikTok...")
+
+        # Step 2: Chỉ khi video yêu cầu đăng nhập mới nạp cookie và thử lại
         cookiejar = None
         try:
             from services.tiktok.auth import load_tiktok_cookies
@@ -113,11 +146,13 @@ class TikTokExtractor:
             log_error("TIKTOK_EXTRACTOR", f"Lỗi nạp cookie TikTok: {err}")
             cookiejar = None
 
+        if not cookiejar:
+            from services.tiktok.auth import TikTokError
+            raise TikTokError(code="SOURCE_AUTH_REQUIRED", message="Bài viết yêu cầu đăng nhập. Vui lòng cấu hình cookies TikTok.")
+
         cancel_event = threading.Event()
         finished = threading.Event()
-        ydl_ref: list[Optional[yt_dlp.YoutubeDL]] = [None]
-
-        loop = asyncio.get_running_loop()
+        ydl_ref = [None]
         future = loop.run_in_executor(
             None,
             partial(self._extract_sync, cookiejar=cookiejar),

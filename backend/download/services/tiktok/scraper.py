@@ -40,13 +40,20 @@ class TikTokWebScraper:
     def _scrape_sync(self, url: str, raw_cookies: Optional[str] = None) -> dict[str, Any]:
         import http.cookiejar
 
+        ssl_context = ssl._create_unverified_context()
+        clean_opener = urllib.request.build_opener(
+            urllib.request.HTTPSHandler(context=ssl_context)
+        )
+
+        is_photo_url = "/photo/" in url.lower()
+        cookie_jar = http.cookiejar.CookieJar()
         req_headers = {
             "User-Agent": MOBILE_USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
         }
+        has_cookies = False
 
-        cookie_jar = http.cookiejar.CookieJar()
         if raw_cookies:
             try:
                 saved_jar = create_cookiejar_from_netscape(raw_cookies)
@@ -56,33 +63,54 @@ class TikTokWebScraper:
                     cookie_pairs = [f"{c.name}={c.value}" for c in saved_jar if "tiktok.com" in getattr(c, "domain", "")]
                     if cookie_pairs:
                         req_headers["Cookie"] = "; ".join(cookie_pairs)
+                        has_cookies = True
             except Exception:
                 pass
 
-        ssl_context = ssl._create_unverified_context()
-        opener = urllib.request.build_opener(
+        auth_opener = urllib.request.build_opener(
             urllib.request.HTTPSHandler(context=ssl_context),
             urllib.request.HTTPCookieProcessor(cookie_jar),
         )
-        req = urllib.request.Request(url, headers=req_headers)
 
+        # Guest-First policy: Luôn thử cào ở chế độ khách (guest session không cookie) trước cho tất cả bài viết.
+        # Chỉ khi bài viết yêu cầu đăng nhập (401/403) hoặc không tìm thấy itemStruct mới nạp cookies để thử lại.
+        primary_opener = clean_opener
+        current_headers = {
+            "User-Agent": MOBILE_USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+        }
+
+        raw_html = ""
         try:
-            with opener.open(req, timeout=15) as resp:
+            req = urllib.request.Request(url, headers=current_headers)
+            with primary_opener.open(req, timeout=15) as resp:
                 raw_html = resp.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as err:
             log_error("TIKTOK_SCRAPER", f"HTTP error {err.code} on {url}: {err.reason}")
             if err.code == 404:
                 raise TikTokError(code="SOURCE_NOT_FOUND", message="Không tìm thấy bài viết TikTok hoặc bài viết đã bị xóa.")
             if err.code in (401, 403):
-                raise TikTokError(code="SOURCE_AUTH_REQUIRED", message="Bài viết yêu cầu đăng nhập hoặc giới hạn độ tuổi.")
-            raise TikTokError(code="RESOLVE_FAILED", message=f"Lỗi kết nối máy chủ TikTok (HTTP {err.code}).")
+                if primary_opener == clean_opener and has_cookies:
+                    # Nếu chế độ khách bị 401/403 (bài riêng tư/giới hạn tuổi), thử lại với auth_opener
+                    try:
+                        req_auth = urllib.request.Request(url, headers=req_headers)
+                        with auth_opener.open(req_auth, timeout=15) as resp:
+                            raw_html = resp.read().decode("utf-8", errors="replace")
+                    except Exception:
+                        raise TikTokError(code="SOURCE_AUTH_REQUIRED", message="Bài viết yêu cầu đăng nhập hoặc giới hạn độ tuổi.")
+                else:
+                    raise TikTokError(code="SOURCE_AUTH_REQUIRED", message="Bài viết yêu cầu đăng nhập hoặc giới hạn độ tuổi.")
+            else:
+                raise TikTokError(code="RESOLVE_FAILED", message=f"Lỗi kết nối máy chủ TikTok (HTTP {err.code}).")
         except Exception as err:
             log_error("TIKTOK_SCRAPER", f"Network error on {url}: {err}")
             raise TikTokError(code="RESOLVE_FAILED", message="Không thể kết nối đến TikTok.")
 
         item = self._extract_item_struct(raw_html)
-        if not item and raw_cookies:
-            # Fallback: TikTok mobile web chỉ hiển thị <script id="api-data"> khi không đính kèm cookie đăng nhập
+
+        # Fallback 1: Nếu dùng auth_opener mà không thấy itemStruct, thử clean_opener (thực sự không gửi cookie)
+        if not item and primary_opener == auth_opener:
             try:
                 clean_headers = {
                     "User-Agent": MOBILE_USER_AGENT,
@@ -90,11 +118,21 @@ class TikTokWebScraper:
                     "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
                 }
                 req_fallback = urllib.request.Request(url, headers=clean_headers)
-                with opener.open(req_fallback, timeout=15) as resp:
+                with clean_opener.open(req_fallback, timeout=15) as resp:
                     raw_html = resp.read().decode("utf-8", errors="replace")
                 item = self._extract_item_struct(raw_html)
             except Exception as e:
                 log_error("TIKTOK_SCRAPER", f"Fallback cào dữ liệu không cookie thất bại: {e}")
+
+        # Fallback 2: Nếu dùng clean_opener mà không thấy itemStruct và có cookies, thử lại với auth_opener
+        if not item and primary_opener == clean_opener and has_cookies:
+            try:
+                req_auth = urllib.request.Request(url, headers=req_headers)
+                with auth_opener.open(req_auth, timeout=15) as resp:
+                    raw_html = resp.read().decode("utf-8", errors="replace")
+                item = self._extract_item_struct(raw_html)
+            except Exception as e:
+                log_error("TIKTOK_SCRAPER", f"Fallback cào dữ liệu có cookie thất bại: {e}")
 
         if not item:
             raise TikTokError(code="RESOLVE_FAILED", message="Không tìm thấy cấu trúc dữ liệu của bài viết TikTok.")

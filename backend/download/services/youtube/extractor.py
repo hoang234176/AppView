@@ -15,12 +15,15 @@ from typing import Any, Optional
 
 import yt_dlp
 
+from logger import log_error, log_info
 from services.resolution import extract_format_quality, format_matches_quality
 from services.youtube.auth import classify_extraction_error, get_youtube_ydl_auth_opts
 from services.youtube.errors import (
     NoDownloadableMediaError,
     PlaylistNotSupportedError,
     QualityUnavailableError,
+    SourceAccessDeniedError,
+    SourceAuthRequiredError,
     YouTubeError,
 )
 from services.youtube.models import YouTubeMediaItem, YouTubePost
@@ -85,6 +88,46 @@ class YouTubeExtractor:
                 "Danh sách phát (playlist) chưa được hỗ trợ. Vui lòng cung cấp liên kết video đơn lẻ."
             )
 
+        cancel_event = threading.Event()
+        finished = threading.Event()
+        ydl_ref: list[Optional[yt_dlp.YoutubeDL]] = [None]
+        loop = asyncio.get_running_loop()
+
+        # Step 1 (Guest-First Policy): Luôn thử trích xuất ẩn danh không nạp cookie trước
+        try:
+            future = loop.run_in_executor(
+                None,
+                partial(self._extract_sync, quality=quality, preview=preview, cookiejar=None)
+                if quality is not None or preview
+                else self._extract_sync,
+                url,
+                cancel_event,
+                ydl_ref,
+                finished,
+            )
+            return await future
+        except asyncio.CancelledError:
+            cancel_event.set()
+            ydl = ydl_ref[0]
+            if ydl is not None:
+                try:
+                    ydl.close()
+                except Exception:
+                    pass
+            deadline = loop.time() + 5.0
+            while not finished.is_set() and loop.time() < deadline:
+                await asyncio.sleep(0.01)
+            raise
+        except (SourceAuthRequiredError, SourceAccessDeniedError):
+            log_info("YOUTUBE_EXTRACTOR", "Video YouTube yêu cầu xác thực, kiểm tra và nạp cookies để thử lại...")
+        except YouTubeError as yt_err:
+            err_msg = str(yt_err).lower()
+            if any(k in err_msg for k in ["sign in", "confirm your age", "login", "private", "bot verification"]):
+                log_info("YOUTUBE_EXTRACTOR", f"Video YouTube có thể yêu cầu đăng nhập ({yt_err}), nạp cookies...")
+            else:
+                raise
+
+        # Step 2: Chỉ khi video yêu cầu đăng nhập hoặc giới hạn tuổi mới nạp cookie
         cookiejar = None
         try:
             from worker.client import coordinator_worker_client
@@ -95,16 +138,17 @@ class YouTubeExtractor:
         except Exception:
             cookiejar = None
 
+        if not cookiejar:
+            raise SourceAuthRequiredError(
+                "Video yêu cầu đăng nhập hoặc giới hạn độ tuổi. Vui lòng cấu hình cookies YouTube để tải."
+            )
+
         cancel_event = threading.Event()
         finished = threading.Event()
-        ydl_ref: list[Optional[yt_dlp.YoutubeDL]] = [None]
-
-        loop = asyncio.get_running_loop()
+        ydl_ref = [None]
         future = loop.run_in_executor(
             None,
-            partial(self._extract_sync, quality=quality, preview=preview, cookiejar=cookiejar)
-            if quality is not None or preview or cookiejar is not None
-            else self._extract_sync,
+            partial(self._extract_sync, quality=quality, preview=preview, cookiejar=cookiejar),
             url,
             cancel_event,
             ydl_ref,
@@ -120,8 +164,6 @@ class YouTubeExtractor:
                     ydl.close()
                 except Exception:
                     pass
-            # Preserve the bounded cleanup wait without blocking heartbeats
-            # or depending on another free slot in the extraction executor.
             deadline = loop.time() + 5.0
             while not finished.is_set() and loop.time() < deadline:
                 await asyncio.sleep(0.01)

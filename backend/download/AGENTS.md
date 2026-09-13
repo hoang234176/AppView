@@ -41,6 +41,13 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
 - Preserve intentional legacy API compatibility for `/api/v1/download/archive` and task endpoints.
 - DO NOT log passwords, tokens, cookies, signed URL query strings, or sensitive auth payload details.
 
+## Authentication & Cookie Invariant (Guest-First Policy)
+
+- All social media resolvers/extractors (YouTube, Facebook, TikTok, and future platforms) MUST strictly follow a **Guest-First (Anonymous-First)** approach.
+- **Step 1 (Anonymous inspection/resolution)**: Always inspect, scrape, and resolve URLs initially without loading or sending cookies.
+- **Step 2 (On-demand auth fallback)**: Only load cookies from coordinator/storage when the target platform explicitly indicates authentication is required (HTTP 401/403, login redirects, age-gate restrictions, bot checkpoints, or private content).
+- **Rationale**: Sending authenticated cookies unconditionally to public endpoints triggers anti-bot checkpoints, rate limits, account flagging, and can alter SSR responses (e.g. TikTok suppresses `<script id="api-data">` when cookies are sent, breaking scraper extraction). Future social media resolvers must conform to this two-step pattern.
+
 ## Configuration
 
 - `COORDINATOR_WS_URL` defaults to `ws://localhost:8090/ws/workers`.
