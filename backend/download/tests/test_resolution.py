@@ -99,5 +99,75 @@ class TestResolutionNormalization(unittest.TestCase):
         self.assertFalse(format_matches_quality(fmt_vert, 1920))
 
 
+class TestMediaFilenameContracts(unittest.TestCase):
+    def test_photo_filename_formatting(self):
+        from archive.contracts import format_photo_download_filename
+
+        self.assertEqual(
+            format_photo_download_filename("Facebook", "Ảnh demo", "123", 1),
+            "[Facebook]_Ảnh demo_01.jpeg",
+        )
+        self.assertEqual(
+            format_photo_download_filename("TikTok", "Cosplay Post", "456", 2),
+            "[TikTok]_Cosplay Post_02.jpeg",
+        )
+        self.assertEqual(
+            format_photo_download_filename("Instagram", "Sunset", "789", 1),
+            "[Instagram]_Sunset_01.jpeg",
+        )
+        # Strips redundant platform prefixes
+        self.assertEqual(
+            format_photo_download_filename("facebook", "facebook_post_123", "123", 1),
+            "[Facebook]_post_123_01.jpeg",
+        )
+
+    def test_video_filename_formatting(self):
+        from archive.contracts import format_video_download_filename
+
+        # Single video across all platforms
+        self.assertEqual(
+            format_video_download_filename("YouTube", "Bài giảng Python", "vid1"),
+            "[YouTube]_Bài giảng Python.mp4",
+        )
+        self.assertEqual(
+            format_video_download_filename("Facebook", "Video hài hước", "vid2"),
+            "[Facebook]_Video hài hước.mp4",
+        )
+        self.assertEqual(
+            format_video_download_filename("TikTok", "Dance Challenge", "vid3"),
+            "[TikTok]_Dance Challenge.mp4",
+        )
+        self.assertEqual(
+            format_video_download_filename("Instagram", "Reel demo", "vid4"),
+            "[Instagram]_Reel demo.mp4",
+        )
+
+        # Multi-video carousel (with index)
+        self.assertEqual(
+            format_video_download_filename("Instagram", "Reel demo", "vid4", index=1),
+            "[Instagram]_Reel demo_01.mp4",
+        )
+        self.assertEqual(
+            format_video_download_filename("Instagram", "Reel demo", "vid4", index=2),
+            "[Instagram]_Reel demo_02.mp4",
+        )
+
+        # Archive bundle
+        self.assertEqual(
+            format_video_download_filename("Instagram", "Reel demo", "vid4", ext=".zip"),
+            "[Instagram]_Reel demo.zip",
+        )
+
+        # Redundant prefix stripping and empty fallback
+        self.assertEqual(
+            format_video_download_filename("youtube", "youtube_999", "999"),
+            "[YouTube]_999.mp4",
+        )
+        self.assertEqual(
+            format_video_download_filename("youtube", "", "999"),
+            "[YouTube]_video_999.mp4",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -14,6 +14,7 @@ from archive.contracts import (
     DownloadResolver,
     ResolvedDownload,
     format_photo_download_filename,
+    format_video_download_filename,
 )
 from logger import log_error, log_info
 from services.instagram.errors import InstagramNotFoundError, InstagramUnsupportedPostError
@@ -131,7 +132,8 @@ class InstagramResolver(DownloadResolver):
         selected_indices: Optional[list[int]] = None,
     ) -> ResolvedDownload:
         """Resolve Instagram video(s) to normalized download contract."""
-        title = sanitize_filename(info.get("title") or f"instagram_{info.get('id', 'reel')}")
+        raw_title = info.get("title") or ""
+        post_id = str(info.get("id") or "reel")
         videos = info.get("videos") or []
         valid_videos = [v for v in videos if v.get("url")]
         if not valid_videos:
@@ -149,7 +151,7 @@ class InstagramResolver(DownloadResolver):
             return ResolvedDownload(
                 original_url=clean_url,
                 download_url=valid_videos[0]["url"],
-                filename=f"{title}.mp4",
+                filename=format_video_download_filename("Instagram", raw_title, post_id, ext=".mp4"),
                 extension=".mp4",
                 audio_url=None,
                 headers=headers,
@@ -159,17 +161,18 @@ class InstagramResolver(DownloadResolver):
         # If multiple videos in carousel
         items: list[dict[str, Any]] = []
         for idx, v in enumerate(valid_videos):
-            filename = f"{idx + 1:02d}_{title[:30].strip()}.mp4"
+            filename = format_video_download_filename("Instagram", raw_title, post_id, index=idx + 1, ext=".mp4")
             items.append({
                 "url": v["url"],
                 "filename": filename,
                 "type": "video",
             })
 
+        bundle_filename = format_video_download_filename("Instagram", raw_title, post_id, ext=".zip")
         return ResolvedDownload(
             original_url=clean_url,
             download_url=items[0]["url"],
-            filename=f"{title}.zip",
+            filename=bundle_filename,
             extension=".zip",
             audio_url=None,
             headers=headers,
@@ -184,7 +187,6 @@ class InstagramResolver(DownloadResolver):
         selected_indices: Optional[list[int]] = None,
     ) -> ResolvedDownload:
         """Resolve Instagram mixed post (photos and videos) preserving original order."""
-        title = sanitize_filename(info.get("title") or f"instagram_{info.get('id', 'mixed')}")
         ordered_items = info.get("items") or []
 
         if not ordered_items:
@@ -211,7 +213,7 @@ class InstagramResolver(DownloadResolver):
             is_vid = single.get("type") == "video"
             if is_vid:
                 ext = ".mp4"
-                single_fname = f"{title}.mp4"
+                single_fname = format_video_download_filename("Instagram", raw_title, post_id, ext=".mp4")
             else:
                 ext = ".jpeg"
                 single_fname = format_photo_download_filename("Instagram", raw_title, post_id, 1, ".jpeg")
@@ -229,7 +231,7 @@ class InstagramResolver(DownloadResolver):
         for idx, it in enumerate(valid_items):
             is_vid = it.get("type") == "video"
             if is_vid:
-                filename = f"{idx + 1:02d}_{title[:30].strip()}.mp4"
+                filename = format_video_download_filename("Instagram", raw_title, post_id, index=idx + 1, ext=".mp4")
             else:
                 filename = format_photo_download_filename("Instagram", raw_title, post_id, idx + 1, ".jpeg")
             items.append({
@@ -238,10 +240,11 @@ class InstagramResolver(DownloadResolver):
                 "type": "video" if is_vid else "image",
             })
 
+        bundle_filename = format_video_download_filename("Instagram", raw_title, post_id, ext=".zip")
         return ResolvedDownload(
             original_url=clean_url,
             download_url=items[0]["url"],
-            filename=f"{title}.zip",
+            filename=bundle_filename,
             extension=".zip",
             audio_url=None,
             headers=self._get_headers(),

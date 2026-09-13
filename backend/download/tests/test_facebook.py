@@ -246,7 +246,7 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         res = resolver.resolve_video("https://www.facebook.com/watch/?v=12345", mock_info, quality=720)
         self.assertEqual(res.source, "facebook")
         self.assertEqual(res.extension, ".mp4")
-        self.assertIn(".mp4", res.filename)
+        self.assertEqual(res.filename, "[Facebook]_Facebook Video Test.mp4")
         self.assertEqual(res.download_url, "https://fbcdn.net/hd.mp4")
 
     def test_resolver_resolve_single_photo(self):

@@ -6,7 +6,7 @@ import re
 import urllib.parse
 from typing import Optional
 
-from archive.contracts import DownloadResolver, ResolvedDownload
+from archive.contracts import DownloadResolver, ResolvedDownload, format_video_download_filename
 from services.youtube.errors import NoDownloadableMediaError, UnsupportedSourceError
 from services.youtube.extractor import YouTubeExtractor
 
@@ -49,10 +49,15 @@ class YouTubeResolver(DownloadResolver):
             raise NoDownloadableMediaError("Không tìm thấy tệp phương tiện để tải xuống từ video YouTube này.")
 
         primary = post.items[0]
+        filename = (
+            primary.filename
+            if primary.filename.startswith("[YouTube]_")
+            else format_video_download_filename("YouTube", primary.filename, primary.id, ext=primary.extension or ".mp4")
+        )
         return ResolvedDownload(
             original_url=clean_url,
             download_url=primary.download_url,
-            filename=primary.filename,
+            filename=filename,
             extension=primary.extension,
             audio_url=primary.audio_url,
             headers=primary.http_headers,

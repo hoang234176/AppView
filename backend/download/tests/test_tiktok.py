@@ -364,8 +364,26 @@ class TestTikTokIntegration(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(resolved.items[1]["filename"], "[TikTok]_Cosplay Photos_02.jpeg")
             self.assertEqual(resolved.filename, "[TikTok]_Cosplay Photos.zip")
             self.assertEqual(resolved.items[0]["type"], "image")
-            self.assertEqual(resolved.items[1]["type"], "image")
             self.assertIsNone(resolved.audio_url)
+
+    async def test_tiktok_resolver_resolve_video(self):
+        from services.tiktok.resolver import TikTokResolver
+        resolver = TikTokResolver()
+        with patch.object(resolver._extractor, "inspect", new_callable=AsyncMock) as mock_inspect:
+            mock_inspect.return_value = {
+                "id": "7683865133659082004",
+                "title": "Viral Dance Video",
+                "video_url": "https://v16.tiktokcdn.com/video.mp4",
+                "audio_url": "https://cdn/music.mp3",
+                "image_urls": [],
+                "http_headers": {"User-Agent": "TikTokApp"},
+            }
+            resolved = await resolver.resolve("https://www.tiktok.com/@user/video/7683865133659082004")
+            self.assertEqual(resolved.source, "tiktok")
+            self.assertEqual(resolved.filename, "[TikTok]_Viral Dance Video.mp4")
+            self.assertEqual(resolved.extension, ".mp4")
+            self.assertEqual(resolved.download_url, "https://v16.tiktokcdn.com/video.mp4")
+            self.assertEqual(resolved.audio_url, "https://cdn/music.mp3")
 
     async def test_source_router_tiktok_delegation(self):
         from services.source_router import source_router

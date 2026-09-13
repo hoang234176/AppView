@@ -55,21 +55,44 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
   - Never pass direct filesystem cookie file paths to third-party engines like `yt-dlp` (e.g. `ydl_opts["cookiefile"] = file_path`), as `yt-dlp` will overwrite the persistent cookie file and strip credentials. Use in-memory cookie jars instead.
 - **Rationale**: Sending authenticated cookies unconditionally to public endpoints triggers anti-bot checkpoints, rate limits, account flagging, and can alter SSR responses. Direct filesystem access violates the core architecture boundary where Go Storage exclusively owns all filesystem/media operations.
 
-## Social Media Photo Download Naming Invariant
+## Social Media Media Download Naming Invariant (Photos & Videos)
 
 - **Universal Filename Format for Photos**:
   All social media platforms (Facebook, TikTok, Instagram, and any future platform expansion; YouTube is excluded as it only downloads video) MUST format photo filenames according to:
   ```text
   [<Tên mxh>]_<Tên ảnh>_<số thứ tự ảnh>.<đuôi file ảnh>
   ```
-- **Example**: `[Facebook]_Ảnh demo_01.jpeg`, `[TikTok]_Vũ điệu hot_02.jpeg`, `[Instagram]_Du lịch hè_01.jpeg`
-- **Components**:
-  - `[<Tên mxh>]`: Platform tag in square brackets (`[Facebook]`, `[TikTok]`, `[Instagram]`, etc.).
-  - `_`: Underscore delimiter between tag and title, and between title and index.
-  - `<Tên ảnh>`: Post title or photo description sanitized (removing invalid filesystem characters `\/:\*?"<>|\x00-\x1f` and redundant platform prefixes like `facebook_`, `tiktok_`, `instagram_`). Truncated to 40 characters. Fallback to `post_<id>` if title is empty.
-  - `<số thứ tự ảnh>`: 2-digit zero-padded index (`01`, `02`, `03`...), starting at `01` even for single-photo downloads.
-  - `.<đuôi file ảnh>`: `.jpeg` extension standardized for photos across platforms.
-- **Contract helper**: Use `format_photo_download_filename` in `archive.contracts` to construct filenames consistently across all resolvers.
+  - **Example**: `[Facebook]_Ảnh demo_01.jpeg`, `[TikTok]_Vũ điệu hot_02.jpeg`, `[Instagram]_Du lịch hè_01.jpeg`
+  - **Rules**:
+    - Single photo: Always padded with `01` (e.g., `[Facebook]_Single Photo_01.jpeg`).
+    - Multi-photo / Album / Carousel: Items are sequentially indexed (`01`, `02`, `03`...), and the bundle archive is `[<Tên mxh>]_<Tên ảnh>.zip`.
+    - Extension: Standardized `.jpeg`.
+    - Helper: `archive.contracts.format_photo_download_filename`.
+
+- **Universal Filename Format for Videos**:
+  All social media platforms (YouTube, Facebook, TikTok, Instagram, and any future platform expansion) MUST format video filenames with the platform prefix in square brackets:
+  ```text
+  Single video:  [<Tên mxh>]_<Tên video>.<đuôi file video>
+  Multi-video:   [<Tên mxh>]_<Tên video>_<số thứ tự video>.<đuôi file video>
+  Archive zip:   [<Tên mxh>]_<Tên video>.zip
+  ```
+  - **Examples**:
+    - `[YouTube]_Bài giảng Python.mp4`
+    - `[Facebook]_Video hài hước.mp4`
+    - `[TikTok]_Dance Challenge.mp4`
+    - `[Instagram]_Reel demo.mp4`
+    - `[Instagram]_Reel demo_01.mp4` (trong carousel nhiều video)
+  - **Rules**:
+    - Single video: Formatted as `[<Platform>]_<Title>.<ext>` without index number.
+    - Multi-video (album/carousel): Items are indexed (`_01.mp4`, `_02.mp4`...), and root bundle archive is `[<Platform>]_<Title>.zip`.
+    - Extension: Standardized `.mp4`.
+    - Helper: `archive.contracts.format_video_download_filename`.
+
+- **Common Components**:
+  - `[<Tên mxh>]`: Platform tag in square brackets (`[YouTube]`, `[Facebook]`, `[TikTok]`, `[Instagram]`, etc.).
+  - `_`: Underscore delimiter between tag and title.
+  - `<Tên>`: Sanitized title (removing invalid filesystem characters `\/:\*?"<>|\x00-\x1f` and redundant platform prefixes like `facebook_`, `tiktok_`, `instagram_`, `youtube_`). Fallback to `post_<id>` or `video_<id>` if title is empty.
+  - Future platform implementations MUST use `format_photo_download_filename` and `format_video_download_filename`.
 
 ## Configuration
 

@@ -10,6 +10,7 @@ from archive.contracts import (
     DownloadResolver,
     ResolvedDownload,
     format_photo_download_filename,
+    format_video_download_filename,
 )
 from services.tiktok.extractor import TikTokExtractor
 from services.youtube.errors import NoDownloadableMediaError, UnsupportedSourceError
@@ -171,8 +172,9 @@ class TikTokResolver(DownloadResolver):
         info: dict[str, Any],
         quality: Optional[int] = None,
     ) -> ResolvedDownload:
-        """Resolve video to highest bitrate/quality stream contract (Tách riêng cho Video)."""
-        title = sanitize_filename(info.get("title") or f"tiktok_{info.get('id', 'post')}")
+        raw_title = info.get("title") or ""
+        post_id = str(info.get("id") or "post")
+        title = sanitize_filename(raw_title or f"tiktok_{post_id}")
         video_url = info.get("video_url")
         formats = info.get("video_formats") or []
         chosen_format_headers: dict[str, str] = {}
@@ -211,7 +213,7 @@ class TikTokResolver(DownloadResolver):
         if cookie_header:
             safe_headers["Cookie"] = cookie_header
 
-        filename = f"{title}.mp4"
+        filename = format_video_download_filename("TikTok", raw_title, post_id, ext=".mp4")
         return ResolvedDownload(
             original_url=clean_url,
             download_url=video_url,

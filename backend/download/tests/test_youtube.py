@@ -142,7 +142,7 @@ class TestYouTubeExtractorNormalization(unittest.TestCase):
         item = extractor._select_best_streams("vid123", "Test_Video", formats)
         self.assertEqual(item.download_url, "https://googlevideo.com/videoplayback?id=18")
         self.assertIsNone(item.audio_url)
-        self.assertEqual(item.filename, "Test_Video.mp4")
+        self.assertEqual(item.filename, "[YouTube]_Test_Video.mp4")
         self.assertEqual(item.size_bytes, 1000000)
 
     def test_select_best_streams_adaptive_video_and_audio(self):
