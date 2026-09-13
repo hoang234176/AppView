@@ -22,7 +22,6 @@ import { DownloadMediafireModal } from './components/DownloadMediafireModal';
 import { DownloadMediaModal } from './components/DownloadMediaModal';
 import { DownloadPanelModal } from './components/DownloadPanelModal';
 import { DownloadSnackbar } from './components/DownloadSnackbar';
-import { InstagramTestPage } from './components/InstagramTestPage';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
 import { isActiveDownload, needsDownloadAttention } from './utils/downloadPresentation';
@@ -38,20 +37,6 @@ const parentPath = (path) => {
 const replacePathPrefix = (path, oldPrefix, newPrefix) => path === oldPrefix ? newPrefix : `${newPrefix}${path.slice(oldPrefix.length)}`;
 
 function App() {
-  const [isInstagramTest, setIsInstagramTest] = useState(() => window.location.pathname.startsWith('/test/instagram'));
-
-  useEffect(() => {
-    const handlePopState = () => {
-      setIsInstagramTest(window.location.pathname.startsWith('/test/instagram'));
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  if (isInstagramTest) {
-    return <InstagramTestPage />;
-  }
-
   const getInitialPathFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('path') || '';
