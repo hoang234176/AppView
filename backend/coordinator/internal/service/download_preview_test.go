@@ -225,6 +225,52 @@ func TestPreviewFacebookPost(t *testing.T) {
 	}
 }
 
+func TestPreviewInstagramPost(t *testing.T) {
+	c, resolver, _ := newDownloadCoordinator(t)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		preview, failure := c.PreviewDownload(context.Background(), "https://www.instagram.com/p/ABC123xyz/")
+		if failure != nil {
+			t.Errorf("preview failed: %v", failure)
+			return
+		}
+		if preview.Source != "instagram" || preview.Type != "mixed" || len(preview.Images) != 2 || preview.Title == "" {
+			t.Errorf("unexpected preview: %+v", preview)
+		}
+		if preview.Content != "Instagram caption text" {
+			t.Errorf("preview.Content = %v; want 'Instagram caption text'", preview.Content)
+		}
+	}()
+	assignment := waitPreviewAssignment(t, resolver)
+	if err := c.TaskAccepted("resolver", assignment.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	resJSON := `{
+		"source": "instagram",
+		"type": "mixed",
+		"title": "Instagram Post Title",
+		"uploader": "instagram_user",
+		"content": "Instagram caption text",
+		"qualities": [],
+		"images": [
+			{"id": "ig_1", "type": "photo", "label": "Ảnh #1", "url": "https://cdninstagram.com/1.jpg"},
+			{"id": "ig_2", "type": "photo", "label": "Ảnh #2", "url": "https://cdninstagram.com/2.jpg"}
+		],
+		"reactions": {"likes": 500, "comments": 50},
+		"has_video": true,
+		"has_audio": true
+	}`
+	if err := c.TaskCompleted("resolver", assignment.TaskID, json.RawMessage(resJSON)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("instagram preview timed out")
+	}
+}
+
 func TestCreateTikTokDownload_ForwardsItemsAndIndices(t *testing.T) {
 	c, resolver, storage := newDownloadCoordinator(t)
 	indices := []int{0, 2}

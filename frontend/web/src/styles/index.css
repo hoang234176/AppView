@@ -69,6 +69,33 @@ img {
   scrollbar-width: none !important;  /* Firefox */
 }
 
+/* Instagram Test Page Scroll Fix & Custom Scrollbar */
+#instagram-test-container {
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #4b5563 #121316 !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+#instagram-test-container::-webkit-scrollbar {
+  display: block !important;
+  width: 8px !important;
+  height: 8px !important;
+}
+
+#instagram-test-container::-webkit-scrollbar-track {
+  background: #121316 !important;
+}
+
+#instagram-test-container::-webkit-scrollbar-thumb {
+  background: #383c42 !important;
+  border-radius: 4px !important;
+}
+
+#instagram-test-container::-webkit-scrollbar-thumb:hover {
+  background: #ec4899 !important;
+}
+
 /* Search Bar (24px rounded) */
 .google-search-bar {
   background-color: #28292d;

@@ -2,14 +2,21 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"appview/coordinator/internal/logging"
 	"appview/coordinator/internal/service"
 )
 
-type DownloadHandler struct{ coordinator *service.Coordinator }
+type DownloadHandler struct {
+	coordinator        *service.Coordinator
+	allowLoopbackProxy bool
+}
 
 type createDownloadRequest struct {
 	URL                  string `json:"url"`
@@ -171,4 +178,59 @@ func (h *DownloadHandler) ApplyVideoDecisions(writer http.ResponseWriter, reques
 		return
 	}
 	writer.WriteHeader(http.StatusAccepted)
+}
+
+func (h *DownloadHandler) ProxyImage(writer http.ResponseWriter, request *http.Request) {
+	rawURL := strings.TrimSpace(request.URL.Query().Get("url"))
+	if rawURL == "" {
+		http.Error(writer, "url is required", http.StatusBadRequest)
+		return
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" {
+		http.Error(writer, "invalid image url", http.StatusBadRequest)
+		return
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if !h.allowLoopbackProxy && (host == "localhost" || strings.HasPrefix(host, "127.") || host == "::1") {
+		http.Error(writer, "forbidden host", http.StatusForbidden)
+		return
+	}
+
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+	}
+	req, err := http.NewRequestWithContext(request.Context(), http.MethodGet, rawURL, nil)
+	if err != nil {
+		http.Error(writer, "failed to create request", http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+	req.Header.Set("Referer", "https://www.instagram.com/")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(writer, "failed to fetch upstream image: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		http.Error(writer, fmt.Sprintf("upstream returned %d", resp.StatusCode), http.StatusBadGateway)
+		return
+	}
+
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	writer.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
+	writer.Header().Set("Cache-Control", "public, max-age=86400")
+
+	contentType := resp.Header.Get("Content-Type")
+	if contentType != "" {
+		writer.Header().Set("Content-Type", contentType)
+	} else {
+		writer.Header().Set("Content-Type", "image/jpeg")
+	}
+
+	_, _ = io.Copy(writer, io.LimitReader(resp.Body, 15*1024*1024))
 }

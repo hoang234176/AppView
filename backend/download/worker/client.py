@@ -15,6 +15,7 @@ from logger import log_error, log_event, log_info, log_warning
 from worker.handler import DownloadWorkerHandler
 from worker.protocol import (
     COOKIE_GET,
+    COOKIE_SAVE,
     COOKIE_VERIFY,
     ERROR,
     RESOLVE_DOWNLOAD,
@@ -145,7 +146,7 @@ class CoordinatorWorkerClient:
                         asyncio.get_running_loop().call_soon(self._cancel_assignment, envelope.get("taskId"))
                     elif envelope.get("type") == COOKIE_VERIFY:
                         asyncio.create_task(self._handle_cookie_verify(envelope))
-                    elif envelope.get("type") == COOKIE_GET:
+                    elif envelope.get("type") in (COOKIE_GET, COOKIE_SAVE):
                         task_id = envelope.get("taskId")
                         if task_id in self._pending_rpc:
                             future = self._pending_rpc.pop(task_id)
@@ -235,6 +236,9 @@ class CoordinatorWorkerClient:
         elif platform == "facebook":
             from services.facebook.auth import verify_facebook_cookies
             valid, message_str = await verify_facebook_cookies(raw_cookies)
+        elif platform == "instagram":
+            from services.instagram.auth import verify_instagram_cookies
+            valid, message_str = await verify_instagram_cookies(raw_cookies)
 
         level = "INFO" if valid else "WARN"
         log_event(level, "cookie verification completed", "COOKIE_VERIFY", platform=platform, valid=valid, detail=message_str)
@@ -257,6 +261,22 @@ class CoordinatorWorkerClient:
             return None
         except Exception:
             return None
+        finally:
+            self._pending_rpc.pop(task_id, None)
+
+    async def save_cookies(self, platform: str, cookies: str, timeout: float = 5.0) -> bool:
+        if self._websocket is None:
+            return False
+        task_id = f"cookie-save-{uuid.uuid4().hex[:12]}"
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[dict[str, Any]] = loop.create_future()
+        self._pending_rpc[task_id] = future
+        try:
+            await self.send(message(COOKIE_SAVE, taskId=task_id, payload={"platform": platform, "cookies": cookies}))
+            result = await asyncio.wait_for(future, timeout=timeout)
+            return bool(result.get("success", True))
+        except Exception:
+            return False
         finally:
             self._pending_rpc.pop(task_id, None)
 

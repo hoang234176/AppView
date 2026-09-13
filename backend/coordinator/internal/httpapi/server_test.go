@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -168,5 +169,51 @@ func TestDownloadVideoApplyRoute(t *testing.T) {
 	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/download/missing/videos/apply", bytes.NewBufferString(`{"decisions":{"v1":"1080p"}}`)))
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+}
+
+func TestProxyImage(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+
+	// Missing url parameter
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/download/proxy-image", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 for missing url, got %d", rec.Code)
+	}
+
+	// Forbidden localhost
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/download/proxy-image?url=http://localhost/test.jpg", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403 for localhost, got %d", rec.Code)
+	}
+
+	// Valid upstream mock with test-allowed loopback
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("\x89PNG\r\n\x1a\n"))
+	}))
+	defer upstream.Close()
+
+	testHandler := &DownloadHandler{coordinator: coordinator, allowLoopbackProxy: true}
+	testMux := http.NewServeMux()
+	testMux.HandleFunc("GET /api/v1/download/proxy-image", testHandler.ProxyImage)
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/download/proxy-image?url="+url.QueryEscape(upstream.URL+"/avatar.png"), nil)
+	rec = httptest.NewRecorder()
+	testMux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("Cross-Origin-Resource-Policy") != "cross-origin" {
+		t.Fatalf("expected CORP cross-origin, got %q", rec.Header().Get("Cross-Origin-Resource-Policy"))
+	}
+	if rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("expected Content-Type image/png, got %q", rec.Header().Get("Content-Type"))
 	}
 }

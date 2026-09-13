@@ -73,7 +73,7 @@ func (c *Coordinator) PreviewDownload(ctx context.Context, sourceURL string) (Do
 		}
 		if current.State == task.Completed {
 			var preview DownloadPreview
-			if json.Unmarshal(current.Result, &preview) != nil || (preview.Source != "youtube" && preview.Source != "tiktok" && preview.Source != "facebook") || preview.Title == "" {
+			if json.Unmarshal(current.Result, &preview) != nil || (preview.Source != "youtube" && preview.Source != "tiktok" && preview.Source != "facebook" && preview.Source != "instagram") || preview.Title == "" {
 				return failure("PREVIEW_FAILED", "Dữ liệu xem trước không hợp lệ.")
 			}
 			if preview.Source == "youtube" && len(preview.Qualities) == 0 {

@@ -9,6 +9,7 @@ import (
 
 	pythonapi "backend/api/python"
 	"backend/media_download/facebook"
+	"backend/media_download/instagram"
 	"backend/media_download/youtube"
 )
 
@@ -455,6 +456,77 @@ func TestHandlerRoutesToFacebook(t *testing.T) {
 
 	if !fb.started {
 		t.Fatalf("expected facebookOperations.Start to be called")
+	}
+	if len(sent) < 3 || sent[0].Type != TaskAccepted || sent[len(sent)-1].Type != TaskCompleted {
+		t.Fatalf("expected TaskAccepted and TaskCompleted, got %+v", sent)
+	}
+}
+
+type fakeInstagramOperations struct {
+	started   bool
+	startErr  error
+	snapshots map[string]instagram.Snapshot
+}
+
+func (f *fakeInstagramOperations) Start(id, _, filename, _, _ string, _ []instagram.DownloadItem, _ map[string]string) error {
+	f.started = true
+	if f.snapshots == nil {
+		f.snapshots = make(map[string]instagram.Snapshot)
+	}
+	f.snapshots[id] = instagram.Snapshot{ID: id, State: "completed", Filename: filename}
+	return f.startErr
+}
+
+func (f *fakeInstagramOperations) Cancel(id string) bool {
+	_, ok := f.snapshots[id]
+	return ok
+}
+
+func (f *fakeInstagramOperations) Delete(id string) bool {
+	delete(f.snapshots, id)
+	return true
+}
+
+func (f *fakeInstagramOperations) SetVideoDecision(_, _, _ string) error {
+	return nil
+}
+
+func (f *fakeInstagramOperations) ApplyVideoDecisions(_ string, _ map[string]string) error {
+	return nil
+}
+
+func (f *fakeInstagramOperations) Snapshot(id string) (instagram.Snapshot, bool) {
+	s, ok := f.snapshots[id]
+	return s, ok
+}
+
+func (f *fakeInstagramOperations) Snapshots() []instagram.Snapshot {
+	var list []instagram.Snapshot
+	for _, s := range f.snapshots {
+		list = append(list, s)
+	}
+	return list
+}
+
+func (f *fakeInstagramOperations) SetCanonicalID(_, _ string) bool {
+	return true
+}
+
+func TestHandlerRoutesToInstagram(t *testing.T) {
+	ig := &fakeInstagramOperations{}
+	handler := NewHandler(nil, ig)
+	handler.pollInterval = time.Millisecond
+
+	var sent []Message
+	handler.Handle(context.Background(), Message{
+		Type:    TaskAssign,
+		TaskID:  "ig-task-1",
+		Action:  CapabilityDownloadFile,
+		Payload: []byte(`{"url":"https://www.instagram.com/p/DBcd123/","filename":"post.jpg","source":"instagram"}`),
+	}, collect(&sent))
+
+	if !ig.started {
+		t.Fatalf("expected instagramOperations.Start to be called")
 	}
 	if len(sent) < 3 || sent[0].Type != TaskAccepted || sent[len(sent)-1].Type != TaskCompleted {
 		t.Fatalf("expected TaskAccepted and TaskCompleted, got %+v", sent)

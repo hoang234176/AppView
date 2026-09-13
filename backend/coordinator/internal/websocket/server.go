@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"appview/coordinator/internal/config"
@@ -91,10 +92,16 @@ func (s *Server) handleMessage(connection *Connection, currentWorkerID string, m
 		return "", s.coordinator.StorageHistory(currentWorkerID, message.StorageHistory)
 	case protocol.StorageInfoMessage:
 		return "", s.coordinator.StorageInfo(currentWorkerID, message.StorageInfo)
-	case protocol.CookieStatus, protocol.CookieSave, protocol.CookieVerify:
+	case protocol.CookieStatus, protocol.CookieVerify:
 		if s.coordinator.ResolveRPC(message.TaskID, message) {
 			return "", nil
 		}
+		return "", nil
+	case protocol.CookieSave:
+		if s.coordinator.ResolveRPC(message.TaskID, message) {
+			return "", nil
+		}
+		go s.handleWorkerCookieSave(currentWorkerID, message)
 		return "", nil
 	case protocol.CookieGet:
 		if s.coordinator.ResolveRPC(message.TaskID, message) {
@@ -138,6 +145,39 @@ func (s *Server) handleWorkerCookieGet(workerID string, msg protocol.Message) {
 		_ = registered.Sender.Send(resp)
 	}
 }
+
+func (s *Server) handleWorkerCookieSave(workerID string, msg protocol.Message) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var req protocol.CookieRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+	platform := strings.TrimSpace(req.Platform)
+	cookies := strings.TrimSpace(req.Cookies)
+	if platform != "" && cookies != "" {
+		res, err := s.coordinator.SaveCookies(ctx, platform, cookies)
+		if msg.TaskID != "" {
+			resp := protocol.Message{
+				Type:   protocol.CookieSave,
+				TaskID: msg.TaskID,
+			}
+			if err != nil {
+				resp.Error = &protocol.ErrorPayload{
+					Code:    "COOKIE_SAVE_FAILED",
+					Message: err.Error(),
+				}
+			} else {
+				resp.Result, _ = json.Marshal(res)
+			}
+			if registered, ok := s.coordinator.GetWorker(workerID); ok {
+				_ = registered.Sender.Send(resp)
+			}
+		}
+	}
+}
+
 func (s *Server) RunHeartbeatMonitor(ctx context.Context) {
 	ticker := time.NewTicker(s.config.HeartbeatCheckInterval)
 	defer ticker.Stop()

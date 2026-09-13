@@ -13,7 +13,7 @@ import {
   Settings,
   ZoomIn,
 } from 'lucide-react';
-import { previewMediaDownload, startMediaDownload } from '../api/downloadApi';
+import { previewMediaDownload, startMediaDownload, getProxiedImageUrl } from '../api/downloadApi';
 import { canonicalDownloadDestination } from '../utils/downloadDestination';
 import { FolderPicker } from './FolderPicker';
 import { CustomSelect } from './CustomSelect';
@@ -429,11 +429,17 @@ export const DownloadMediaModal = ({
                     ? 'Video / Ảnh TikTok'
                     : 'Video YouTube');
 
-                const avatarInitial = (
-                  (preview.author?.name || preview.uploader || preview.title || platformName)
-                    .replace(/^@/, '')
-                    .charAt(0) || platformName.charAt(0)
-                ).toUpperCase();
+                const rawTarget = preview.author?.name || preview.author?.full_name || preview.uploader || preview.title || platformName;
+                const avatarInitial = (() => {
+                  try {
+                    const norm = rawTarget.normalize('NFKD').replace(/^[^a-zA-Z0-9]+/, '');
+                    const chars = Array.from(norm || rawTarget);
+                    if (chars.length > 0 && chars[0] !== '?') {
+                      return chars[0].toUpperCase();
+                    }
+                  } catch {}
+                  return (Array.from(rawTarget)[0] || platformName.charAt(0)).toUpperCase();
+                })();
 
                 const showVideoVisual =
                   (hasVideo && mediaTypeTab === 'video') || (hasVideo && !hasImages);
@@ -455,18 +461,24 @@ export const DownloadMediaModal = ({
                       <div className="flex items-center gap-3 min-w-0">
                         {preview.author?.avatar ? (
                           <img
-                            src={preview.author.avatar}
+                            src={getProxiedImageUrl(preview.author.avatar)}
                             alt=""
-                            referrerPolicy="no-referrer"
                             className="w-10 h-10 rounded-full object-cover border border-[#383c42] flex-shrink-0"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              if (e.currentTarget.nextSibling) {
+                                e.currentTarget.nextSibling.style.display = 'flex';
+                              }
+                            }}
                           />
-                        ) : (
-                          <div
-                            className={`w-10 h-10 rounded-full ${avatarBgClass} border flex items-center justify-center flex-shrink-0 font-bold text-sm`}
-                          >
-                            {avatarInitial}
-                          </div>
-                        )}
+                        ) : null}
+                        <div
+                          className={`w-10 h-10 rounded-full ${avatarBgClass} border flex items-center justify-center flex-shrink-0 font-bold text-sm ${
+                            preview.author?.avatar ? 'hidden' : 'flex'
+                          }`}
+                        >
+                          {avatarInitial}
+                        </div>
                         <div className="min-w-0">
                           <h5 className="font-bold text-white text-xs truncate" title={authorName}>
                             {authorName}

@@ -204,4 +204,12 @@ func TestCookieEndpointsSuccessWithWorkers(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
+
+	// Test Save with instagram fields
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/save", bytes.NewBufferString(`{"platform":"instagram","fields":{"sessionid":"test_session","ds_user_id":"12345"}}`))
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
 }

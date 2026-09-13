@@ -11,6 +11,7 @@ import (
 	pythonapi "backend/api/python"
 	"backend/cookies"
 	"backend/media_download/facebook"
+	"backend/media_download/instagram"
 	"backend/media_download/tiktok"
 	"backend/media_download/youtube"
 	"backend/utils"
@@ -97,6 +98,52 @@ func (facebookOperations) Snapshots() []facebook.Snapshot {
 
 func (facebookOperations) SetCanonicalID(id, canonicalID string) bool {
 	return facebook.SetCanonicalID(id, canonicalID)
+}
+
+// InstagramOperations is the Storage-side business boundary for Instagram downloads.
+type InstagramOperations interface {
+	Start(id, sourceURL, filename, destination, audioURL string, items []instagram.DownloadItem, headers map[string]string) error
+	Cancel(id string) bool
+	Delete(id string) bool
+	SetVideoDecision(id, videoID, quality string) error
+	ApplyVideoDecisions(id string, decisions map[string]string) error
+	Snapshot(id string) (instagram.Snapshot, bool)
+	Snapshots() []instagram.Snapshot
+	SetCanonicalID(id, canonicalID string) bool
+}
+
+type instagramOperations struct{}
+
+func (instagramOperations) Start(id, sourceURL, filename, destination, audioURL string, items []instagram.DownloadItem, headers map[string]string) error {
+	return instagram.StartJob(id, sourceURL, filename, destination, audioURL, items, headers)
+}
+
+func (instagramOperations) Cancel(id string) bool {
+	return instagram.CancelJob(id)
+}
+
+func (instagramOperations) Delete(id string) bool {
+	return instagram.DeleteJob(id)
+}
+
+func (instagramOperations) SetVideoDecision(id, videoID, quality string) error {
+	return instagram.SetVideoDecision(id, videoID, quality)
+}
+
+func (instagramOperations) ApplyVideoDecisions(id string, decisions map[string]string) error {
+	return instagram.ApplyVideoDecisions(id, decisions)
+}
+
+func (instagramOperations) Snapshot(id string) (instagram.Snapshot, bool) {
+	return instagram.GetJobSnapshot(id)
+}
+
+func (instagramOperations) Snapshots() []instagram.Snapshot {
+	return instagram.GetJobSnapshots()
+}
+
+func (instagramOperations) SetCanonicalID(id, canonicalID string) bool {
+	return instagram.SetCanonicalID(id, canonicalID)
 }
 
 type tiktokOperations struct{}
@@ -227,6 +274,7 @@ type Handler struct {
 	youtube      YouTubeOperations
 	tiktok       TikTokOperations
 	facebook     FacebookOperations
+	instagram    InstagramOperations
 	pollInterval time.Duration
 }
 
@@ -237,6 +285,7 @@ func NewHandler(archive ArchiveOperations, optionalOps ...any) *Handler {
 	var yt YouTubeOperations = youtubeOperations{}
 	var tt TikTokOperations = tiktokOperations{}
 	var fb FacebookOperations = facebookOperations{}
+	var ig InstagramOperations = instagramOperations{}
 	for _, op := range optionalOps {
 		switch v := op.(type) {
 		case YouTubeOperations:
@@ -251,9 +300,13 @@ func NewHandler(archive ArchiveOperations, optionalOps ...any) *Handler {
 			if v != nil {
 				fb = v
 			}
+		case InstagramOperations:
+			if v != nil {
+				ig = v
+			}
 		}
 	}
-	return &Handler{archive: archive, youtube: yt, tiktok: tt, facebook: fb, pollInterval: time.Second}
+	return &Handler{archive: archive, youtube: yt, tiktok: tt, facebook: fb, instagram: ig, pollInterval: time.Second}
 }
 
 func (h *Handler) Capabilities() []string {
@@ -265,7 +318,8 @@ func (h *Handler) History() StorageHistoryPayload {
 	ytSnapshots := h.youtube.Snapshots()
 	ttSnapshots := h.tiktok.Snapshots()
 	fbSnapshots := h.facebook.Snapshots()
-	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots)+len(ttSnapshots)+len(fbSnapshots))
+	igSnapshots := h.instagram.Snapshots()
+	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots)+len(ttSnapshots)+len(fbSnapshots)+len(igSnapshots))
 	for _, snapshot := range archiveSnapshots {
 		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
 			jobs = append(jobs, storageSnapshot(snapshot))
@@ -286,6 +340,11 @@ func (h *Handler) History() StorageHistoryPayload {
 			jobs = append(jobs, facebookStorageSnapshot(snapshot))
 		}
 	}
+	for _, snapshot := range igSnapshots {
+		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
+			jobs = append(jobs, instagramStorageSnapshot(snapshot))
+		}
+	}
 	return StorageHistoryPayload{Jobs: jobs}
 }
 
@@ -300,6 +359,39 @@ func clampProgress(downloaded, total int64) (int64, int64) {
 		total = downloaded
 	}
 	return downloaded, total
+}
+
+func instagramStorageSnapshot(snapshot instagram.Snapshot) StorageJobSnapshot {
+	dl, tot := clampProgress(snapshot.DownloadedBytes, snapshot.TotalBytes)
+	return StorageJobSnapshot{
+		ID:                    snapshot.ID,
+		CanonicalID:           snapshot.CanonicalID,
+		Source:                "instagram",
+		SourceURL:             safeHistoryURL(snapshot.URL),
+		Filename:              snapshot.Filename,
+		Destination:           snapshot.Destination,
+		State:                 snapshot.State,
+		DownloadedBytes:       dl,
+		TotalBytes:            tot,
+		SpeedBytes:            snapshot.SpeedBytes,
+		ExtractedPercent:      0,
+		ConversionTotal:       snapshot.Conversion.Total,
+		ConversionCurrent:     snapshot.Conversion.Current,
+		ConversionFailed:      snapshot.Conversion.Failed,
+		ErrorCode:             snapshot.ErrorCode,
+		Error:                 snapshot.Error,
+		PasswordRequired:      false,
+		ArchiveDownloaded:     false,
+		ArchiveExtracted:      false,
+		VideoScanState:        snapshot.VideoScanState,
+		TotalVideoCount:       snapshot.TotalVideoCount,
+		InvalidVideoCount:     snapshot.InvalidVideoCount,
+		OptimizationCancelled: snapshot.OptimizationCancelled,
+		CancelledFromStage:    snapshot.CancelledFromStage,
+		Videos:                snapshot.Videos,
+		CreatedAt:             snapshot.CreatedAt,
+		UpdatedAt:             snapshot.UpdatedAt,
+	}
 }
 
 func facebookStorageSnapshot(snapshot facebook.Snapshot) StorageJobSnapshot {
@@ -498,6 +590,21 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 		return
 	}
 
+	if isInstagramRequest(request) {
+		if _, exists := h.instagram.Snapshot(task.TaskID); !exists {
+			utils.LogEvent("INFO", "storage instagram start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
+			if err := h.instagram.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.AudioURL, toInstagramItems(request.Items), request.Headers); err != nil {
+				h.fail(send, task.TaskID, "STORAGE_START_FAILED", "Storage không thể bắt đầu tác vụ tải Instagram.")
+				return
+			}
+		}
+		if request.ParentJobID != "" {
+			h.instagram.SetCanonicalID(task.TaskID, request.ParentJobID)
+		}
+		h.monitor(ctx, task.TaskID, send)
+		return
+	}
+
 	// A requeued Coordinator task keeps its original ID. If local Storage has
 	// already started that archive job, only reconnect monitoring; do not start
 	// a second download or cancel the existing one.
@@ -553,6 +660,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		h.youtube.Delete(control.ArchiveTaskID)
 		h.tiktok.Delete(control.ArchiveTaskID)
 		h.facebook.Delete(control.ArchiveTaskID)
+		h.instagram.Delete(control.ArchiveTaskID)
 		h.archive.Delete(control.ArchiveTaskID)
 		_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
 		return
@@ -678,6 +786,46 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		return
 	}
 
+	if _, isIG := h.instagram.Snapshot(control.ArchiveTaskID); isIG {
+		var err error
+		if control.Operation == "video_decision" {
+			err = h.instagram.SetVideoDecision(control.ArchiveTaskID, control.VideoID, control.Quality)
+		} else if control.Operation == "video_apply" {
+			var decisions map[string]string
+			if len(control.Decisions) > 0 {
+				if unmarshalErr := json.Unmarshal(control.Decisions, &decisions); unmarshalErr != nil {
+					var str string
+					if json.Unmarshal(control.Decisions, &str) == nil {
+						_ = json.Unmarshal([]byte(str), &decisions)
+					}
+				}
+			}
+			err = h.instagram.ApplyVideoDecisions(control.ArchiveTaskID, decisions)
+		} else if control.Operation == "cancel" {
+			if !h.instagram.Cancel(control.ArchiveTaskID) {
+				err = fmt.Errorf("instagram job not found")
+			}
+		} else {
+			err = fmt.Errorf("thao tác %s không được hỗ trợ cho Instagram", control.Operation)
+		}
+
+		if err != nil {
+			h.fail(send, controlTaskID, "STORAGE_CONTROL_FAILED", err.Error())
+			return
+		}
+
+		if control.Operation == "video_decision" || control.Operation == "video_apply" {
+			if snapshot, ok := h.instagram.Snapshot(control.ArchiveTaskID); ok {
+				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{instagramStorageSnapshot(snapshot)}}})
+			}
+			_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
+			return
+		}
+
+		h.monitor(ctx, control.ArchiveTaskID, send)
+		return
+	}
+
 
 	var err error
 	if control.Operation == "video_decision" {
@@ -779,6 +927,21 @@ func toFacebookItems(items []downloadItemPayload) []facebook.DownloadItem {
 	return result
 }
 
+func toInstagramItems(items []downloadItemPayload) []instagram.DownloadItem {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]instagram.DownloadItem, len(items))
+	for i, item := range items {
+		result[i] = instagram.DownloadItem{
+			URL:      item.URL,
+			Filename: item.Filename,
+			Type:     item.Type,
+		}
+	}
+	return result
+}
+
 func isYouTubeRequest(request downloadRequest) bool {
 	if strings.EqualFold(strings.TrimSpace(request.Source), "youtube") {
 		return true
@@ -801,6 +964,14 @@ func isFacebookRequest(request downloadRequest) bool {
 	}
 	u := strings.ToLower(request.URL)
 	return strings.Contains(u, "facebook.com") || strings.Contains(u, "fb.watch") || strings.Contains(u, "fb.com") || strings.Contains(u, "fbcdn.net")
+}
+
+func isInstagramRequest(request downloadRequest) bool {
+	if strings.EqualFold(strings.TrimSpace(request.Source), "instagram") {
+		return true
+	}
+	u := strings.ToLower(request.URL)
+	return strings.Contains(u, "instagram.com") || strings.Contains(u, "cdninstagram.com")
 }
 
 func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
@@ -831,6 +1002,10 @@ func (h *Handler) monitor(ctx context.Context, taskID string, send SendFunc) {
 	}
 	if _, isFB := h.facebook.Snapshot(taskID); isFB {
 		h.monitorFacebook(ctx, taskID, send)
+		return
+	}
+	if _, isIG := h.instagram.Snapshot(taskID); isIG {
+		h.monitorInstagram(ctx, taskID, send)
 		return
 	}
 	h.monitorArchive(ctx, taskID, send)
@@ -866,6 +1041,59 @@ func (h *Handler) monitorFacebook(ctx context.Context, taskID string, send SendF
 			return
 		default:
 			utils.LogEvent("DEBUG", "storage facebook progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
+				"state":           snapshot.State,
+				"filename":        snapshot.Filename,
+				"downloadedBytes": snapshot.DownloadedBytes,
+				"totalBytes":      snapshot.TotalBytes,
+				"speedBytes":      snapshot.SpeedBytes,
+			}}); err != nil {
+				return
+			}
+		}
+
+		interval := h.pollInterval
+		if interval <= 0 {
+			interval = time.Millisecond
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+		}
+	}
+}
+
+func (h *Handler) monitorInstagram(ctx context.Context, taskID string, send SendFunc) {
+	for {
+		snapshot, exists := h.instagram.Snapshot(taskID)
+		if !exists {
+			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ Instagram được giao.")
+			return
+		}
+		if err := send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{instagramStorageSnapshot(snapshot)}}}); err != nil {
+			return
+		}
+
+		switch snapshot.State {
+		case "completed":
+			utils.LogEvent("INFO", "storage instagram completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
+				"jobId":    snapshot.ID,
+				"filename": snapshot.Filename,
+				"state":    snapshot.State,
+			}})
+			return
+		case "cancelled":
+			utils.LogEvent("WARN", "storage instagram cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ Instagram đã bị hủy cục bộ.")
+			return
+		case "error":
+			utils.LogEvent("ERROR", "storage instagram failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename, "error": snapshot.Error})
+			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải Instagram: "+snapshot.Error)
+			return
+		default:
+			utils.LogEvent("DEBUG", "storage instagram progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
 			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
 				"state":           snapshot.State,
 				"filename":        snapshot.Filename,

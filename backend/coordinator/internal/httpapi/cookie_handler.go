@@ -58,6 +58,17 @@ func assembleNetscapeCookies(platform string, fields map[string]string) string {
 			"sid_guard",
 			"tt_chain_token",
 		}
+	} else if platform == "instagram" {
+		domain = ".instagram.com"
+		orderedKeys = []string{
+			"sessionid",
+			"ds_user_id",
+			"csrftoken",
+			"mid",
+			"ig_did",
+			"rur",
+			"datr",
+		}
 	}
 	used := make(map[string]bool)
 	cleanValue := func(v string) string {

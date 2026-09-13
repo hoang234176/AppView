@@ -404,3 +404,9 @@ export const saveCookies = async (platform = 'youtube', fields = null, cookies =
     };
   }
 };
+
+export const getProxiedImageUrl = (url) => {
+  if (!url) return '';
+  const baseURL = getCoordinatorApiBaseUrl() || 'http://localhost:8090/api/v1';
+  return `${baseURL.replace(/\/+$/, '')}/download/proxy-image?url=${encodeURIComponent(url)}`;
+};

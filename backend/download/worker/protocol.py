@@ -21,6 +21,7 @@ TASK_FAILED = "task.failed"
 ERROR = "error"
 
 COOKIE_GET = "cookie.get"
+COOKIE_SAVE = "cookie.save"
 COOKIE_VERIFY = "cookie.verify"
 
 RESOLVE_DOWNLOAD = "resolve_download"
