@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Download,
   X,
@@ -10,10 +10,8 @@ import {
   ClipboardCheck,
   Check,
   Video,
-  ThumbsUp,
-  MessageCircle,
-  Share2,
   Settings,
+  ZoomIn,
 } from 'lucide-react';
 import { previewMediaDownload, startMediaDownload } from '../api/downloadApi';
 import { canonicalDownloadDestination } from '../utils/downloadDestination';
@@ -51,12 +49,46 @@ export const DownloadMediaModal = ({
   const [mediaTypeTab, setMediaTypeTab] = useState('video');
   const [quality, setQuality] = useState(null);
   const [selectedIndices, setSelectedIndices] = useState([]);
+  const [previewImageIndex, setPreviewImageIndex] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState(currentPath || '');
   const [pasted, setPasted] = useState(false);
   const operation = useRef(null);
   const mounted = useRef(true);
+
+  const targetImages = useMemo(() => {
+    const postPhotos = (preview?.images || []).filter(
+      (img) => img.type === 'slideshow_photo' || img.type === 'post_photo' || !img.type
+    );
+    return postPhotos.length > 0 ? postPhotos : preview?.images || [];
+  }, [preview]);
+  const hasImages = targetImages.length > 0;
+  const hasVideo = Boolean(
+    preview?.has_video ||
+      preview?.source === 'youtube' ||
+      (preview?.qualities && preview.qualities.length > 0)
+  );
+
+  // Keyboard navigation for image preview lightbox
+  useEffect(() => {
+    if (previewImageIndex === null) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setPreviewImageIndex(null);
+      } else if (e.key === 'ArrowLeft') {
+        if (targetImages.length > 1) {
+          setPreviewImageIndex((prev) => (prev - 1 + targetImages.length) % targetImages.length);
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (targetImages.length > 1) {
+          setPreviewImageIndex((prev) => (prev + 1) % targetImages.length);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewImageIndex, targetImages]);
 
   const handlePaste = async () => {
     try {
@@ -107,10 +139,6 @@ export const DownloadMediaModal = ({
     setError('');
 
     if (preview) {
-      const photos = (preview?.images || []).filter(
-        (img) => img.type === 'slideshow_photo' || img.type === 'post_photo' || !img.type
-      );
-      const targetImages = photos.length > 0 ? photos : preview?.images || [];
       const isImages = mediaTypeTab === 'images' || (!preview.has_video && targetImages.length > 0);
 
       if (isImages && selectedIndices.length === 0) {
@@ -366,21 +394,28 @@ export const DownloadMediaModal = ({
             </>
           ) : (
             <div className="space-y-3">
-              {/* Facebook Dedicated Rich Card */}
+              {/* Facebook Dedicated Card */}
               {isFacebook ? (
-                <div className="overflow-hidden rounded-2xl border border-[#383c42] bg-[#202124]">
+                <div
+                  className="overflow-hidden rounded-2xl border border-[#383c42] bg-[#202124] shadow-sm [isolation:isolate] [contain:paint]"
+                  style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
+                >
                   {/* Author Header Row */}
-                  <div className="p-3 bg-[#18191c] border-b border-[#383c42]/60 flex items-center justify-between gap-2.5">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`p-3.5 bg-[#18191c] rounded-t-2xl flex items-center justify-between gap-3 ${
+                      (preview.has_video && preview.thumbnail) || hasImages ? 'border-b border-[#383c42]/60' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
                       {preview.author?.avatar ? (
                         <img
                           src={preview.author.avatar}
                           alt=""
                           referrerPolicy="no-referrer"
-                          className="w-9 h-9 rounded-full object-cover border border-[#383c42] flex-shrink-0"
+                          className="w-10 h-10 rounded-full object-cover border border-[#383c42] flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-9 h-9 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0 font-bold text-xs">
+                        <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0 font-bold text-sm">
                           {preview.uploader?.charAt(0)?.toUpperCase() || 'FB'}
                         </div>
                       )}
@@ -388,7 +423,7 @@ export const DownloadMediaModal = ({
                         <h5 className="font-bold text-white text-xs truncate">
                           {preview.author?.name || preview.uploader || preview.title || 'Facebook Post'}
                         </h5>
-                        <p className="text-[10px] text-gray-400 truncate">
+                        <p className="text-[11px] text-gray-400 truncate">
                           {preview.created_time || 'Bài viết Facebook'}
                         </p>
                       </div>
@@ -399,71 +434,73 @@ export const DownloadMediaModal = ({
                     </div>
                   </div>
 
-                  {/* Post Caption / Content */}
-                  {preview.content ? (
-                    <div className="px-3 py-2.5 text-xs text-gray-200 bg-[#16171a] border-b border-[#383c42]/40 max-h-24 overflow-y-auto custom-scrollbar whitespace-pre-wrap leading-relaxed">
-                      {preview.content}
-                    </div>
-                  ) : preview.title && preview.title !== 'Facebook Post' ? (
-                    <div className="px-3 py-2 text-xs font-medium text-gray-300 bg-[#16171a] border-b border-[#383c42]/40 truncate">
-                      {preview.title}
-                    </div>
-                  ) : null}
-
-                  {/* Reactions Engagement Bar */}
-                  {preview.reactions &&
-                  (preview.reactions.likes ||
-                    preview.reactions.comments ||
-                    preview.reactions.shares) ? (
-                    <div className="px-3 py-1.5 bg-[#131417] border-b border-[#383c42]/40 flex items-center gap-4 text-[11px] text-gray-400 font-medium">
-                      {preview.reactions.likes ? (
-                        <span className="flex items-center gap-1 text-blue-400 font-semibold">
-                          <ThumbsUp className="w-3.5 h-3.5" />
-                          {preview.reactions.likes}
-                        </span>
-                      ) : null}
-                      {preview.reactions.comments ? (
-                        <span className="flex items-center gap-1 text-gray-300">
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          {preview.reactions.comments}
-                        </span>
-                      ) : null}
-                      {preview.reactions.shares ? (
-                        <span className="flex items-center gap-1 text-gray-300">
-                          <Share2 className="w-3.5 h-3.5" />
-                          {preview.reactions.shares}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-
                   {/* Video Thumbnail (for Facebook video posts) */}
-                  {preview.has_video && preview.thumbnail && (
-                    <div className="relative aspect-video max-h-48 overflow-hidden bg-black/50 flex items-center justify-center">
+                  {preview.has_video && preview.thumbnail ? (
+                    <div className="relative h-56 w-full overflow-hidden rounded-b-2xl bg-black flex items-center justify-center">
                       <img
                         src={preview.thumbnail}
                         alt=""
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-contain"
+                        className="absolute inset-0 w-full h-full object-cover opacity-35 blur-md"
                       />
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-12 h-12 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white backdrop-blur-xs shadow-lg">
-                          <Video className="w-6 h-6 text-blue-400" />
-                        </div>
+                      <img
+                        src={preview.thumbnail}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="relative max-h-full max-w-full object-contain"
+                      />
+                      <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-xs border border-white/15 text-[10px] font-bold text-white">
+                        <Video className="w-3 h-3 text-blue-400" />
+                        <span>Video</span>
                       </div>
                     </div>
-                  )}
+                  ) : hasImages ? (
+                    <div
+                      onClick={() => setPreviewImageIndex(0)}
+                      className="relative h-56 w-full overflow-hidden rounded-b-2xl bg-black flex items-center justify-center cursor-pointer group"
+                      title="Bấm để xem ảnh kích thước đầy đủ"
+                    >
+                      <img
+                        src={targetImages[0].url}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="absolute inset-0 w-full h-full object-cover opacity-35 blur-md"
+                      />
+                      <img
+                        src={targetImages[0].url}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="relative max-h-full max-w-full object-contain group-hover:scale-[1.02] transition-transform duration-200"
+                      />
+                      <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/75 backdrop-blur-xs border border-white/15 text-[10px] font-bold text-white shadow-sm">
+                        <Images className="w-3 h-3 text-cyan-400" />
+                        <span>{targetImages.length > 1 ? `${targetImages.length} ảnh • Xem trước` : 'Xem trước ảnh'}</span>
+                      </div>
+                      <div className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/60 border border-white/20 text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ZoomIn className="w-4 h-4" />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 /* Non-Facebook (YouTube / TikTok) Preview Card */
-                <div className="overflow-hidden rounded-2xl border border-[#383c42] bg-[#202124] sm:flex sm:flex-row items-stretch">
+                <div
+                  className="overflow-hidden rounded-2xl border border-[#383c42] bg-[#202124] sm:flex sm:flex-row items-stretch [isolation:isolate] [contain:paint]"
+                  style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
+                >
                   {preview.thumbnail && (
-                    <div className="relative aspect-video sm:w-[42%] sm:min-w-[140px] sm:max-w-[180px] flex-shrink-0 overflow-hidden bg-black/40">
+                    <div className="relative aspect-video sm:w-[42%] sm:min-w-[140px] sm:max-w-[180px] flex-shrink-0 overflow-hidden bg-black">
                       <img
                         src={preview.thumbnail}
                         alt=""
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover opacity-35 blur-sm"
+                      />
+                      <img
+                        src={preview.thumbnail}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="relative w-full h-full object-contain"
                       />
                       <div
                         className={`absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-sm border border-white/10 text-[9px] font-bold ${
@@ -490,20 +527,7 @@ export const DownloadMediaModal = ({
               )}
 
               {/* Dynamic Media Controls (Video quality / Photo squares with select all button) */}
-              {(() => {
-                const photos = (preview.images || []).filter(
-                  (img) => img.type === 'slideshow_photo' || img.type === 'post_photo' || !img.type
-                );
-                const targetImages = photos.length > 0 ? photos : preview.images || [];
-                const hasImages = targetImages.length > 0;
-                const hasVideo = Boolean(
-                  preview.has_video ||
-                    preview.source === 'youtube' ||
-                    (preview.qualities && preview.qualities.length > 0)
-                );
-
-                return (
-                  <div className="space-y-3">
+              <div className="space-y-3">
                     {/* Segmented control when BOTH video and images are available */}
                     {hasVideo && hasImages && (
                       <div className="flex bg-[#16171a] p-1 rounded-xl border border-[#383c42] gap-1">
@@ -543,14 +567,21 @@ export const DownloadMediaModal = ({
                       <div className="space-y-2">
                         {targetImages.length === 1 ? (
                           /* Single Photo Preview Card */
-                          <div className="relative rounded-2xl overflow-hidden border border-[#383c42] bg-[#18191c] p-2 flex items-center gap-3">
-                            <div className="w-20 h-20 rounded-xl overflow-hidden bg-black/40 flex-shrink-0 border border-[#383c42]">
+                          <div
+                            onClick={() => setPreviewImageIndex(0)}
+                            className="relative rounded-2xl overflow-hidden border border-[#383c42] bg-[#18191c] p-2.5 flex items-center gap-3 cursor-pointer group hover:border-[#4f535a] transition-all"
+                            title="Bấm để xem ảnh kích thước đầy đủ"
+                          >
+                            <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-black/40 flex-shrink-0 border border-[#383c42]">
                               <img
                                 src={targetImages[0].url}
                                 alt="Ảnh bài viết"
                                 referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                               />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/30 transition-opacity">
+                                <ZoomIn className="w-5 h-5 text-white drop-shadow-md" />
+                              </div>
                             </div>
                             <div className="min-w-0 flex-1 space-y-1">
                               <div className="flex items-center gap-1.5 text-xs font-bold text-white">
@@ -559,6 +590,10 @@ export const DownloadMediaModal = ({
                               </div>
                               <p className="text-[11px] text-gray-400">
                                 Sẽ được lưu trực tiếp dưới dạng hình ảnh <code className="text-emerald-400">.jpeg</code>
+                              </p>
+                              <p className="text-[11px] text-blue-400 font-medium flex items-center gap-1 pt-0.5">
+                                <ZoomIn className="w-3.5 h-3.5" />
+                                <span>Bấm vào để xem trước ảnh</span>
                               </p>
                             </div>
                           </div>
@@ -579,47 +614,61 @@ export const DownloadMediaModal = ({
                             </div>
 
                             {/* Horizontal scrollable row of square images */}
-                            <div className="flex gap-2.5 overflow-x-auto py-2 px-1.5 scrollbar-thin bg-[#18191c] rounded-2xl border border-[#2e3136]">
+                            <div className="flex gap-2.5 overflow-x-auto py-2.5 px-2 scrollbar-thin bg-[#18191c] rounded-2xl border border-[#2e3136]">
                               {targetImages.map((img, idx) => {
                                 const isSelected = selectedIndices.includes(idx);
                                 return (
                                   <div
                                     key={img.id || idx}
-                                    onClick={() => {
-                                      if (isSelected) {
-                                        setSelectedIndices(selectedIndices.filter((i) => i !== idx));
-                                      } else {
-                                        setSelectedIndices(
-                                          [...selectedIndices, idx].sort((a, b) => a - b)
-                                        );
-                                      }
-                                    }}
-                                    className={`relative flex-shrink-0 w-[74px] h-[74px] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 select-none ${
+                                    onClick={() => setPreviewImageIndex(idx)}
+                                    className={`group relative flex-shrink-0 w-[76px] h-[76px] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 select-none [isolation:isolate] [contain:paint] ${
                                       isSelected
                                         ? isFacebook
                                           ? 'border-blue-400 shadow-md ring-2 ring-blue-400/40 opacity-100'
                                           : 'border-cyan-400 shadow-md ring-2 ring-cyan-400/40 opacity-100'
-                                        : 'border-[#383c42] opacity-40 hover:opacity-75'
+                                        : 'border-[#383c42] opacity-50 hover:opacity-90'
                                     }`}
+                                    style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
+                                    title="Bấm vào ảnh để xem trước phóng to"
                                   >
                                     <img
                                       src={img.url}
                                       alt={img.label || `Ảnh ${idx + 1}`}
                                       referrerPolicy="no-referrer"
-                                      className="w-full h-full object-cover"
+                                      className="w-full h-full object-cover rounded-[9px] group-hover:scale-105 transition-transform duration-200 pointer-events-none"
                                     />
-                                    <div
-                                      className={`absolute top-1 right-1 rounded-full p-0.5 ${
+
+                                    {/* Corner checkbox button: ONLY clicking here selects/deselects the image */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isSelected) {
+                                          setSelectedIndices(selectedIndices.filter((i) => i !== idx));
+                                        } else {
+                                          setSelectedIndices(
+                                            [...selectedIndices, idx].sort((a, b) => a - b)
+                                          );
+                                        }
+                                      }}
+                                      className={`absolute top-1 right-1 rounded-full p-1 z-10 transition-all ${
                                         isSelected
                                           ? isFacebook
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-cyan-500 text-white'
-                                          : 'bg-black/60 text-gray-400'
+                                            ? 'bg-blue-600 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                            : 'bg-cyan-500 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                          : 'bg-black/70 text-gray-300 hover:bg-black/90 hover:text-white border border-white/20'
                                       }`}
+                                      title={isSelected ? 'Bỏ chọn ảnh' : 'Chọn ảnh'}
                                     >
-                                      <Check className="w-3 h-3" />
+                                      <Check className="w-3 h-3 stroke-[2.5]" />
+                                    </button>
+
+                                    {/* Hover zoom indicator */}
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/35 transition-opacity pointer-events-none">
+                                      <ZoomIn className="w-4 h-4 text-white drop-shadow-md" />
                                     </div>
-                                    <div className="absolute bottom-0 inset-x-0 bg-black/70 backdrop-blur-xs text-[10px] font-mono text-center text-gray-200 py-0.5 truncate">
+
+                                    <div className="absolute bottom-0 inset-x-0 rounded-b-[9px] bg-black/75 backdrop-blur-xs text-[10px] font-mono text-center text-gray-200 py-0.5 truncate pointer-events-none">
                                       #{idx + 1}
                                     </div>
                                   </div>
@@ -652,13 +701,13 @@ export const DownloadMediaModal = ({
                                 </span>
                               </button>
                               <span className="text-[11px] text-gray-400 font-mono">
-                                {selectedIndices.length === 0
-                                  ? 'Chưa chọn ảnh nào'
-                                  : `Lưu ${selectedIndices.length} ảnh (.zip)`}
-                              </span>
-                            </div>
-                          </>
-                        )}
+                                  {selectedIndices.length === 0
+                                    ? 'Chưa chọn ảnh nào'
+                                    : `Lưu ${selectedIndices.length} ảnh (.zip)`}
+                                </span>
+                              </div>
+                            </>
+                          )}
                       </div>
                     ) : null}
 
@@ -689,8 +738,6 @@ export const DownloadMediaModal = ({
                       </div>
                     ) : null}
                   </div>
-                );
-              })()}
 
               {/* Destination summary */}
               <div className="bg-[#24252a] border border-[#383c42] rounded-xl px-3 py-2 flex items-center justify-between gap-2">
@@ -750,6 +797,101 @@ export const DownloadMediaModal = ({
           </div>
         </form>
       </div>
+
+      {/* Image Preview Lightbox Modal */}
+      {previewImageIndex !== null && targetImages[previewImageIndex] && (() => {
+        const currentImg = targetImages[previewImageIndex];
+        const isSelected = selectedIndices.includes(previewImageIndex);
+        const hasMultiple = targetImages.length > 1;
+
+        const goToPrev = (e) => {
+          e?.stopPropagation();
+          if (hasMultiple) {
+            setPreviewImageIndex((prev) => (prev - 1 + targetImages.length) % targetImages.length);
+          }
+        };
+
+        const goToNext = (e) => {
+          e?.stopPropagation();
+          if (hasMultiple) {
+            setPreviewImageIndex((prev) => (prev + 1) % targetImages.length);
+          }
+        };
+
+        return (
+          <div
+            className="fixed inset-0 z-[120000] flex flex-col items-center justify-center bg-black/95 select-none"
+            onClick={() => setPreviewImageIndex(null)}
+          >
+            {/* Top Toolbar (Fixed at top, z-30, stops propagation) */}
+            <div
+              className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-auto text-white"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <span className="px-3 py-1 rounded-full bg-white/10 font-mono text-xs text-gray-200 border border-white/15">
+                  {previewImageIndex + 1} / {targetImages.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isSelected) {
+                      setSelectedIndices(selectedIndices.filter((i) => i !== previewImageIndex));
+                    } else {
+                      setSelectedIndices([...selectedIndices, previewImageIndex].sort((a, b) => a - b));
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors border ${
+                    isSelected
+                      ? isFacebook
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-md'
+                        : 'bg-cyan-500 text-white border-cyan-400 shadow-md'
+                      : 'bg-white/10 text-gray-300 border-white/20 hover:bg-white/20'
+                  }`}
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>{isSelected ? 'Đã chọn tải' : 'Chọn ảnh này'}</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setPreviewImageIndex(null)}
+                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white transition-colors"
+                title="Đóng xem trước (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Main Image Display (pointer-events-none so left/right click zones catch clicks across the entire screen including image) */}
+            <div className="relative max-w-full max-h-[85vh] flex items-center justify-center p-4 pointer-events-none z-10">
+              <img
+                src={currentImg.url}
+                alt={currentImg.label || `Ảnh ${previewImageIndex + 1}`}
+                referrerPolicy="no-referrer"
+                className="max-h-[82vh] max-w-[90vw] object-contain rounded-xl shadow-2xl pointer-events-none select-none"
+              />
+            </div>
+
+            {/* Left & Right Clickable Zones (Covers entire left & right halves of the screen and image) */}
+            {hasMultiple ? (
+              <>
+                <div
+                  className="absolute inset-y-0 left-0 w-1/2 z-20 cursor-pointer"
+                  onClick={goToPrev}
+                  title="Ảnh trước (← hoặc click bên trái)"
+                />
+                <div
+                  className="absolute inset-y-0 right-0 w-1/2 z-20 cursor-pointer"
+                  onClick={goToNext}
+                  title="Ảnh tiếp theo (→ hoặc click bên phải)"
+                />
+              </>
+            ) : null}
+          </div>
+        );
+      })()}
     </div>
   );
 };

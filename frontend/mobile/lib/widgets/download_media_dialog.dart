@@ -440,10 +440,11 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(color: AppTheme.borderColor),
                               ),
-                              clipBehavior: Clip.antiAlias,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(15),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                   // Author header row
                                   Container(
                                     padding: const EdgeInsets.all(10),
@@ -560,161 +561,30 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                     ),
                                   ),
 
-                                  // Post Content / Caption
-                                  if (preview.content.isNotEmpty)
-                                    Container(
-                                      width: double.infinity,
-                                      constraints: const BoxConstraints(
-                                        maxHeight: 90,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 8,
-                                      ),
-                                      color: const Color(0xFF16171A),
-                                      child: SingleChildScrollView(
-                                        child: Text(
-                                          preview.content,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 11.5,
-                                            height: 1.35,
-                                          ),
-                                        ),
-                                      ),
+                                  // Video thumbnail or initial review photo in Facebook card
+                                  if (hasVideo && preview.thumbnail.isNotEmpty)
+                                    _buildMediaPreviewBox(
+                                      imageUrl: preview.thumbnail,
+                                      isVideo: true,
                                     )
-                                  else if (preview.title.isNotEmpty &&
-                                      preview.title != 'Facebook Post')
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      color: const Color(0xFF16171A),
-                                      child: Text(
-                                        preview.title,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
+                                  else if (hasImages)
+                                    _buildMediaPreviewBox(
+                                      imageUrl: targetImages.first.thumbnail.isNotEmpty
+                                          ? targetImages.first.thumbnail
+                                          : targetImages.first.url,
+                                      isVideo: false,
+                                      totalImages: targetImages.length,
+                                      onTap: () {
+                                        _showImagePreviewDialog(
+                                          context,
+                                          targetImages,
+                                          0,
+                                          accentColor,
+                                        );
+                                      },
                                     ),
-
-                                  // Reactions bar
-                                  if (preview.reactions != null &&
-                                      (preview.reactions!.likes > 0 ||
-                                          preview.reactions!.comments > 0 ||
-                                          preview.reactions!.shares > 0))
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      color: const Color(0xFF131417),
-                                      child: Row(
-                                        children: [
-                                          if (preview.reactions!.likes > 0) ...[
-                                            const Icon(
-                                              Icons.thumb_up_alt_rounded,
-                                              size: 13,
-                                              color: Color(0xFF1877F2),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              '${preview.reactions!.likes}',
-                                              style: const TextStyle(
-                                                color: Color(0xFF1877F2),
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 14),
-                                          ],
-                                          if (preview.reactions!.comments > 0) ...[
-                                            const Icon(
-                                              Icons.chat_bubble_outline_rounded,
-                                              size: 13,
-                                              color: Colors.white70,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              '${preview.reactions!.comments}',
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 14),
-                                          ],
-                                          if (preview.reactions!.shares > 0) ...[
-                                            const Icon(
-                                              Icons.share_rounded,
-                                              size: 13,
-                                              color: Colors.white70,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              '${preview.reactions!.shares}',
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-
-                                  // Video thumbnail if has_video
-                                  if (preview.hasVideo &&
-                                      preview.thumbnail.isNotEmpty)
-                                    AspectRatio(
-                                      aspectRatio: 16 / 9,
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          Image.network(
-                                            preview.thumbnail,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (_, __, ___) => Container(
-                                              color: Colors.black38,
-                                              child: const Center(
-                                                child: Icon(
-                                                  Icons.videocam_rounded,
-                                                  color: Colors.white38,
-                                                  size: 32,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          Center(
-                                            child: Container(
-                                              width: 40,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                color: Colors.black
-                                                    .withValues(alpha: 0.65),
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color: Colors.white30,
-                                                ),
-                                              ),
-                                              child: const Icon(
-                                                Icons.play_arrow_rounded,
-                                                color: Color(0xFF1877F2),
-                                                size: 24,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ] else ...[
@@ -725,62 +595,17 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(color: AppTheme.borderColor),
                               ),
-                              clipBehavior: Clip.antiAlias,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(13),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                   if (preview.thumbnail.isNotEmpty)
-                                    Stack(
-                                      children: [
-                                        AspectRatio(
-                                          aspectRatio: 16 / 9,
-                                          child: Image.network(
-                                            preview.thumbnail,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (_, _, _) => Container(
-                                              color: Colors.black26,
-                                              child: const Center(
-                                                child: Icon(
-                                                  Icons.video_library_outlined,
-                                                  color: Colors.white38,
-                                                  size: 32,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          top: 8,
-                                          left: 8,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black
-                                                  .withValues(alpha: 0.75),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                              border: Border.all(
-                                                color: Colors.white
-                                                    .withValues(alpha: 0.15),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              isTikTok ? 'TikTok' : 'YouTube',
-                                              style: TextStyle(
-                                                color: isTikTok
-                                                    ? const Color(0xFF22D3EE)
-                                                    : Colors.redAccent,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                    _buildMediaPreviewBox(
+                                      imageUrl: preview.thumbnail,
+                                      isVideo: true,
+                                      platformTag: isTikTok ? 'TikTok' : 'YouTube',
+                                      tagColor: isTikTok ? const Color(0xFF22D3EE) : Colors.redAccent,
                                     ),
                                   Padding(
                                     padding: const EdgeInsets.all(10),
@@ -814,7 +639,8 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                       ],
                                     ),
                                   ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -987,14 +813,12 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                       : img.url;
                                   return GestureDetector(
                                     onTap: () {
-                                      setState(() {
-                                        if (isSelected) {
-                                          _selectedIndices.remove(idx);
-                                        } else {
-                                          _selectedIndices.add(idx);
-                                          _selectedIndices.sort();
-                                        }
-                                      });
+                                      _showImagePreviewDialog(
+                                        context,
+                                        targetImages,
+                                        idx,
+                                        accentColor,
+                                      );
                                     },
                                     child: Container(
                                       width: 68,
@@ -1008,8 +832,12 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                           width: isSelected ? 2 : 1,
                                         ),
                                       ),
-                                      clipBehavior: Clip.antiAlias,
-                                      child: Stack(
+                                      padding: EdgeInsets.all(isSelected ? 2 : 1),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(
+                                          isSelected ? 8 : 9,
+                                        ),
+                                        child: Stack(
                                         fit: StackFit.expand,
                                         children: [
                                           Opacity(
@@ -1029,23 +857,51 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                             ),
                                           ),
                                           Positioned(
-                                            top: 3,
-                                            right: 3,
-                                            child: Container(
-                                              padding: const EdgeInsets.all(2),
-                                              decoration: BoxDecoration(
-                                                color: isSelected
-                                                    ? accentColor
-                                                    : Colors.black
-                                                        .withValues(alpha: 0.6),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: Icon(
-                                                Icons.check,
-                                                size: 10,
-                                                color: isSelected
-                                                    ? Colors.white
-                                                    : Colors.white54,
+                                            top: 0,
+                                            right: 0,
+                                            child: GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onTap: () {
+                                                setState(() {
+                                                  if (isSelected) {
+                                                    _selectedIndices.remove(idx);
+                                                  } else {
+                                                    _selectedIndices.add(idx);
+                                                    _selectedIndices.sort();
+                                                  }
+                                                });
+                                              },
+                                              child: Container(
+                                                width: 30,
+                                                height: 30,
+                                                alignment: Alignment.topRight,
+                                                padding: const EdgeInsets.only(
+                                                  top: 2,
+                                                  right: 2,
+                                                ),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(2),
+                                                  decoration: BoxDecoration(
+                                                    color: isSelected
+                                                        ? accentColor
+                                                        : Colors.black
+                                                            .withValues(alpha: 0.65),
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(
+                                                      color: isSelected
+                                                          ? Colors.white
+                                                          : Colors.white38,
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.check,
+                                                    size: 10,
+                                                    color: isSelected
+                                                        ? Colors.white
+                                                        : Colors.white70,
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -1074,7 +930,8 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                         ],
                                       ),
                                     ),
-                                  );
+                                  ),
+                                );
                                 },
                               ),
                             ),
@@ -1309,6 +1166,549 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
           color: Color(0xFF1877F2),
           fontWeight: FontWeight.bold,
           fontSize: 14,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaPreviewBox({
+    required String imageUrl,
+    required bool isVideo,
+    int totalImages = 0,
+    VoidCallback? onTap,
+    String? platformTag,
+    Color? tagColor,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 220,
+        width: double.infinity,
+        color: Colors.black,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Blurred backdrop for portrait/landscape fitting without awkward empty space
+            if (imageUrl.trim().isNotEmpty)
+              Opacity(
+                opacity: 0.35,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox(),
+                ),
+              ),
+            // Centered media fit vertically/contained (respecting portrait and landscape)
+            if (imageUrl.trim().isNotEmpty)
+              Center(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      color: Colors.white30,
+                      size: 36,
+                    ),
+                  ),
+                ),
+              ),
+            // Top-right Expand / Zoom icon (if clickable for preview)
+            if (onTap != null)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: const Icon(
+                    Icons.fullscreen_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            // Platform tag (e.g. TikTok / YouTube)
+            if (platformTag != null)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  ),
+                  child: Text(
+                    platformTag,
+                    style: TextStyle(
+                      color: tagColor ?? Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            // Bottom status badge
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isVideo ? Icons.videocam_rounded : Icons.photo_library_rounded,
+                      size: 13,
+                      color: isVideo ? const Color(0xFF1877F2) : const Color(0xFF22D3EE),
+                    ),
+                    const SizedBox(width: 4.5),
+                    Text(
+                      isVideo
+                          ? 'Video'
+                          : (totalImages > 1 ? '$totalImages ảnh • Xem trước' : 'Xem trước ảnh'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showImagePreviewDialog(
+    BuildContext context,
+    List<MediaImageItem> targetImages,
+    int initialIndex,
+    Color accentColor,
+  ) {
+    if (targetImages.isEmpty) return;
+
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (dialogContext, anim, secondaryAnim) {
+        return _PhotoPreviewDialog(
+          images: targetImages,
+          initialIndex: initialIndex,
+          accentColor: accentColor,
+          selectedIndices: _selectedIndices,
+          onToggleSelection: (idx) {
+            setState(() {
+              if (_selectedIndices.contains(idx)) {
+                _selectedIndices.remove(idx);
+              } else {
+                _selectedIndices.add(idx);
+                _selectedIndices.sort();
+              }
+            });
+          },
+        );
+      },
+      transitionBuilder: (dialogContext, anim, secondaryAnim, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+class _PhotoPreviewDialog extends StatefulWidget {
+  final List<MediaImageItem> images;
+  final int initialIndex;
+  final Color accentColor;
+  final List<int> selectedIndices;
+  final void Function(int index) onToggleSelection;
+
+  const _PhotoPreviewDialog({
+    required this.images,
+    required this.initialIndex,
+    required this.accentColor,
+    required this.selectedIndices,
+    required this.onToggleSelection,
+  });
+
+  @override
+  State<_PhotoPreviewDialog> createState() => _PhotoPreviewDialogState();
+}
+
+class _PhotoPreviewDialogState extends State<_PhotoPreviewDialog>
+    with SingleTickerProviderStateMixin {
+  late final PageController _pageController;
+  late int _currentIndex;
+  double _dragOffsetY = 0.0;
+  AnimationController? _resetAnimController;
+  Animation<double>? _resetAnim;
+  final Map<int, TransformationController> _transformControllers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  TransformationController _getController(int index) {
+    return _transformControllers.putIfAbsent(index, () {
+      final c = TransformationController();
+      c.addListener(() {
+        if (mounted) setState(() {});
+      });
+      return c;
+    });
+  }
+
+  bool get _isCurrentZoomed {
+    final c = _transformControllers[_currentIndex];
+    if (c == null) return false;
+    return c.value.getMaxScaleOnAxis() > 1.05;
+  }
+
+  void _animateReset() {
+    final startY = _dragOffsetY;
+    _resetAnimController?.dispose();
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _resetAnimController = controller;
+    _resetAnim = Tween<double>(begin: startY, end: 0.0).animate(
+      CurvedAnimation(parent: controller, curve: Curves.easeOutCubic),
+    )..addListener(() {
+        setState(() {
+          _dragOffsetY = _resetAnim!.value;
+        });
+      });
+    controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _resetAnimController?.dispose();
+    for (final c in _transformControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = widget.selectedIndices.contains(_currentIndex);
+    final dragFraction = (_dragOffsetY.abs() / 320.0).clamp(0.0, 1.0);
+    final bgOpacity = (1.0 - dragFraction * 0.75).clamp(0.0, 1.0);
+    final scaleFactor = (1.0 - dragFraction * 0.15).clamp(0.85, 1.0);
+    final uiOpacity = (1.0 - dragFraction * 2.5).clamp(0.0, 1.0);
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onVerticalDragStart: _isCurrentZoomed
+            ? null
+            : (_) {
+                _resetAnimController?.stop();
+              },
+        onVerticalDragUpdate: _isCurrentZoomed
+            ? null
+            : (details) {
+                setState(() {
+                  _dragOffsetY += details.delta.dy;
+                });
+              },
+        onVerticalDragEnd: _isCurrentZoomed
+            ? null
+            : (details) {
+                final velocity = details.primaryVelocity ?? 0;
+                if (_dragOffsetY.abs() > 80 || velocity.abs() > 500) {
+                  Navigator.of(context).pop();
+                } else {
+                  _animateReset();
+                }
+              },
+        child: Container(
+          color: Colors.black.withValues(alpha: bgOpacity),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Photo PageView
+              Transform.translate(
+                offset: Offset(0, _dragOffsetY),
+                child: Transform.scale(
+                  scale: scaleFactor,
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: widget.images.length,
+                    physics: _isCurrentZoomed
+                        ? const NeverScrollableScrollPhysics()
+                        : const BouncingScrollPhysics(),
+                    onPageChanged: (idx) {
+                      setState(() {
+                        _currentIndex = idx;
+                      });
+                    },
+                    itemBuilder: (context, idx) {
+                      final img = widget.images[idx];
+                      final url = img.url.isNotEmpty ? img.url : img.thumbnail;
+                      return Center(
+                        child: InteractiveViewer(
+                          transformationController: _getController(idx),
+                          panEnabled: true,
+                          minScale: 1.0,
+                          maxScale: 4.0,
+                          clipBehavior: Clip.none,
+                          child: Image.network(
+                            url,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(
+                                Icons.broken_image_rounded,
+                                color: Colors.white30,
+                                size: 48,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+              // Left / Right touch navigation zones (if > 1 image and not zoomed)
+              if (widget.images.length > 1 && !_isCurrentZoomed) ...[
+                Positioned(
+                  left: 0,
+                  top: 100,
+                  bottom: 100,
+                  width: MediaQuery.of(context).size.width * 0.15,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: _currentIndex > 0
+                        ? () {
+                            _pageController.previousPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        : null,
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: 100,
+                  bottom: 100,
+                  width: MediaQuery.of(context).size.width * 0.15,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: _currentIndex < widget.images.length - 1
+                        ? () {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        : null,
+                  ),
+                ),
+              ],
+
+              // Pinned Top Header Toolbar
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Opacity(
+                  opacity: uiOpacity,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.65),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  '${_currentIndex + 1} / ${widget.images.length}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              GestureDetector(
+                                onTap: () {
+                                  widget.onToggleSelection(_currentIndex);
+                                  setState(() {});
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? widget.accentColor
+                                        : Colors.white.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? widget.accentColor
+                                          : Colors.white24,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.check,
+                                        size: 14,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.white70,
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        isSelected ? 'Đã chọn tải' : 'Chọn ảnh này',
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.white70,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.of(context).pop(),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.18),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Pinned Bottom Dots Indicator
+              if (widget.images.length > 1)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Opacity(
+                    opacity: uiOpacity,
+                    child: SafeArea(
+                      top: false,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.65),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            widget.images.length > 10 ? 10 : widget.images.length,
+                            (i) {
+                              final active = i == _currentIndex ||
+                                  (widget.images.length > 10 &&
+                                      i == 9 &&
+                                      _currentIndex >= 9);
+                              return Container(
+                                width: active ? 16 : 6,
+                                height: 6,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: active
+                                      ? widget.accentColor
+                                      : Colors.white24,
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
