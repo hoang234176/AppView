@@ -55,6 +55,22 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
   - Never pass direct filesystem cookie file paths to third-party engines like `yt-dlp` (e.g. `ydl_opts["cookiefile"] = file_path`), as `yt-dlp` will overwrite the persistent cookie file and strip credentials. Use in-memory cookie jars instead.
 - **Rationale**: Sending authenticated cookies unconditionally to public endpoints triggers anti-bot checkpoints, rate limits, account flagging, and can alter SSR responses. Direct filesystem access violates the core architecture boundary where Go Storage exclusively owns all filesystem/media operations.
 
+## Social Media Photo Download Naming Invariant
+
+- **Universal Filename Format for Photos**:
+  All social media platforms (Facebook, TikTok, Instagram, and any future platform expansion; YouTube is excluded as it only downloads video) MUST format photo filenames according to:
+  ```text
+  [<Tên mxh>]_<Tên ảnh>_<số thứ tự ảnh>.<đuôi file ảnh>
+  ```
+- **Example**: `[Facebook]_Ảnh demo_01.jpeg`, `[TikTok]_Vũ điệu hot_02.jpeg`, `[Instagram]_Du lịch hè_01.jpeg`
+- **Components**:
+  - `[<Tên mxh>]`: Platform tag in square brackets (`[Facebook]`, `[TikTok]`, `[Instagram]`, etc.).
+  - `_`: Underscore delimiter between tag and title, and between title and index.
+  - `<Tên ảnh>`: Post title or photo description sanitized (removing invalid filesystem characters `\/:\*?"<>|\x00-\x1f` and redundant platform prefixes like `facebook_`, `tiktok_`, `instagram_`). Truncated to 40 characters. Fallback to `post_<id>` if title is empty.
+  - `<số thứ tự ảnh>`: 2-digit zero-padded index (`01`, `02`, `03`...), starting at `01` even for single-photo downloads.
+  - `.<đuôi file ảnh>`: `.jpeg` extension standardized for photos across platforms.
+- **Contract helper**: Use `format_photo_download_filename` in `archive.contracts` to construct filenames consistently across all resolvers.
+
 ## Configuration
 
 - `COORDINATOR_WS_URL` defaults to `ws://localhost:8090/ws/workers`.

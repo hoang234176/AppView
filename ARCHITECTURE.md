@@ -263,6 +263,7 @@ Do not place secret values here.
 - **Python Download coordinator action:** `resolve_download` accepts payload `{ "url": "https://..." }` and returns resolved URL, filename, and extension in the opaque Coordinator result.
 - **Storage coordinator action:** `download_file` accepts a direct URL payload with `url`, `filename`, relative `destination`, and optional `password`, `audioUrl`, `headers`, and `source`. For archives, it delegates to `pythonapi.StartArchiveJob`. For platform media (e.g. `source: "youtube"`), it routes to `media_download/youtube`. It sends snapshot-derived progress, and returns only job/filename/conversion metadata.
 - **Coordinator DownloadJob:** created by `POST /api/v1/download`; owns `resolveTaskId`, `storageTaskId`, current state/progress/result/error and a private password. The resolver result fields used for transition are exactly `downloadUrl` and `filename`.
+- **Social Media Photo Download Naming:** All photo downloads across social media platforms (Facebook, TikTok, Instagram, and future expansions; YouTube excluded as video-only) must follow the unified filename convention: `[<Tên mxh>]_<Tên ảnh>_<số thứ tự ảnh>.<đuôi file ảnh>` (e.g. `[Facebook]_Ảnh demo_01.jpeg`). Single photos use index `01`. Resolvers construct this via `format_photo_download_filename` in `backend/download/archive/contracts.py`, and Storage workers commit items using their assigned filenames directly to destination.
 - **Storage folder/media response:** produced by Storage controllers; consumed by Web/Mobile folder APIs and models.
 
 ## Change Map

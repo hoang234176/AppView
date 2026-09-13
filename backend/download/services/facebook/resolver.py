@@ -9,7 +9,11 @@ import re
 from typing import Any, Optional
 import urllib.parse
 
-from archive.contracts import DownloadResolver, ResolvedDownload
+from archive.contracts import (
+    DownloadResolver,
+    ResolvedDownload,
+    format_photo_download_filename,
+)
 from logger import log_error, log_info
 from services.facebook.errors import FacebookNotFoundError, FacebookUnsupportedPostError
 from services.facebook.extractor import FacebookExtractor, clean_facebook_url
@@ -59,7 +63,8 @@ class FacebookResolver(DownloadResolver):
         selected_indices: Optional[list[int]] = None,
     ) -> ResolvedDownload:
         """Resolve Facebook photos to normalized download contract (Tách riêng cho Ảnh)."""
-        title = sanitize_filename(info.get("title") or f"facebook_{info.get('id', 'post')}")
+        raw_title = info.get("title") or ""
+        post_id = str(info.get("id") or "post")
         photos = info.get("photos") or []
         photo_urls = [p["url"] for p in photos if p.get("url")]
 
@@ -81,7 +86,7 @@ class FacebookResolver(DownloadResolver):
 
         items: list[dict[str, Any]] = []
         for idx, img_url in enumerate(photo_urls):
-            filename = f"{idx + 1:02d}_{title[:30].strip()}.jpeg"
+            filename = format_photo_download_filename("Facebook", raw_title, post_id, idx + 1, ".jpeg")
             items.append({
                 "url": img_url,
                 "filename": filename,
@@ -97,10 +102,14 @@ class FacebookResolver(DownloadResolver):
         if cookie_header:
             image_headers["Cookie"] = cookie_header
 
+        single_filename = items[0]["filename"]
+        clean_base = items[0]["filename"].rsplit("_", 1)[0]
+        bundle_filename = f"{clean_base}.zip"
+
         return ResolvedDownload(
             original_url=clean_url,
             download_url=primary_url,
-            filename=f"{title}.jpeg" if len(items) == 1 else f"{title}.zip",
+            filename=single_filename if len(items) == 1 else bundle_filename,
             extension=".jpeg" if len(items) == 1 else ".zip",
             audio_url=None,
             headers=image_headers,

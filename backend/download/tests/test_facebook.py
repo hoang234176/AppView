@@ -262,9 +262,10 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         res = resolver.resolve_images("https://www.facebook.com/photo/?fbid=67890", mock_info)
         self.assertEqual(res.source, "facebook")
         self.assertEqual(res.extension, ".jpeg")
-        self.assertTrue(res.filename.endswith(".jpeg"))
+        self.assertEqual(res.filename, "[Facebook]_Single Photo Post_01.jpeg")
         self.assertEqual(len(res.items), 1)
         self.assertEqual(res.items[0]["url"], "https://fbcdn.net/single.jpg")
+        self.assertEqual(res.items[0]["filename"], "[Facebook]_Single Photo Post_01.jpeg")
 
     def test_resolver_resolve_album_photos(self):
         resolver = FacebookResolver()
@@ -280,9 +281,12 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         res = resolver.resolve_images("https://www.facebook.com/album/123", mock_info, selected_indices=[0, 2])
         self.assertEqual(res.source, "facebook")
         self.assertEqual(res.extension, ".zip")
+        self.assertEqual(res.filename, "[Facebook]_Album Post.zip")
         self.assertEqual(len(res.items), 2)
         self.assertEqual(res.items[0]["url"], "https://fbcdn.net/img1.jpg")
+        self.assertEqual(res.items[0]["filename"], "[Facebook]_Album Post_01.jpeg")
         self.assertEqual(res.items[1]["url"], "https://fbcdn.net/img3.jpg")
+        self.assertEqual(res.items[1]["filename"], "[Facebook]_Album Post_02.jpeg")
 
 
 if __name__ == "__main__":

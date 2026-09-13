@@ -6,7 +6,11 @@ import re
 from typing import Any, Optional
 import urllib.parse
 
-from archive.contracts import DownloadResolver, ResolvedDownload
+from archive.contracts import (
+    DownloadResolver,
+    ResolvedDownload,
+    format_photo_download_filename,
+)
 from services.tiktok.extractor import TikTokExtractor
 from services.youtube.errors import NoDownloadableMediaError, UnsupportedSourceError
 
@@ -105,7 +109,8 @@ class TikTokResolver(DownloadResolver):
         selected_indices: Optional[list[int]] = None,
     ) -> ResolvedDownload:
         """Resolve photos/slideshow to normalized AppView download contracts (Tách riêng cho Ảnh)."""
-        title = sanitize_filename(info.get("title") or f"tiktok_{info.get('id', 'post')}")
+        raw_title = info.get("title") or ""
+        post_id = str(info.get("id") or "post")
         slideshow_images = info.get("slideshow_images") or []
         if not slideshow_images:
             slideshow_images = [
@@ -129,7 +134,7 @@ class TikTokResolver(DownloadResolver):
 
         items: list[dict[str, Any]] = []
         for idx, img_url in enumerate(slideshow_images):
-            filename = f"{idx + 1:02d}_{title[:30].strip()}.jpeg"
+            filename = format_photo_download_filename("TikTok", raw_title, post_id, idx + 1, ".jpeg")
             items.append({
                 "url": img_url,
                 "filename": filename,
@@ -145,10 +150,14 @@ class TikTokResolver(DownloadResolver):
         if cookie_header:
             image_headers["Cookie"] = cookie_header
 
+        single_filename = items[0]["filename"]
+        clean_base = items[0]["filename"].rsplit("_", 1)[0]
+        bundle_filename = f"{clean_base}.zip"
+
         return ResolvedDownload(
             original_url=clean_url,
             download_url=primary_url,
-            filename=title,
+            filename=single_filename if len(items) == 1 else bundle_filename,
             extension=".jpeg" if len(items) == 1 else ".zip",
             audio_url=None,
             headers=image_headers,

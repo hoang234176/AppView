@@ -10,7 +10,11 @@ import re
 from typing import Any, Optional
 import urllib.parse
 
-from archive.contracts import DownloadResolver, ResolvedDownload
+from archive.contracts import (
+    DownloadResolver,
+    ResolvedDownload,
+    format_photo_download_filename,
+)
 from logger import log_error, log_info
 from services.instagram.errors import InstagramNotFoundError, InstagramUnsupportedPostError
 from services.instagram.extractor import InstagramExtractor
@@ -74,7 +78,8 @@ class InstagramResolver(DownloadResolver):
         selected_indices: Optional[list[int]] = None,
     ) -> ResolvedDownload:
         """Resolve Instagram photos to normalized download contract."""
-        title = sanitize_filename(info.get("title") or f"instagram_{info.get('id', 'post')}")
+        raw_title = info.get("title") or ""
+        post_id = str(info.get("id") or "post")
         photos = info.get("photos") or []
         photo_urls = [p["url"] for p in photos if p.get("url")]
 
@@ -94,7 +99,7 @@ class InstagramResolver(DownloadResolver):
 
         items: list[dict[str, Any]] = []
         for idx, img_url in enumerate(photo_urls):
-            filename = f"{idx + 1:02d}_{title[:30].strip()}.jpg"
+            filename = format_photo_download_filename("Instagram", raw_title, post_id, idx + 1, ".jpeg")
             items.append({
                 "url": img_url,
                 "filename": filename,
@@ -104,11 +109,15 @@ class InstagramResolver(DownloadResolver):
         primary_url = items[0]["url"]
         headers = self._get_headers()
 
+        single_filename = items[0]["filename"]
+        clean_base = items[0]["filename"].rsplit("_", 1)[0]
+        bundle_filename = f"{clean_base}.zip"
+
         return ResolvedDownload(
             original_url=clean_url,
             download_url=primary_url,
-            filename=f"{title}.jpg" if len(items) == 1 else f"{title}.zip",
-            extension=".jpg" if len(items) == 1 else ".zip",
+            filename=single_filename if len(items) == 1 else bundle_filename,
+            extension=".jpeg" if len(items) == 1 else ".zip",
             audio_url=None,
             headers=headers,
             source="instagram",
@@ -193,15 +202,23 @@ class InstagramResolver(DownloadResolver):
             if filtered:
                 valid_items = filtered
 
+        raw_title = info.get("title") or ""
+        post_id = str(info.get("id") or "mixed")
+
         # If after selection only 1 item remains
         if len(valid_items) == 1:
             single = valid_items[0]
             is_vid = single.get("type") == "video"
-            ext = ".mp4" if is_vid else ".jpg"
+            if is_vid:
+                ext = ".mp4"
+                single_fname = f"{title}.mp4"
+            else:
+                ext = ".jpeg"
+                single_fname = format_photo_download_filename("Instagram", raw_title, post_id, 1, ".jpeg")
             return ResolvedDownload(
                 original_url=clean_url,
                 download_url=single["url"],
-                filename=f"{title}{ext}",
+                filename=single_fname,
                 extension=ext,
                 audio_url=None,
                 headers=self._get_headers(),
@@ -211,8 +228,10 @@ class InstagramResolver(DownloadResolver):
         items: list[dict[str, Any]] = []
         for idx, it in enumerate(valid_items):
             is_vid = it.get("type") == "video"
-            ext = ".mp4" if is_vid else ".jpg"
-            filename = f"{idx + 1:02d}_{title[:30].strip()}{ext}"
+            if is_vid:
+                filename = f"{idx + 1:02d}_{title[:30].strip()}.mp4"
+            else:
+                filename = format_photo_download_filename("Instagram", raw_title, post_id, idx + 1, ".jpeg")
             items.append({
                 "url": it["url"],
                 "filename": filename,

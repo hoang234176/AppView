@@ -417,8 +417,8 @@ async def test_resolver_single_video_and_multiple_photos_and_mixed():
     resolved_photos = resolver.resolve_images("https://instagram.com/p/post123/", photos_info)
     assert resolved_photos.extension == ".zip"
     assert len(resolved_photos.items) == 2
-    assert resolved_photos.items[0]["filename"] == "01_My Album.jpg"
-    assert resolved_photos.items[1]["filename"] == "02_My Album.jpg"
+    assert resolved_photos.items[0]["filename"] == "[Instagram]_My Album_01.jpeg"
+    assert resolved_photos.items[1]["filename"] == "[Instagram]_My Album_02.jpeg"
 
     # 3. Mixed media post
     mixed_info = {
@@ -437,6 +437,6 @@ async def test_resolver_single_video_and_multiple_photos_and_mixed():
     assert resolved_mixed.extension == ".zip"
     assert len(resolved_mixed.items) == 2
     assert resolved_mixed.items[0]["type"] == "image"
-    assert resolved_mixed.items[0]["filename"] == "01_Mixed Carousel.jpg"
+    assert resolved_mixed.items[0]["filename"] == "[Instagram]_Mixed Carousel_01.jpeg"
     assert resolved_mixed.items[1]["type"] == "video"
     assert resolved_mixed.items[1]["filename"] == "02_Mixed Carousel.mp4"
