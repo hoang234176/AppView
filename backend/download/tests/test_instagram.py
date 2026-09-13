@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from services.instagram.auth import (
-    get_instagram_cookie_path,
+    load_instagram_cookies,
     parse_cookies_to_dict,
     parse_cookies_to_header,
 )
@@ -198,7 +198,7 @@ async def test_guest_first_flow_403_triggers_cookie_load():
         }
 
     with patch.object(extractor, "_fetch_via_direct_apis", side_effect=mock_fetch):
-        with patch("services.instagram.extractor.read_instagram_cookies_from_file", return_value="sessionid=abc123"):
+        with patch("services.instagram.extractor.load_instagram_cookies", return_value="sessionid=abc123"):
             result = await extractor.inspect("https://www.instagram.com/p/TestShortcode/")
             assert call_count == 2
             assert result["uploader"] == "private_user"
@@ -212,14 +212,14 @@ async def test_guest_first_flow_403_triggers_cookie_load():
 
 @pytest.mark.anyio
 async def test_guest_first_flow_403_without_cookie_file_raises():
-    """Verify that if Step 1 gets 403 and no cookie file exists, InstagramAuthRequiredError is raised."""
+    """Verify that if Step 1 gets 403 and no cookie exists in storage, InstagramAuthRequiredError is raised."""
     extractor = InstagramExtractor()
 
     def mock_fetch(shortcode, cookie_header=""):
         raise InstagramAuthRequiredError("HTTP 403 Forbidden")
 
     with patch.object(extractor, "_fetch_via_direct_apis", side_effect=mock_fetch):
-        with patch("services.instagram.extractor.read_instagram_cookies_from_file", return_value=None):
+        with patch("services.instagram.extractor.load_instagram_cookies", return_value=None):
             with pytest.raises(InstagramAuthRequiredError) as exc_info:
                 await extractor.inspect("https://www.instagram.com/p/TestShortcode/")
             assert "403" in str(exc_info.value) or "cookie" in str(exc_info.value)
@@ -252,14 +252,10 @@ def test_avatar_extraction_multiple_sources():
     assert res2["author"]["avatar"] == "https://cdninstagram.com/ytdlp_avatar.jpg"
 
 
-def test_update_instagram_session_cookies_from_headers(tmp_path):
-    from services.instagram.auth import update_instagram_session_cookies_from_headers, read_instagram_cookies_from_file
+def test_update_instagram_session_cookies_from_headers():
+    from services.instagram.auth import update_instagram_session_cookies_from_headers
 
-    fake_cookie_file = tmp_path / "cookies" / "instagram.txt"
-    fake_cookie_file.parent.mkdir(parents=True, exist_ok=True)
-    fake_cookie_file.write_text(".instagram.com\tTRUE\t/\tTRUE\t2147483647\tsessionid\tinitial_session\n", encoding="utf-8")
-
-    with patch("services.instagram.auth.get_instagram_cookie_path", return_value=fake_cookie_file):
+    with patch("services.instagram.auth.save_instagram_cookies_via_storage") as mock_save:
         headers = [
             "mid=new_mid_value_123; Domain=.instagram.com; Path=/",
             "rur=\"PRN\\054999\"; Domain=.instagram.com; Path=/",
@@ -267,11 +263,10 @@ def test_update_instagram_session_cookies_from_headers(tmp_path):
         ]
         updated = update_instagram_session_cookies_from_headers(headers)
         assert updated is True
-
-        content = fake_cookie_file.read_text(encoding="utf-8")
-        assert "initial_session" in content
-        assert "new_mid_value_123" in content
-        assert "PRN" in content
+        assert mock_save.called
+        saved_content = mock_save.call_args[0][0]
+        assert "new_mid_value_123" in saved_content
+        assert "PRN" in saved_content
 
 
 @pytest.mark.anyio

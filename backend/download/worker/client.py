@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 from contextlib import suppress
 from typing import Any, Optional
@@ -50,6 +51,7 @@ class CoordinatorWorkerClient:
         self._reconnect_max_delay = reconnect_max_delay
         self._stop_event = asyncio.Event()
         self._run_task: Optional[asyncio.Task[None]] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._websocket: Any = None
         self._send_lock = asyncio.Lock()
         self._assignment_tasks: set[asyncio.Task[None]] = set()
@@ -59,6 +61,7 @@ class CoordinatorWorkerClient:
     def start(self) -> None:
         """Start in the background; coordinator failure cannot stop HTTP API."""
         if self._run_task is None or self._run_task.done():
+            self._loop = asyncio.get_running_loop()
             self._stop_event.clear()
             self._run_task = asyncio.create_task(self._run(), name="coordinator-download-worker")
             log_event("INFO", "coordinator worker starting", "COORDINATOR WORKER", workerId=self._worker_id)
@@ -246,39 +249,115 @@ class CoordinatorWorkerClient:
         with suppress(Exception):
             await self.send(message(COOKIE_VERIFY, taskId=task_id, result={"valid": valid, "message": message_str}))
 
-    async def get_cookies(self, platform: str = "youtube", timeout: float = 5.0) -> Optional[str]:
-        if self._websocket is None:
-            return None
-        task_id = f"cookie-get-{uuid.uuid4().hex[:12]}"
+    @staticmethod
+    def _get_coordinator_http_base() -> str:
+        base = os.environ.get("COORDINATOR_URL", "http://127.0.0.1:8090")
+        if base.startswith("ws://"):
+            base = "http://" + base[5:].split("/")[0]
+        elif base.startswith("wss://"):
+            base = "https://" + base[6:].split("/")[0]
+        if not base.startswith("http"):
+            base = f"http://{base}"
+        return base.rstrip("/")
+
+    async def _get_cookies_via_http(self, platform: str) -> Optional[str]:
         loop = asyncio.get_running_loop()
-        future: asyncio.Future[dict[str, Any]] = loop.create_future()
-        self._pending_rpc[task_id] = future
+        return await loop.run_in_executor(None, self._get_cookies_via_http_sync, platform)
+
+    def _get_cookies_via_http_sync(self, platform: str) -> Optional[str]:
+        import ssl
+        import urllib.parse
+        import urllib.request
+        base = self._get_coordinator_http_base()
+        query = urllib.parse.urlencode({"platform": platform})
+        url = f"{base}/api/v1/cookies/content?{query}"
+        ctx = ssl._create_unverified_context()
         try:
-            await self.send(message(COOKIE_GET, taskId=task_id, payload={"platform": platform}))
-            result = await asyncio.wait_for(future, timeout=timeout)
-            if result.get("exists") and isinstance(result.get("cookies"), str):
-                return result.get("cookies")
-            return None
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, context=ctx, timeout=4.0) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if data.get("exists") and isinstance(data.get("cookies"), str):
+                        return data.get("cookies")
         except Exception:
-            return None
-        finally:
-            self._pending_rpc.pop(task_id, None)
+            pass
+        return None
+
+    async def _save_cookies_via_http(self, platform: str, cookies: str) -> bool:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._save_cookies_via_http_sync, platform, cookies)
+
+    def _save_cookies_via_http_sync(self, platform: str, cookies: str) -> bool:
+        import ssl
+        import urllib.request
+        base = self._get_coordinator_http_base()
+        url = f"{base}/api/v1/cookies/save"
+        payload = json.dumps({"platform": platform, "cookies": cookies}).encode("utf-8")
+        ctx = ssl._create_unverified_context()
+        try:
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, context=ctx, timeout=4.0) as resp:
+                return resp.status == 200
+        except Exception:
+            return False
+
+    def dispatch_save_cookies(self, platform: str, cookies: str) -> None:
+        """Schedule cookie save asynchronously via WebSocket or fall back to HTTP."""
+        if not cookies or not cookies.strip():
+            return
+        if self._loop is not None and self._loop.is_running():
+            try:
+                asyncio.run_coroutine_threadsafe(self.save_cookies(platform, cookies), self._loop)
+                return
+            except Exception:
+                pass
+        try:
+            cur_loop = asyncio.get_running_loop()
+            cur_loop.create_task(self.save_cookies(platform, cookies))
+            return
+        except RuntimeError:
+            pass
+        self._save_cookies_via_http_sync(platform, cookies)
+
+    async def get_cookies(self, platform: str = "youtube", timeout: float = 5.0) -> Optional[str]:
+        if self._websocket is not None:
+            task_id = f"cookie-get-{uuid.uuid4().hex[:12]}"
+            loop = asyncio.get_running_loop()
+            future: asyncio.Future[dict[str, Any]] = loop.create_future()
+            self._pending_rpc[task_id] = future
+            try:
+                await self.send(message(COOKIE_GET, taskId=task_id, payload={"platform": platform}))
+                result = await asyncio.wait_for(future, timeout=timeout)
+                if result.get("exists") and isinstance(result.get("cookies"), str):
+                    return result.get("cookies")
+                return None
+            except Exception:
+                pass
+            finally:
+                self._pending_rpc.pop(task_id, None)
+
+        return await self._get_cookies_via_http(platform)
 
     async def save_cookies(self, platform: str, cookies: str, timeout: float = 5.0) -> bool:
-        if self._websocket is None:
-            return False
-        task_id = f"cookie-save-{uuid.uuid4().hex[:12]}"
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future[dict[str, Any]] = loop.create_future()
-        self._pending_rpc[task_id] = future
-        try:
-            await self.send(message(COOKIE_SAVE, taskId=task_id, payload={"platform": platform, "cookies": cookies}))
-            result = await asyncio.wait_for(future, timeout=timeout)
-            return bool(result.get("success", True))
-        except Exception:
-            return False
-        finally:
-            self._pending_rpc.pop(task_id, None)
+        if self._websocket is not None:
+            task_id = f"cookie-save-{uuid.uuid4().hex[:12]}"
+            loop = asyncio.get_running_loop()
+            future: asyncio.Future[dict[str, Any]] = loop.create_future()
+            self._pending_rpc[task_id] = future
+            try:
+                await self.send(message(COOKIE_SAVE, taskId=task_id, payload={"platform": platform, "cookies": cookies}))
+                result = await asyncio.wait_for(future, timeout=timeout)
+                return bool(result.get("success", True))
+            except Exception:
+                pass
+            finally:
+                self._pending_rpc.pop(task_id, None)
+
+        return await self._save_cookies_via_http(platform, cookies)
 
     @staticmethod
     def _decode(raw: str | bytes) -> dict[str, Any]:

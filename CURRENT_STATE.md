@@ -39,6 +39,7 @@ Improve backend observability and verify the end-to-end Coordinator download pat
 - Thumbnail investigation confirmed that folder listing does not generate thumbnails and original picture/video endpoints do not wait for thumbnail cache generation. Focused regression tests cover uncached originals and listing behavior.
 - Web `App.jsx` and Mobile `AppStateProvider` now each own one reconnecting Coordinator `/ws/events` connection. Filesystem events are treated as invalidations and coalesced into canonical tree/current-folder refetches; reconnect performs the same refetch because events are non-durable.
 - Image viewers now retain the canonical picture snapshot supplied at open time, so unrelated folder refreshes or thumbnail presentation work cannot replace/block an already-open viewer.
+- Cookie storage boundary enforcement across TikTok, Instagram, Facebook, and YouTube: Download worker no longer reads or writes cookie files directly on the filesystem (`~/.tmp-appview/cookies/`). All cookie retrieval and persistence flow through Coordinator RPC (`cookie.get` / `cookie.save`), delegated to Go Storage worker. Storage worker merges incoming cookies with existing Netscape files on disk, preserving untouched attributes (`sessionid`, `ds_user_id`, `datr`, etc.). `yt-dlp` in Download worker runs strictly in-memory (`ydl.cookiejar = jar`) without file paths, preventing disk overwrite. Instagram cookie verification prioritizes Web Shared Data API and handles mobile endpoint incompatibilities.
 
 ## In progress
 

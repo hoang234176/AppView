@@ -1,10 +1,9 @@
 """Instagram service package."""
 
 from services.instagram.auth import (
-    get_instagram_cookie_path,
+    load_instagram_cookies,
     parse_cookies_to_dict,
     parse_cookies_to_header,
-    read_instagram_cookies_from_file,
     verify_instagram_cookies,
 )
 from services.instagram.errors import (
@@ -23,9 +22,8 @@ __all__ = [
     "InstagramNotFoundError",
     "InstagramResolver",
     "InstagramUnsupportedPostError",
-    "get_instagram_cookie_path",
+    "load_instagram_cookies",
     "parse_cookies_to_dict",
     "parse_cookies_to_header",
-    "read_instagram_cookies_from_file",
     "verify_instagram_cookies",
 ]

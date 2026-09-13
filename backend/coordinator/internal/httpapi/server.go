@@ -26,6 +26,7 @@ func Register(mux *http.ServeMux, coordinator *service.Coordinator) {
 	mux.HandleFunc("GET /api/v1/download/proxy-image", downloads.ProxyImage)
 	cookies := NewCookieHandler(coordinator)
 	mux.HandleFunc("GET /api/v1/cookies/status", cookies.Status)
+	mux.HandleFunc("GET /api/v1/cookies/content", cookies.Content)
 	mux.HandleFunc("POST /api/v1/cookies/verify", cookies.Verify)
 	mux.HandleFunc("POST /api/v1/cookies/save", cookies.Save)
 	mux.HandleFunc("GET /health", Health(coordinator))

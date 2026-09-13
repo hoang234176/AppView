@@ -64,8 +64,8 @@ class TestSocialCookies(unittest.IsolatedAsyncioTestCase):
 
     async def test_worker_client_get_cookies_and_verify(self):
         client = CoordinatorWorkerClient()
-        # When not connected, returns None
-        self.assertIsNone(await client.get_cookies("youtube"))
+        # When platform does not exist, returns None
+        self.assertIsNone(await client.get_cookies("non_existent_platform_xyz"))
 
         # Test _handle_cookie_verify
         sent = []
@@ -80,3 +80,24 @@ class TestSocialCookies(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sent[0]["type"], COOKIE_VERIFY)
             self.assertEqual(sent[0]["taskId"], "req-verify-1")
             self.assertTrue(sent[0]["result"]["valid"])
+
+    async def test_load_cookies_across_platforms_delegates_to_coordinator(self):
+        from services.instagram.auth import load_instagram_cookies
+        from services.facebook.auth import load_facebook_cookies
+        from services.tiktok.auth import load_tiktok_cookies
+
+        with patch("worker.client.coordinator_worker_client.get_cookies", new=AsyncMock(return_value="# sample cookies")) as mock_get:
+            # Instagram
+            ig_cookies = await load_instagram_cookies()
+            self.assertEqual(ig_cookies, "# sample cookies")
+            mock_get.assert_called_with("instagram")
+
+            # Facebook
+            fb_cookies = await load_facebook_cookies()
+            self.assertEqual(fb_cookies, "# sample cookies")
+            mock_get.assert_called_with("facebook")
+
+            # TikTok
+            tt_cookies = await load_tiktok_cookies()
+            self.assertEqual(tt_cookies, "# sample cookies")
+            mock_get.assert_called_with("tiktok")

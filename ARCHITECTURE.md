@@ -126,8 +126,8 @@ Important files:
 - `models/download_task.py`: Download task and stage contract.
 - `worker/client.py`, `worker/handler.py`, `worker/protocol.py`: outbound Coordinator WebSocket lifecycle, `resolve_download` task adaptation, and protocol helpers. The handler reuses `archive_service.resolver` and does not start archive jobs.
 - `config.py`: service-local `.env` loader (OS values win), `GO_STORAGE_BASE_URL`, `PYTHON_DOWNLOAD_PORT`, `PYTHON_DOWNLOAD_HOST`, `COORDINATOR_WS_URL`, `COORDINATOR_WORKER_ID`. Render's `PORT` is used when `PYTHON_DOWNLOAD_PORT` is absent.
-- `logger.py`: JSON-line structured logger controlled by `LOG_LEVEL` (default `INFO`); HTTP query strings and worker payload secrets are not logged.
-- `services/{youtube,facebook,tiktok}`: Social media resolvers follow a strict **Guest-First (Anonymous-First)** invariant: requests are performed without cookies first, falling back to loading and attaching credentials only when authentication or age verification is explicitly challenged by the provider.
+- `services/{youtube,facebook,tiktok,instagram}`: Social media resolvers follow a strict **Guest-First (Anonymous-First)** invariant: requests are performed without cookies first, falling back to loading credentials only when authentication or age verification is explicitly challenged by the provider.
+- **Cookie Storage Boundary**: Go Storage worker exclusively owns persistent cookie files on disk (`~/.tmp-appview/cookies/<platform>.txt`). Python Download worker MUST NOT read or write cookie files directly on the filesystem; it retrieves and updates cookies in-memory via Coordinator RPC (`cookie.get` / `cookie.save`).
 
 ### `backend/coordinator`
 

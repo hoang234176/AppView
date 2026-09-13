@@ -22,46 +22,8 @@ from services.youtube.errors import (
 )
 
 
-def get_tiktok_cookie_path() -> Path:
-    """Return the filesystem path for TikTok cookies in ~/.tmp-appview/cookies/tiktok.txt."""
-    state_dir = os.environ.get("APPVIEW_STATE_DIR")
-    if state_dir and state_dir.strip():
-        base = Path(state_dir.strip())
-    else:
-        base = Path.home() / ".tmp-appview"
-    return base / "cookies" / "tiktok.txt"
-
-
-def read_tiktok_cookies_from_file() -> Optional[str]:
-    """Read TikTok cookies from the persistent local text file if it exists."""
-    try:
-        path = get_tiktok_cookie_path()
-        if path.is_file():
-            content = path.read_text(encoding="utf-8").strip()
-            if content:
-                return content
-    except Exception:
-        pass
-    return None
-
-
-def save_tiktok_cookies_to_file(content: str) -> None:
-    """Save TikTok cookies to ~/.tmp-appview/cookies/tiktok.txt with 0600 permissions."""
-    path = get_tiktok_cookie_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        path.parent.chmod(0o700)
-    except Exception:
-        pass
-    path.write_text(content, encoding="utf-8")
-    try:
-        path.chmod(0o600)
-    except Exception:
-        pass
-
-
 def update_tiktok_session_cookies(session_cookies: dict[str, str]) -> None:
-    """Update or merge newly discovered or refreshed session cookies into the persistent cookie file."""
+    """Update or merge newly discovered or refreshed session cookies via Coordinator into Go Storage."""
     if not session_cookies:
         return
 
@@ -76,53 +38,25 @@ def update_tiktok_session_cookies(session_cookies: dict[str, str]) -> None:
     if not valid_updates:
         return
 
-    current_content = read_tiktok_cookies_from_file() or ""
-    lines = current_content.splitlines() if current_content.strip() else ["# Netscape HTTP Cookie File"]
-    updated_lines: list[str] = []
-    seen_names: set[str] = set()
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            updated_lines.append(line)
-            continue
-        parts = line.split("\t")
-        if len(parts) >= 7:
-            name = parts[5].strip()
-            seen_names.add(name)
-            if name in valid_updates:
-                parts[6] = valid_updates[name]
-                updated_lines.append("\t".join(parts))
-            elif name in IGNORED_COOKIES:
-                continue
-            else:
-                updated_lines.append(line)
-        else:
-            updated_lines.append(line)
-
-    # Thêm các cookie mới xuất hiện chưa từng có trong file txt
+    lines = ["# Netscape HTTP Cookie File"]
     for name, val in valid_updates.items():
-        if name not in seen_names:
-            updated_lines.append(f".tiktok.com\tTRUE\t/\tTRUE\t2147483647\t{name}\t{val}")
-
-    save_tiktok_cookies_to_file("\n".join(updated_lines) + "\n")
-
-
-async def load_tiktok_cookies() -> Optional[str]:
-    """Load TikTok cookies either from local text file or coordinator worker client."""
-    file_cookies = read_tiktok_cookies_from_file()
-    if file_cookies:
-        return file_cookies
+        lines.append(f".tiktok.com\tTRUE\t/\tTRUE\t2147483647\t{name}\t{val}")
+    netscape_content = "\n".join(lines) + "\n"
 
     try:
         from worker.client import coordinator_worker_client
-        coordinator_cookies = await coordinator_worker_client.get_cookies("tiktok")
-        if coordinator_cookies:
-            return coordinator_cookies
+        coordinator_worker_client.dispatch_save_cookies("tiktok", netscape_content)
     except Exception:
         pass
 
-    return None
+
+async def load_tiktok_cookies() -> Optional[str]:
+    """Query TikTok cookies from Go Storage worker via Coordinator RPC without accessing filesystem."""
+    try:
+        from worker.client import coordinator_worker_client
+        return await coordinator_worker_client.get_cookies("tiktok")
+    except Exception:
+        return None
 
 
 

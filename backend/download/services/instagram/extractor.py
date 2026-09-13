@@ -21,9 +21,9 @@ import yt_dlp
 
 from logger import log_error, log_event, log_info, log_warning
 from services.instagram.auth import (
-    get_instagram_cookie_path,
+    create_cookiejar_from_netscape,
+    load_instagram_cookies,
     parse_cookies_to_header,
-    read_instagram_cookies_from_file,
     update_instagram_session_cookies_from_headers,
 )
 from services.instagram.errors import (
@@ -114,20 +114,12 @@ class InstagramExtractor:
     def _get_cookie_header(self) -> str:
         if self._custom_cookies:
             return parse_cookies_to_header(self._custom_cookies)
-        saved = read_instagram_cookies_from_file()
-        if saved:
-            return parse_cookies_to_header(saved)
         return ""
 
     async def inspect(self, url: str) -> dict[str, Any]:
-        """Asynchronously extract post info following the guest-first flow."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._extract_sync, url)
-
-    def _extract_sync(self, url: str) -> dict[str, Any]:
-        """Synchronous extraction implementing:
+        """Asynchronously extract post info following the guest-first flow:
         Step 1: Read without cookie (anonymous). If 403 or auth required ->
-        Step 2: Read cookie from ~/.tmp-appview/cookies/instagram.txt and retry.
+        Step 2: Load cookies from Go storage via Coordinator and retry in-memory.
         """
         _, shortcode = parse_instagram_url(url)
         canonical_url = f"https://www.instagram.com/p/{shortcode}/"
@@ -150,9 +142,10 @@ class InstagramExtractor:
         data = None
         step1_error_reason = None
         is_403_or_auth_error = False
+        loop = asyncio.get_running_loop()
 
         try:
-            data = self._fetch_via_direct_apis(shortcode, cookie_header="")
+            data = await loop.run_in_executor(None, self._fetch_via_direct_apis, shortcode, "")
             if data:
                 step1_info["status"] = "success"
                 step1_info["http_code"] = 200
@@ -180,39 +173,41 @@ class InstagramExtractor:
                 is_403_or_auth_error = True
 
         # =========================================================================
-        # Bước 2: Nạp cookie từ ~/.tmp-appview/cookies/instagram.txt nếu Bước 1 gặp 403
+        # Bước 2: Nạp cookie từ Go storage nếu Bước 1 gặp 403
         # =========================================================================
         if not data and is_403_or_auth_error:
-            cookie_path = get_instagram_cookie_path()
-            log_info("INSTAGRAM_EXTRACTOR", f"[Bước 2] Bước 1 báo 403/yêu cầu login. Tiến hành nạp cookie từ {cookie_path}...")
+            log_info("INSTAGRAM_EXTRACTOR", "[Bước 2] Bước 1 báo 403/yêu cầu login. Tiến hành nạp cookie Instagram từ Go storage...")
             step2_info = {
                 "step": 2,
-                "name": f"Nạp cookie từ {cookie_path.name}",
+                "name": "Nạp cookie Instagram từ Go storage",
                 "status": "pending",
-                "cookie_file": str(cookie_path),
-                "message": f"Đang nạp cookie từ {cookie_path}...",
+                "message": "Đang nạp cookie Instagram từ hệ thống lưu trữ...",
             }
             execution_steps.append(step2_info)
 
-            cookie_header = self._get_cookie_header()
+            raw_cookies = self._custom_cookies
+            if not raw_cookies:
+                raw_cookies = await load_instagram_cookies()
+
+            cookie_header = parse_cookies_to_header(raw_cookies) if raw_cookies else ""
             if not cookie_header:
                 step2_info["status"] = "failed"
                 step2_info["message"] = (
-                    f"Bài viết yêu cầu 403 Forbidden nhưng chưa tìm thấy file cookie tại {cookie_path}. "
+                    "Bài viết yêu cầu 403 Forbidden nhưng chưa tìm thấy cookie Instagram trong hệ thống lưu trữ. "
                     "Vui lòng nhập các trường cookie (sessionid, ds_user_id...) và nhấn 'Lưu Cookie' trước khi thử lại."
                 )
                 raise InstagramAuthRequiredError(step2_info["message"])
 
             try:
-                data = self._fetch_via_direct_apis(shortcode, cookie_header=cookie_header)
+                data = await loop.run_in_executor(None, self._fetch_via_direct_apis, shortcode, cookie_header)
                 if data:
                     step2_info["status"] = "success"
                     step2_info["message"] = "Đã nạp cookie thành công và lấy được đầy đủ thông tin bài viết."
             except Exception as err:
                 log_warning("INSTAGRAM_EXTRACTOR", f"Direct API với cookie thất bại ({err}), thử tiếp qua yt-dlp...")
-                # Try fallback via yt-dlp with cookie file
+                # Try fallback via yt-dlp with in-memory cookiejar
                 try:
-                    data = self._fetch_via_ytdlp(canonical_url, cookie_path=cookie_path)
+                    data = await loop.run_in_executor(None, self._fetch_via_ytdlp, canonical_url, raw_cookies)
                     if data:
                         step2_info["status"] = "success"
                         step2_info["message"] = "Đã nạp cookie thành công qua yt-dlp engine."
@@ -223,10 +218,9 @@ class InstagramExtractor:
 
         # Fallback if unauthenticated yt-dlp can read public posts when direct API returned non-403
         if not data:
-            cookie_path = get_instagram_cookie_path()
-            c_path = cookie_path if cookie_path.is_file() else None
+            raw_cookies = self._custom_cookies or await load_instagram_cookies()
             try:
-                data = self._fetch_via_ytdlp(canonical_url, cookie_path=c_path)
+                data = await loop.run_in_executor(None, self._fetch_via_ytdlp, canonical_url, raw_cookies)
             except Exception as e:
                 log_error("INSTAGRAM_EXTRACTOR", f"Hoàn toàn không thể trích xuất bài viết Instagram: {e}")
                 raise InstagramNotFoundError(f"Không thể đọc bài viết Instagram ({shortcode}): {e}")
@@ -307,18 +301,19 @@ class InstagramExtractor:
 
         raise InstagramNotFoundError("Không lấy được dữ liệu bài viết qua direct API.")
 
-    def _fetch_via_ytdlp(self, url: str, cookie_path: Optional[Any] = None) -> dict[str, Any]:
-        """Fallback extraction using yt-dlp."""
+    def _fetch_via_ytdlp(self, url: str, raw_cookies: Optional[str] = None) -> dict[str, Any]:
+        """Fallback extraction using yt-dlp strictly in-memory without accessing or writing cookie files."""
         ydl_opts: dict[str, Any] = {
             "quiet": True,
             "no_warnings": True,
             "logger": _YtDlpQuietLogger(),
             "extract_flat": False,
         }
-        if cookie_path and cookie_path.is_file():
-            ydl_opts["cookiefile"] = str(cookie_path)
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            if raw_cookies:
+                jar = create_cookiejar_from_netscape(raw_cookies)
+                if jar is not None:
+                    ydl.cookiejar = jar
             info = ydl.extract_info(url, download=False)
             if not info:
                 raise InstagramNotFoundError("yt-dlp không trả về thông tin bài viết.")

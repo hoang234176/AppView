@@ -77,14 +77,262 @@ func GetStatus(platform string) (bool, *time.Time, error) {
 	return true, &modTime, nil
 }
 
-// Save writes cookie content to ~/.tmp-appview/cookies/<platform>.txt with 0600 permissions.
+type cookieEntry struct {
+	rawLine    string
+	isComment  bool
+	domain     string
+	flag       string
+	path       string
+	secure     string
+	expiration string
+	name       string
+	value      string
+}
+
+func parseNetscapeLine(line string) *cookieEntry {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return nil
+	}
+	if strings.HasPrefix(trimmed, "#") {
+		return &cookieEntry{rawLine: line, isComment: true}
+	}
+	parts := strings.Split(line, "\t")
+	if len(parts) >= 7 {
+		name := strings.TrimSpace(parts[5])
+		val := strings.TrimSpace(parts[6])
+		if name != "" {
+			return &cookieEntry{
+				rawLine:    line,
+				isComment:  false,
+				domain:     strings.TrimSpace(parts[0]),
+				flag:       strings.TrimSpace(parts[1]),
+				path:       strings.TrimSpace(parts[2]),
+				secure:     strings.TrimSpace(parts[3]),
+				expiration: strings.TrimSpace(parts[4]),
+				name:       name,
+				value:      val,
+			}
+		}
+	}
+	if strings.Contains(trimmed, "=") {
+		kv := strings.SplitN(trimmed, "=", 2)
+		k := strings.TrimSpace(kv[0])
+		v := strings.TrimSpace(kv[1])
+		if k != "" {
+			return &cookieEntry{
+				rawLine:   line,
+				isComment: false,
+				name:      k,
+				value:     v,
+			}
+		}
+	}
+	return &cookieEntry{rawLine: line, isComment: true}
+}
+
+func defaultDomainForPlatform(platform string) string {
+	p := strings.ToLower(strings.TrimSpace(platform))
+	if p == "" {
+		return ".example.com"
+	}
+	return "." + p + ".com"
+}
+
+func formatNetscapeCookies(content, defaultDomain string) string {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.Contains(content, "# Netscape HTTP Cookie File") {
+		return trimmed + "\n"
+	}
+	lines := strings.Split(content, "\n")
+	var sb strings.Builder
+	sb.WriteString("# Netscape HTTP Cookie File\n")
+	for _, l := range lines {
+		e := parseNetscapeLine(l)
+		if e == nil {
+			continue
+		}
+		if e.isComment {
+			sb.WriteString(e.rawLine + "\n")
+		} else {
+			domain := e.domain
+			if domain == "" {
+				domain = defaultDomain
+			}
+			flag := e.flag
+			if flag == "" {
+				flag = "TRUE"
+			}
+			path := e.path
+			if path == "" {
+				path = "/"
+			}
+			secure := e.secure
+			if secure == "" {
+				secure = "TRUE"
+			}
+			expiration := e.expiration
+			if expiration == "" {
+				expiration = "2147483647"
+			}
+			sb.WriteString(fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				domain, flag, path, secure, expiration, e.name, e.value))
+		}
+	}
+	return sb.String()
+}
+
+func mergeNetscapeCookies(existingContent, newContent, defaultDomain string) string {
+	if strings.TrimSpace(existingContent) == "" {
+		return formatNetscapeCookies(newContent, defaultDomain)
+	}
+	if strings.TrimSpace(newContent) == "" {
+		return formatNetscapeCookies(existingContent, defaultDomain)
+	}
+
+	existingLines := strings.Split(existingContent, "\n")
+	var entries []*cookieEntry
+	nameIndex := make(map[string]int)
+
+	for _, line := range existingLines {
+		e := parseNetscapeLine(line)
+		if e == nil {
+			continue
+		}
+		if !e.isComment && e.name != "" {
+			if idx, found := nameIndex[e.name]; found {
+				entries[idx] = e
+			} else {
+				nameIndex[e.name] = len(entries)
+				entries = append(entries, e)
+			}
+		} else {
+			entries = append(entries, e)
+		}
+	}
+
+	newLines := strings.Split(newContent, "\n")
+	for _, line := range newLines {
+		e := parseNetscapeLine(line)
+		if e == nil || e.isComment || e.name == "" {
+			continue
+		}
+
+		if idx, found := nameIndex[e.name]; found {
+			target := entries[idx]
+			target.value = e.value
+			if e.domain != "" {
+				target.domain = e.domain
+			}
+			if e.flag != "" {
+				target.flag = e.flag
+			}
+			if e.path != "" {
+				target.path = e.path
+			}
+			if e.secure != "" {
+				target.secure = e.secure
+			}
+			if e.expiration != "" {
+				target.expiration = e.expiration
+			}
+		} else {
+			domain := e.domain
+			if domain == "" {
+				domain = defaultDomain
+			}
+			flag := e.flag
+			if flag == "" {
+				flag = "TRUE"
+			}
+			path := e.path
+			if path == "" {
+				path = "/"
+			}
+			secure := e.secure
+			if secure == "" {
+				secure = "TRUE"
+			}
+			expiration := e.expiration
+			if expiration == "" {
+				expiration = "2147483647"
+			}
+			e.domain = domain
+			e.flag = flag
+			e.path = path
+			e.secure = secure
+			e.expiration = expiration
+
+			nameIndex[e.name] = len(entries)
+			entries = append(entries, e)
+		}
+	}
+
+	var sb strings.Builder
+	hasHeader := false
+	for _, e := range entries {
+		if strings.Contains(e.rawLine, "Netscape HTTP Cookie File") {
+			hasHeader = true
+			break
+		}
+	}
+	if !hasHeader {
+		sb.WriteString("# Netscape HTTP Cookie File\n")
+	}
+	for _, e := range entries {
+		if e.isComment {
+			sb.WriteString(e.rawLine + "\n")
+		} else {
+			domain := e.domain
+			if domain == "" {
+				domain = defaultDomain
+			}
+			flag := e.flag
+			if flag == "" {
+				flag = "TRUE"
+			}
+			path := e.path
+			if path == "" {
+				path = "/"
+			}
+			secure := e.secure
+			if secure == "" {
+				secure = "TRUE"
+			}
+			expiration := e.expiration
+			if expiration == "" {
+				expiration = "2147483647"
+			}
+			sb.WriteString(fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				domain, flag, path, secure, expiration, e.name, e.value))
+		}
+	}
+
+	return sb.String()
+}
+
+// Save writes or merges cookie content to ~/.tmp-appview/cookies/<platform>.txt with 0600 permissions.
+// Existing cookie attributes and lines are preserved; incoming cookies only add new keys or update existing values.
 func Save(platform string, content string) (time.Time, error) {
 	path, err := GetCookieFilePath(platform)
 	if err != nil {
 		return time.Time{}, err
 	}
+	safePlatform, _ := SanitizePlatform(platform)
+	defaultDomain := defaultDomainForPlatform(safePlatform)
+
+	finalContent := content
+	if existingBytes, err := os.ReadFile(path); err == nil && len(existingBytes) > 0 {
+		finalContent = mergeNetscapeCookies(string(existingBytes), content, defaultDomain)
+	} else {
+		finalContent = formatNetscapeCookies(content, defaultDomain)
+	}
+
 	// Write with 0600 permissions
-	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(finalContent), 0600); err != nil {
 		return time.Time{}, fmt.Errorf("failed to write cookie file: %w", err)
 	}
 	// Explicitly enforce 0600 in case umask altered it

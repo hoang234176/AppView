@@ -19,27 +19,13 @@ from logger import log_error, log_info, log_warning
 from services.facebook.errors import FacebookError
 
 
-def get_facebook_cookie_path() -> Path:
-    """Return the filesystem path for Facebook cookies in ~/.tmp-appview/cookies/facebook.txt."""
-    state_dir = os.environ.get("APPVIEW_STATE_DIR")
-    if state_dir and state_dir.strip():
-        base = Path(state_dir.strip())
-    else:
-        base = Path.home() / ".tmp-appview"
-    return base / "cookies" / "facebook.txt"
-
-
-def read_facebook_cookies_from_file() -> Optional[str]:
-    """Read Facebook cookies from ~/.tmp-appview/cookies/facebook.txt if it exists."""
+async def load_facebook_cookies() -> Optional[str]:
+    """Query Facebook cookies from Go Storage worker via Coordinator RPC without accessing filesystem."""
     try:
-        path = get_facebook_cookie_path()
-        if path.is_file():
-            content = path.read_text(encoding="utf-8").strip()
-            if content:
-                return content
+        from worker.client import coordinator_worker_client
+        return await coordinator_worker_client.get_cookies("facebook")
     except Exception:
-        pass
-    return None
+        return None
 
 
 def parse_cookies_to_dict(raw_cookies: str) -> dict[str, str]:

@@ -53,10 +53,10 @@ Coordinator broadcasts `{ "type": "download_event", "download": { "jobId": "..."
 
 ## Social Platform Cookies Management
 
-Social cookies storage, verification, and retrieval are orchestrated across Storage, Coordinator, and Download:
+Social cookies storage, verification, and retrieval are orchestrated across Storage, Coordinator, and Download for all supported platforms (`youtube`, `facebook`, `tiktok`, `instagram`, etc.):
 
-- `GET /api/v1/cookies/status?platform=youtube`: Coordinator queries Storage worker via WebSocket RPC (`cookie.status`) for file existence and updated timestamp.
-- `POST /api/v1/cookies/verify`: Body `{ "platform": "youtube", "cookies": "..." }`. Coordinator routes candidate Netscape cookies to Download worker via WebSocket RPC (`cookie.verify`) to test extraction in-memory against YouTube. Returns `{ "valid": bool, "message": string }`.
-- `POST /api/v1/cookies/save`: Body `{ "platform": "youtube", "cookies": "..." }`. Coordinator routes to Storage worker via WebSocket RPC (`cookie.save`) to persist into `~/.tmp-appview/cookies/<platform>.txt` with `0700` dir and `0600` file permissions. Returns `{ "success": true, "updated_at": timestamp }`.
+- `GET /api/v1/cookies/status?platform=<platform>`: Coordinator queries Storage worker via WebSocket RPC (`cookie.status`) for file existence and updated timestamp.
+- `POST /api/v1/cookies/verify`: Body `{ "platform": "<platform>", "cookies": "..." }` or `{ "platform": "<platform>", "fields": { ... } }`. Coordinator routes candidate Netscape cookies to Download worker via WebSocket RPC (`cookie.verify`) to test extraction in-memory against target platform. Returns `{ "valid": bool, "message": string }`.
+- `POST /api/v1/cookies/save`: Body `{ "platform": "<platform>", "cookies": "..." }` or `{ "platform": "<platform>", "fields": { ... } }`. Coordinator routes to Storage worker via WebSocket RPC (`cookie.save`) to persist into `~/.tmp-appview/cookies/<platform>.txt` with `0700` dir and `0600` file permissions. Returns `{ "success": true, "updated_at": timestamp }`.
 
-Python Download does not access or persist to the host filesystem for cookies. When resolving or extracting YouTube media, it requests the platform cookies from Coordinator over WebSocket RPC (`cookie.get`), which fetches them from Storage in-memory and loads them into a transient `YoutubeDLCookieJar`. Raw cookie contents are never exposed in Coordinator or Download logs.
+Python Download does not access or persist to the host filesystem for cookies. When resolving or extracting social media, it requests the platform cookies from Coordinator over WebSocket RPC (`cookie.get`), which fetches them from Storage in-memory and loads them into a transient in-memory CookieJar or header string. Raw cookie contents are never exposed in Coordinator or Download logs.

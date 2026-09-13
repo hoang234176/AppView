@@ -33,7 +33,8 @@ Frontend Web / Mobile
 
 - **Coordinator** owns orchestration and the two-stage download-job pipeline.
 - **Download** (`resolve_download`) resolves URLs only; it does not own filesystem paths.
-- **Storage** (`download_file`) owns all local filesystem/media operations.
+- **Storage** (`download_file`) owns all local filesystem/media operations, including cookie files on disk (`~/.tmp-appview/cookies/`).
+- **Cookie storage boundary**: Download worker MUST NOT read or write cookie files directly on disk. It must query/save cookies through Coordinator RPC (`cookie.get` / `cookie.save`), which delegates to Storage worker.
 - New normal download flows go through Coordinator `POST /api/v1/download`.
 - DO NOT send raw media/file payload bytes through worker WebSockets.
 - DO NOT add new direct frontend → Download worker paths for normal downloads.

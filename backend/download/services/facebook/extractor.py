@@ -20,7 +20,7 @@ import urllib.request
 import urllib.error
 
 from logger import log_error, log_info, log_warning
-from services.facebook.auth import parse_cookies_to_header, read_facebook_cookies_from_file
+from services.facebook.auth import load_facebook_cookies, parse_cookies_to_header
 from services.facebook.errors import (
     FacebookAccessDeniedError,
     FacebookAuthRequiredError,
@@ -99,16 +99,35 @@ class FacebookExtractor:
     def _get_cookie_header(self) -> str:
         if self._custom_cookies:
             return parse_cookies_to_header(self._custom_cookies)
-        saved = read_facebook_cookies_from_file()
-        if saved:
-            return parse_cookies_to_header(saved)
         return ""
 
     async def inspect(self, url: str) -> dict[str, Any]:
-        """Asynchronously extract and return full structured metadata from a Facebook post."""
+        """Asynchronously extract and return full structured metadata from a Facebook post following Guest-First policy."""
         clean_url = clean_facebook_url(url)
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._extract_sync, clean_url)
+
+        # Step 1 (Guest-First Policy): Luôn thử duyệt ẩn danh không cookie trước
+        try:
+            parsed = await loop.run_in_executor(None, self._extract_sync, clean_url, "")
+            if parsed.get("photos") or parsed.get("videos") or parsed.get("content"):
+                return parsed
+        except (FacebookAuthRequiredError, FacebookAccessDeniedError):
+            pass
+
+        # Step 2: Nếu bài viết yêu cầu đăng nhập / không lấy được nội dung, nạp cookies từ Go storage qua Coordinator
+        raw_cookies = self._custom_cookies
+        if not raw_cookies:
+            raw_cookies = await load_facebook_cookies()
+
+        if not raw_cookies:
+            raise FacebookAuthRequiredError("Bài viết này yêu cầu đăng nhập. Vui lòng cấu hình cookies Facebook để xem.")
+
+        cookie_header = parse_cookies_to_header(raw_cookies)
+        if not cookie_header:
+            raise FacebookAuthRequiredError("Bài viết này yêu cầu đăng nhập. Vui lòng cấu hình cookies Facebook để xem.")
+
+        log_info("FACEBOOK_EXTRACTOR", f"Nạp cookies Facebook từ Go storage để thử lại: {clean_url}")
+        return await loop.run_in_executor(None, self._extract_sync, clean_url, cookie_header)
 
     def _extract_redirect_target(self, html_text: str) -> Optional[str]:
         """Detect client-side meta refresh or window.location.replace on Facebook share links."""
@@ -125,8 +144,8 @@ class FacebookExtractor:
                 return target
         return None
 
-    def _extract_sync(self, url: str) -> dict[str, Any]:
-        """Synchronously request Facebook HTML following Guest-First policy (anonymous first, cookie fallback on auth)."""
+    def _extract_sync(self, url: str, cookie_header: str = "") -> dict[str, Any]:
+        """Synchronously request Facebook HTML with optional cookie header."""
         base_headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -139,7 +158,7 @@ class FacebookExtractor:
         }
         ssl_context = ssl._create_unverified_context()
 
-        def do_request(target_url: str, cookie_header: str = "") -> tuple[str, str, int]:
+        def do_request(target_url: str, req_cookie_header: str = "") -> tuple[str, str, int]:
             current_target = target_url
             final_target = target_url
             content = ""
@@ -147,11 +166,11 @@ class FacebookExtractor:
 
             for _ in range(3):
                 req_headers = dict(base_headers)
-                if cookie_header:
-                    req_headers["Cookie"] = cookie_header
+                if req_cookie_header:
+                    req_headers["Cookie"] = req_cookie_header
 
                 req = urllib.request.Request(current_target, headers=req_headers)
-                log_info("FACEBOOK_EXTRACTOR", f"Đang gửi yêu cầu lấy dữ liệu bài viết Facebook ({'có cookie' if cookie_header else 'ẩn danh/không cookie'}): {current_target}")
+                log_info("FACEBOOK_EXTRACTOR", f"Đang gửi yêu cầu lấy dữ liệu bài viết Facebook ({'có cookie' if req_cookie_header else 'ẩn danh/không cookie'}): {current_target}")
 
                 try:
                     with urllib.request.urlopen(req, timeout=20, context=ssl_context) as resp:
@@ -176,8 +195,7 @@ class FacebookExtractor:
 
             return final_target, content, status_code
 
-        # Step 1 (Guest-First Policy): Luôn thử duyệt ẩn danh không cookie trước
-        final_url, html_text, status = do_request(url, cookie_header="")
+        final_url, html_text, status = do_request(url, req_cookie_header=cookie_header)
 
         is_login_page = (
             status in (401, 403)
@@ -186,44 +204,13 @@ class FacebookExtractor:
             or "checkpoint" in final_url.lower()
         )
 
-        # Step 2: Nếu bài viết yêu cầu đăng nhập / xác thực, kiểm tra và nạp cookies
         if is_login_page:
-            saved_cookie_header = self._get_cookie_header()
-            if not saved_cookie_header:
+            if not cookie_header:
                 raise FacebookAuthRequiredError("Bài viết này yêu cầu đăng nhập. Vui lòng cấu hình cookies Facebook để xem.")
-
-            log_info("FACEBOOK_EXTRACTOR", f"Bài viết yêu cầu đăng nhập, nạp cookies Facebook để thử lại: {url}")
-            final_url, html_text, status = do_request(url, cookie_header=saved_cookie_header)
-            if (
-                status in (401, 403)
-                or "/login" in final_url.lower()
-                or "login.php" in final_url.lower()
-                or "checkpoint" in final_url.lower()
-            ):
+            else:
                 raise FacebookAccessDeniedError("Bài viết này không thể truy cập với phiên đăng nhập hiện tại.")
 
-        parsed = self._parse_html(url, html_text, final_url)
-        # Fallback: Nếu chế độ khách không lấy được ảnh/video/nội dung (ví dụ nhóm kín hoặc trang yêu cầu đăng nhập ngầm)
-        # và người dùng có cấu hình cookies, thử lại một lần với cookies.
-        if not parsed.get("photos") and not parsed.get("videos") and not parsed.get("content"):
-            saved_cookie_header = self._get_cookie_header()
-            if saved_cookie_header:
-                log_info("FACEBOOK_EXTRACTOR", f"Chế độ ẩn danh không tìm thấy nội dung bài viết, thử lại với cookies: {url}")
-                try:
-                    final_url_auth, html_text_auth, status_auth = do_request(url, cookie_header=saved_cookie_header)
-                    if (
-                        status_auth not in (401, 403)
-                        and "/login" not in final_url_auth.lower()
-                        and "login.php" not in final_url_auth.lower()
-                        and "checkpoint" not in final_url_auth.lower()
-                    ):
-                        parsed_auth = self._parse_html(url, html_text_auth, final_url_auth)
-                        if parsed_auth.get("photos") or parsed_auth.get("videos") or parsed_auth.get("content"):
-                            return parsed_auth
-                except Exception as e:
-                    log_info("FACEBOOK_EXTRACTOR", f"Thử lại với cookies không thành công: {e}")
-
-        return parsed
+        return self._parse_html(url, html_text, final_url)
 
     def _parse_html(self, original_url: str, html_text: str, final_url: str) -> dict[str, Any]:
         """Parse Facebook HTML and extract author, status, timestamp, reactions, photos and videos."""
