@@ -112,6 +112,11 @@ export const cancelCoordinatorArchive = async (jobId) => {
   try { await createCoordinatorClient().post(`/download/${encodeURIComponent(jobId)}/cancel`); return { success: true }; }
   catch (error) { return { success: false, message: error.response?.data?.error || 'Không thể hủy tác vụ.' }; }
 };
+export const deleteCoordinatorArchive = async (jobId) => {
+  try { await createCoordinatorClient().delete(`/download/${encodeURIComponent(jobId)}`); return { success: true }; }
+  catch (error) { return { success: false, message: error.response?.data?.error || 'Không thể xóa tác vụ.' }; }
+};
+export const deleteCoordinatorDownload = deleteCoordinatorArchive;
 export const submitVideoDecision = async (jobId, videoId, quality) => {
   try { await createCoordinatorClient().post(`/download/${encodeURIComponent(jobId)}/videos/${encodeURIComponent(videoId)}/decision`, { quality }); return { success: true }; }
   catch (error) { return { success: false, message: error.response?.data?.error || 'Không thể lưu lựa chọn video.' }; }
@@ -206,6 +211,13 @@ export const cancelDownloadTask = async (taskId) => {
  * Endpoint: DELETE /tasks/{task_id}
  */
 export const deleteDownloadTask = async (taskId) => {
+  try {
+    const coordRes = await deleteCoordinatorDownload(taskId);
+    if (coordRes.success) {
+      return { success: true, message: 'Đã xóa task' };
+    }
+  } catch (_) {}
+
   const client = createDownloadClient();
   try {
     const response = await client.delete(`/tasks/${taskId}`);

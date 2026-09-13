@@ -717,6 +717,20 @@ class DownloadApi {
     }
   }
 
+  static Future<bool> deleteCoordinatorArchive(String jobId) async {
+    try {
+      final response = await _createCoordinatorDio().delete(
+        '/download/${Uri.encodeComponent(jobId)}',
+      );
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> deleteCoordinatorDownload(String jobId) =>
+      deleteCoordinatorArchive(jobId);
+
   static Dio _createDio() {
     return Dio(
       BaseOptions(

@@ -44,6 +44,11 @@ func (f *fakeArchiveOperations) Cancel(id string) bool {
 	return ok
 }
 
+func (f *fakeArchiveOperations) Delete(id string) bool {
+	delete(f.snapshots, id)
+	return true
+}
+
 func (f *fakeArchiveOperations) Snapshot(id string) (pythonapi.ArchiveJobSnapshot, bool) {
 	snapshot, ok := f.snapshots[id]
 	return snapshot, ok
@@ -208,6 +213,11 @@ func (f *fakeYouTubeOperations) Start(id, sourceURL, filename, destination, audi
 
 func (f *fakeYouTubeOperations) Cancel(id string) bool {
 	f.cancelled = true
+	return true
+}
+
+func (f *fakeYouTubeOperations) Delete(id string) bool {
+	delete(f.snapshots, id)
 	return true
 }
 
@@ -398,6 +408,11 @@ func (f *fakeFacebookOperations) Start(id, _, filename, _, _ string, _ []faceboo
 func (f *fakeFacebookOperations) Cancel(id string) bool {
 	_, ok := f.snapshots[id]
 	return ok
+}
+
+func (f *fakeFacebookOperations) Delete(id string) bool {
+	delete(f.snapshots, id)
+	return true
 }
 
 func (f *fakeFacebookOperations) SetVideoDecision(_, _, _ string) error {

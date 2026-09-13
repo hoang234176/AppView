@@ -24,6 +24,7 @@ type ArchiveOperations interface {
 	Retry(id, password string) error
 	RetryExtraction(id, password string) error
 	Cancel(id string) bool
+	Delete(id string) bool
 	Snapshot(id string) (pythonapi.ArchiveJobSnapshot, bool)
 	Snapshots() []pythonapi.ArchiveJobSnapshot
 }
@@ -32,6 +33,7 @@ type ArchiveOperations interface {
 type YouTubeOperations interface {
 	Start(id, sourceURL, filename, destination, audioURL string, headers map[string]string) error
 	Cancel(id string) bool
+	Delete(id string) bool
 	SetVideoDecision(id, videoID, quality string) error
 	ApplyVideoDecisions(id string, decisions map[string]string) error
 	Snapshot(id string) (youtube.Snapshot, bool)
@@ -43,6 +45,7 @@ type YouTubeOperations interface {
 type TikTokOperations interface {
 	Start(id, sourceURL, filename, destination, audioURL string, items []tiktok.DownloadItem, headers map[string]string) error
 	Cancel(id string) bool
+	Delete(id string) bool
 	SetVideoDecision(id, videoID, quality string) error
 	ApplyVideoDecisions(id string, decisions map[string]string) error
 	Snapshot(id string) (tiktok.Snapshot, bool)
@@ -54,6 +57,7 @@ type TikTokOperations interface {
 type FacebookOperations interface {
 	Start(id, sourceURL, filename, destination, audioURL string, items []facebook.DownloadItem, headers map[string]string) error
 	Cancel(id string) bool
+	Delete(id string) bool
 	SetVideoDecision(id, videoID, quality string) error
 	ApplyVideoDecisions(id string, decisions map[string]string) error
 	Snapshot(id string) (facebook.Snapshot, bool)
@@ -69,6 +73,10 @@ func (facebookOperations) Start(id, sourceURL, filename, destination, audioURL s
 
 func (facebookOperations) Cancel(id string) bool {
 	return facebook.CancelJob(id)
+}
+
+func (facebookOperations) Delete(id string) bool {
+	return facebook.DeleteJob(id)
 }
 
 func (facebookOperations) SetVideoDecision(id, videoID, quality string) error {
@@ -101,6 +109,10 @@ func (tiktokOperations) Cancel(id string) bool {
 	return tiktok.CancelJob(id)
 }
 
+func (tiktokOperations) Delete(id string) bool {
+	return tiktok.DeleteJob(id)
+}
+
 func (tiktokOperations) SetVideoDecision(id, videoID, quality string) error {
 	return tiktok.SetVideoDecision(id, videoID, quality)
 }
@@ -129,6 +141,10 @@ func (youtubeOperations) Start(id, sourceURL, filename, destination, audioURL st
 
 func (youtubeOperations) Cancel(id string) bool {
 	return youtube.CancelJob(id)
+}
+
+func (youtubeOperations) Delete(id string) bool {
+	return youtube.DeleteJob(id)
 }
 
 func (youtubeOperations) SetVideoDecision(id, videoID, quality string) error {
@@ -166,6 +182,7 @@ func (archiveOperations) RetryExtraction(id, password string) error {
 }
 
 func (archiveOperations) Cancel(id string) bool { return pythonapi.CancelArchiveJob(id) }
+func (archiveOperations) Delete(id string) bool { pythonapi.DeleteArchiveJob(id); return true }
 func (archiveOperations) SetVideoDecision(id, videoID, quality string) error {
 	return pythonapi.SetVideoDecision(id, videoID, quality)
 }
@@ -250,16 +267,24 @@ func (h *Handler) History() StorageHistoryPayload {
 	fbSnapshots := h.facebook.Snapshots()
 	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots)+len(ttSnapshots)+len(fbSnapshots))
 	for _, snapshot := range archiveSnapshots {
-		jobs = append(jobs, storageSnapshot(snapshot))
+		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
+			jobs = append(jobs, storageSnapshot(snapshot))
+		}
 	}
 	for _, snapshot := range ytSnapshots {
-		jobs = append(jobs, youtubeStorageSnapshot(snapshot))
+		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
+			jobs = append(jobs, youtubeStorageSnapshot(snapshot))
+		}
 	}
 	for _, snapshot := range ttSnapshots {
-		jobs = append(jobs, tiktokStorageSnapshot(snapshot))
+		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
+			jobs = append(jobs, tiktokStorageSnapshot(snapshot))
+		}
 	}
 	for _, snapshot := range fbSnapshots {
-		jobs = append(jobs, facebookStorageSnapshot(snapshot))
+		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
+			jobs = append(jobs, facebookStorageSnapshot(snapshot))
+		}
 	}
 	return StorageHistoryPayload{Jobs: jobs}
 }
@@ -267,6 +292,9 @@ func (h *Handler) History() StorageHistoryPayload {
 func clampProgress(downloaded, total int64) (int64, int64) {
 	if downloaded < 0 {
 		downloaded = 0
+	}
+	if total < 0 {
+		total = 0
 	}
 	if total > 0 && downloaded > total {
 		total = downloaded
@@ -279,6 +307,7 @@ func facebookStorageSnapshot(snapshot facebook.Snapshot) StorageJobSnapshot {
 	return StorageJobSnapshot{
 		ID:                    snapshot.ID,
 		CanonicalID:           snapshot.CanonicalID,
+		Source:                "facebook",
 		SourceURL:             safeHistoryURL(snapshot.URL),
 		Filename:              snapshot.Filename,
 		Destination:           snapshot.Destination,
@@ -311,6 +340,7 @@ func tiktokStorageSnapshot(snapshot tiktok.Snapshot) StorageJobSnapshot {
 	return StorageJobSnapshot{
 		ID:                    snapshot.ID,
 		CanonicalID:           snapshot.CanonicalID,
+		Source:                "tiktok",
 		SourceURL:             safeHistoryURL(snapshot.URL),
 		Filename:              snapshot.Filename,
 		Destination:           snapshot.Destination,
@@ -341,7 +371,7 @@ func tiktokStorageSnapshot(snapshot tiktok.Snapshot) StorageJobSnapshot {
 func storageSnapshot(snapshot pythonapi.ArchiveJobSnapshot) StorageJobSnapshot {
 	dl, tot := clampProgress(snapshot.DownloadedBytes, snapshot.TotalBytes)
 	return StorageJobSnapshot{
-		ID: snapshot.ID, CanonicalID: snapshot.CanonicalID, SourceURL: safeHistoryURL(snapshot.URL), Filename: snapshot.Filename, Destination: snapshot.Destination, State: snapshot.State,
+		ID: snapshot.ID, CanonicalID: snapshot.CanonicalID, Source: "archive", SourceURL: safeHistoryURL(snapshot.URL), Filename: snapshot.Filename, Destination: snapshot.Destination, State: snapshot.State,
 		DownloadedBytes: dl, TotalBytes: tot, SpeedBytes: snapshot.SpeedBytes,
 		ExtractedPercent: snapshot.ExtractedPct, ConversionTotal: snapshot.Conversion.Total, ConversionCurrent: snapshot.Conversion.Current,
 		ConversionFailed: snapshot.Conversion.Failed, ErrorCode: snapshot.ErrorCode, Error: snapshot.Error,
@@ -358,6 +388,7 @@ func youtubeStorageSnapshot(snapshot youtube.Snapshot) StorageJobSnapshot {
 	return StorageJobSnapshot{
 		ID:                    snapshot.ID,
 		CanonicalID:           snapshot.CanonicalID,
+		Source:                "youtube",
 		SourceURL:             safeHistoryURL(snapshot.URL),
 		Filename:              snapshot.Filename,
 		Destination:           snapshot.Destination,
@@ -507,7 +538,7 @@ func decodeArchiveControl(payload json.RawMessage) (archiveControl, bool) {
 	}
 	control.Operation = strings.TrimSpace(control.Operation)
 	control.ArchiveTaskID = strings.TrimSpace(control.ArchiveTaskID)
-	if control.ArchiveTaskID == "" || (control.Operation != "retry" && control.Operation != "extract" && control.Operation != "cancel" && control.Operation != "video_decision" && control.Operation != "video_apply") {
+	if control.ArchiveTaskID == "" || (control.Operation != "retry" && control.Operation != "extract" && control.Operation != "cancel" && control.Operation != "delete" && control.Operation != "video_decision" && control.Operation != "video_apply") {
 		return archiveControl{}, false
 	}
 	return control, true
@@ -515,6 +546,15 @@ func decodeArchiveControl(payload json.RawMessage) (archiveControl, bool) {
 
 func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string, control archiveControl, send SendFunc) {
 	if err := send(Message{Type: TaskAccepted, TaskID: controlTaskID}); err != nil {
+		return
+	}
+
+	if control.Operation == "delete" {
+		h.youtube.Delete(control.ArchiveTaskID)
+		h.tiktok.Delete(control.ArchiveTaskID)
+		h.facebook.Delete(control.ArchiveTaskID)
+		h.archive.Delete(control.ArchiveTaskID)
+		_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
 		return
 	}
 

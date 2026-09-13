@@ -297,9 +297,14 @@ func LoadPersistentArchiveJobs() {
 		}
 		snapshot := persisted.Job
 		ctx, cancel := context.WithCancel(context.Background())
+		dl := snapshot.DownloadedBytes
+		tot := snapshot.TotalBytes
+		if tot > 0 && dl > tot {
+			tot = dl
+		}
 		job := &ArchiveJob{
 			ID: snapshot.ID, CanonicalID: snapshot.CanonicalID, URL: snapshot.URL, Filename: archiveSafeName(snapshot.Filename), Destination: snapshot.Destination,
-			Stage: snapshot.State, DownloadedBytes: snapshot.DownloadedBytes, TotalBytes: snapshot.TotalBytes,
+			Stage: snapshot.State, DownloadedBytes: dl, TotalBytes: tot,
 			SpeedBytes: snapshot.SpeedBytes, ExtractedPct: snapshot.ExtractedPct, ConvertTotal: snapshot.Conversion.Total,
 			ConvertCurrent: snapshot.Conversion.Current, ConvertFailed: snapshot.Conversion.Failed,
 			ErrorCode: snapshot.ErrorCode, Error: snapshot.Error, PasswordNeeded: snapshot.PasswordNeeded,

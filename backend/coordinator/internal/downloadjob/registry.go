@@ -67,6 +67,24 @@ func (r *Registry) List() []Job {
 	return jobs
 }
 
+// Delete removes a job from the registry and frees child associations.
+func (r *Registry) Delete(id string) (Job, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	job, ok := r.jobs[id]
+	if !ok {
+		return Job{}, false
+	}
+	delete(r.jobs, id)
+	if job.ResolveTaskID != "" {
+		delete(r.children, job.ResolveTaskID)
+	}
+	if job.StorageTaskID != "" {
+		delete(r.children, job.StorageTaskID)
+	}
+	return job.Clone(), true
+}
+
 // MergeStorageHistory imports the local Storage worker's durable projection.
 // A snapshot is keyed by the Storage archive ID. When a live Coordinator
 // parent already owns that storage child, the existing parent ID is retained;
@@ -77,8 +95,8 @@ func (r *Registry) MergeStorageHistory(workerID string, snapshots []protocol.Sto
 	if strings.TrimSpace(workerID) == "" {
 		return nil, fmt.Errorf("storage worker id is required")
 	}
-	for _, snapshot := range snapshots {
-		if err := validStorageSnapshot(snapshot); err != nil {
+	for i := range snapshots {
+		if err := validStorageSnapshot(&snapshots[i]); err != nil {
 			return nil, err
 		}
 	}
@@ -110,8 +128,18 @@ func (r *Registry) MergeStorageHistory(workerID string, snapshots []protocol.Sto
 			next.StorageTaskID = snapshot.ID
 		}
 		next.Filename, next.DisplayName, next.Destination = snapshot.Filename, snapshot.Filename, snapshot.Destination
-		if next.Source == "" && (strings.Contains(next.URL, "youtube.com") || strings.Contains(next.URL, "youtu.be") || strings.Contains(next.SourceURL, "youtube.com") || strings.Contains(next.SourceURL, "youtu.be")) {
-			next.Source = "youtube"
+		if snapshot.Source != "" {
+			next.Source = snapshot.Source
+		} else if next.Source == "" {
+			if strings.Contains(next.URL, "youtube.com") || strings.Contains(next.URL, "youtu.be") || strings.Contains(next.SourceURL, "youtube.com") || strings.Contains(next.SourceURL, "youtu.be") || strings.Contains(next.URL, "googlevideo.com") {
+				next.Source = "youtube"
+			} else if strings.Contains(next.URL, "tiktok.com") || strings.Contains(next.SourceURL, "tiktok.com") || strings.Contains(next.URL, "tiktokcdn.com") {
+				next.Source = "tiktok"
+			} else if strings.Contains(next.URL, "facebook.com") || strings.Contains(next.URL, "fb.watch") || strings.Contains(next.SourceURL, "facebook.com") || strings.Contains(next.URL, "fbcdn.net") {
+				next.Source = "facebook"
+			} else if strings.HasSuffix(strings.ToLower(next.Filename), ".zip") || strings.HasSuffix(strings.ToLower(next.Filename), ".rar") || strings.HasSuffix(strings.ToLower(next.Filename), ".7z") || strings.HasSuffix(strings.ToLower(next.Filename), ".tar") || strings.HasSuffix(strings.ToLower(next.Filename), ".gz") {
+				next.Source = "archive"
+			}
 		}
 		next.State, next.Stage = State(snapshot.State), snapshot.State
 		next.ArchiveDownloaded, next.ArchiveExtracted, next.PasswordRequired = snapshot.ArchiveDownloaded, snapshot.ArchiveExtracted, snapshot.PasswordRequired
@@ -133,15 +161,36 @@ func (r *Registry) MergeStorageHistory(workerID string, snapshots []protocol.Sto
 	return changed, nil
 }
 
-func validStorageSnapshot(snapshot protocol.StorageJobSnapshot) error {
+func validStorageSnapshot(snapshot *protocol.StorageJobSnapshot) error {
+	if snapshot == nil {
+		return fmt.Errorf("storage snapshot is nil")
+	}
 	if strings.TrimSpace(snapshot.ID) == "" || strings.TrimSpace(snapshot.Filename) == "" || strings.TrimSpace(snapshot.State) == "" {
 		return fmt.Errorf("storage snapshot requires id, filename, and state")
 	}
-	if snapshot.CreatedAt.IsZero() || snapshot.UpdatedAt.IsZero() || snapshot.UpdatedAt.Before(snapshot.CreatedAt) {
-		return fmt.Errorf("storage snapshot %s has invalid timestamps", snapshot.ID)
+	if snapshot.CreatedAt.IsZero() {
+		snapshot.CreatedAt = time.Now().UTC()
 	}
-	if snapshot.DownloadedBytes < 0 || snapshot.TotalBytes < 0 || snapshot.TotalBytes > 0 && snapshot.DownloadedBytes > snapshot.TotalBytes || snapshot.TotalVideoCount < 0 || snapshot.InvalidVideoCount < 0 || snapshot.InvalidVideoCount > snapshot.TotalVideoCount {
-		return fmt.Errorf("storage snapshot %s has invalid progress", snapshot.ID)
+	if snapshot.UpdatedAt.IsZero() || snapshot.UpdatedAt.Before(snapshot.CreatedAt) {
+		snapshot.UpdatedAt = snapshot.CreatedAt
+	}
+	if snapshot.DownloadedBytes < 0 {
+		snapshot.DownloadedBytes = 0
+	}
+	if snapshot.TotalBytes < 0 {
+		snapshot.TotalBytes = 0
+	}
+	if snapshot.TotalBytes > 0 && snapshot.DownloadedBytes > snapshot.TotalBytes {
+		snapshot.TotalBytes = snapshot.DownloadedBytes
+	}
+	if snapshot.TotalVideoCount < 0 {
+		snapshot.TotalVideoCount = 0
+	}
+	if snapshot.InvalidVideoCount < 0 {
+		snapshot.InvalidVideoCount = 0
+	}
+	if snapshot.InvalidVideoCount > snapshot.TotalVideoCount {
+		snapshot.InvalidVideoCount = snapshot.TotalVideoCount
 	}
 	for _, video := range snapshot.Videos {
 		if strings.TrimSpace(video.ID) == "" || strings.TrimSpace(video.RelativePath) == "" || video.SourceSizeBytes < 0 {

@@ -136,6 +136,14 @@ func (h *DownloadHandler) Cancel(writer http.ResponseWriter, request *http.Reque
 	writer.WriteHeader(http.StatusAccepted)
 }
 
+func (h *DownloadHandler) Delete(writer http.ResponseWriter, request *http.Request) {
+	if err := h.coordinator.DeleteDownload(request.PathValue("id")); err != nil {
+		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writer.WriteHeader(http.StatusOK)
+}
+
 func (h *DownloadHandler) DecideVideo(writer http.ResponseWriter, request *http.Request) {
 	defer request.Body.Close()
 	var body videoDecisionRequest

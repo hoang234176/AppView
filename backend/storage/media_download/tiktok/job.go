@@ -186,6 +186,13 @@ func persistJob(job *Job) {
 	_ = os.Rename(tmpFile, path)
 }
 
+func removePersistedJob(id string) {
+	path, err := StatePath(id)
+	if err == nil {
+		_ = os.Remove(path)
+	}
+}
+
 func safeFilename(name string) string {
 	name = filepath.Base(strings.TrimSpace(name))
 	if name == "." || name == "" || name == "/" || name == "\\" {

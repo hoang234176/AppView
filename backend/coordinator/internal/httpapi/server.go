@@ -19,6 +19,8 @@ func Register(mux *http.ServeMux, coordinator *service.Coordinator) {
 	mux.HandleFunc("POST /api/v1/download/{id}/retry", downloads.Retry)
 	mux.HandleFunc("POST /api/v1/download/{id}/extract", downloads.Extract)
 	mux.HandleFunc("POST /api/v1/download/{id}/cancel", downloads.Cancel)
+	mux.HandleFunc("DELETE /api/v1/download/{id}", downloads.Delete)
+	mux.HandleFunc("POST /api/v1/download/{id}/delete", downloads.Delete)
 	mux.HandleFunc("POST /api/v1/download/{id}/videos/{videoId}/decision", downloads.DecideVideo)
 	mux.HandleFunc("POST /api/v1/download/{id}/videos/apply", downloads.ApplyVideoDecisions)
 	cookies := NewCookieHandler(coordinator)

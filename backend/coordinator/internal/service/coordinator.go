@@ -197,6 +197,27 @@ func (c *Coordinator) CancelDownload(jobID string) error {
 	return c.controlDownload(jobID, "cancel", "")
 }
 
+// DeleteDownload stops active work (if running), forwards a delete command to
+// the owning Storage worker (if any) to remove persisted artifacts/state from disk,
+// removes the job from Coordinator memory, and notifies clients.
+func (c *Coordinator) DeleteDownload(jobID string) error {
+	job, ok := c.downloads.Get(jobID)
+	if !ok {
+		return nil
+	}
+	if job.State != downloadjob.Completed && job.State != "cancelled" && job.State != "failed" {
+		_ = c.CancelDownload(jobID)
+	}
+	_ = c.controlDownload(jobID, "delete", "")
+
+	deletedJob, removed := c.downloads.Delete(jobID)
+	if removed {
+		deletedJob.State = "deleted"
+		c.notifyDownload(deletedJob, "deleted")
+	}
+	return nil
+}
+
 // DecideVideo forwards a single persisted per-video quality choice to the
 // owning Storage worker. Coordinator validates only public canonical shape;
 // Storage remains authoritative for allowed options and filesystem work.
@@ -297,7 +318,7 @@ func (c *Coordinator) controlDownloadPayload(jobID string, payload map[string]st
 	}
 	logging.Event("INFO", "task created", map[string]any{"taskId": control.ID, "action": control.Action})
 	c.pinnedTasks.Store(control.ID, workerID)
-	if (operation == "cancel" || operation == "video_decision" || operation == "video_apply") && registered.Status == worker.Busy {
+	if (operation == "cancel" || operation == "delete" || operation == "video_decision" || operation == "video_apply") && registered.Status == worker.Busy {
 		// Cancellation is a cooperative control message for the job already
 		// running on this worker; waiting for it to become idle would make
 		// cancel/decision ineffective. It does not start a second archive workflow.

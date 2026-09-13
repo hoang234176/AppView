@@ -151,6 +151,13 @@ func persistJob(job *Job) {
 	_ = os.Rename(tmpFile, targetFile)
 }
 
+func removePersistedJob(id string) {
+	stateDir, err := StateDir()
+	if err == nil {
+		_ = os.Remove(filepath.Join(stateDir, fmt.Sprintf("%s.json", id)))
+	}
+}
+
 func loadJob(id string) (*Snapshot, error) {
 	stateDir, err := StateDir()
 	if err != nil {

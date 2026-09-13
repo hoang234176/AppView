@@ -139,3 +139,35 @@ func TestProgressNotificationsAreThrottledButStateChangeIsNotLost(t *testing.T) 
 		t.Fatalf("final state event lost: %#v", final)
 	}
 }
+
+func TestStorageHistoryHealsOversizedDownloadedBytesAndRestoresSource(t *testing.T) {
+	coordinator := newHistoryCoordinator(t)
+	now := time.Now().UTC()
+	// Snapshot where DownloadedBytes > TotalBytes and UpdatedAt is before CreatedAt
+	snapshot := protocol.StorageJobSnapshot{
+		ID:              "yt-oversized",
+		Source:          "youtube",
+		SourceURL:       "https://www.youtube.com/watch?v=test",
+		Filename:        "video.mp4",
+		Destination:     "Downloads",
+		State:           "completed",
+		DownloadedBytes: 12820365,
+		TotalBytes:      12696871,
+		CreatedAt:       now,
+		UpdatedAt:       now.Add(-time.Minute), // earlier than CreatedAt
+	}
+	history := &protocol.StorageHistoryPayload{Jobs: []protocol.StorageJobSnapshot{snapshot}}
+	if err := coordinator.StorageHistory("storage-a", history); err != nil {
+		t.Fatalf("expected oversized download to self-heal, but got err: %v", err)
+	}
+	jobs := coordinator.ListDownloads()
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 recovered job, got %d", len(jobs))
+	}
+	if jobs[0].Source != "youtube" {
+		t.Fatalf("expected source 'youtube', got %q", jobs[0].Source)
+	}
+	if jobs[0].State != "completed" {
+		t.Fatalf("expected state 'completed', got %q", jobs[0].State)
+	}
+}

@@ -2,6 +2,7 @@ package facebook
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -332,6 +333,22 @@ func CancelJob(id string) bool {
 	return true
 }
 
+// DeleteJob cooperatively cancels and removes the Facebook job and its persisted file.
+func DeleteJob(id string) bool {
+	activeJobs.Lock()
+	job := activeJobs.items[id]
+	delete(activeJobs.items, id)
+	activeJobs.Unlock()
+	if job != nil && job.cancel != nil {
+		job.cancel()
+	}
+	if workspace, err := WorkspaceDir(id); err == nil {
+		_ = os.RemoveAll(workspace)
+	}
+	removePersistedJob(id)
+	return job != nil
+}
+
 // GetJobSnapshot returns the current snapshot of a Facebook job.
 func GetJobSnapshot(id string) (Snapshot, bool) {
 	activeJobs.RLock()
@@ -462,4 +479,76 @@ func ApplyVideoDecisions(id string, decisions map[string]string) error {
 		go startConversion(job, convertDir)
 	}
 	return nil
+}
+
+// LoadPersistentJobs loads existing Facebook job states on Storage startup.
+func LoadPersistentJobs() {
+	dir, err := StateDir()
+	if err != nil {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		var persisted persistedJob
+		if json.Unmarshal(data, &persisted) != nil || persisted.Version != 1 || persisted.Job.ID == "" {
+			continue
+		}
+		s := persisted.Job
+		ctx, cancel := context.WithCancel(context.Background())
+		dl := s.DownloadedBytes
+		tot := s.TotalBytes
+		if tot > 0 && dl > tot {
+			tot = dl
+		}
+		job := &Job{
+			ID:                    s.ID,
+			CanonicalID:           s.CanonicalID,
+			URL:                   s.URL,
+			Filename:              s.Filename,
+			Destination:           s.Destination,
+			State:                 s.State,
+			DownloadedBytes:       dl,
+			TotalBytes:            tot,
+			SpeedBytes:            s.SpeedBytes,
+			ConvertTotal:          s.Conversion.Total,
+			ConvertCurrent:        s.Conversion.Current,
+			ConvertFailed:         s.Conversion.Failed,
+			ErrorCode:             s.ErrorCode,
+			Error:                 s.Error,
+			VideoScanState:        s.VideoScanState,
+			TotalVideoCount:       s.TotalVideoCount,
+			InvalidVideoCount:     s.InvalidVideoCount,
+			OptimizationCancelled: s.OptimizationCancelled,
+			CancelledFromStage:    s.CancelledFromStage,
+			Videos:                append([]pythonapi.VideoOptimization(nil), s.Videos...),
+			CreatedAt:             s.CreatedAt,
+			UpdatedAt:             s.UpdatedAt,
+			ctx:                   ctx,
+			cancel:                cancel,
+		}
+		if job.CanonicalID == "" {
+			job.CanonicalID = job.ID
+		}
+		if job.State == "downloading" || job.State == "scanning" || job.State == "converting" {
+			job.State = "error"
+			job.ErrorCode = "STORAGE_RESTARTED"
+			job.Error = "Máy chủ lưu trữ đã khởi động lại khi đang xử lý media."
+		}
+		activeJobs.Lock()
+		activeJobs.items[job.ID] = job
+		activeJobs.Unlock()
+		if tot != s.TotalBytes || job.State != s.State {
+			persistJob(job)
+		}
+	}
 }

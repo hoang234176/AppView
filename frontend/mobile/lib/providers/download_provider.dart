@@ -222,7 +222,12 @@ class DownloadProvider extends ChangeNotifier {
     final isCoordinatorJob = _taskIsCoordinatorJob(taskId);
     _tasks.removeWhere((task) => task.taskId == taskId);
     if (!_disposed) notifyListeners();
-    if (!isCoordinatorJob) await DownloadApi.deleteTask(taskId);
+    if (isCoordinatorJob) {
+      await DownloadApi.deleteCoordinatorDownload(taskId);
+      scheduleCanonicalRefresh(immediate: true);
+    } else {
+      await DownloadApi.deleteTask(taskId);
+    }
   }
 
   bool _taskIsCoordinatorJob(String taskId) =>

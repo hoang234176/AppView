@@ -256,6 +256,38 @@ func TestCancelUsesPinnedStorageControlAndPreservesCancelledState(t *testing.T) 
 	}
 }
 
+func TestDeleteDownloadJobRemovesFromCoordinatorAndNotifiesStorage(t *testing.T) {
+	coordinator, resolver, storage := newDownloadCoordinator(t)
+	job, err := coordinator.CreateDownload(DownloadRequest{URL: "https://example.test/delete-me.zip"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolveTaskID := resolver.assignments()[0].TaskID
+	_ = coordinator.TaskAccepted("resolver", resolveTaskID)
+	_ = coordinator.TaskCompleted("resolver", resolveTaskID, resolveResult("https://cdn.example.test/delete-me.zip", "delete-me.zip"))
+	current, _ := coordinator.GetDownload(job.ID)
+	_ = coordinator.TaskAccepted("storage", current.StorageTaskID)
+
+	if err := coordinator.DeleteDownload(job.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Coordinator should no longer have this job in memory
+	if _, exists := coordinator.GetDownload(job.ID); exists {
+		t.Fatalf("expected job %s to be deleted from coordinator", job.ID)
+	}
+
+	// Storage should receive a control task with operation "delete"
+	assignments := storage.assignments()
+	var control map[string]string
+	if err := json.Unmarshal(assignments[len(assignments)-1].Payload, &control); err != nil {
+		t.Fatal(err)
+	}
+	if control["operation"] != "delete" || control["archiveTaskId"] != current.StorageTaskID {
+		t.Fatalf("expected delete control message, got: %#v", control)
+	}
+}
+
 func TestMultipleDownloadJobsRemainIsolated(t *testing.T) {
 	coordinator, _, storage := newDownloadCoordinator(t)
 	requests := []DownloadRequest{

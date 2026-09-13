@@ -53,6 +53,7 @@ type StorageHistoryPayload struct {
 type StorageJobSnapshot struct {
 	ID                string                        `json:"id"`
 	CanonicalID       string                        `json:"canonicalJobId,omitempty"`
+	Source            string                        `json:"source,omitempty"`
 	SourceURL         string                        `json:"sourceUrl,omitempty"`
 	Filename          string                        `json:"filename"`
 	Destination       string                        `json:"destination,omitempty"`

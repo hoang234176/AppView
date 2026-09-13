@@ -339,6 +339,23 @@ func CancelJob(id string) bool {
 	return true
 }
 
+// DeleteJob cooperatively cancels and removes the TikTok job and its persisted file.
+func DeleteJob(id string) bool {
+	activeJobs.Lock()
+	job := activeJobs.items[id]
+	delete(activeJobs.items, id)
+	activeJobs.Unlock()
+	if job != nil && job.cancel != nil {
+		job.cancel()
+	}
+	pythonapi.CancelConvertJob(id)
+	if workspace, err := WorkspaceDir(id); err == nil {
+		_ = os.RemoveAll(workspace)
+	}
+	removePersistedJob(id)
+	return job != nil
+}
+
 // SetVideoDecision records a quality choice for an incompatible video.
 func SetVideoDecision(id, videoID, quality string) error {
 	activeJobs.RLock()
@@ -516,6 +533,11 @@ func LoadPersistentJobs() {
 		}
 		s := persisted.Job
 		ctx, cancel := context.WithCancel(context.Background())
+		dl := s.DownloadedBytes
+		tot := s.TotalBytes
+		if tot > 0 && dl > tot {
+			tot = dl
+		}
 		job := &Job{
 			ID:                    s.ID,
 			CanonicalID:           s.CanonicalID,
@@ -523,8 +545,8 @@ func LoadPersistentJobs() {
 			Filename:              s.Filename,
 			Destination:           s.Destination,
 			State:                 s.State,
-			DownloadedBytes:       s.DownloadedBytes,
-			TotalBytes:            s.TotalBytes,
+			DownloadedBytes:       dl,
+			TotalBytes:            tot,
 			SpeedBytes:            s.SpeedBytes,
 			ConvertTotal:          s.Conversion.Total,
 			ConvertCurrent:        s.Conversion.Current,
@@ -553,5 +575,8 @@ func LoadPersistentJobs() {
 		activeJobs.Lock()
 		activeJobs.items[job.ID] = job
 		activeJobs.Unlock()
+		if tot != s.TotalBytes || job.State != s.State {
+			persistJob(job)
+		}
 	}
 }
