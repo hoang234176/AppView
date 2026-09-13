@@ -394,137 +394,155 @@ export const DownloadMediaModal = ({
             </>
           ) : (
             <div className="space-y-3">
-              {/* Facebook Dedicated Card */}
-              {isFacebook ? (
-                <div
-                  className="overflow-hidden rounded-2xl border border-[#383c42] bg-[#202124] shadow-sm [isolation:isolate] [contain:paint]"
-                  style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
-                >
-                  {/* Author Header Row */}
+              {/* Unified Media Preview Card (Facebook / TikTok / YouTube) */}
+              {(() => {
+                const platformName = isFacebook ? 'Facebook' : isTikTok ? 'TikTok' : 'YouTube';
+                const accentColorClass = isFacebook
+                  ? 'text-[#1877F2]'
+                  : isTikTok
+                  ? 'text-cyan-400'
+                  : 'text-rose-400';
+                const badgeBgClass = isFacebook
+                  ? 'bg-[#1877F2]/15 text-[#1877F2] border-[#1877F2]/30'
+                  : isTikTok
+                  ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
+                  : 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+                const avatarBgClass = isFacebook
+                  ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                  : isTikTok
+                  ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                  : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+
+                const authorName =
+                  preview.author?.name ||
+                  (preview.uploader
+                    ? isTikTok && !preview.uploader.startsWith('@')
+                      ? `@${preview.uploader}`
+                      : preview.uploader
+                    : preview.title || `${platformName} Post`);
+
+                const subtitle =
+                  preview.created_time ||
+                  (isFacebook
+                    ? 'Bài viết Facebook'
+                    : isTikTok
+                    ? 'Video / Ảnh TikTok'
+                    : 'Video YouTube');
+
+                const avatarInitial = (
+                  (preview.author?.name || preview.uploader || preview.title || platformName)
+                    .replace(/^@/, '')
+                    .charAt(0) || platformName.charAt(0)
+                ).toUpperCase();
+
+                const showVideoVisual =
+                  (hasVideo && mediaTypeTab === 'video') || (hasVideo && !hasImages);
+                const showImageVisual = !showVideoVisual && hasImages;
+
+                return (
                   <div
-                    className={`p-3.5 bg-[#18191c] rounded-t-2xl flex items-center justify-between gap-3 ${
-                      (preview.has_video && preview.thumbnail) || hasImages ? 'border-b border-[#383c42]/60' : ''
-                    }`}
+                    className="overflow-hidden rounded-2xl border border-[#383c42] bg-[#202124] shadow-sm [isolation:isolate] [contain:paint]"
+                    style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {preview.author?.avatar ? (
+                    {/* Author Header Row */}
+                    <div
+                      className={`p-3.5 bg-[#18191c] rounded-t-2xl flex items-center justify-between gap-3 ${
+                        (showVideoVisual && preview.thumbnail) || showImageVisual
+                          ? 'border-b border-[#383c42]/60'
+                          : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {preview.author?.avatar ? (
+                          <img
+                            src={preview.author.avatar}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            className="w-10 h-10 rounded-full object-cover border border-[#383c42] flex-shrink-0"
+                          />
+                        ) : (
+                          <div
+                            className={`w-10 h-10 rounded-full ${avatarBgClass} border flex items-center justify-center flex-shrink-0 font-bold text-sm`}
+                          >
+                            {avatarInitial}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <h5 className="font-bold text-white text-xs truncate" title={authorName}>
+                            {authorName}
+                          </h5>
+                          <p className="text-[11px] text-gray-400 truncate">{subtitle}</p>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeBgClass} border flex-shrink-0`}
+                      >
+                        {isFacebook ? (
+                          <FacebookIcon className="w-3 h-3" />
+                        ) : isTikTok ? (
+                          <TikTokIcon className="w-3 h-3" />
+                        ) : (
+                          <YouTubeIcon className="w-3 h-3" />
+                        )}
+                        <span>{platformName}</span>
+                      </div>
+                    </div>
+
+                    {/* Media Preview Box (Video or Photo) */}
+                    {showVideoVisual && preview.thumbnail ? (
+                      <div className="relative h-56 w-full overflow-hidden rounded-b-2xl bg-black flex items-center justify-center">
                         <img
-                          src={preview.author.avatar}
+                          src={preview.thumbnail}
                           alt=""
                           referrerPolicy="no-referrer"
-                          className="w-10 h-10 rounded-full object-cover border border-[#383c42] flex-shrink-0"
+                          className="absolute inset-0 w-full h-full object-cover opacity-35 blur-md"
                         />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0 font-bold text-sm">
-                          {preview.uploader?.charAt(0)?.toUpperCase() || 'FB'}
+                        <img
+                          src={preview.thumbnail}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="relative max-h-full max-w-full object-contain"
+                        />
+                        <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-xs border border-white/15 text-[10px] font-bold text-white">
+                          <Video className={`w-3 h-3 ${accentColorClass}`} />
+                          <span>Video</span>
                         </div>
-                      )}
-                      <div className="min-w-0">
-                        <h5 className="font-bold text-white text-xs truncate">
-                          {preview.author?.name || preview.uploader || preview.title || 'Facebook Post'}
-                        </h5>
-                        <p className="text-[11px] text-gray-400 truncate">
-                          {preview.created_time || 'Bài viết Facebook'}
-                        </p>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#1877F2]/15 text-[#1877F2] border border-[#1877F2]/30 flex-shrink-0">
-                      <FacebookIcon className="w-3 h-3" />
-                      <span>Facebook</span>
-                    </div>
-                  </div>
-
-                  {/* Video Thumbnail (for Facebook video posts) */}
-                  {preview.has_video && preview.thumbnail ? (
-                    <div className="relative h-56 w-full overflow-hidden rounded-b-2xl bg-black flex items-center justify-center">
-                      <img
-                        src={preview.thumbnail}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="absolute inset-0 w-full h-full object-cover opacity-35 blur-md"
-                      />
-                      <img
-                        src={preview.thumbnail}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="relative max-h-full max-w-full object-contain"
-                      />
-                      <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-xs border border-white/15 text-[10px] font-bold text-white">
-                        <Video className="w-3 h-3 text-blue-400" />
-                        <span>Video</span>
-                      </div>
-                    </div>
-                  ) : hasImages ? (
-                    <div
-                      onClick={() => setPreviewImageIndex(0)}
-                      className="relative h-56 w-full overflow-hidden rounded-b-2xl bg-black flex items-center justify-center cursor-pointer group"
-                      title="Bấm để xem ảnh kích thước đầy đủ"
-                    >
-                      <img
-                        src={targetImages[0].url}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="absolute inset-0 w-full h-full object-cover opacity-35 blur-md"
-                      />
-                      <img
-                        src={targetImages[0].url}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="relative max-h-full max-w-full object-contain group-hover:scale-[1.02] transition-transform duration-200"
-                      />
-                      <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/75 backdrop-blur-xs border border-white/15 text-[10px] font-bold text-white shadow-sm">
-                        <Images className="w-3 h-3 text-cyan-400" />
-                        <span>{targetImages.length > 1 ? `${targetImages.length} ảnh • Xem trước` : 'Xem trước ảnh'}</span>
-                      </div>
-                      <div className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/60 border border-white/20 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ZoomIn className="w-4 h-4" />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                /* Non-Facebook (YouTube / TikTok) Preview Card */
-                <div
-                  className="overflow-hidden rounded-2xl border border-[#383c42] bg-[#202124] sm:flex sm:flex-row items-stretch [isolation:isolate] [contain:paint]"
-                  style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
-                >
-                  {preview.thumbnail && (
-                    <div className="relative aspect-video sm:w-[42%] sm:min-w-[140px] sm:max-w-[180px] flex-shrink-0 overflow-hidden bg-black">
-                      <img
-                        src={preview.thumbnail}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="absolute inset-0 w-full h-full object-cover opacity-35 blur-sm"
-                      />
-                      <img
-                        src={preview.thumbnail}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="relative w-full h-full object-contain"
-                      />
+                    ) : showImageVisual ? (
                       <div
-                        className={`absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-sm border border-white/10 text-[9px] font-bold ${
-                          isTikTok ? 'text-cyan-400' : 'text-rose-400'
-                        }`}
+                        onClick={() => setPreviewImageIndex(0)}
+                        className="relative h-56 w-full overflow-hidden rounded-b-2xl bg-black flex items-center justify-center cursor-pointer group"
+                        title="Bấm để xem ảnh kích thước đầy đủ"
                       >
-                        {isTikTok ? <TikTokIcon className="w-3 h-3" /> : <YouTubeIcon className="w-3 h-3" />}
-                        <span>{isTikTok ? 'TikTok' : 'YouTube'}</span>
+                        <img
+                          src={targetImages[0].url}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="absolute inset-0 w-full h-full object-cover opacity-35 blur-md"
+                        />
+                        <img
+                          src={targetImages[0].url}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="relative max-h-full max-w-full object-contain group-hover:scale-[1.02] transition-transform duration-200"
+                        />
+                        <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/75 backdrop-blur-xs border border-white/15 text-[10px] font-bold text-white shadow-sm">
+                          <Images className="w-3 h-3 text-cyan-400" />
+                          <span>
+                            {targetImages.length > 1
+                              ? `${targetImages.length} ảnh • Xem trước`
+                              : 'Xem trước ảnh'}
+                          </span>
+                        </div>
+                        <div className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/60 border border-white/20 text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ZoomIn className="w-4 h-4" />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  <div className="p-3 flex flex-col justify-center min-w-0 flex-1 space-y-1">
-                    <h4
-                      className="font-semibold text-white text-xs line-clamp-2 leading-snug"
-                      title={preview.title}
-                    >
-                      {preview.title}
-                    </h4>
-                    {preview.uploader && (
-                      <p className="text-[11px] text-gray-400 truncate">{preview.uploader}</p>
-                    )}
+                    ) : null}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Dynamic Media Controls (Video quality / Photo squares with select all button) */}
               <div className="space-y-3">
@@ -538,6 +556,8 @@ export const DownloadMediaModal = ({
                             mediaTypeTab === 'video'
                               ? isFacebook
                                 ? 'bg-blue-600/25 text-blue-300 border border-blue-500/40 shadow-sm'
+                                : isTikTok
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
                                 : 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm'
                               : 'text-gray-400 hover:text-white'
                           }`}

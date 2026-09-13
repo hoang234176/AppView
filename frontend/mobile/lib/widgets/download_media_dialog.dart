@@ -432,9 +432,31 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (isFacebook) ...[
-                            // Facebook Post Card
-                            Container(
+                          // Unified Post Card (Facebook / TikTok / YouTube)
+                          () {
+                            final platformName = isFacebook ? 'Facebook' : (isTikTok ? 'TikTok' : 'YouTube');
+                            final platformIconAsset = isFacebook
+                                ? 'assets/icons/facebook.svg'
+                                : (isTikTok ? 'assets/icons/tiktok.svg' : 'assets/icons/youtube.svg');
+
+                            final authorName = preview.author?.name.isNotEmpty == true
+                                ? preview.author!.name
+                                : (preview.uploader.isNotEmpty
+                                    ? (isTikTok && !preview.uploader.startsWith('@')
+                                        ? '@${preview.uploader}'
+                                        : preview.uploader)
+                                    : (preview.title.isNotEmpty ? preview.title : '$platformName Post'));
+
+                            final subtitle = preview.createdTime.isNotEmpty
+                                ? preview.createdTime
+                                : (isFacebook
+                                    ? 'Bài viết Facebook'
+                                    : (isTikTok ? 'Video / Ảnh TikTok' : 'Video YouTube'));
+
+                            final showVideoVisual = (hasVideo && _mediaTypeTab == 'video') || (hasVideo && !hasImages);
+                            final showImageVisual = !showVideoVisual && hasImages;
+
+                            return Container(
                               decoration: BoxDecoration(
                                 color: const Color(0xFF202124),
                                 borderRadius: BorderRadius.circular(16),
@@ -445,205 +467,137 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                  // Author header row
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    color: const Color(0xFF18191C),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                          child: Row(
-                                            children: [
-                                              if (preview.author?.avatar.isNotEmpty == true)
-                                                ClipRRect(
-                                                  borderRadius:
-                                                      BorderRadius.circular(18),
-                                                  child: Image.network(
-                                                    preview.author!.avatar,
-                                                    width: 36,
-                                                    height: 36,
-                                                    fit: BoxFit.cover,
-                                                    errorBuilder:
-                                                        (_, __, ___) =>
-                                                            _buildFbAvatarFallback(
-                                                      preview,
+                                    // Author header row
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      color: const Color(0xFF18191C),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Row(
+                                              children: [
+                                                if (preview.author?.avatar.isNotEmpty == true)
+                                                  ClipRRect(
+                                                    borderRadius: BorderRadius.circular(18),
+                                                    child: Image.network(
+                                                      preview.author!.avatar,
+                                                      width: 36,
+                                                      height: 36,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (_, __, ___) => _buildAvatarFallback(
+                                                        preview,
+                                                        accentColor,
+                                                        platformName[0],
+                                                      ),
                                                     ),
+                                                  )
+                                                else
+                                                  _buildAvatarFallback(
+                                                    preview,
+                                                    accentColor,
+                                                    platformName[0],
                                                   ),
-                                                )
-                                              else
-                                                _buildFbAvatarFallback(preview),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      preview.author?.name.isNotEmpty == true
-                                                          ? preview.author!.name
-                                                          : (preview.uploader.isNotEmpty
-                                                              ? preview.uploader
-                                                              : (preview.title.isNotEmpty
-                                                                  ? preview.title
-                                                                  : 'Facebook Post')),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 12.5,
-                                                        fontWeight:
-                                                            FontWeight.bold,
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        authorName,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 12.5,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
                                                       ),
-                                                    ),
-                                                    Text(
-                                                      preview.createdTime.isNotEmpty
-                                                          ? preview.createdTime
-                                                          : 'Bài viết Facebook',
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        color: Colors.white54,
-                                                        fontSize: 10,
+                                                      Text(
+                                                        subtitle,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(
+                                                          color: Colors.white54,
+                                                          fontSize: 10,
+                                                        ),
                                                       ),
-                                                    ),
-                                                  ],
+                                                    ],
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF1877F2)
-                                                .withValues(alpha: 0.15),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            border: Border.all(
-                                              color: const Color(0xFF1877F2)
-                                                  .withValues(alpha: 0.35),
+                                              ],
                                             ),
                                           ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              SvgPicture.asset(
-                                                'assets/icons/facebook.svg',
-                                                width: 11,
-                                                height: 11,
-                                                colorFilter:
-                                                    const ColorFilter.mode(
-                                                  Color(0xFF1877F2),
-                                                  BlendMode.srcIn,
-                                                ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: accentColor.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: accentColor.withValues(alpha: 0.35),
                                               ),
-                                              const SizedBox(width: 4),
-                                              const Text(
-                                                'Facebook',
-                                                style: TextStyle(
-                                                  color: Color(0xFF1877F2),
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                SvgPicture.asset(
+                                                  platformIconAsset,
+                                                  width: 11,
+                                                  height: 11,
+                                                  colorFilter: ColorFilter.mode(
+                                                    accentColor,
+                                                    BlendMode.srcIn,
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  // Video thumbnail or initial review photo in Facebook card
-                                  if (hasVideo && preview.thumbnail.isNotEmpty)
-                                    _buildMediaPreviewBox(
-                                      imageUrl: preview.thumbnail,
-                                      isVideo: true,
-                                    )
-                                  else if (hasImages)
-                                    _buildMediaPreviewBox(
-                                      imageUrl: targetImages.first.thumbnail.isNotEmpty
-                                          ? targetImages.first.thumbnail
-                                          : targetImages.first.url,
-                                      isVideo: false,
-                                      totalImages: targetImages.length,
-                                      onTap: () {
-                                        _showImagePreviewDialog(
-                                          context,
-                                          targetImages,
-                                          0,
-                                          accentColor,
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ] else ...[
-                            // TikTok / YouTube Card
-                            Container(
-                              decoration: BoxDecoration(
-                                color: AppTheme.bgCard,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: AppTheme.borderColor),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(13),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                  if (preview.thumbnail.isNotEmpty)
-                                    _buildMediaPreviewBox(
-                                      imageUrl: preview.thumbnail,
-                                      isVideo: true,
-                                      platformTag: isTikTok ? 'TikTok' : 'YouTube',
-                                      tagColor: isTikTok ? const Color(0xFF22D3EE) : Colors.redAccent,
-                                    ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(10),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          preview.title,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.bold,
-                                            height: 1.25,
-                                          ),
-                                        ),
-                                        if (preview.uploader.isNotEmpty) ...[
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            preview.uploader,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.white54,
-                                              fontSize: 11,
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  platformName,
+                                                  style: TextStyle(
+                                                    color: accentColor,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
-                                      ],
+                                      ),
                                     ),
-                                  ),
+
+                                    // Video thumbnail or initial review photo in card
+                                    if (showVideoVisual && preview.thumbnail.isNotEmpty)
+                                      _buildMediaPreviewBox(
+                                        imageUrl: preview.thumbnail,
+                                        isVideo: true,
+                                        tagColor: accentColor,
+                                      )
+                                    else if (showImageVisual)
+                                      _buildMediaPreviewBox(
+                                        imageUrl: targetImages.first.thumbnail.isNotEmpty
+                                            ? targetImages.first.thumbnail
+                                            : targetImages.first.url,
+                                        isVideo: false,
+                                        totalImages: targetImages.length,
+                                        tagColor: accentColor,
+                                        onTap: () {
+                                          _showImagePreviewDialog(
+                                            context,
+                                            targetImages,
+                                            0,
+                                            accentColor,
+                                          );
+                                        },
+                                      ),
                                   ],
                                 ),
                               ),
-                            ),
-                          ],
+                            );
+                          }(),
                           const SizedBox(height: 12),
 
                           // Segmented control when BOTH video and images are available
@@ -661,20 +615,13 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: _mediaTypeTab == 'video'
-                                            ? (isFacebook
-                                                ? const Color(0xFF1877F2)
-                                                    .withValues(alpha: 0.18)
-                                                : Colors.redAccent
-                                                    .withValues(alpha: 0.18))
+                                            ? accentColor.withValues(alpha: 0.18)
                                             : Colors.transparent,
                                         borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                           color: _mediaTypeTab == 'video'
-                                              ? (isFacebook
-                                                  ? const Color(0xFF1877F2)
-                                                      .withValues(alpha: 0.4)
-                                                  : Colors.redAccent
-                                                      .withValues(alpha: 0.4))
+                                              ? accentColor
+                                                  .withValues(alpha: 0.4)
                                               : AppTheme.borderColor,
                                         ),
                                       ),
@@ -687,9 +634,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                             Icons.videocam_rounded,
                                             size: 15,
                                             color: _mediaTypeTab == 'video'
-                                                ? (isFacebook
-                                                    ? const Color(0xFF1877F2)
-                                                    : Colors.redAccent)
+                                                ? accentColor
                                                 : Colors.white60,
                                           ),
                                           const SizedBox(width: 5),
@@ -1145,25 +1090,27 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
     );
   }
 
-  Widget _buildFbAvatarFallback(MediaDownloadPreview preview) {
-    final initial = preview.uploader.isNotEmpty
-        ? preview.uploader[0].toUpperCase()
-        : (preview.title.isNotEmpty ? preview.title[0].toUpperCase() : 'F');
+  Widget _buildAvatarFallback(MediaDownloadPreview preview, Color color, String defaultInitial) {
+    final name = preview.author?.name.isNotEmpty == true
+        ? preview.author!.name
+        : (preview.uploader.isNotEmpty ? preview.uploader : preview.title);
+    final cleanName = name.replaceFirst(RegExp(r'^@'), '').trim();
+    final initial = cleanName.isNotEmpty ? cleanName[0].toUpperCase() : defaultInitial;
     return Container(
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: const Color(0xFF1877F2).withValues(alpha: 0.2),
+        color: color.withValues(alpha: 0.2),
         shape: BoxShape.circle,
         border: Border.all(
-          color: const Color(0xFF1877F2).withValues(alpha: 0.4),
+          color: color.withValues(alpha: 0.4),
         ),
       ),
       alignment: Alignment.center,
       child: Text(
         initial,
-        style: const TextStyle(
-          color: Color(0xFF1877F2),
+        style: TextStyle(
+          color: color,
           fontWeight: FontWeight.bold,
           fontSize: 14,
         ),
@@ -1273,7 +1220,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                     Icon(
                       isVideo ? Icons.videocam_rounded : Icons.photo_library_rounded,
                       size: 13,
-                      color: isVideo ? const Color(0xFF1877F2) : const Color(0xFF22D3EE),
+                      color: isVideo ? (tagColor ?? const Color(0xFF1877F2)) : const Color(0xFF22D3EE),
                     ),
                     const SizedBox(width: 4.5),
                     Text(
