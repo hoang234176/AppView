@@ -243,11 +243,42 @@ class TikTokWebScraper:
         }
 
         video_formats: list[dict[str, Any]] = []
+
+        # 1. Parse bitrateInfo if available from TikTok JSON (multiple bitrates / codecs)
+        bitrate_info_list = video_info.get("bitrateInfo") or []
+        for b_item in bitrate_info_list:
+            if isinstance(b_item, dict):
+                play_urls = b_item.get("PlayAddr", {}).get("UrlList") or []
+                br = b_item.get("Bitrate") or 0
+                codec = b_item.get("CodecType") or "h264"
+                q_type = b_item.get("QualityType") or 0
+                if play_urls:
+                    clean_b_url = html.unescape(play_urls[0]).replace(r"\u002F", "/")
+                    w = video_info.get("width", 0)
+                    h = video_info.get("height", 0)
+                    video_formats.append({
+                        "format_id": f"bitrate_{br}_{codec}",
+                        "vcodec": codec,
+                        "tbr": br // 1000 if br else 0,
+                        "bitrate": br,
+                        "resolution": f"{w}x{h}",
+                        "quality": 1080 if (h >= 1080 or q_type >= 20) else 720,
+                        "url": clean_b_url,
+                        "http_headers": dict(headers_for_video),
+                    })
+
+        # 2. Main direct_play and downloadAddr
         if video_url:
+            br = video_info.get("bitrate") or 0
+            w = video_info.get("width", 0)
+            h = video_info.get("height", 0)
             video_formats.append({
                 "format_id": "direct_play",
                 "vcodec": "h264",
-                "resolution": f"{video_info.get('width', 0)}x{video_info.get('height', 0)}",
+                "tbr": br // 1000 if br else 0,
+                "bitrate": br,
+                "resolution": f"{w}x{h}",
+                "quality": 1080 if h >= 1080 else 720,
                 "url": video_url,
                 "http_headers": dict(headers_for_video),
             })
@@ -257,7 +288,9 @@ class TikTokWebScraper:
             video_formats.append({
                 "format_id": "download_addr",
                 "vcodec": "h264",
+                "tbr": (video_info.get("bitrate") or 0) // 1000,
                 "resolution": f"{video_info.get('width', 0)}x{video_info.get('height', 0)}",
+                "quality": 720,
                 "url": clean_dl,
                 "http_headers": dict(headers_for_video),
             })

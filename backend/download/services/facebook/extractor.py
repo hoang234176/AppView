@@ -7,6 +7,7 @@ and media (photos and videos) from Facebook URLs.
 from __future__ import annotations
 
 import asyncio
+import base64
 from datetime import datetime
 from functools import partial
 import html
@@ -536,8 +537,79 @@ class FacebookExtractor:
             "shares": shares,
         }
 
+    def _extract_best_photo_from_block(self, block: str) -> Optional[dict[str, Any]]:
+        """Extract the absolute highest resolution photo from a subattachment or photo renderer block."""
+        patterns = [
+            r'"(?:image|full_size_image|viewer_image|original_image|large_share_image|photo_image)"\s*:\s*\{([^}]+)\}',
+        ]
+        candidates: list[dict[str, Any]] = []
+        for pat in patterns:
+            for m in re.finditer(pat, block):
+                inner = m.group(1)
+                uri_m = re.search(r'"uri"\s*:\s*"([^"]+)"', inner)
+                if not uri_m:
+                    continue
+                clean = self._clean_url(uri_m.group(1))
+                w_m = re.search(r'"width"\s*:\s*(\d+)', inner)
+                h_m = re.search(r'"height"\s*:\s*(\d+)', inner)
+                w = int(w_m.group(1)) if w_m else None
+                h = int(h_m.group(1)) if h_m else None
+                if not self._is_content_photo(clean, w, h):
+                    continue
+
+                # Estimate resolution score
+                score = (w or 0) * (h or 0)
+                dim_m = re.search(r'/[sp](\d+)x(\d+)/', clean)
+                if dim_m:
+                    url_w = int(dim_m.group(1))
+                    url_h = int(dim_m.group(2))
+                    score = max(score, url_w * url_h)
+                    if not w or not h:
+                        w, h = url_w, url_h
+                elif any(c in clean for c in ["/t39.30808-6/", "/t1.6435-9/"]):
+                    # Uncropped full-size master on Facebook CDN
+                    score = max(score, 2048 * 2048)
+
+                candidates.append({
+                    "url": clean,
+                    "width": w,
+                    "height": h,
+                    "score": score,
+                })
+
+        if not candidates:
+            # Fallback to any "uri":"..." in block if content photo
+            for u_m in re.finditer(r'"uri"\s*:\s*"([^"]+)"', block):
+                clean = self._clean_url(u_m.group(1))
+                if self._is_content_photo(clean, None, None):
+                    dim_m = re.search(r'/[sp](\d+)x(\d+)/', clean)
+                    score = 1
+                    w, h = None, None
+                    if dim_m:
+                        w, h = int(dim_m.group(1)), int(dim_m.group(2))
+                        score = w * h
+                    candidates.append({
+                        "url": clean,
+                        "width": w,
+                        "height": h,
+                        "score": score,
+                    })
+
+        if not candidates:
+            return None
+
+        # Sort descending by resolution score: highest resolution first!
+        candidates.sort(key=lambda c: c["score"], reverse=True)
+        best = candidates[0]
+        return {
+            "url": best["url"],
+            "thumbnail": best["url"],
+            "width": best["width"],
+            "height": best["height"],
+        }
+
     def _extract_photos(self, html_text: str) -> list[dict[str, Any]]:
-        """Extract high-resolution photo URLs from post attachments."""
+        """Extract highest resolution photo URLs from post attachments."""
         photos: list[dict[str, Any]] = []
         seen_urls: set[str] = set()
 
@@ -546,51 +618,38 @@ class FacebookExtractor:
 
         # 1. Single Photo Post: Prioritize StoryAttachmentPhotoStyleRenderer when it appears first
         if pos_photo != -1 and (pos_album == -1 or pos_photo < pos_album):
-            chunk = html_text[pos_photo:pos_photo + 15000]
-            m_img = re.search(
-                r'"photo_image"\s*:\s*\{\s*"uri"\s*:\s*"([^"]+)"(?:,\s*"height"\s*:\s*(\d+))?(?:,\s*"width"\s*:\s*(\d+))?',
-                chunk,
-            )
-            if m_img:
-                clean = self._clean_url(m_img.group(1))
-                h = int(m_img.group(2)) if m_img.group(2) else None
-                w = int(m_img.group(3)) if m_img.group(3) else None
-                if self._is_content_photo(clean, w, h):
-                    photos.append({
-                        "id": "fb_photo_1",
-                        "url": clean,
-                        "thumbnail": clean,
-                        "width": w,
-                        "height": h,
-                    })
-                    return photos
+            chunk = html_text[pos_photo:pos_photo + 30000]
+            best_photo = self._extract_best_photo_from_block(chunk)
+            if best_photo:
+                photos.append({
+                    "id": "fb_photo_1",
+                    "url": best_photo["url"],
+                    "thumbnail": best_photo["thumbnail"],
+                    "width": best_photo["width"],
+                    "height": best_photo["height"],
+                })
+                return photos
 
         # 2. Album Post: StoryAttachmentAlbumStyleRenderer when it appears first
         if pos_album != -1 and (pos_photo == -1 or pos_album < pos_photo):
-            chunk = html_text[pos_album:pos_album + 120000]
+            chunk = html_text[pos_album:pos_album + 150000]
             m_sub = re.search(r'"all_subattachments"\s*:\s*\{\s*"count"\s*:\s*(\d+)\s*,\s*"nodes"\s*:\s*\[(.*?)\]\}', chunk)
             if m_sub:
                 nodes_str = m_sub.group(2)
                 for item in re.split(r'\}\s*,\s*\{"deduplication_key"', nodes_str):
-                    uri_m = re.findall(r'"uri":"([^"]+)"', item)
-                    if not uri_m:
+                    best_item_photo = self._extract_best_photo_from_block(item)
+                    if not best_item_photo:
                         continue
-                    clean = self._clean_url(uri_m[0])
-                    w_m = re.search(r'"width":(\d+)', item)
-                    h_m = re.search(r'"height":(\d+)', item)
-                    w = int(w_m.group(1)) if w_m else None
-                    h = int(h_m.group(1)) if h_m else None
-                    if not self._is_content_photo(clean, w, h):
-                        continue
+                    clean = best_item_photo["url"]
                     norm_key = self._normalize_fb_cdn(clean)
                     if norm_key not in seen_urls:
                         seen_urls.add(norm_key)
                         photos.append({
                             "id": f"fb_photo_{len(photos) + 1}",
                             "url": clean,
-                            "thumbnail": clean,
-                            "width": w,
-                            "height": h,
+                            "thumbnail": best_item_photo["thumbnail"],
+                            "width": best_item_photo["width"],
+                            "height": best_item_photo["height"],
                         })
                 if photos:
                     return photos
@@ -600,25 +659,19 @@ class FacebookExtractor:
         if m_sub:
             nodes_str = m_sub.group(2)
             for chunk in re.split(r'\}\s*,\s*\{"deduplication_key"', nodes_str):
-                uri_m = re.findall(r'"uri":"([^"]+)"', chunk)
-                if not uri_m:
+                best_item_photo = self._extract_best_photo_from_block(chunk)
+                if not best_item_photo:
                     continue
-                clean = self._clean_url(uri_m[0])
-                w_m = re.search(r'"width":(\d+)', chunk)
-                h_m = re.search(r'"height":(\d+)', chunk)
-                w = int(w_m.group(1)) if w_m else None
-                h = int(h_m.group(1)) if h_m else None
-                if not self._is_content_photo(clean, w, h):
-                    continue
+                clean = best_item_photo["url"]
                 norm_key = self._normalize_fb_cdn(clean)
                 if norm_key not in seen_urls:
                     seen_urls.add(norm_key)
                     photos.append({
                         "id": f"fb_photo_{len(photos) + 1}",
                         "url": clean,
-                        "thumbnail": clean,
-                        "width": w,
-                        "height": h,
+                        "thumbnail": best_item_photo["thumbnail"],
+                        "width": best_item_photo["width"],
+                        "height": best_item_photo["height"],
                     })
 
         # 4. Extract from primary story attachments block
@@ -628,25 +681,20 @@ class FacebookExtractor:
                 att_content = m_att.group(1)
                 for chunk in re.split(r'\}\s*,\s*\{', att_content):
                     if '"Photo"' in chunk or '"image"' in chunk:
-                        uri_m = re.search(r'"uri"\s*:\s*"([^"]+)"', chunk)
-                        if not uri_m:
+                        best_item_photo = self._extract_best_photo_from_block(chunk)
+                        if not best_item_photo:
                             continue
-                        clean = self._clean_url(uri_m.group(1))
-                        w_m = re.search(r'"width"\s*:\s*(\d+)', chunk)
-                        h_m = re.search(r'"height"\s*:\s*(\d+)', chunk)
-                        w = int(w_m.group(1)) if w_m else None
-                        h = int(h_m.group(1)) if h_m else None
-                        if self._is_content_photo(clean, w, h):
-                            norm_key = self._normalize_fb_cdn(clean)
-                            if norm_key not in seen_urls:
-                                seen_urls.add(norm_key)
-                                photos.append({
-                                    "id": f"fb_photo_{len(photos) + 1}",
-                                    "url": clean,
-                                    "thumbnail": clean,
-                                    "width": w,
-                                    "height": h,
-                                })
+                        clean = best_item_photo["url"]
+                        norm_key = self._normalize_fb_cdn(clean)
+                        if norm_key not in seen_urls:
+                            seen_urls.add(norm_key)
+                            photos.append({
+                                "id": f"fb_photo_{len(photos) + 1}",
+                                "url": clean,
+                                "thumbnail": best_item_photo["thumbnail"],
+                                "width": best_item_photo["width"],
+                                "height": best_item_photo["height"],
+                            })
 
         # 5. Direct photo attachment in Comet JSON: "image":{...}
         if not photos:
@@ -671,18 +719,23 @@ class FacebookExtractor:
                     norm_key = self._normalize_fb_cdn(clean_url)
                     if norm_key not in seen_urls:
                         seen_urls.add(norm_key)
-                        area = (w or 0) * (h or 0)
+                        score = (w or 0) * (h or 0)
+                        dim_m = re.search(r'/[sp](\d+)x(\d+)/', clean_url)
+                        if dim_m:
+                            score = max(score, int(dim_m.group(1)) * int(dim_m.group(2)))
+                        elif any(c in clean_url for c in ["/t39.30808-6/", "/t1.6435-9/"]):
+                            score = max(score, 2048 * 2048)
                         candidates.append({
                             "url": clean_url,
                             "thumbnail": clean_url,
                             "width": w,
                             "height": h,
-                            "area": area,
+                            "score": score,
                         })
 
             if candidates:
-                # For single photo posts, pick the highest resolution image to avoid stray feed thumbnails
-                candidates.sort(key=lambda x: x["area"], reverse=True)
+                # Pick the highest resolution image
+                candidates.sort(key=lambda x: x["score"], reverse=True)
                 best = candidates[0]
                 photos.append({
                     "id": "fb_photo_1",
@@ -716,7 +769,7 @@ class FacebookExtractor:
         target_video_id: Optional[str] = None,
         is_reel_or_video_url: bool = False,
     ) -> tuple[list[dict[str, Any]], list[int]]:
-        """Extract HD and SD video stream URLs and available quality tiers."""
+        """Extract HD and SD video stream URLs, bitrates, and available quality tiers."""
         if is_photo_post:
             return [], []
 
@@ -794,6 +847,12 @@ class FacebookExtractor:
                 elif "360" in tag:
                     q_num = 360
 
+                bitrate = efg_info.get("bitrate") or 0
+                if not bitrate:
+                    m_br = re.search(r'(\d+)k(?:bps)?', tag.lower())
+                    if m_br:
+                        bitrate = int(m_br.group(1)) * 1000
+
                 seen_urls.add(clean_u)
                 qualities_set.add(q_num)
                 videos.append({
@@ -801,6 +860,7 @@ class FacebookExtractor:
                     "label": f"Video {q_label} ({q_num}p)",
                     "quality_label": q_label,
                     "quality": q_num,
+                    "bitrate": bitrate,
                     "url": clean_u,
                 })
 
@@ -830,6 +890,12 @@ class FacebookExtractor:
                 if "audio" in tag.lower():
                     continue
 
+                bitrate = efg_info.get("bitrate") or 0
+                if not bitrate:
+                    m_br = re.search(r'(\d+)k(?:bps)?', tag.lower())
+                    if m_br:
+                        bitrate = int(m_br.group(1)) * 1000
+
                 seen_urls.add(clean_u)
                 qualities_set.add(default_quality)
                 videos.append({
@@ -837,6 +903,7 @@ class FacebookExtractor:
                     "label": f"Video {label} ({default_quality}p)",
                     "quality_label": label,
                     "quality": default_quality,
+                    "bitrate": bitrate,
                     "url": clean_u,
                 })
 

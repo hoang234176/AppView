@@ -125,13 +125,15 @@ class FacebookResolver(DownloadResolver):
         if quality is not None:
             matched = [v for v in videos if v.get("quality") == quality]
             if matched:
+                # Ưu tiên bitrate cao nhất trong cùng độ phân giải đã chọn
+                matched.sort(key=lambda v: (v.get("bitrate") or 0), reverse=True)
                 chosen_video = matched[0]
             else:
                 closest = min(videos, key=lambda v: abs((v.get("quality") or 0) - quality))
                 chosen_video = closest
         else:
-            # Mặc định chọn chất lượng cao nhất (HD)
-            chosen_video = max(videos, key=lambda v: v.get("quality") or 0)
+            # Mặc định chọn luồng có chất lượng và bitrate cao nhất
+            chosen_video = max(videos, key=lambda v: ((v.get("quality") or 0), (v.get("bitrate") or 0)))
 
         video_url = chosen_video["url"]
         video_headers: dict[str, str] = {
