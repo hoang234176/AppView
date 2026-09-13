@@ -102,19 +102,7 @@ func runJob(job *Job) {
 		videoPart := filepath.Join(workspace, "video.part")
 		audioPart := filepath.Join(workspace, "audio.part")
 
-		videoBytes, err := downloadStream(job.ctx, job, job.URL, job.headers, videoPart, 0)
-		if err != nil {
-			if job.ctx.Err() == nil {
-				setJobError(job, "DOWNLOAD_FAILED", err.Error())
-			}
-			return
-		}
-		if job.ctx.Err() != nil {
-			return
-		}
-
-		_, err = downloadStream(job.ctx, job, audioURL, job.headers, audioPart, videoBytes)
-		if err != nil {
+		if err := downloadDualStream(job.ctx, job, job.URL, videoPart, audioURL, audioPart, job.headers); err != nil {
 			if job.ctx.Err() == nil {
 				setJobError(job, "DOWNLOAD_FAILED", err.Error())
 			}
@@ -158,6 +146,13 @@ func runJob(job *Job) {
 	if job.ctx.Err() != nil {
 		return
 	}
+
+	job.mu.Lock()
+	if job.TotalBytes > 0 && job.DownloadedBytes > job.TotalBytes {
+		job.TotalBytes = job.DownloadedBytes
+	}
+	job.mu.Unlock()
+	persistJob(job)
 
 	// Inspect media compatibility
 	setJobStage(job, "scanning")

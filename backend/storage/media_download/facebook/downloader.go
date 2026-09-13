@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"backend/cookies"
+	"backend/multidownload"
 )
 
 func netscapeToCookieHeader(raw string) string {
@@ -32,17 +33,7 @@ func netscapeToCookieHeader(raw string) string {
 	return strings.Join(parts, "; ")
 }
 
-func downloadStream(ctx context.Context, job *Job, targetURL string, headers map[string]string, partPath string, initialBytes int64) (int64, error) {
-	var existingBytes int64
-	if info, statErr := os.Stat(partPath); statErr == nil {
-		existingBytes = info.Size()
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
-	if err != nil {
-		return 0, err
-	}
-
+func prepareFacebookRequest(req *http.Request, headers map[string]string) {
 	for k, v := range headers {
 		lk := strings.ToLower(k)
 		if lk == "user-agent" || lk == "referer" || lk == "accept" || lk == "accept-language" || lk == "cookie" {
@@ -63,95 +54,41 @@ func downloadStream(ctx context.Context, job *Job, targetURL string, headers map
 			}
 		}
 	}
-	if existingBytes > 0 {
-		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingBytes))
-	}
+}
 
-	client := &http.Client{Timeout: 0}
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, fmt.Errorf("máy chủ tải trả HTTP %d", resp.StatusCode)
-	}
-
-	appendMode := existingBytes > 0 && resp.StatusCode == http.StatusPartialContent
-	if existingBytes > 0 && !appendMode {
-		existingBytes = 0
-	}
-
-	fileFlags := os.O_CREATE | os.O_WRONLY
-	if appendMode {
-		fileFlags |= os.O_APPEND
-	} else {
-		fileFlags |= os.O_TRUNC
-	}
-
-	file, err := os.OpenFile(partPath, fileFlags, 0644)
-	if err != nil {
-		return 0, err
-	}
-	defer file.Close()
-
-	job.mu.Lock()
-	job.DownloadedBytes = initialBytes + existingBytes
-	if resp.ContentLength > 0 {
-		job.TotalBytes = job.DownloadedBytes + resp.ContentLength
-	}
-	job.mu.Unlock()
-
-	buffer := make([]byte, 1024*1024)
-	lastBytes := job.DownloadedBytes
-	lastTime := time.Now()
-
-	for {
-		if ctx.Err() != nil {
-			return existingBytes, ctx.Err()
+func newJobProgressReporter(job *Job, initialBytes int64) *multidownload.ProgressReporter {
+	return multidownload.NewProgressReporter(initialBytes, 500*time.Millisecond, func(downloaded, total, speed int64) {
+		job.mu.Lock()
+		job.DownloadedBytes = downloaded
+		if total > 0 {
+			if downloaded > total {
+				total = downloaded
+			}
+			job.TotalBytes = total
 		}
+		job.SpeedBytes = speed
+		job.UpdatedAt = time.Now().UTC()
+		job.mu.Unlock()
 
-		count, readErr := resp.Body.Read(buffer)
-		if count > 0 {
-			if _, wErr := file.Write(buffer[:count]); wErr != nil {
-				return existingBytes, wErr
-			}
-			existingBytes += int64(count)
+		persistJob(job)
+	})
+}
 
-			shouldPersist := false
-			job.mu.Lock()
-			job.DownloadedBytes = initialBytes + existingBytes
-			now := time.Now()
-			elapsed := now.Sub(lastTime)
-			if elapsed >= time.Second {
-				delta := job.DownloadedBytes - lastBytes
-				job.SpeedBytes = int64(float64(delta) / elapsed.Seconds())
-				lastBytes = job.DownloadedBytes
-				lastTime = now
-				shouldPersist = true
-			}
-			job.mu.Unlock()
+func downloadStream(ctx context.Context, job *Job, targetURL string, headers map[string]string, partPath string, initialBytes int64) (int64, error) {
+	reporter := newJobProgressReporter(job, initialBytes)
 
-			if shouldPersist {
-				persistJob(job)
-			}
-		}
-
-		if readErr != nil {
-			if readErr.Error() == "EOF" {
-				break
-			}
-			return existingBytes, readErr
-		}
+	opts := multidownload.DownloadOptions{
+		Headers:        headers,
+		MaxConcurrency: multidownload.MaxConcurrency,
+		Reporter:       reporter,
+		PrepareRequest: func(req *http.Request) {
+			prepareFacebookRequest(req, headers)
+		},
 	}
 
-	job.mu.Lock()
-	job.DownloadedBytes = initialBytes + existingBytes
-	job.SpeedBytes = 0
-	job.mu.Unlock()
-	persistJob(job)
-	return existingBytes, nil
+	downloaded, err := multidownload.DownloadFile(ctx, targetURL, partPath, opts)
+	reporter.Done()
+	return downloaded, err
 }
 
 func downloadAllItems(ctx context.Context, job *Job, workspace string) error {
@@ -163,21 +100,21 @@ func downloadAllItems(ctx context.Context, job *Job, workspace string) error {
 	job.mu.RUnlock()
 
 	if len(items) > 0 {
-		var totalDownloaded int64
-		for _, item := range items {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
+		reporter := newJobProgressReporter(job, 0)
+		batchItems := make([]multidownload.BatchItem, len(items))
+		for i, item := range items {
 			destFile := filepath.Join(workspace, item.Filename)
-			partFile := destFile + ".part"
-			downloaded, err := downloadStream(ctx, job, item.URL, headers, partFile, totalDownloaded)
-			if err != nil {
-				return err
+			batchItems[i] = multidownload.BatchItem{
+				URL:      item.URL,
+				DestPath: destFile,
+				Headers:  headers,
+				PrepareRequest: func(req *http.Request) {
+					prepareFacebookRequest(req, headers)
+				},
 			}
-			totalDownloaded += downloaded
-			_ = os.Rename(partFile, destFile)
 		}
-		return nil
+
+		return multidownload.DownloadBatch(ctx, batchItems, multidownload.MaxConcurrency, reporter)
 	}
 
 	// Single media file download (video)
@@ -187,5 +124,6 @@ func downloadAllItems(ctx context.Context, job *Job, workspace string) error {
 	if err != nil {
 		return err
 	}
+	_ = os.Remove(destFile)
 	return os.Rename(partFile, destFile)
 }

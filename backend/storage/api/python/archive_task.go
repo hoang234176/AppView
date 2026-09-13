@@ -20,6 +20,7 @@ import (
 
 	"backend/configs"
 	"backend/events"
+	"backend/multidownload"
 	"backend/utils"
 )
 
@@ -726,90 +727,35 @@ func runArchiveJob(job *ArchiveJob, password string, extractionOnly bool) {
 }
 
 func downloadSingleStream(ctx context.Context, job *ArchiveJob, targetURL string, headers map[string]string, partPath string, initialBytes int64) (int64, error) {
-	var existingBytes int64
-	if info, statErr := os.Stat(partPath); statErr == nil {
-		existingBytes = info.Size()
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
-	if err != nil {
-		return 0, err
-	}
-	for k, v := range headers {
-		lk := strings.ToLower(k)
-		if lk == "user-agent" || lk == "referer" || lk == "accept" || lk == "accept-language" {
-			request.Header.Set(k, v)
+	reporter := multidownload.NewProgressReporter(initialBytes, 500*time.Millisecond, func(downloaded, total, speed int64) {
+		job.mu.Lock()
+		job.DownloadedBytes = downloaded
+		if total > 0 {
+			if downloaded > total {
+				total = downloaded
+			}
+			job.TotalBytes = total
 		}
-	}
-	if request.Header.Get("User-Agent") == "" {
-		request.Header.Set("User-Agent", "Mozilla/5.0 AppView/1.0")
-	}
-	if existingBytes > 0 {
-		request.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingBytes))
-	}
-	response, err := (&http.Client{Timeout: 0}).Do(request)
-	if err != nil {
-		return 0, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return 0, fmt.Errorf("máy chủ tải trả HTTP %d", response.StatusCode)
-	}
-	appendMode := existingBytes > 0 && response.StatusCode == http.StatusPartialContent
-	if existingBytes > 0 && !appendMode {
-		existingBytes = 0
-	}
-	fileFlags := os.O_CREATE | os.O_WRONLY
-	if appendMode {
-		fileFlags |= os.O_APPEND
-	} else {
-		fileFlags |= os.O_TRUNC
-	}
-	file, err := os.OpenFile(partPath, fileFlags, 0644)
-	if err != nil {
-		return 0, err
-	}
-	defer file.Close()
+		job.SpeedBytes = speed
+		job.UpdatedAt = time.Now().UTC()
+		job.mu.Unlock()
+		persistArchiveJob(job)
+	})
 
-	job.mu.Lock()
-	job.DownloadedBytes = initialBytes + existingBytes
-	if response.ContentLength > 0 {
-		job.TotalBytes = job.DownloadedBytes + response.ContentLength
+	opts := multidownload.DownloadOptions{
+		Headers:        headers,
+		MaxConcurrency: multidownload.MaxConcurrency,
+		Reporter:       reporter,
+		PrepareRequest: func(req *http.Request) {
+			if req.Header.Get("User-Agent") == "" {
+				req.Header.Set("User-Agent", "Mozilla/5.0 AppView/1.0")
+			}
+		},
 	}
-	job.mu.Unlock()
 
-	buffer := make([]byte, 1024*1024)
-	lastBytes, lastTime := job.DownloadedBytes, time.Now()
-	for {
-		count, readErr := response.Body.Read(buffer)
-		if count > 0 {
-			if _, err := file.Write(buffer[:count]); err != nil {
-				return existingBytes, err
-			}
-			existingBytes += int64(count)
-			shouldPersist := false
-			job.mu.Lock()
-			job.DownloadedBytes += int64(count)
-			now := time.Now()
-			elapsed := now.Sub(lastTime).Seconds()
-			if elapsed >= .5 {
-				job.SpeedBytes = int64(float64(job.DownloadedBytes-lastBytes) / elapsed)
-				lastBytes, lastTime = job.DownloadedBytes, now
-				job.UpdatedAt = now.UTC()
-				shouldPersist = true
-			}
-			job.mu.Unlock()
-			if shouldPersist {
-				persistArchiveJob(job)
-			}
-		}
-		if readErr == io.EOF {
-			break
-		}
-		if readErr != nil {
-			return existingBytes, readErr
-		}
-	}
-	return existingBytes, file.Close()
+	downloaded, err := multidownload.DownloadFile(ctx, targetURL, partPath, opts)
+	reporter.Done()
+	return downloaded, err
 }
 
 func downloadArchive(job *ArchiveJob) error {
@@ -827,14 +773,36 @@ func downloadArchive(job *ArchiveJob) error {
 	if audioURL != "" {
 		videoPart := filepath.Join(workspace, "video.part")
 		audioPart := filepath.Join(workspace, "audio.part")
-		videoBytes, err := downloadSingleStream(job.ctx, job, job.URL, job.headers, videoPart, 0)
-		if err != nil {
-			return err
-		}
-		if job.ctx.Err() != nil {
-			return job.ctx.Err()
-		}
-		_, err = downloadSingleStream(job.ctx, job, audioURL, job.headers, audioPart, videoBytes)
+
+		reporter := multidownload.NewProgressReporter(0, 500*time.Millisecond, func(downloaded, total, speed int64) {
+			job.mu.Lock()
+			job.DownloadedBytes = downloaded
+			if total > 0 {
+				if downloaded > total {
+					total = downloaded
+				}
+				job.TotalBytes = total
+			}
+			job.SpeedBytes = speed
+			job.UpdatedAt = time.Now().UTC()
+			job.mu.Unlock()
+			persistArchiveJob(job)
+		})
+
+		err := multidownload.DownloadDualStream(job.ctx, multidownload.DualStreamConfig{
+			VideoURL:      job.URL,
+			VideoPartPath: videoPart,
+			VideoHeaders:  job.headers,
+			AudioURL:      audioURL,
+			AudioPartPath: audioPart,
+			AudioHeaders:  job.headers,
+			Reporter:      reporter,
+			PrepareRequest: func(req *http.Request) {
+				if req.Header.Get("User-Agent") == "" {
+					req.Header.Set("User-Agent", "Mozilla/5.0 AppView/1.0")
+				}
+			},
+		})
 		if err != nil {
 			return err
 		}

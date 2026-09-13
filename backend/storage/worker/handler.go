@@ -264,7 +264,18 @@ func (h *Handler) History() StorageHistoryPayload {
 	return StorageHistoryPayload{Jobs: jobs}
 }
 
+func clampProgress(downloaded, total int64) (int64, int64) {
+	if downloaded < 0 {
+		downloaded = 0
+	}
+	if total > 0 && downloaded > total {
+		total = downloaded
+	}
+	return downloaded, total
+}
+
 func facebookStorageSnapshot(snapshot facebook.Snapshot) StorageJobSnapshot {
+	dl, tot := clampProgress(snapshot.DownloadedBytes, snapshot.TotalBytes)
 	return StorageJobSnapshot{
 		ID:                    snapshot.ID,
 		CanonicalID:           snapshot.CanonicalID,
@@ -272,8 +283,8 @@ func facebookStorageSnapshot(snapshot facebook.Snapshot) StorageJobSnapshot {
 		Filename:              snapshot.Filename,
 		Destination:           snapshot.Destination,
 		State:                 snapshot.State,
-		DownloadedBytes:       snapshot.DownloadedBytes,
-		TotalBytes:            snapshot.TotalBytes,
+		DownloadedBytes:       dl,
+		TotalBytes:            tot,
 		SpeedBytes:            snapshot.SpeedBytes,
 		ExtractedPercent:      0,
 		ConversionTotal:       snapshot.Conversion.Total,
@@ -296,6 +307,7 @@ func facebookStorageSnapshot(snapshot facebook.Snapshot) StorageJobSnapshot {
 }
 
 func tiktokStorageSnapshot(snapshot tiktok.Snapshot) StorageJobSnapshot {
+	dl, tot := clampProgress(snapshot.DownloadedBytes, snapshot.TotalBytes)
 	return StorageJobSnapshot{
 		ID:                    snapshot.ID,
 		CanonicalID:           snapshot.CanonicalID,
@@ -303,8 +315,8 @@ func tiktokStorageSnapshot(snapshot tiktok.Snapshot) StorageJobSnapshot {
 		Filename:              snapshot.Filename,
 		Destination:           snapshot.Destination,
 		State:                 snapshot.State,
-		DownloadedBytes:       snapshot.DownloadedBytes,
-		TotalBytes:            snapshot.TotalBytes,
+		DownloadedBytes:       dl,
+		TotalBytes:            tot,
 		SpeedBytes:            snapshot.SpeedBytes,
 		ExtractedPercent:      0,
 		ConversionTotal:       snapshot.Conversion.Total,
@@ -327,9 +339,10 @@ func tiktokStorageSnapshot(snapshot tiktok.Snapshot) StorageJobSnapshot {
 }
 
 func storageSnapshot(snapshot pythonapi.ArchiveJobSnapshot) StorageJobSnapshot {
+	dl, tot := clampProgress(snapshot.DownloadedBytes, snapshot.TotalBytes)
 	return StorageJobSnapshot{
 		ID: snapshot.ID, CanonicalID: snapshot.CanonicalID, SourceURL: safeHistoryURL(snapshot.URL), Filename: snapshot.Filename, Destination: snapshot.Destination, State: snapshot.State,
-		DownloadedBytes: snapshot.DownloadedBytes, TotalBytes: snapshot.TotalBytes, SpeedBytes: snapshot.SpeedBytes,
+		DownloadedBytes: dl, TotalBytes: tot, SpeedBytes: snapshot.SpeedBytes,
 		ExtractedPercent: snapshot.ExtractedPct, ConversionTotal: snapshot.Conversion.Total, ConversionCurrent: snapshot.Conversion.Current,
 		ConversionFailed: snapshot.Conversion.Failed, ErrorCode: snapshot.ErrorCode, Error: snapshot.Error,
 		PasswordRequired: snapshot.PasswordNeeded, ArchiveDownloaded: snapshot.ArchiveDownloaded, ArchiveExtracted: snapshot.ArchiveExtracted,
@@ -341,6 +354,7 @@ func storageSnapshot(snapshot pythonapi.ArchiveJobSnapshot) StorageJobSnapshot {
 }
 
 func youtubeStorageSnapshot(snapshot youtube.Snapshot) StorageJobSnapshot {
+	dl, tot := clampProgress(snapshot.DownloadedBytes, snapshot.TotalBytes)
 	return StorageJobSnapshot{
 		ID:                    snapshot.ID,
 		CanonicalID:           snapshot.CanonicalID,
@@ -348,8 +362,8 @@ func youtubeStorageSnapshot(snapshot youtube.Snapshot) StorageJobSnapshot {
 		Filename:              snapshot.Filename,
 		Destination:           snapshot.Destination,
 		State:                 snapshot.State,
-		DownloadedBytes:       snapshot.DownloadedBytes,
-		TotalBytes:            snapshot.TotalBytes,
+		DownloadedBytes:       dl,
+		TotalBytes:            tot,
 		SpeedBytes:            snapshot.SpeedBytes,
 		ExtractedPercent:      0,
 		ConversionTotal:       snapshot.Conversion.Total,
