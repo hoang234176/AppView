@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import http.cookiejar
+import io
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,8 @@ import ssl
 from typing import Any, Optional
 import urllib.error
 import urllib.request
+
+import yt_dlp
 
 from logger import log_error, log_info, log_warning
 
@@ -146,32 +149,44 @@ def update_instagram_session_cookies_from_headers(set_cookie_headers: list[str])
     return True
 
 
-def create_cookiejar_from_netscape(raw_cookies: str) -> http.cookiejar.CookieJar:
-    """Create an in-memory CookieJar from Netscape formatted cookies or dictionary string."""
-    jar = http.cookiejar.CookieJar()
-    cookie_dict = parse_cookies_to_dict(raw_cookies)
+def create_cookiejar_from_netscape(raw_cookies: str) -> Optional[yt_dlp.cookies.YoutubeDLCookieJar]:
+    """Create an in-memory YoutubeDLCookieJar compatible with yt-dlp and urllib from Netscape formatted cookies."""
+    if not raw_cookies or not raw_cookies.strip():
+        return None
+    try:
+        jar = yt_dlp.cookies.YoutubeDLCookieJar()
+        jar._really_load(io.StringIO(raw_cookies), "in_memory", ignore_discard=True, ignore_expires=True)
+        if list(jar):
+            return jar
+    except Exception:
+        pass
 
-    for name, value in cookie_dict.items():
-        cookie = http.cookiejar.Cookie(
-            version=0,
-            name=name,
-            value=value,
-            port=None,
-            port_specified=False,
-            domain=".instagram.com",
-            domain_specified=True,
-            domain_initial_dot=True,
-            path="/",
-            path_specified=True,
-            secure=True,
-            expires=2147483647,
-            discard=False,
-            comment=None,
-            comment_url=None,
-            rest={"HttpOnly": None},
-        )
-        jar.set_cookie(cookie)
-    return jar
+    try:
+        jar = yt_dlp.cookies.YoutubeDLCookieJar()
+        cookie_dict = parse_cookies_to_dict(raw_cookies)
+        for name, value in cookie_dict.items():
+            cookie = http.cookiejar.Cookie(
+                version=0,
+                name=name,
+                value=value,
+                port=None,
+                port_specified=False,
+                domain=".instagram.com",
+                domain_specified=True,
+                domain_initial_dot=True,
+                path="/",
+                path_specified=True,
+                secure=True,
+                expires=2147483647,
+                discard=False,
+                comment=None,
+                comment_url=None,
+                rest={"HttpOnly": None},
+            )
+            jar.set_cookie(cookie)
+        return jar
+    except Exception:
+        return None
 
 
 async def verify_instagram_cookies(raw_cookies: str) -> tuple[bool, str]:

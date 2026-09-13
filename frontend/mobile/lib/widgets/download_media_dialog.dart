@@ -131,7 +131,9 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
               img.type == 'photo' ||
               img.type.isEmpty)
           .toList();
-      final targetImages = photos.isNotEmpty ? photos : preview.images;
+      final targetImages = photos.isNotEmpty
+          ? photos
+          : preview.images.where((img) => img.type != 'video').toList();
       final hasImages = targetImages.isNotEmpty;
       final hasVideo = preview.hasVideo || preview.source == 'youtube' || preview.qualities.isNotEmpty;
 

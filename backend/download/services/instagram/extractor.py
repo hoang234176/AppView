@@ -403,7 +403,6 @@ class InstagramExtractor:
                         v_url = node.get("video_url")
                         thumb = node.get("display_url")
                         dur = node.get("video_duration") or 0
-                        # Pick highest bitrate / resolution video resource if available
                         v_resources = node.get("video_resources") or []
                         if v_resources:
                             best_v = max(v_resources, key=lambda r: ((r.get("config_width") or 0) * (r.get("config_height") or 0)))
@@ -647,12 +646,15 @@ class InstagramExtractor:
                         width = entry.get("width")
                         height = entry.get("height")
                         bitrate = None
-                        if v_formats:
+                        # Prefer progressive formats that contain audio (exclude DASH video-only formats where acodec == 'none')
+                        formats_with_audio = [f for f in v_formats if f.get("acodec") != "none"]
+                        target_formats = formats_with_audio if formats_with_audio else v_formats
+                        if target_formats:
                             best_vf = max(
-                                v_formats,
+                                target_formats,
                                 key=lambda f: (
-                                    f.get("tbr") or f.get("vbr") or 0,
                                     (f.get("width") or 0) * (f.get("height") or 0),
+                                    f.get("tbr") or f.get("vbr") or 0,
                                 ),
                             )
                             v_url = best_vf.get("url") or v_url
@@ -702,12 +704,14 @@ class InstagramExtractor:
                     width = raw_data.get("width")
                     height = raw_data.get("height")
                     bitrate = None
-                    if v_formats:
+                    formats_with_audio = [f for f in v_formats if f.get("acodec") != "none"]
+                    target_formats = formats_with_audio if formats_with_audio else v_formats
+                    if target_formats:
                         best_vf = max(
-                            v_formats,
+                            target_formats,
                             key=lambda f: (
-                                f.get("tbr") or f.get("vbr") or 0,
                                 (f.get("width") or 0) * (f.get("height") or 0),
+                                f.get("tbr") or f.get("vbr") or 0,
                             ),
                         )
                         v_url = best_vf.get("url") or v_url
@@ -770,16 +774,18 @@ class InstagramExtractor:
         elif videos:
             primary_thumbnail = videos[0].get("thumbnail") or ""
 
-        # Construct preview image items for AppView format compatibility
+        # Construct preview image items for AppView format compatibility:
+        # ONLY actual photos must be included in preview images, NOT video thumbnails!
+        # If the post is purely video(s), images must be empty so the UI does not show a photo tab or download option.
         preview_images: list[dict[str, Any]] = []
-        for idx, item in enumerate(ordered_items):
-            i_type = item.get("type", "photo")
-            preview_images.append({
-                "id": f"ig_{shortcode}_{idx + 1}",
-                "url": item.get("thumbnail") or item.get("url") or "",
-                "label": f"{'Video' if i_type == 'video' else 'Ảnh'} #{idx + 1}",
-                "type": i_type,
-            })
+        if num_photos > 0:
+            for idx, p in enumerate(photos):
+                preview_images.append({
+                    "id": f"ig_{shortcode}_{idx + 1}",
+                    "url": p.get("thumbnail") or p.get("url") or "",
+                    "label": f"Ảnh #{idx + 1}",
+                    "type": "photo",
+                })
 
         return {
             "source": "instagram",
@@ -798,6 +804,7 @@ class InstagramExtractor:
             "items": ordered_items,
             "images": preview_images,
             "qualities": [],
+            "has_photos": num_photos > 0,
             "has_video": num_videos > 0,
             "has_audio": num_videos > 0,
             "thumbnail": primary_thumbnail,

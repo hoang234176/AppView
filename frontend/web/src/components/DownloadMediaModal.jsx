@@ -187,9 +187,13 @@ export const DownloadMediaModal = ({
         setQuality(null);
       }
       const pList = (result.images || []).filter(
-        (img) => img.type === 'slideshow_photo' || img.type === 'post_photo' || !img.type
+        (img) =>
+          img.type === 'slideshow_photo' ||
+          img.type === 'post_photo' ||
+          img.type === 'photo' ||
+          !img.type
       );
-      const imgs = pList.length > 0 ? pList : result.images || [];
+      const imgs = pList.length > 0 ? pList : (result.images || []).filter((img) => img.type !== 'video');
       setSelectedIndices(imgs.map((_, i) => i));
 
       const hasImages = imgs.length > 0;

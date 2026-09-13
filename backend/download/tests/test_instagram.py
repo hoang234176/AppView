@@ -114,11 +114,55 @@ def test_normalize_video_only():
     res = extractor._normalize_post(gql_payload, "Chunk8-jurw", "https://instagram.com/reel/Chunk8-jurw/", steps)
     assert res["type"] == "video"
     assert res["has_video"] is True
+    assert res["has_photos"] is False
     assert len(res["videos"]) == 1
     assert len(res["photos"]) == 0
+    assert len(res["images"]) == 0  # Crucial: video thumbnail must NOT be included in images
     assert len(res["items"]) == 1
     assert res["items"][0]["type"] == "video"
     assert res["items"][0]["duration"] == 15.5
+
+
+
+
+def test_ytdlp_audio_format_preferred():
+    """Verify that yt-dlp format selection picks progressive format with audio instead of silent DASH stream."""
+    extractor = InstagramExtractor()
+    ytdlp_payload = {
+        "type": "ytdlp",
+        "data": {
+            "vcodec": "h264",
+            "formats": [
+                # DASH format with higher tbr but NO audio (acodec == "none")
+                {
+                    "format_id": "dash-1080",
+                    "vcodec": "avc1",
+                    "acodec": "none",
+                    "tbr": 4000,
+                    "width": 1080,
+                    "height": 1920,
+                    "url": "https://cdninstagram.com/dash_no_audio.mp4",
+                },
+                # Progressive format with audio (acodec != "none")
+                {
+                    "format_id": "progressive-720",
+                    "vcodec": "avc1",
+                    "acodec": "mp4a.40.2",
+                    "tbr": 2000,
+                    "width": 720,
+                    "height": 1280,
+                    "url": "https://cdninstagram.com/progressive_with_sound.mp4",
+                },
+            ],
+            "uploader": "testuser",
+        }
+    }
+    steps = []
+    res = extractor._normalize_post(ytdlp_payload, "TestYtDlp", "https://instagram.com/reel/TestYtDlp/", steps)
+    assert res["has_video"] is True
+    assert res["has_photos"] is False
+    assert len(res["images"]) == 0
+    assert res["videos"][0]["url"] == "https://cdninstagram.com/progressive_with_sound.mp4"
 
 
 def test_normalize_mixed_media():
