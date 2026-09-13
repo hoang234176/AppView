@@ -288,6 +288,92 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
     }
   };
 
+  // Social Cookies State (Instagram)
+  const [igCookieStatus, setIgCookieStatus] = useState("loading"); // "loading" | "none" | "valid" | "expired"
+  const [isIgOpen, setIsIgOpen] = useState(false);
+  const [isIgCookieInputOpen, setIsIgCookieInputOpen] = useState(false);
+  const [igCookieFields, setIgCookieFields] = useState({
+    sessionid: "",
+    ds_user_id: "",
+    csrftoken: "",
+    mid: "",
+    ig_did: "",
+    datr: "",
+  });
+  const [isVerifyingIgCookie, setIsVerifyingIgCookie] = useState(false);
+  const [isSavingIgCookie, setIsSavingIgCookie] = useState(false);
+  const [isIgCookieVerified, setIsIgCookieVerified] = useState(false);
+  const [igCookieVerifyMsg, setIgCookieVerifyMsg] = useState(null);
+
+  const fetchIgCookieStatus = async () => {
+    setIgCookieStatus("loading");
+    const res = await getCookieStatus("instagram");
+    if (res.success && res.data) {
+      if (res.data.exists) {
+        setIgCookieStatus("valid");
+      } else {
+        setIgCookieStatus("none");
+      }
+    } else {
+      setIgCookieStatus("none");
+    }
+  };
+
+  const handleIgCookieFieldChange = (key, value) => {
+    setIgCookieFields((prev) => ({ ...prev, [key]: value }));
+    setIsIgCookieVerified(false);
+    setIgCookieVerifyMsg(null);
+  };
+
+  const handleVerifyIgCookie = async () => {
+    setIsVerifyingIgCookie(true);
+    setIgCookieVerifyMsg(null);
+    let payloadFields = null;
+
+    if (isIgCookieInputOpen) {
+      const hasAnyField = Object.values(igCookieFields).some((v) => v && v.trim() !== "");
+      if (!hasAnyField) {
+        setIsVerifyingIgCookie(false);
+        setIgCookieVerifyMsg({ type: "error", text: "Vui lòng nhập ít nhất sessionid và ds_user_id." });
+        return;
+      }
+      payloadFields = igCookieFields;
+    }
+
+    const res = await verifyCookies("instagram", payloadFields);
+    setIsVerifyingIgCookie(false);
+    if (res.success && res.data?.valid) {
+      setIsIgCookieVerified(true);
+      setIgCookieStatus("valid");
+      setIgCookieVerifyMsg({ type: "success", text: res.data.message || "✓ Cookie Instagram hợp lệ!" });
+    } else {
+      setIsIgCookieVerified(false);
+      if (!isIgCookieInputOpen) {
+        setIgCookieStatus("expired");
+      }
+      const errMsg = res.data?.message || res.message || "Cookie không hợp lệ hoặc đã hết hạn.";
+      setIgCookieVerifyMsg({ type: "error", text: errMsg });
+    }
+  };
+
+  const handleSaveIgCookie = async () => {
+    if (!isIgCookieVerified || isSavingIgCookie) return;
+    setIsSavingIgCookie(true);
+    setIgCookieVerifyMsg(null);
+
+    const res = await saveCookies("instagram", igCookieFields);
+    setIsSavingIgCookie(false);
+    if (res.success) {
+      setIsIgCookieInputOpen(false);
+      setIsIgCookieVerified(false);
+      setIgCookieStatus("valid");
+      setIgCookieVerifyMsg({ type: "success", text: "Đã lưu cookie Instagram thành công!" });
+      setTimeout(() => setIgCookieVerifyMsg(null), 3000);
+    } else {
+      setIgCookieVerifyMsg({ type: "error", text: res.message || "Không thể lưu cookie." });
+    }
+  };
+
   // Client Cache State
   const [cacheSizeText, setCacheSizeText] = useState('Đang tính...');
   const [isClearingCache, setIsClearingCache] = useState(false);
@@ -327,6 +413,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
       fetchYoutubeCookieStatus();
       fetchTiktokCookieStatus();
       fetchFbCookieStatus();
+      fetchIgCookieStatus();
       validateCoordinatorHost(currentHost).then((res) => {
         if (res.success) {
           setConnectionState('connected');
@@ -1122,6 +1209,179 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                               setFbCookieVerifyMsg(null);
                             }}
                             className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl shadow-lg shadow-blue-600/20 transition-all"
+                          >
+                            <Cookie className="w-3.5 h-3.5" />
+                            <span>Nhập cookie</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Instagram Card */}
+                <div className="bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
+                  {/* Header Row */}
+                  <div
+                    onClick={() => setIsIgOpen(!isIgOpen)}
+                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400 shrink-0">
+                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                        </svg>
+                      </div>
+                      <span className="font-bold text-white text-sm">Instagram</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {igCookieStatus === "valid" ? (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Hợp lệ
+                        </span>
+                      ) : igCookieStatus === "expired" ? (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" /> Hết hạn / Lỗi
+                        </span>
+                      ) : igCookieStatus === "loading" ? (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3 animate-spin" /> Đang tải...
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-500/15 text-gray-400 border border-gray-500/30">
+                          Chưa có cookie
+                        </span>
+                      )}
+                      <ChevronDown
+                        className={`w-4 h-4 text-gray-400 ml-1 transition-transform duration-200 ease-in-out ${
+                          isIgOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Body Container */}
+                  <div
+                    className={`overflow-hidden transition-all duration-200 ease-in-out ${
+                      isIgOpen ? "max-h-[800px] opacity-100 p-3 pt-0 space-y-3 border-t border-[#383c42]/40" : "max-h-0 opacity-0"
+                    }`}
+                  >
+                    {/* Sliding Input Container */}
+                    <div
+                      className={`overflow-hidden transition-all duration-200 ease-in-out ${
+                        isIgCookieInputOpen ? "max-h-[600px] opacity-100 pt-2 pb-1" : "max-h-0 opacity-0"
+                      }`}
+                    >
+                      <div className="space-y-2 pt-1">
+                        <p className="text-[11px] text-gray-400">
+                          Nhập từng thuộc tính cookie Instagram (bắt buộc <code className="text-pink-400">sessionid</code> và <code className="text-pink-400">ds_user_id</code>):
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {[
+                            { key: "sessionid", label: "sessionid (Session Token - Bắt buộc)" },
+                            { key: "ds_user_id", label: "ds_user_id (User ID - Bắt buộc)" },
+                            { key: "csrftoken", label: "csrftoken (CSRF Token)" },
+                            { key: "mid", label: "mid (Machine ID)" },
+                            { key: "ig_did", label: "ig_did (Device ID)" },
+                            { key: "datr", label: "datr (Browser Token)" },
+                          ].map(({ key, label }) => (
+                            <div key={key}>
+                              <label className="block text-[10px] font-mono text-gray-400 mb-0.5">
+                                {label}
+                              </label>
+                              <input
+                                type="text"
+                                value={igCookieFields[key] || ""}
+                                onChange={(e) => handleIgCookieFieldChange(key, e.target.value)}
+                                placeholder={`Nhập ${key}`}
+                                className="w-full bg-[#121316] border border-[#383c42] focus:border-pink-500/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono placeholder-gray-600 outline-none transition-colors"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Message */}
+                    {igCookieVerifyMsg && (
+                      <div
+                        className={`flex items-start gap-2 p-2.5 rounded-lg text-xs leading-relaxed ${
+                          igCookieVerifyMsg.type === "success"
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                        }`}
+                      >
+                        {igCookieVerifyMsg.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        )}
+                        <span>{igCookieVerifyMsg.text}</span>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-2 border-t border-[#383c42]/40">
+                      {isIgCookieInputOpen ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsIgCookieInputOpen(false);
+                            setIsIgCookieVerified(false);
+                            setIgCookieVerifyMsg(null);
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
+                        >
+                          Hủy
+                        </button>
+                      ) : (
+                        <div />
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleVerifyIgCookie}
+                          disabled={isVerifyingIgCookie}
+                          className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingIgCookie ? "animate-spin" : ""}`} />
+                          <span>{isVerifyingIgCookie ? "Đang kiểm tra..." : "Kiểm tra cookie"}</span>
+                        </button>
+
+                        {isIgCookieInputOpen ? (
+                          <button
+                            type="button"
+                            onClick={handleSaveIgCookie}
+                            disabled={!isIgCookieVerified || isSavingIgCookie}
+                            className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
+                              isIgCookieVerified
+                                ? "text-white bg-pink-600 hover:bg-pink-500 active:bg-pink-700 shadow-pink-600/30 ring-2 ring-pink-400/50"
+                                : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
+                            }`}
+                          >
+                            {isSavingIgCookie ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Đang lưu...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Lưu cookie</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsIgCookieInputOpen(true);
+                              setIsIgCookieVerified(false);
+                              setIgCookieVerifyMsg(null);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-pink-600 hover:bg-pink-500 active:bg-pink-700 rounded-xl shadow-lg shadow-pink-600/20 transition-all"
                           >
                             <Cookie className="w-3.5 h-3.5" />
                             <span>Nhập cookie</span>

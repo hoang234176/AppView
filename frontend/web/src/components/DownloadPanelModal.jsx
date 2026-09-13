@@ -157,12 +157,17 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
     const cancelledOptimization = isCancelledOptimization(t);
     const taskColor = cancelledOptimization || needsDownloadAttention(t) ? 'text-amber-400' : color(t.stage);
     const unoptimizedCount = getUnoptimizedCount(t);
-    const isMedia = t.source === 'youtube' || t.source === 'tiktok' || t.source === 'facebook' || (!t.archive_downloaded && !t.archive_extracted && getFileCategory(t.filename || t.original_url) === 'video');
+    const isMedia = t.source === 'youtube' || t.source === 'tiktok' || t.source === 'facebook' || t.source === 'instagram' || (!t.archive_downloaded && !t.archive_extracted && getFileCategory(t.filename || t.original_url) === 'video');
     return <div key={t.task_id} className="min-h-[108px] space-y-3 rounded-2xl border border-[#383c42] bg-[#202124] p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center">{icon(t, taskColor)}</div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
+            {t.source === 'instagram' && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-pink-500/20 text-pink-400 border border-pink-500/30 flex-shrink-0">
+                Instagram
+              </span>
+            )}
             {t.source === 'facebook' && (
               <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#1877F2]/20 text-[#1877F2] border border-[#1877F2]/30 flex-shrink-0">
                 Facebook
@@ -195,11 +200,16 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
     const isOptimizationError = t.error_code === 'VIDEO_CONVERT_UNAVAILABLE';
     const cancelledOptimization = isCancelledOptimization(t);
     const unoptimizedCount = getUnoptimizedCount(t);
-    const isMedia = t.source === 'youtube' || t.source === 'tiktok' || t.source === 'facebook' || (!t.archive_downloaded && !t.archive_extracted && getFileCategory(t.filename || t.original_url) === 'video');
+    const isMedia = t.source === 'youtube' || t.source === 'tiktok' || t.source === 'facebook' || t.source === 'instagram' || (!t.archive_downloaded && !t.archive_extracted && getFileCategory(t.filename || t.original_url) === 'video');
     return <div key={t.task_id} className="flex items-center gap-3 rounded-2xl border border-[#383c42]/60 bg-[#202124]/60 p-3">
       {icon(t, cancelledOptimization || isOptimizationError ? 'text-amber-400' : 'text-gray-400')}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
+          {t.source === 'instagram' && (
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-pink-500/20 text-pink-400 border border-pink-500/30 flex-shrink-0">
+              Instagram
+            </span>
+          )}
           {t.source === 'facebook' && (
             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#1877F2]/20 text-[#1877F2] border border-[#1877F2]/30 flex-shrink-0">
               Facebook

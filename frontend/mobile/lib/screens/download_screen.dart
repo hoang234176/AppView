@@ -668,6 +668,7 @@ class _DownloadScreenState extends State<DownloadScreen> {
         task.source == 'youtube' ||
         task.source == 'tiktok' ||
         task.source == 'facebook' ||
+        task.source == 'instagram' ||
         (!task.archiveDownloaded &&
             !task.archiveExtracted &&
             (category == 'video' || category == 'picture'));
@@ -753,13 +754,15 @@ class _DownloadScreenState extends State<DownloadScreen> {
                   children: [
                     Text(
                       task.filename ??
-                          (task.source == 'facebook'
-                              ? 'Bài viết Facebook'
-                              : (task.source == 'tiktok'
-                                  ? 'Video TikTok'
-                                  : (task.source == 'youtube'
-                                      ? 'Video YouTube'
-                                      : 'Tệp nén MediaFire'))),
+                          (task.source == 'instagram'
+                              ? 'Bài viết Instagram'
+                              : (task.source == 'facebook'
+                                  ? 'Bài viết Facebook'
+                                  : (task.source == 'tiktok'
+                                      ? 'Video TikTok'
+                                      : (task.source == 'youtube'
+                                          ? 'Video YouTube'
+                                          : 'Tệp nén MediaFire')))),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

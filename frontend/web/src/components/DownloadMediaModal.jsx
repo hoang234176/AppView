@@ -36,6 +36,12 @@ const YouTubeIcon = ({ className = 'w-3.5 h-3.5' }) => (
   </svg>
 );
 
+const InstagramIcon = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg className={`${className} fill-current`} viewBox="0 0 24 24">
+    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+  </svg>
+);
+
 // Mounted only while open: unmount aborts preview and discards its metadata.
 export const DownloadMediaModal = ({
   currentPath = '',
@@ -206,16 +212,58 @@ export const DownloadMediaModal = ({
     }
   };
 
+  const cleanUrl = (url || '').trim().toLowerCase();
   const isFbUrl = Boolean(
-    url &&
-      (url.includes('facebook.com') ||
-        url.includes('fb.watch') ||
-        url.includes('fb.com') ||
-        url.includes('fb.me'))
+    cleanUrl &&
+      (cleanUrl.includes('facebook.com') ||
+        cleanUrl.includes('fb.watch') ||
+        cleanUrl.includes('fb.com') ||
+        cleanUrl.includes('fb.me'))
   );
-  const isYtUrl = Boolean(url && (url.includes('youtube.com') || url.includes('youtu.be')));
-  const isTtUrl = Boolean(url && url.includes('tiktok.com'));
+  const isYtUrl = Boolean(cleanUrl && (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')));
+  const isTtUrl = Boolean(cleanUrl && cleanUrl.includes('tiktok.com'));
+  const isIgUrl = Boolean(
+    cleanUrl && (cleanUrl.includes('instagram.com') || cleanUrl.includes('instagr.am'))
+  );
 
+  const supportedPlatforms = [
+    {
+      id: 'facebook',
+      name: 'Facebook',
+      icon: FacebookIcon,
+      active: isFbUrl,
+      activeClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-sm',
+    },
+    {
+      id: 'tiktok',
+      name: 'TikTok',
+      icon: TikTokIcon,
+      active: isTtUrl,
+      activeClass: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm',
+    },
+    {
+      id: 'youtube',
+      name: 'YouTube',
+      icon: YouTubeIcon,
+      active: isYtUrl,
+      activeClass: 'bg-rose-500/20 text-rose-400 border border-rose-500/40 shadow-sm',
+    },
+    {
+      id: 'instagram',
+      name: 'Instagram',
+      icon: InstagramIcon,
+      active: isIgUrl,
+      activeClass: 'bg-pink-500/20 text-pink-400 border border-pink-500/40 shadow-sm',
+    },
+  ];
+
+  const sortedPlatforms = [...supportedPlatforms].sort((a, b) => {
+    if (a.active && !b.active) return -1;
+    if (!a.active && b.active) return 1;
+    return 0;
+  });
+
+  const isInstagram = preview?.source === 'instagram';
   const isFacebook = preview?.source === 'facebook';
   const isTikTok = preview?.source === 'tiktok';
   const isAuthRequired =
@@ -348,38 +396,24 @@ export const DownloadMediaModal = ({
                 </div>
 
                 {/* Brand pills below input */}
-                <div className="flex items-center gap-1.5 pt-2 text-[11px]">
+                <div className="flex items-center flex-wrap gap-1.5 pt-2 text-[11px]">
                   <span className="text-gray-500 font-medium">Hỗ trợ:</span>
-                  <span
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold transition-all ${
-                      isFbUrl
-                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-sm'
-                        : 'text-gray-400 bg-white/5 border border-transparent'
-                    }`}
-                  >
-                    <FacebookIcon className="w-3 h-3" />
-                    <span>Facebook</span>
-                  </span>
-                  <span
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold transition-all ${
-                      isTtUrl
-                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm'
-                        : 'text-gray-400 bg-white/5 border border-transparent'
-                    }`}
-                  >
-                    <TikTokIcon className="w-3 h-3" />
-                    <span>TikTok</span>
-                  </span>
-                  <span
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold transition-all ${
-                      isYtUrl
-                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 shadow-sm'
-                        : 'text-gray-400 bg-white/5 border border-transparent'
-                    }`}
-                  >
-                    <YouTubeIcon className="w-3 h-3" />
-                    <span>YouTube</span>
-                  </span>
+                  {sortedPlatforms.map((p) => {
+                    const Icon = p.icon;
+                    return (
+                      <span
+                        key={p.id}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold transition-all duration-200 ${
+                          p.active
+                            ? p.activeClass
+                            : 'text-gray-400 bg-white/5 border border-transparent'
+                        }`}
+                      >
+                        <Icon className="w-3 h-3" />
+                        <span>{p.name}</span>
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -394,20 +428,26 @@ export const DownloadMediaModal = ({
             </>
           ) : (
             <div className="space-y-3">
-              {/* Unified Media Preview Card (Facebook / TikTok / YouTube) */}
+              {/* Unified Media Preview Card (Facebook / TikTok / YouTube / Instagram) */}
               {(() => {
-                const platformName = isFacebook ? 'Facebook' : isTikTok ? 'TikTok' : 'YouTube';
-                const accentColorClass = isFacebook
+                const platformName = isInstagram ? 'Instagram' : isFacebook ? 'Facebook' : isTikTok ? 'TikTok' : 'YouTube';
+                const accentColorClass = isInstagram
+                  ? 'text-pink-400'
+                  : isFacebook
                   ? 'text-[#1877F2]'
                   : isTikTok
                   ? 'text-cyan-400'
                   : 'text-rose-400';
-                const badgeBgClass = isFacebook
+                const badgeBgClass = isInstagram
+                  ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
+                  : isFacebook
                   ? 'bg-[#1877F2]/15 text-[#1877F2] border-[#1877F2]/30'
                   : isTikTok
                   ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
                   : 'bg-rose-500/15 text-rose-400 border-rose-500/30';
-                const avatarBgClass = isFacebook
+                const avatarBgClass = isInstagram
+                  ? 'bg-pink-500/20 text-pink-400 border-pink-500/30'
+                  : isFacebook
                   ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
                   : isTikTok
                   ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
@@ -416,14 +456,16 @@ export const DownloadMediaModal = ({
                 const authorName =
                   preview.author?.name ||
                   (preview.uploader
-                    ? isTikTok && !preview.uploader.startsWith('@')
+                    ? (isTikTok || isInstagram) && !preview.uploader.startsWith('@')
                       ? `@${preview.uploader}`
                       : preview.uploader
                     : preview.title || `${platformName} Post`);
 
                 const subtitle =
                   preview.created_time ||
-                  (isFacebook
+                  (isInstagram
+                    ? 'Bài viết Instagram'
+                    : isFacebook
                     ? 'Bài viết Facebook'
                     : isTikTok
                     ? 'Video / Ảnh TikTok'
@@ -437,7 +479,9 @@ export const DownloadMediaModal = ({
                     if (chars.length > 0 && chars[0] !== '?') {
                       return chars[0].toUpperCase();
                     }
-                  } catch {}
+                  } catch {
+                    // Fallback to first character
+                  }
                   return (Array.from(rawTarget)[0] || platformName.charAt(0)).toUpperCase();
                 })();
 
@@ -454,7 +498,7 @@ export const DownloadMediaModal = ({
                     <div
                       className={`p-3.5 bg-[#18191c] rounded-t-2xl flex items-center justify-between gap-3 ${
                         (showVideoVisual && preview.thumbnail) || showImageVisual
-                          ? 'border-b border-[#383c42]/60'
+                           ? 'border-b border-[#383c42]/60'
                           : ''
                       }`}
                     >
@@ -490,7 +534,9 @@ export const DownloadMediaModal = ({
                       <div
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeBgClass} border flex-shrink-0`}
                       >
-                        {isFacebook ? (
+                        {isInstagram ? (
+                          <InstagramIcon className="w-3 h-3" />
+                        ) : isFacebook ? (
                           <FacebookIcon className="w-3 h-3" />
                         ) : isTikTok ? (
                           <TikTokIcon className="w-3 h-3" />
@@ -566,7 +612,9 @@ export const DownloadMediaModal = ({
                           onClick={() => setMediaTypeTab('video')}
                           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium text-xs transition-all ${
                             mediaTypeTab === 'video'
-                              ? isFacebook
+                              ? isInstagram
+                                ? 'bg-pink-600/25 text-pink-300 border border-pink-500/40 shadow-sm'
+                                : isFacebook
                                 ? 'bg-blue-600/25 text-blue-300 border border-blue-500/40 shadow-sm'
                                 : isTikTok
                                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
@@ -582,9 +630,13 @@ export const DownloadMediaModal = ({
                           onClick={() => setMediaTypeTab('images')}
                           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium text-xs transition-all ${
                             mediaTypeTab === 'images'
-                              ? isFacebook
+                              ? isInstagram
+                                ? 'bg-pink-600/25 text-pink-300 border border-pink-500/40 shadow-sm'
+                                : isFacebook
                                 ? 'bg-blue-600/25 text-blue-300 border border-blue-500/40 shadow-sm'
-                                : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
+                                : isTikTok
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
+                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm'
                               : 'text-gray-400 hover:text-white'
                           }`}
                         >
@@ -655,7 +707,9 @@ export const DownloadMediaModal = ({
                                     onClick={() => setPreviewImageIndex(idx)}
                                     className={`group relative flex-shrink-0 w-[76px] h-[76px] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 select-none [isolation:isolate] [contain:paint] ${
                                       isSelected
-                                        ? isFacebook
+                                        ? isInstagram
+                                          ? 'border-pink-400 shadow-md ring-2 ring-pink-400/40 opacity-100'
+                                          : isFacebook
                                           ? 'border-blue-400 shadow-md ring-2 ring-blue-400/40 opacity-100'
                                           : 'border-cyan-400 shadow-md ring-2 ring-cyan-400/40 opacity-100'
                                         : 'border-[#383c42] opacity-50 hover:opacity-90'
@@ -685,7 +739,9 @@ export const DownloadMediaModal = ({
                                       }}
                                       className={`absolute top-1 right-1 rounded-full p-1 z-10 transition-all ${
                                         isSelected
-                                          ? isFacebook
+                                          ? isInstagram
+                                            ? 'bg-pink-500 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                            : isFacebook
                                             ? 'bg-blue-600 text-white shadow-sm ring-1 ring-white/60 scale-105'
                                             : 'bg-cyan-500 text-white shadow-sm ring-1 ring-white/60 scale-105'
                                           : 'bg-black/70 text-gray-300 hover:bg-black/90 hover:text-white border border-white/20'
@@ -720,7 +776,9 @@ export const DownloadMediaModal = ({
                                   }
                                 }}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                                  isFacebook
+                                  isInstagram
+                                    ? 'text-pink-400 bg-pink-500/10 hover:bg-pink-500/20 active:bg-pink-500/30 border-pink-500/20'
+                                    : isFacebook
                                     ? 'text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border-blue-500/20'
                                     : 'text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 active:bg-cyan-500/30 border-cyan-500/20'
                                 }`}
@@ -764,7 +822,7 @@ export const DownloadMediaModal = ({
                           value={quality}
                           onChange={setQuality}
                           disabled={busy}
-                          accent={isFacebook ? 'blue' : 'rose'}
+                          accent={isInstagram ? 'rose' : isFacebook ? 'blue' : 'rose'}
                           ariaLabel="Chọn chất lượng tải xuống"
                         />
                       </div>
@@ -875,7 +933,9 @@ export const DownloadMediaModal = ({
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors border ${
                     isSelected
-                      ? isFacebook
+                      ? isInstagram
+                        ? 'bg-pink-500 text-white border-pink-400 shadow-md'
+                        : isFacebook
                         ? 'bg-blue-600 text-white border-blue-500 shadow-md'
                         : 'bg-cyan-500 text-white border-cyan-400 shadow-md'
                       : 'bg-white/10 text-gray-300 border-white/20 hover:bg-white/20'

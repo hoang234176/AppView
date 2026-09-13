@@ -34,6 +34,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
   bool _busy = false;
   String? _error;
   late String _destination;
+  bool _isPlatformsExpanded = false;
 
   @override
   void initState() {
@@ -400,6 +401,8 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    _buildSupportedPlatforms(),
                     const SizedBox(height: 12),
                     FolderPickerView(
                       destination: _destination,
@@ -425,33 +428,42 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                           preview.qualities.isNotEmpty;
                       final isFacebook = preview.source == 'facebook';
                       final isTikTok = preview.source == 'tiktok';
-                      final accentColor = isFacebook
-                          ? const Color(0xFF1877F2)
-                          : (isTikTok ? const Color(0xFF22D3EE) : Colors.redAccent);
+                      final isInstagram = preview.source == 'instagram';
+                      final accentColor = isInstagram
+                          ? const Color(0xFFE1306C)
+                          : (isFacebook
+                              ? const Color(0xFF1877F2)
+                              : (isTikTok ? const Color(0xFF22D3EE) : Colors.redAccent));
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Unified Post Card (Facebook / TikTok / YouTube)
+                          // Unified Post Card (Instagram / Facebook / TikTok / YouTube)
                           () {
-                            final platformName = isFacebook ? 'Facebook' : (isTikTok ? 'TikTok' : 'YouTube');
-                            final platformIconAsset = isFacebook
-                                ? 'assets/icons/facebook.svg'
-                                : (isTikTok ? 'assets/icons/tiktok.svg' : 'assets/icons/youtube.svg');
+                            final platformName = isInstagram
+                                ? 'Instagram'
+                                : (isFacebook ? 'Facebook' : (isTikTok ? 'TikTok' : 'YouTube'));
+                            final platformIconAsset = isInstagram
+                                ? 'assets/icons/instagram.svg'
+                                : (isFacebook
+                                    ? 'assets/icons/facebook.svg'
+                                    : (isTikTok ? 'assets/icons/tiktok.svg' : 'assets/icons/youtube.svg'));
 
                             final authorName = preview.author?.name.isNotEmpty == true
                                 ? preview.author!.name
                                 : (preview.uploader.isNotEmpty
-                                    ? (isTikTok && !preview.uploader.startsWith('@')
+                                    ? ((isTikTok || isInstagram) && !preview.uploader.startsWith('@')
                                         ? '@${preview.uploader}'
                                         : preview.uploader)
                                     : (preview.title.isNotEmpty ? preview.title : '$platformName Post'));
 
                             final subtitle = preview.createdTime.isNotEmpty
                                 ? preview.createdTime
-                                : (isFacebook
-                                    ? 'Bài viết Facebook'
-                                    : (isTikTok ? 'Video / Ảnh TikTok' : 'Video YouTube'));
+                                : (isInstagram
+                                    ? 'Bài viết Instagram'
+                                    : (isFacebook
+                                        ? 'Bài viết Facebook'
+                                        : (isTikTok ? 'Video / Ảnh TikTok' : 'Video YouTube')));
 
                             final showVideoVisual = (hasVideo && _mediaTypeTab == 'video') || (hasVideo && !hasImages);
                             final showImageVisual = !showVideoVisual && hasImages;
@@ -1282,6 +1294,201 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
       },
     );
   }
+
+  Widget _buildSupportedPlatforms() {
+    final cleanUrl = _url.text.trim().toLowerCase();
+    final isFb = cleanUrl.isNotEmpty &&
+        (cleanUrl.contains('facebook.com') ||
+            cleanUrl.contains('fb.watch') ||
+            cleanUrl.contains('fb.com') ||
+            cleanUrl.contains('fb.me'));
+    final isTt = cleanUrl.isNotEmpty && cleanUrl.contains('tiktok.com');
+    final isYt = cleanUrl.isNotEmpty &&
+        (cleanUrl.contains('youtube.com') || cleanUrl.contains('youtu.be'));
+    final isIg = cleanUrl.isNotEmpty &&
+        (cleanUrl.contains('instagram.com') || cleanUrl.contains('instagr.am'));
+
+    final platforms = [
+      _SupportedPlatform(
+        id: 'facebook',
+        name: 'Facebook',
+        iconAsset: 'assets/icons/facebook.svg',
+        color: const Color(0xFF1877F2),
+        isActive: isFb,
+      ),
+      _SupportedPlatform(
+        id: 'tiktok',
+        name: 'TikTok',
+        iconAsset: 'assets/icons/tiktok.svg',
+        color: const Color(0xFF22D3EE),
+        isActive: isTt,
+      ),
+      _SupportedPlatform(
+        id: 'youtube',
+        name: 'YouTube',
+        iconAsset: 'assets/icons/youtube.svg',
+        color: const Color(0xFFEF4444),
+        isActive: isYt,
+      ),
+      _SupportedPlatform(
+        id: 'instagram',
+        name: 'Instagram',
+        iconAsset: 'assets/icons/instagram.svg',
+        color: const Color(0xFFE1306C),
+        isActive: isIg,
+      ),
+    ];
+
+    final sortedPlatforms = List<_SupportedPlatform>.from(platforms);
+    sortedPlatforms.sort((a, b) {
+      if (a.isActive && !b.isActive) return -1;
+      if (!a.isActive && b.isActive) return 1;
+      return 0;
+    });
+
+    const initialVisibleCount = 4;
+    final hasMore = sortedPlatforms.length > initialVisibleCount;
+    final displayedPlatforms = (_isPlatformsExpanded || !hasMore)
+        ? sortedPlatforms
+        : sortedPlatforms.take(initialVisibleCount).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 4.0),
+            child: Text(
+              'Hỗ trợ:',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Colors.white.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (final platform in displayedPlatforms)
+                    _buildPlatformBadge(platform),
+                  if (hasMore)
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _isPlatformsExpanded = !_isPlatformsExpanded;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.15),
+                          ),
+                        ),
+                        child: Icon(
+                          _isPlatformsExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 14,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlatformBadge(_SupportedPlatform platform) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: platform.isActive
+            ? platform.color.withValues(alpha: 0.18)
+            : Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: platform.isActive
+              ? platform.color.withValues(alpha: 0.5)
+              : Colors.white.withValues(alpha: 0.08),
+          width: 1,
+        ),
+        boxShadow: platform.isActive
+            ? [
+                BoxShadow(
+                  color: platform.color.withValues(alpha: 0.25),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ]
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.asset(
+            platform.iconAsset,
+            width: 12,
+            height: 12,
+            colorFilter: ColorFilter.mode(
+              platform.isActive
+                  ? platform.color
+                  : Colors.white.withValues(alpha: 0.45),
+              BlendMode.srcIn,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            platform.name,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: platform.isActive ? FontWeight.bold : FontWeight.w600,
+              color: platform.isActive
+                  ? platform.color
+                  : Colors.white.withValues(alpha: 0.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SupportedPlatform {
+  final String id;
+  final String name;
+  final String iconAsset;
+  final Color color;
+  final bool isActive;
+
+  const _SupportedPlatform({
+    required this.id,
+    required this.name,
+    required this.iconAsset,
+    required this.color,
+    required this.isActive,
+  });
 }
 
 class _PhotoPreviewDialog extends StatefulWidget {

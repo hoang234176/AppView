@@ -105,6 +105,27 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   String? _fbCookieVerifyMsg;
   bool _fbCookieVerifySuccess = false;
 
+  // Social Cookies State (Instagram)
+  String _igCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
+  bool _isIgCardOpen = false;
+  bool _isIgCookieInputOpen = false;
+  static const List<String> _igCookieFieldKeys = [
+    'sessionid',
+    'ds_user_id',
+    'csrftoken',
+    'mid',
+    'ig_did',
+    'datr',
+  ];
+  final Map<String, TextEditingController> _igCookieControllers = {
+    for (final key in _igCookieFieldKeys) key: TextEditingController(),
+  };
+  bool _isVerifyingIgCookie = false;
+  bool _isSavingIgCookie = false;
+  bool _isIgCookieVerified = false;
+  String? _igCookieVerifyMsg;
+  bool _igCookieVerifySuccess = false;
+
   CacheInfoData? _cacheInfo;
 
   @override
@@ -116,6 +137,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     _fetchCookieStatus();
     _fetchTiktokCookieStatus();
     _fetchFbCookieStatus();
+    _fetchIgCookieStatus();
     _checkCurrentConnectionAndLoadStorage();
   }
 
@@ -129,6 +151,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       c.dispose();
     }
     for (final c in _fbCookieControllers.values) {
+      c.dispose();
+    }
+    for (final c in _igCookieControllers.values) {
       c.dispose();
     }
     super.dispose();
@@ -458,6 +483,117 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
         _fbCookieVerifyMsg =
             res['message']?.toString() ?? 'Không thể lưu cookie.';
         AppToast.showError(context, _fbCookieVerifyMsg!);
+      }
+    });
+  }
+
+  Future<void> _fetchIgCookieStatus() async {
+    setState(() {
+      _igCookieStatus = 'loading';
+    });
+    final res = await DownloadApi.getCookieStatus('instagram');
+    if (!mounted) return;
+    if (res['success'] == true && res['data'] is Map) {
+      final data = res['data'] as Map;
+      if (data['exists'] == true) {
+        setState(() => _igCookieStatus = 'valid');
+      } else {
+        setState(() => _igCookieStatus = 'none');
+      }
+    } else {
+      setState(() => _igCookieStatus = 'none');
+    }
+  }
+
+  Future<void> _handleVerifyIgCookie() async {
+    setState(() {
+      _isVerifyingIgCookie = true;
+      _igCookieVerifyMsg = null;
+    });
+
+    Map<String, String>? fields;
+
+    if (_isIgCookieInputOpen) {
+      final hasAny = _igCookieControllers.values.any(
+        (c) => c.text.trim().isNotEmpty,
+      );
+      if (!hasAny) {
+        setState(() {
+          _isVerifyingIgCookie = false;
+          _igCookieVerifySuccess = false;
+          _igCookieVerifyMsg =
+              'Vui lòng nhập ít nhất sessionid và ds_user_id từ cookie Instagram.';
+        });
+        return;
+      }
+      fields = _igCookieControllers.map(
+        (k, v) => MapEntry(k, v.text.trim()),
+      );
+    }
+
+    final res = await DownloadApi.verifyCookies(
+      platform: 'instagram',
+      fields: fields,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _isVerifyingIgCookie = false;
+      if (res['success'] == true &&
+          res['data'] is Map &&
+          res['data']['valid'] == true) {
+        _isIgCookieVerified = true;
+        _igCookieStatus = 'valid';
+        _igCookieVerifySuccess = true;
+        _igCookieVerifyMsg =
+            res['data']['message']?.toString() ?? '✓ Cookie Instagram hợp lệ!';
+      } else {
+        _isIgCookieVerified = false;
+        if (!_isIgCookieInputOpen) {
+          _igCookieStatus = 'expired';
+        }
+        _igCookieVerifySuccess = false;
+        final msg =
+            res['data'] is Map ? res['data']['message']?.toString() : null;
+        _igCookieVerifyMsg =
+            msg ??
+            res['message']?.toString() ??
+            'Cookie không hợp lệ hoặc đã hết hạn.';
+      }
+    });
+  }
+
+  Future<void> _handleSaveIgCookie() async {
+    if (!_isIgCookieVerified || _isSavingIgCookie) return;
+    setState(() {
+      _isSavingIgCookie = true;
+      _igCookieVerifyMsg = null;
+    });
+
+    final fields = _igCookieControllers.map(
+      (k, v) => MapEntry(k, v.text.trim()),
+    );
+
+    final res = await DownloadApi.saveCookies(
+      platform: 'instagram',
+      fields: fields,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _isSavingIgCookie = false;
+      if (res['success'] == true) {
+        _isIgCookieInputOpen = false;
+        _isIgCookieVerified = false;
+        _igCookieStatus = 'valid';
+        _igCookieVerifySuccess = true;
+        _igCookieVerifyMsg = 'Đã lưu cookie thành công!';
+        AppToast.showSuccess(context, 'Đã lưu cookie Instagram thành công!');
+      } else {
+        _igCookieVerifySuccess = false;
+        _igCookieVerifyMsg =
+            res['message']?.toString() ?? 'Không thể lưu cookie.';
+        AppToast.showError(context, _igCookieVerifyMsg!);
       }
     });
   }
@@ -1579,6 +1715,10 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
 
                             // Facebook Card
                             _buildFacebookCard(),
+                            const SizedBox(height: 10),
+
+                            // Instagram Card
+                            _buildInstagramCard(),
                           ],
                         ),
                       ),
@@ -2914,6 +3054,548 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                       backgroundColor: const Color(0xFF1877F2)
                                           .withValues(alpha: 0.2),
                                       foregroundColor: const Color(0xFF1877F2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 7,
+                                      ),
+                                      minimumSize: Size.zero,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInstagramCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.borderColor.withValues(alpha: 0.6),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Platform Header Row (Clickable)
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isIgCardOpen = !_isIgCardOpen;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE1306C).withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFFE1306C).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: SvgPicture.asset(
+                          'assets/icons/instagram.svg',
+                          width: 16,
+                          height: 16,
+                          colorFilter: const ColorFilter.mode(
+                            Color(0xFFE1306C),
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Instagram',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildCookieStatusBadge(_igCookieStatus),
+                      const SizedBox(width: 6),
+                      Icon(
+                        _isIgCardOpen
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white54,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Body Container
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: _isIgCardOpen
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Divider(
+                          height: 1,
+                          color: AppTheme.borderColor,
+                        ),
+
+                        // Sliding Input Container
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          alignment: Alignment.topCenter,
+                          child: _isIgCookieInputOpen
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Nhập các giá trị cookie từ tài khoản Instagram của bạn:',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      ..._igCookieFieldKeys.map((key) {
+                                        final isRequired =
+                                            key == 'sessionid' || key == 'ds_user_id';
+                                        final isRecommended =
+                                            key == 'csrftoken' ||
+                                                key == 'mid' ||
+                                                key == 'ig_did' ||
+                                                key == 'datr';
+                                        final subtitle = isRequired
+                                            ? '(bắt buộc)'
+                                            : isRecommended
+                                                ? '(khuyên dùng)'
+                                                : '(tùy chọn)';
+                                        return Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 8),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    key,
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                      fontFamily: 'monospace',
+                                                      color: Colors.white70,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    subtitle,
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      color: isRequired
+                                                          ? Colors.redAccent
+                                                              .withValues(
+                                                                alpha: 0.8,
+                                                              )
+                                                          : Colors.white38,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 4),
+                                              TextField(
+                                                controller:
+                                                    _igCookieControllers[key],
+                                                onChanged: (_) {
+                                                  if (_isIgCookieVerified ||
+                                                      _igCookieVerifyMsg !=
+                                                          null) {
+                                                    setState(() {
+                                                      _isIgCookieVerified =
+                                                          false;
+                                                      _igCookieVerifyMsg =
+                                                          null;
+                                                    });
+                                                  }
+                                                },
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.white,
+                                                  fontFamily: 'monospace',
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText: 'Nhập $key',
+                                                  hintStyle: TextStyle(
+                                                    fontSize: 10,
+                                                    color: Colors.white
+                                                        .withValues(
+                                                          alpha: 0.2,
+                                                        ),
+                                                  ),
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 10,
+                                                  ),
+                                                  isDense: true,
+                                                  filled: true,
+                                                  fillColor: AppTheme.bgInput,
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(14),
+                                                    borderSide: const BorderSide(
+                                                      color: AppTheme.borderColor,
+                                                    ),
+                                                  ),
+                                                  enabledBorder: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(14),
+                                                    borderSide: const BorderSide(
+                                                      color: AppTheme.borderColor,
+                                                    ),
+                                                  ),
+                                                  focusedBorder: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(14),
+                                                    borderSide: const BorderSide(
+                                                      color: Color(0xFFE1306C),
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  suffixIconConstraints:
+                                                      const BoxConstraints(
+                                                    minWidth: 0,
+                                                    minHeight: 0,
+                                                  ),
+                                                  suffixIcon: Padding(
+                                                    padding: const EdgeInsets.only(
+                                                      right: 6,
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        if ((_igCookieControllers[key]
+                                                                ?.text
+                                                                .isNotEmpty ??
+                                                            false))
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                              Icons.clear_rounded,
+                                                              size: 15,
+                                                            ),
+                                                            color: Colors.white54,
+                                                            splashRadius: 14,
+                                                            padding: EdgeInsets.zero,
+                                                            constraints:
+                                                                const BoxConstraints(
+                                                              minWidth: 26,
+                                                              minHeight: 26,
+                                                            ),
+                                                            tooltip: 'Xóa',
+                                                            onPressed: () {
+                                                              setState(() {
+                                                                _igCookieControllers[key]
+                                                                    ?.clear();
+                                                                _isIgCookieVerified =
+                                                                    false;
+                                                                _igCookieVerifyMsg =
+                                                                    null;
+                                                              });
+                                                            },
+                                                          ),
+                                                        Material(
+                                                          color: const Color(0xFFE1306C)
+                                                              .withValues(
+                                                            alpha: 0.10,
+                                                          ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(6),
+                                                          child: InkWell(
+                                                            onTap: () async {
+                                                              final data =
+                                                                  await Clipboard.getData(
+                                                                Clipboard.kTextPlain,
+                                                              );
+                                                              if (data?.text != null &&
+                                                                  data!.text!
+                                                                      .trim()
+                                                                      .isNotEmpty) {
+                                                                setState(() {
+                                                                  _igCookieControllers[key]
+                                                                          ?.text =
+                                                                      data.text!.trim();
+                                                                  _isIgCookieVerified =
+                                                                      false;
+                                                                  _igCookieVerifyMsg =
+                                                                      null;
+                                                                });
+                                                              }
+                                                            },
+                                                            borderRadius:
+                                                                BorderRadius.circular(6),
+                                                            child: Container(
+                                                              padding:
+                                                                  const EdgeInsets.all(5),
+                                                              decoration: BoxDecoration(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(6),
+                                                                border: Border.all(
+                                                                  color: const Color(0xFFE1306C)
+                                                                      .withValues(
+                                                                    alpha: 0.30,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              child: const Icon(
+                                                                Icons.content_paste_rounded,
+                                                                size: 13,
+                                                                color: Color(0xFFE1306C),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+
+                        // Feedback message
+                        if (_igCookieVerifyMsg != null) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _igCookieVerifySuccess
+                                  ? Colors.green.withValues(alpha: 0.1)
+                                  : Colors.red.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _igCookieVerifySuccess
+                                    ? Colors.green.withValues(alpha: 0.3)
+                                    : Colors.red.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _igCookieVerifySuccess
+                                      ? Icons.check_circle_rounded
+                                      : Icons.error_outline_rounded,
+                                  size: 16,
+                                  color: _igCookieVerifySuccess
+                                      ? Colors.greenAccent
+                                      : Colors.redAccent,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    _igCookieVerifyMsg!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: _igCookieVerifySuccess
+                                          ? Colors.greenAccent
+                                          : Colors.redAccent,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 10),
+                        const Divider(
+                          height: 1,
+                          color: AppTheme.borderColor,
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Action Buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            if (_isIgCookieInputOpen)
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _isIgCookieInputOpen = false;
+                                    _isIgCookieVerified = false;
+                                    _igCookieVerifyMsg = null;
+                                  });
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  minimumSize: Size.zero,
+                                ),
+                                child: const Text(
+                                  'Hủy',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white60,
+                                  ),
+                                ),
+                              )
+                            else
+                              const SizedBox.shrink(),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: _isVerifyingIgCookie
+                                      ? null
+                                      : _handleVerifyIgCookie,
+                                  icon: _isVerifyingIgCookie
+                                      ? const SizedBox(
+                                          width: 12,
+                                          height: 12,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.refresh_rounded,
+                                          size: 13,
+                                        ),
+                                  label: Text(
+                                    _isVerifyingIgCookie
+                                        ? 'Đang kiểm tra...'
+                                        : 'Kiểm tra cookie',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white
+                                        .withValues(alpha: 0.1),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 7,
+                                    ),
+                                    minimumSize: Size.zero,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (_isIgCookieInputOpen)
+                                  ElevatedButton.icon(
+                                    onPressed: (!_isIgCookieVerified ||
+                                            _isSavingIgCookie)
+                                        ? null
+                                        : _handleSaveIgCookie,
+                                    icon: _isSavingIgCookie
+                                        ? const SizedBox(
+                                            width: 12,
+                                            height: 12,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.check_rounded,
+                                            size: 13,
+                                          ),
+                                    label: Text(
+                                      _isSavingIgCookie
+                                          ? 'Đang lưu...'
+                                          : 'Lưu cookie',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _isIgCookieVerified
+                                          ? const Color(0xFFE1306C)
+                                          : Colors.white12,
+                                      foregroundColor: _isIgCookieVerified
+                                          ? Colors.white
+                                          : Colors.white38,
+                                      disabledBackgroundColor: Colors.white10,
+                                      disabledForegroundColor: Colors.white24,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 7,
+                                      ),
+                                      minimumSize: Size.zero,
+                                    ),
+                                  )
+                                else
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      setState(() {
+                                        _isIgCookieInputOpen = true;
+                                        _isIgCookieVerified = false;
+                                        _igCookieVerifyMsg = null;
+                                      });
+                                    },
+                                    icon: const Icon(
+                                      Icons.cookie_rounded,
+                                      size: 14,
+                                    ),
+                                    label: const Text(
+                                      'Nhập cookie',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFE1306C)
+                                          .withValues(alpha: 0.2),
+                                      foregroundColor: const Color(0xFFE1306C),
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 10,
                                         vertical: 7,
