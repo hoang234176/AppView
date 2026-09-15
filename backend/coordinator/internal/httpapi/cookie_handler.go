@@ -37,8 +37,13 @@ func assembleNetscapeCookies(platform string, fields map[string]string) string {
 		"HSID",
 		"SSID",
 		"SAPISID",
+		"APISID",
 		"__Secure-1PSID",
 		"__Secure-3PSID",
+		"__Secure-1PSIDTS",
+		"__Secure-3PSIDTS",
+		"__Secure-1PAPISID",
+		"__Secure-3PAPISID",
 	}
 	if platform == "facebook" {
 		orderedKeys = []string{
@@ -83,6 +88,9 @@ func assembleNetscapeCookies(platform string, fields map[string]string) string {
 			cleaned := cleanValue(val)
 			if cleaned != "" {
 				sb.WriteString(fmt.Sprintf("%s\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", domain, key, cleaned))
+				if platform == "youtube" && key != "LOGIN_INFO" {
+					sb.WriteString(fmt.Sprintf(".google.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", key, cleaned))
+				}
 				used[key] = true
 				hasAny = true
 			}
@@ -95,6 +103,9 @@ func assembleNetscapeCookies(platform string, fields map[string]string) string {
 				cleanKey := cleanValue(key)
 				if cleanKey != "" {
 					sb.WriteString(fmt.Sprintf("%s\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", domain, cleanKey, cleaned))
+					if platform == "youtube" && cleanKey != "LOGIN_INFO" {
+						sb.WriteString(fmt.Sprintf(".google.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", cleanKey, cleaned))
+					}
 					hasAny = true
 				}
 			}

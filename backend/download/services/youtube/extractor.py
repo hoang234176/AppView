@@ -191,6 +191,8 @@ class YouTubeExtractor:
                 "skip_download": True,
                 "extract_flat": False,
                 "socket_timeout": 10,
+                "js_runtimes": {"node": {}},
+                "remote_components": {"ejs:github"},
             }
             ydl_opts.update(get_youtube_ydl_auth_opts())
 

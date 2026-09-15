@@ -55,6 +55,8 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     'SAPISID',
     '__Secure-1PSID',
     '__Secure-3PSID',
+    '__Secure-1PSIDTS',
+    '__Secure-3PSIDTS',
   ];
   final Map<String, TextEditingController> _cookieControllers = {
     for (final key in _cookieFieldKeys) key: TextEditingController(),
@@ -211,7 +213,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           res['data'] is Map &&
           res['data']['valid'] == true) {
         _isCookieVerified = true;
-        _cookieStatus = 'valid';
+        if (!_isCookieInputOpen) {
+          _cookieStatus = 'valid';
+        }
         _cookieVerifySuccess = true;
         _cookieVerifyMsg =
             res['data']['message']?.toString() ?? '✓ Cookie hợp lệ!';
@@ -321,7 +325,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           res['data'] is Map &&
           res['data']['valid'] == true) {
         _isTiktokCookieVerified = true;
-        _tiktokCookieStatus = 'valid';
+        if (!_isTiktokCookieInputOpen) {
+          _tiktokCookieStatus = 'valid';
+        }
         _tiktokCookieVerifySuccess = true;
         _tiktokCookieVerifyMsg =
             res['data']['message']?.toString() ?? '✓ Cookie hợp lệ!';
@@ -432,7 +438,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           res['data'] is Map &&
           res['data']['valid'] == true) {
         _isFbCookieVerified = true;
-        _fbCookieStatus = 'valid';
+        if (!_isFbCookieInputOpen) {
+          _fbCookieStatus = 'valid';
+        }
         _fbCookieVerifySuccess = true;
         _fbCookieVerifyMsg =
             res['data']['message']?.toString() ?? '✓ Cookie Facebook hợp lệ!';
@@ -543,7 +551,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           res['data'] is Map &&
           res['data']['valid'] == true) {
         _isIgCookieVerified = true;
-        _igCookieStatus = 'valid';
+        if (!_isIgCookieInputOpen) {
+          _igCookieStatus = 'valid';
+        }
         _igCookieVerifySuccess = true;
         _igCookieVerifyMsg =
             res['data']['message']?.toString() ?? '✓ Cookie Instagram hợp lệ!';
@@ -1591,13 +1601,15 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                                                     size: 13,
                                                                   ),
                                                           label: Text(
-                                                            _isVerifyingCookie
-                                                                ? 'Đang kiểm tra...'
-                                                                : 'Kiểm tra cookie',
-                                                            style: const TextStyle(
-                                                              fontSize: 11,
-                                                              fontWeight: FontWeight.bold,
-                                                            ),
+                                                              _isVerifyingCookie
+                                                                  ? 'Đang kiểm tra...'
+                                                                  : (_isCookieInputOpen
+                                                                      ? 'Kiểm tra thuộc tính đang nhập'
+                                                                      : 'Kiểm tra cookie trong txt'),
+                                                              style: const TextStyle(
+                                                                fontSize: 11,
+                                                                fontWeight: FontWeight.bold,
+                                                              ),
                                                           ),
                                                           style: ElevatedButton.styleFrom(
                                                             backgroundColor: Colors.white
@@ -2426,7 +2438,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                   label: Text(
                                     _isVerifyingTiktokCookie
                                         ? 'Đang kiểm tra...'
-                                        : 'Kiểm tra cookie',
+                                        : (_isTiktokCookieInputOpen
+                                            ? 'Kiểm tra thuộc tính đang nhập'
+                                            : 'Kiểm tra cookie trong txt'),
                                     style: const TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
@@ -2968,7 +2982,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                   label: Text(
                                     _isVerifyingFbCookie
                                         ? 'Đang kiểm tra...'
-                                        : 'Kiểm tra cookie',
+                                        : (_isFbCookieInputOpen
+                                            ? 'Kiểm tra thuộc tính đang nhập'
+                                            : 'Kiểm tra cookie trong txt'),
                                     style: const TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
@@ -3510,7 +3526,9 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                   label: Text(
                                     _isVerifyingIgCookie
                                         ? 'Đang kiểm tra...'
-                                        : 'Kiểm tra cookie',
+                                        : (_isIgCookieInputOpen
+                                            ? 'Kiểm tra thuộc tính đang nhập'
+                                            : 'Kiểm tra cookie trong txt'),
                                     style: const TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,

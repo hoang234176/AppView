@@ -161,3 +161,66 @@ func TestSaveMergePreservesExistingCookies(t *testing.T) {
 		}
 	}
 }
+
+func TestSaveMergePreservesMultiDomainCookies(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("APPVIEW_STATE_DIR", tempDir)
+
+	// Cookie string with the same cookie name (SID, HSID) on both .youtube.com and .google.com
+	multiDomainCookies := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tLOGIN_INFO\tlogin_123\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_val_yt\n" +
+		".google.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_val_yt\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tHSID\thsid_val_yt\n" +
+		".google.com\tTRUE\t/\tTRUE\t2147483647\tHSID\thsid_val_yt\n"
+
+	if _, err := Save("youtube", multiDomainCookies); err != nil {
+		t.Fatalf("Save error: %v", err)
+	}
+
+	content, exists, err := Read("youtube")
+	if err != nil || !exists {
+		t.Fatalf("Read error: %v, exists: %v", err, exists)
+	}
+
+	// Verify both domains are preserved in the saved file
+	expectedEntries := []string{
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_val_yt",
+		".google.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_val_yt",
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tHSID\thsid_val_yt",
+		".google.com\tTRUE\t/\tTRUE\t2147483647\tHSID\thsid_val_yt",
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tLOGIN_INFO\tlogin_123",
+	}
+	for _, entry := range expectedEntries {
+		if !strings.Contains(content, entry) {
+			t.Fatalf("expected content to contain %q, but got:\n%s", entry, content)
+		}
+	}
+
+	// Update SID value on both domains and add a new cookie
+	updatedCookies := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tnew_sid_yt\n" +
+		".google.com\tTRUE\t/\tTRUE\t2147483647\tSID\tnew_sid_yt\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tts_token\n" +
+		".google.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tts_token\n"
+
+	if _, err := Save("youtube", updatedCookies); err != nil {
+		t.Fatalf("Update Save error: %v", err)
+	}
+
+	updatedContent, _, _ := Read("youtube")
+	expectedUpdatedEntries := []string{
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tnew_sid_yt",
+		".google.com\tTRUE\t/\tTRUE\t2147483647\tSID\tnew_sid_yt",
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tHSID\thsid_val_yt",
+		".google.com\tTRUE\t/\tTRUE\t2147483647\tHSID\thsid_val_yt",
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tLOGIN_INFO\tlogin_123",
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tts_token",
+		".google.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tts_token",
+	}
+	for _, entry := range expectedUpdatedEntries {
+		if !strings.Contains(updatedContent, entry) {
+			t.Fatalf("expected updated content to contain %q, but got:\n%s", entry, updatedContent)
+		}
+	}
+}

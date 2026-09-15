@@ -80,7 +80,11 @@ def _test_youtube_cookies_sync(jar: yt_dlp.cookies.YoutubeDLCookieJar) -> tuple[
 		"quiet": True,
 		"no_warnings": True,
 		"skip_download": True,
-		"socket_timeout": 10,
+		"socket_timeout": 15,
+		"http_headers": {
+			"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+			"Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+		},
 	}
 	try:
 		ydl = yt_dlp.YoutubeDL(ydl_opts)
@@ -92,7 +96,7 @@ def _test_youtube_cookies_sync(jar: yt_dlp.cookies.YoutubeDLCookieJar) -> tuple[
 		if logged_in_match:
 			is_logged_in = logged_in_match.group(1).lower() == "true"
 			if not is_logged_in:
-				return False, "Cookies YouTube đã hết hạn hoặc chưa đăng nhập tài khoản (LOGGED_IN: false). Vui lòng xuất cookies mới từ trình duyệt."
+				return False, "Cookies YouTube chưa đăng nhập hoặc đã hết hạn (LOGGED_IN: false). Cần đầy đủ session cookies (SID, HSID, SSID, __Secure-1PSID, __Secure-1PSIDTS...) từ trình duyệt."
 
 		return True, "Xác thực cookies YouTube thành công."
 	except Exception as err:

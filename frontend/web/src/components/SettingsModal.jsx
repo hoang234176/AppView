@@ -44,6 +44,8 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
     SAPISID: "",
     "__Secure-1PSID": "",
     "__Secure-3PSID": "",
+    "__Secure-1PSIDTS": "",
+    "__Secure-3PSIDTS": "",
   });
   const [isVerifyingCookie, setIsVerifyingCookie] = useState(false);
   const [isSavingCookie, setIsSavingCookie] = useState(false);
@@ -88,7 +90,9 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
     setIsVerifyingCookie(false);
     if (res.success && res.data?.valid) {
       setIsCookieVerified(true);
-      setCookieStatus("valid");
+      if (!isCookieInputOpen) {
+        setCookieStatus("valid");
+      }
       setCookieVerifyMsg({ type: "success", text: res.data.message || "✓ Cookie hợp lệ!" });
     } else {
       setIsCookieVerified(false);
@@ -172,7 +176,9 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
     setIsVerifyingTiktokCookie(false);
     if (res.success && res.data?.valid) {
       setIsTiktokCookieVerified(true);
-      setTiktokCookieStatus("valid");
+      if (!isTiktokCookieInputOpen) {
+        setTiktokCookieStatus("valid");
+      }
       setTiktokCookieVerifyMsg({ type: "success", text: res.data.message || "✓ Cookie TikTok hợp lệ!" });
     } else {
       setIsTiktokCookieVerified(false);
@@ -258,7 +264,9 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
     setIsVerifyingFbCookie(false);
     if (res.success && res.data?.valid) {
       setIsFbCookieVerified(true);
-      setFbCookieStatus("valid");
+      if (!isFbCookieInputOpen) {
+        setFbCookieStatus("valid");
+      }
       setFbCookieVerifyMsg({ type: "success", text: res.data.message || "✓ Cookie Facebook hợp lệ!" });
     } else {
       setIsFbCookieVerified(false);
@@ -344,7 +352,9 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
     setIsVerifyingIgCookie(false);
     if (res.success && res.data?.valid) {
       setIsIgCookieVerified(true);
-      setIgCookieStatus("valid");
+      if (!isIgCookieInputOpen) {
+        setIgCookieStatus("valid");
+      }
       setIgCookieVerifyMsg({ type: "success", text: res.data.message || "✓ Cookie Instagram hợp lệ!" });
     } else {
       setIsIgCookieVerified(false);
@@ -686,13 +696,13 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                   {/* Layer 1: Body Container */}
                   <div
                     className={`overflow-hidden transition-all duration-200 ease-in-out ${
-                      isYoutubeOpen ? "max-h-[800px] opacity-100 p-3 pt-0 space-y-3 border-t border-[#383c42]/40" : "max-h-0 opacity-0"
+                      isYoutubeOpen ? "max-h-[1000px] opacity-100 p-3 pt-0 space-y-3 border-t border-[#383c42]/40" : "max-h-0 opacity-0"
                     }`}
                   >
                     {/* Layer 2: Sliding Input Container */}
                     <div
                       className={`overflow-hidden transition-all duration-200 ease-in-out ${
-                        isCookieInputOpen ? "max-h-[500px] opacity-100 pt-2 pb-1" : "max-h-0 opacity-0"
+                        isCookieInputOpen ? "max-h-[600px] opacity-100 pt-2 pb-1" : "max-h-0 opacity-0"
                       }`}
                     >
                       <div className="space-y-2 pt-1">
@@ -708,6 +718,8 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                             { key: "SAPISID", label: "SAPISID" },
                             { key: "__Secure-1PSID", label: "__Secure-1PSID" },
                             { key: "__Secure-3PSID", label: "__Secure-3PSID" },
+                            { key: "__Secure-1PSIDTS", label: "__Secure-1PSIDTS" },
+                            { key: "__Secure-3PSIDTS", label: "__Secure-3PSIDTS" },
                           ].map(({ key, label }) => (
                             <div key={key} className={key === "LOGIN_INFO" ? "sm:col-span-2" : ""}>
                               <label className="block text-[10px] font-mono text-gray-400 mb-0.5">
@@ -756,7 +768,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                       </div>
                     </div>
 
-                    {/* Verification / status feedback message */}
+                    {/* Verification feedback message */}
                     {cookieVerifyMsg && (
                       <div
                         className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
@@ -799,8 +811,12 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                           disabled={isVerifyingCookie}
                           className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingCookie ? "animate-spin" : ""}`} />
-                          <span>{isVerifyingCookie ? "Đang kiểm tra..." : "Kiểm tra cookie"}</span>
+                          <RefreshCw className={`w-3.5 h-3.5 ${(isVerifyingCookie) ? "animate-spin" : ""}`} />
+                          <span>
+                            {(isVerifyingCookie)
+                              ? "Đang kiểm tra..."
+                              : (isCookieInputOpen ? "Kiểm tra thuộc tính đang nhập" : "Kiểm tra cookie trong txt")}
+                          </span>
                         </button>
 
                         {isCookieInputOpen ? (
@@ -901,14 +917,16 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     >
                       <div className="space-y-2 pt-1">
                         <p className="text-[11px] text-gray-400 mb-2">
-                          Nhập các giá trị cookie từ tài khoản TikTok của bạn (khuyên dùng ít nhất <code className="text-cyan-400">sessionid</code>):
+                          Nhập các giá trị cookie từ tài khoản TikTok của bạn (quan trọng: <code className="text-cyan-400">sessionid</code>):
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {[
-                            { key: "sessionid", label: "sessionid (Bắt buộc)" },
-                            { key: "sessionid_ss", label: "sessionid_ss (Bắt buộc)" },
-                            { key: "sid_guard", label: "sid_guard (Khuyên dùng)" },
-                            { key: "tt_chain_token", label: "tt_chain_token (Tùy chọn)" },
+                            { key: "sessionid", label: "sessionid (quan trọng)" },
+                            { key: "sessionid_ss", label: "sessionid_ss" },
+                            { key: "sid_tt", label: "sid_tt" },
+                            { key: "sid_guard", label: "sid_guard" },
+                            { key: "uid_tt", label: "uid_tt" },
+                            { key: "ttwid", label: "ttwid" },
                           ].map(({ key, label }) => (
                             <div key={key} className={key === "sessionid" ? "sm:col-span-2" : ""}>
                               <label className="block text-[10px] font-mono text-gray-400 mb-0.5">
@@ -1000,8 +1018,12 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                           disabled={isVerifyingTiktokCookie}
                           className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingTiktokCookie ? "animate-spin" : ""}`} />
-                          <span>{isVerifyingTiktokCookie ? "Đang kiểm tra..." : "Kiểm tra cookie"}</span>
+                          <RefreshCw className={`w-3.5 h-3.5 ${(isVerifyingTiktokCookie) ? "animate-spin" : ""}`} />
+                          <span>
+                            {(isVerifyingTiktokCookie)
+                              ? "Đang kiểm tra..."
+                              : (isTiktokCookieInputOpen ? "Kiểm tra thuộc tính đang nhập" : "Kiểm tra cookie trong txt")}
+                          </span>
                         </button>
 
                         {isTiktokCookieInputOpen ? (
@@ -1101,48 +1123,77 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                       }`}
                     >
                       <div className="space-y-2 pt-1">
-                        <p className="text-[11px] text-gray-400">
-                          Nhập từng thuộc tính cookie Facebook (bắt buộc <code className="text-blue-400">c_user</code> và <code className="text-blue-400">xs</code>):
+                        <p className="text-[11px] text-gray-400 mb-2">
+                          Nhập các giá trị cookie từ Facebook (quan trọng: <code className="text-blue-400">c_user</code> và <code className="text-blue-400">xs</code>):
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {[
-                            { key: "c_user", label: "c_user (User ID - Bắt buộc)" },
-                            { key: "xs", label: "xs (Session token - Bắt buộc)" },
-                            { key: "datr", label: "datr (Browser token)" },
-                            { key: "fr", label: "fr (Security cookie)" },
-                            { key: "sb", label: "sb (Session ID)" },
-                            { key: "presence", label: "presence (Chat/Active)" },
+                            { key: "c_user", label: "c_user (User ID - quan trọng)" },
+                            { key: "xs", label: "xs (Session token - quan trọng)" },
+                            { key: "fr", label: "fr" },
+                            { key: "datr", label: "datr" },
+                            { key: "sb", label: "sb" },
                           ].map(({ key, label }) => (
-                            <div key={key}>
+                            <div key={key} className={key === "c_user" || key === "xs" ? "sm:col-span-2" : ""}>
                               <label className="block text-[10px] font-mono text-gray-400 mb-0.5">
                                 {label}
                               </label>
-                              <input
-                                type="text"
-                                value={fbCookieFields[key] || ""}
-                                onChange={(e) => handleFbCookieFieldChange(key, e.target.value)}
-                                placeholder={`Nhập ${key}`}
-                                className="w-full bg-[#121316] border border-[#383c42] focus:border-blue-500/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono placeholder-gray-600 outline-none transition-colors"
-                              />
+                              <div className="relative flex items-center">
+                                <input
+                                  type="text"
+                                  value={fbCookieFields[key] || ""}
+                                  onChange={(e) => handleFbCookieFieldChange(key, e.target.value)}
+                                  placeholder={`Nhập ${key}`}
+                                  className="w-full bg-[#121316] border border-[#383c42] focus:border-[#1877F2]/60 rounded-lg pl-2.5 pr-20 py-1.5 text-xs text-white font-mono placeholder-gray-600 outline-none transition-colors"
+                                />
+                                <div className="absolute right-1 flex items-center gap-1">
+                                  {fbCookieFields[key] ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFbCookieFieldChange(key, "")}
+                                      className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                                      title="Xóa"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const text = await navigator.clipboard.readText();
+                                        if (text) handleFbCookieFieldChange(key, text.trim());
+                                      } catch {
+                                        // Clipboard error
+                                      }
+                                    }}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-[#1877F2] bg-[#1877F2]/10 hover:bg-[#1877F2]/20 active:bg-[#1877F2]/30 transition-colors"
+                                    title="Dán từ Clipboard"
+                                  >
+                                    <Clipboard className="w-3.5 h-3.5" />
+                                    <span>Dán</span>
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     </div>
 
-                    {/* Status Message */}
+                    {/* Verification feedback message */}
                     {fbCookieVerifyMsg && (
                       <div
-                        className={`flex items-start gap-2 p-2.5 rounded-lg text-xs leading-relaxed ${
+                        className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
                           fbCookieVerifyMsg.type === "success"
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
                         }`}
                       >
                         {fbCookieVerifyMsg.type === "success" ? (
-                          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
                         ) : (
-                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                          <AlertCircle className="w-4 h-4 shrink-0" />
                         )}
                         <span>{fbCookieVerifyMsg.text}</span>
                       </div>
@@ -1173,8 +1224,12 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                           disabled={isVerifyingFbCookie}
                           className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingFbCookie ? "animate-spin" : ""}`} />
-                          <span>{isVerifyingFbCookie ? "Đang kiểm tra..." : "Kiểm tra cookie"}</span>
+                          <RefreshCw className={`w-3.5 h-3.5 ${(isVerifyingFbCookie) ? "animate-spin" : ""}`} />
+                          <span>
+                            {(isVerifyingFbCookie)
+                              ? "Đang kiểm tra..."
+                              : (isFbCookieInputOpen ? "Kiểm tra thuộc tính đang nhập" : "Kiểm tra cookie trong txt")}
+                          </span>
                         </button>
 
                         {isFbCookieInputOpen ? (
@@ -1184,7 +1239,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                             disabled={!isFbCookieVerified || isSavingFbCookie}
                             className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
                               isFbCookieVerified
-                                ? "text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 shadow-blue-600/30 ring-2 ring-blue-400/50"
+                                ? "text-white bg-[#1877F2] hover:bg-blue-600 active:bg-blue-700 shadow-blue-600/30 ring-2 ring-blue-400/50"
                                 : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
                             }`}
                           >
@@ -1208,7 +1263,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                               setIsFbCookieVerified(false);
                               setFbCookieVerifyMsg(null);
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl shadow-lg shadow-blue-600/20 transition-all"
+                            className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-[#1877F2] hover:bg-blue-600 active:bg-blue-700 rounded-xl shadow-lg shadow-blue-600/20 transition-all"
                           >
                             <Cookie className="w-3.5 h-3.5" />
                             <span>Nhập cookie</span>
@@ -1229,7 +1284,7 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400 shrink-0">
                         <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441 6.45-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
                         </svg>
                       </div>
                       <span className="font-bold text-white text-sm">Instagram</span>
@@ -1274,48 +1329,77 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                       }`}
                     >
                       <div className="space-y-2 pt-1">
-                        <p className="text-[11px] text-gray-400">
-                          Nhập từng thuộc tính cookie Instagram (bắt buộc <code className="text-pink-400">sessionid</code> và <code className="text-pink-400">ds_user_id</code>):
+                        <p className="text-[11px] text-gray-400 mb-2">
+                          Nhập các giá trị cookie từ tài khoản Instagram của bạn (quan trọng: <code className="text-pink-400">sessionid</code>):
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {[
-                            { key: "sessionid", label: "sessionid (Session Token - Bắt buộc)" },
-                            { key: "ds_user_id", label: "ds_user_id (User ID - Bắt buộc)" },
-                            { key: "csrftoken", label: "csrftoken (CSRF Token)" },
-                            { key: "mid", label: "mid (Machine ID)" },
-                            { key: "ig_did", label: "ig_did (Device ID)" },
-                            { key: "datr", label: "datr (Browser Token)" },
+                            { key: "sessionid", label: "sessionid (quan trọng)" },
+                            { key: "ds_user_id", label: "ds_user_id (User ID)" },
+                            { key: "mid", label: "mid" },
+                            { key: "csrftoken", label: "csrftoken" },
+                            { key: "rur", label: "rur" },
                           ].map(({ key, label }) => (
-                            <div key={key}>
+                            <div key={key} className={key === "sessionid" ? "sm:col-span-2" : ""}>
                               <label className="block text-[10px] font-mono text-gray-400 mb-0.5">
                                 {label}
                               </label>
-                              <input
-                                type="text"
-                                value={igCookieFields[key] || ""}
-                                onChange={(e) => handleIgCookieFieldChange(key, e.target.value)}
-                                placeholder={`Nhập ${key}`}
-                                className="w-full bg-[#121316] border border-[#383c42] focus:border-pink-500/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono placeholder-gray-600 outline-none transition-colors"
-                              />
+                              <div className="relative flex items-center">
+                                <input
+                                  type="text"
+                                  value={igCookieFields[key] || ""}
+                                  onChange={(e) => handleIgCookieFieldChange(key, e.target.value)}
+                                  placeholder={`Nhập ${key}`}
+                                  className="w-full bg-[#121316] border border-[#383c42] focus:border-pink-500/60 rounded-lg pl-2.5 pr-20 py-1.5 text-xs text-white font-mono placeholder-gray-600 outline-none transition-colors"
+                                />
+                                <div className="absolute right-1 flex items-center gap-1">
+                                  {igCookieFields[key] ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleIgCookieFieldChange(key, "")}
+                                      className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                                      title="Xóa"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const text = await navigator.clipboard.readText();
+                                        if (text) handleIgCookieFieldChange(key, text.trim());
+                                      } catch {
+                                        // Clipboard error
+                                      }
+                                    }}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-pink-400 bg-pink-500/10 hover:bg-pink-500/20 active:bg-pink-500/30 transition-colors"
+                                    title="Dán từ Clipboard"
+                                  >
+                                    <Clipboard className="w-3.5 h-3.5" />
+                                    <span>Dán</span>
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     </div>
 
-                    {/* Status Message */}
+                    {/* Verification feedback message */}
                     {igCookieVerifyMsg && (
                       <div
-                        className={`flex items-start gap-2 p-2.5 rounded-lg text-xs leading-relaxed ${
+                        className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
                           igCookieVerifyMsg.type === "success"
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
                         }`}
                       >
                         {igCookieVerifyMsg.type === "success" ? (
-                          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
                         ) : (
-                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                          <AlertCircle className="w-4 h-4 shrink-0" />
                         )}
                         <span>{igCookieVerifyMsg.text}</span>
                       </div>
@@ -1346,8 +1430,12 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                           disabled={isVerifyingIgCookie}
                           className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingIgCookie ? "animate-spin" : ""}`} />
-                          <span>{isVerifyingIgCookie ? "Đang kiểm tra..." : "Kiểm tra cookie"}</span>
+                          <RefreshCw className={`w-3.5 h-3.5 ${(isVerifyingIgCookie) ? "animate-spin" : ""}`} />
+                          <span>
+                            {(isVerifyingIgCookie)
+                              ? "Đang kiểm tra..."
+                              : (isIgCookieInputOpen ? "Kiểm tra thuộc tính đang nhập" : "Kiểm tra cookie trong txt")}
+                          </span>
                         </button>
 
                         {isIgCookieInputOpen ? (

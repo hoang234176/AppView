@@ -196,9 +196,19 @@ func mergeNetscapeCookies(existingContent, newContent, defaultDomain string) str
 		return formatNetscapeCookies(existingContent, defaultDomain)
 	}
 
+	cookieKey := func(domain, path, name string) string {
+		d := strings.ToLower(strings.TrimSpace(domain))
+		d = strings.TrimPrefix(d, ".")
+		p := strings.TrimSpace(path)
+		if p == "" {
+			p = "/"
+		}
+		return fmt.Sprintf("%s|%s|%s", d, p, strings.TrimSpace(name))
+	}
+
 	existingLines := strings.Split(existingContent, "\n")
 	var entries []*cookieEntry
-	nameIndex := make(map[string]int)
+	keyIndex := make(map[string]int)
 
 	for _, line := range existingLines {
 		e := parseNetscapeLine(line)
@@ -206,10 +216,21 @@ func mergeNetscapeCookies(existingContent, newContent, defaultDomain string) str
 			continue
 		}
 		if !e.isComment && e.name != "" {
-			if idx, found := nameIndex[e.name]; found {
+			domain := e.domain
+			if domain == "" {
+				domain = defaultDomain
+			}
+			path := e.path
+			if path == "" {
+				path = "/"
+			}
+			e.domain = domain
+			e.path = path
+			k := cookieKey(domain, path, e.name)
+			if idx, found := keyIndex[k]; found {
 				entries[idx] = e
 			} else {
-				nameIndex[e.name] = len(entries)
+				keyIndex[k] = len(entries)
 				entries = append(entries, e)
 			}
 		} else {
@@ -224,17 +245,23 @@ func mergeNetscapeCookies(existingContent, newContent, defaultDomain string) str
 			continue
 		}
 
-		if idx, found := nameIndex[e.name]; found {
+		domain := e.domain
+		if domain == "" {
+			domain = defaultDomain
+		}
+		path := e.path
+		if path == "" {
+			path = "/"
+		}
+		e.domain = domain
+		e.path = path
+
+		k := cookieKey(domain, path, e.name)
+		if idx, found := keyIndex[k]; found {
 			target := entries[idx]
 			target.value = e.value
-			if e.domain != "" {
-				target.domain = e.domain
-			}
 			if e.flag != "" {
 				target.flag = e.flag
-			}
-			if e.path != "" {
-				target.path = e.path
 			}
 			if e.secure != "" {
 				target.secure = e.secure
@@ -243,17 +270,9 @@ func mergeNetscapeCookies(existingContent, newContent, defaultDomain string) str
 				target.expiration = e.expiration
 			}
 		} else {
-			domain := e.domain
-			if domain == "" {
-				domain = defaultDomain
-			}
 			flag := e.flag
 			if flag == "" {
 				flag = "TRUE"
-			}
-			path := e.path
-			if path == "" {
-				path = "/"
 			}
 			secure := e.secure
 			if secure == "" {
@@ -263,13 +282,11 @@ func mergeNetscapeCookies(existingContent, newContent, defaultDomain string) str
 			if expiration == "" {
 				expiration = "2147483647"
 			}
-			e.domain = domain
 			e.flag = flag
-			e.path = path
 			e.secure = secure
 			e.expiration = expiration
 
-			nameIndex[e.name] = len(entries)
+			keyIndex[k] = len(entries)
 			entries = append(entries, e)
 		}
 	}
