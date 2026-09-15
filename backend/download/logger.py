@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import urllib.parse
 from datetime import datetime
 from typing import Any
 
@@ -124,3 +125,28 @@ def log_error(module: str, message: str) -> None:
 def log_http(status: int, latency_ms: float, client_ip: str, method: str, path: str, query: str = "") -> None:
     # Do not log query strings: download URLs can contain short-lived tokens.
     log_event("INFO", "http request", "HTTP", status=status, latencyMs=round(latency_ms, 2), clientIp=client_ip, method=method, path=path)
+
+
+def safe_url(url: str) -> str:
+    """Strip query parameters and credentials from URL to prevent token leakage in terminal logs."""
+    if not url:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(str(url).strip())
+        return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+    except Exception:
+        return str(url)
+
+
+def log_cookie_update(platform: str, field_names: list[str] | set[str]) -> None:
+    """Log updated cookie field names only, each on its own line without values.
+
+    Security invariant: NEVER expose cookie values, tokens, or credentials in logs.
+    """
+    clean_platform = (platform or "Unknown").capitalize()
+    unique_names = sorted({str(f).strip() for f in field_names if str(f).strip()})
+    if not unique_names:
+        return
+    log_info("COOKIE", f"Phát hiện cookie được cập nhật ({clean_platform}):")
+    for field_name in unique_names:
+        log_info("COOKIE", f"  • {field_name}")

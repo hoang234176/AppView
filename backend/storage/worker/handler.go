@@ -541,6 +541,7 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 		return
 	}
 	utils.LogEvent("INFO", "storage worker accepted download", map[string]any{"taskId": task.TaskID, "action": task.Action, "filename": request.Filename, "destination": request.Destination})
+	utils.LogInfo("[STORAGE] Nhận tác vụ tải xuống: %s (Nền tảng: %s, Đích: %s)", request.Filename, request.Source, request.Destination)
 	if err := send(Message{Type: TaskAccepted, TaskID: task.TaskID}); err != nil {
 		return
 	}
@@ -575,21 +576,6 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 		return
 	}
 
-	if isFacebookRequest(request) {
-		if _, exists := h.facebook.Snapshot(task.TaskID); !exists {
-			utils.LogEvent("INFO", "storage facebook start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
-			if err := h.facebook.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.AudioURL, toFacebookItems(request.Items), request.Headers); err != nil {
-				h.fail(send, task.TaskID, "STORAGE_START_FAILED", "Storage không thể bắt đầu tác vụ tải Facebook.")
-				return
-			}
-		}
-		if request.ParentJobID != "" {
-			h.facebook.SetCanonicalID(task.TaskID, request.ParentJobID)
-		}
-		h.monitor(ctx, task.TaskID, send)
-		return
-	}
-
 	if isInstagramRequest(request) {
 		if _, exists := h.instagram.Snapshot(task.TaskID); !exists {
 			utils.LogEvent("INFO", "storage instagram start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
@@ -600,6 +586,21 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 		}
 		if request.ParentJobID != "" {
 			h.instagram.SetCanonicalID(task.TaskID, request.ParentJobID)
+		}
+		h.monitor(ctx, task.TaskID, send)
+		return
+	}
+
+	if isFacebookRequest(request) {
+		if _, exists := h.facebook.Snapshot(task.TaskID); !exists {
+			utils.LogEvent("INFO", "storage facebook start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
+			if err := h.facebook.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.AudioURL, toFacebookItems(request.Items), request.Headers); err != nil {
+				h.fail(send, task.TaskID, "STORAGE_START_FAILED", "Storage không thể bắt đầu tác vụ tải Facebook.")
+				return
+			}
+		}
+		if request.ParentJobID != "" {
+			h.facebook.SetCanonicalID(task.TaskID, request.ParentJobID)
 		}
 		h.monitor(ctx, task.TaskID, send)
 		return
@@ -943,35 +944,42 @@ func toInstagramItems(items []downloadItemPayload) []instagram.DownloadItem {
 }
 
 func isYouTubeRequest(request downloadRequest) bool {
-	if strings.EqualFold(strings.TrimSpace(request.Source), "youtube") {
-		return true
+	src := strings.TrimSpace(request.Source)
+	if src != "" {
+		return strings.EqualFold(src, "youtube")
 	}
 	u := strings.ToLower(request.URL)
 	return strings.Contains(u, "googlevideo.com") || strings.Contains(u, "youtube.com") || strings.Contains(u, "youtu.be")
 }
 
 func isTikTokRequest(request downloadRequest) bool {
-	if strings.EqualFold(strings.TrimSpace(request.Source), "tiktok") {
-		return true
+	src := strings.TrimSpace(request.Source)
+	if src != "" {
+		return strings.EqualFold(src, "tiktok")
 	}
 	u := strings.ToLower(request.URL)
 	return strings.Contains(u, "tiktok.com") || strings.Contains(u, "tiktokcdn.com")
 }
 
-func isFacebookRequest(request downloadRequest) bool {
-	if strings.EqualFold(strings.TrimSpace(request.Source), "facebook") {
-		return true
+func isInstagramRequest(request downloadRequest) bool {
+	src := strings.TrimSpace(request.Source)
+	if src != "" {
+		return strings.EqualFold(src, "instagram")
 	}
 	u := strings.ToLower(request.URL)
-	return strings.Contains(u, "facebook.com") || strings.Contains(u, "fb.watch") || strings.Contains(u, "fb.com") || strings.Contains(u, "fbcdn.net")
+	return strings.Contains(u, "instagram.com") || strings.Contains(u, "cdninstagram.com") || strings.Contains(u, "instagram.")
 }
 
-func isInstagramRequest(request downloadRequest) bool {
-	if strings.EqualFold(strings.TrimSpace(request.Source), "instagram") {
-		return true
+func isFacebookRequest(request downloadRequest) bool {
+	src := strings.TrimSpace(request.Source)
+	if src != "" {
+		return strings.EqualFold(src, "facebook")
 	}
 	u := strings.ToLower(request.URL)
-	return strings.Contains(u, "instagram.com") || strings.Contains(u, "cdninstagram.com")
+	if strings.Contains(u, "instagram.") || strings.Contains(u, "cdninstagram.com") || strings.Contains(u, "instagram.com") {
+		return false
+	}
+	return strings.Contains(u, "facebook.com") || strings.Contains(u, "fb.watch") || strings.Contains(u, "fb.com") || strings.Contains(u, "fbcdn.net")
 }
 
 func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {

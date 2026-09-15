@@ -11,19 +11,26 @@ _PROCESS_PLATFORM_PORT = os.getenv("PORT")
 
 def _load_local_env() -> None:
     """Load this service's optional .env without overriding OS/Render values."""
-    env_path = Path(__file__).resolve().with_name(".env")
-    try:
-        lines = env_path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return
-
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    candidates = [
+        Path(__file__).resolve().with_name(".env"),
+        Path(__file__).resolve().parent.parent / ".env",
+        Path(__file__).resolve().parent.parent.parent / ".env",
+    ]
+    for env_path in candidates:
+        if not env_path.is_file():
             continue
-        key, value = (part.strip() for part in line.split("=", 1))
-        if key and key not in os.environ:
-            os.environ[key] = value.strip("\"'")
+        try:
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = (part.strip() for part in line.split("=", 1))
+            if key and key not in os.environ:
+                os.environ[key] = value.strip("\"'")
 
 
 _load_local_env()
@@ -46,8 +53,10 @@ class Config:
     # The coordinator interface is additive: failure to reach it must never
     # prevent the existing HTTP Download API from serving clients.
     COORDINATOR_WS_URL: str = os.getenv(
-        "COORDINATOR_WS_URL", "ws://localhost:8090/ws/workers"
+        "DOWNLOAD_COORDINATOR_WS_URL",
+        os.getenv("COORDINATOR_WS_URL", "ws://localhost:8090/ws/workers"),
     )
     COORDINATOR_WORKER_ID: str = os.getenv(
-        "COORDINATOR_WORKER_ID", f"download-{socket.gethostname()}"
+        "DOWNLOAD_COORDINATOR_WORKER_ID",
+        os.getenv("COORDINATOR_WORKER_ID", f"download-{socket.gethostname()}"),
     )

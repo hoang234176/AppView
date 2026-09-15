@@ -3,6 +3,7 @@ package logging
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -120,4 +121,17 @@ func enabled(level string) bool {
 		configured = "INFO"
 	}
 	return ranks[strings.ToUpper(level)] >= ranks[configured]
+}
+
+// SafeURL removes query parameters and userinfo to prevent logging sensitive tokens.
+func SafeURL(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return ""
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	return fmt.Sprintf("%s://%s%s", parsed.Scheme, parsed.Host, parsed.Path)
 }

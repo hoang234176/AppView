@@ -124,7 +124,7 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 	if err != nil {
 		return downloadjob.Job{}, err
 	}
-	logging.Event("INFO", "download job created", map[string]any{"jobId": created.ID, "state": downloadjob.Resolving, "destination": created.Destination})
+	logging.Event("INFO", fmt.Sprintf("Bắt đầu xử lý link tải: %s (Đích: %s)", logging.SafeURL(request.URL), created.Destination), map[string]any{"jobId": created.ID, "state": downloadjob.Resolving, "destination": created.Destination})
 	resolvePayload := map[string]any{"url": request.URL}
 	if request.Quality > 0 {
 		resolvePayload["quality"] = request.Quality
@@ -144,6 +144,7 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 		job, _ := c.downloads.Get(created.ID)
 		return job, err
 	}
+	logging.Event("INFO", fmt.Sprintf("Giao việc phân tích link cho Download worker (Task: %s)...", createdTask.ID), map[string]any{"jobId": created.ID, "resolveTaskId": createdTask.ID})
 	_ = createdTask
 	job, _ := c.downloads.Get(created.ID)
 	c.notifyDownload(job, "created")
@@ -547,7 +548,7 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 		if !shouldCreate {
 			return
 		}
-		logging.Event("INFO", "download job transition", map[string]any{"jobId": job.ID, "state": downloadjob.Downloading, "resolveTaskId": completed.ID, "filename": storageRequest.Filename})
+		logging.Event("INFO", fmt.Sprintf("Giải mã link thành công cho tệp: %s (%s). Chuyển tiếp sang Storage worker tải về...", storageRequest.Filename, storageRequest.Source), map[string]any{"jobId": job.ID, "state": downloadjob.Downloading, "resolveTaskId": completed.ID, "filename": storageRequest.Filename})
 		payloadMap := map[string]any{
 			"url": storageRequest.URL, "filename": storageRequest.Filename,
 			"destination": storageRequest.Destination, "password": storageRequest.Password, "parentJobId": job.ID,
@@ -571,7 +572,7 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 			c.downloads.FailJob(job.ID, downloadjob.FailureStorage, &protocol.ErrorPayload{Code: "STORAGE_TASK_CREATE_FAILED", Message: "could not create storage task"})
 			logging.Event("ERROR", "download job failed", map[string]any{"jobId": job.ID, "failureStage": downloadjob.FailureStorage, "errorCode": "STORAGE_TASK_CREATE_FAILED"})
 		} else {
-			logging.Event("INFO", "storage child created", map[string]any{"jobId": job.ID, "storageTaskId": storageTask.ID, "filename": storageRequest.Filename})
+			logging.Event("INFO", fmt.Sprintf("Đã giao việc tải tệp cho Storage worker (Task: %s, File: %s)", storageTask.ID, storageRequest.Filename), map[string]any{"jobId": job.ID, "storageTaskId": storageTask.ID, "filename": storageRequest.Filename})
 			if current, ok := c.downloads.Get(job.ID); ok {
 				c.notifyDownload(current, "state_changed")
 			}
@@ -584,8 +585,10 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 		if job, ok := c.downloads.JobForChild(completed.ID); ok {
 			fields["jobId"] = job.ID
 			c.notifyDownload(job, "state_changed")
+			logging.Event("INFO", fmt.Sprintf("✓ Toàn bộ quá trình tải xuống đã hoàn tất thành công: %s (JobId: %s)", job.Filename, job.ID), fields)
+		} else {
+			logging.Event("INFO", "download job completed", fields)
 		}
-		logging.Event("INFO", "download job completed", fields)
 	}
 }
 

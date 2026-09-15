@@ -8,7 +8,7 @@ from typing import Any, Optional
 from archive.contracts import DownloadResolver, ResolvedDownload
 from archive.service import archive_service
 from services.youtube.errors import YouTubeError
-from logger import log_error, log_event, log_warning
+from logger import log_error, log_event, log_info, log_warning, safe_url
 from worker.protocol import (
     RESOLVE_DOWNLOAD,
     TASK_ACCEPTED,
@@ -58,6 +58,7 @@ class DownloadWorkerHandler:
 
         await send(message(TASK_ACCEPTED, taskId=task_id))
         log_event("INFO", "resolve task accepted", "COORDINATOR WORKER", taskId=task_id)
+        log_info("COORDINATOR WORKER", f"Bắt đầu xử lý giải mã liên kết tải (TaskId: {task_id}): {safe_url(url)}")
         try:
             log_event("INFO", "resolver started", "COORDINATOR WORKER", taskId=task_id)
             if payload.get("operation") == "preview":
@@ -102,6 +103,7 @@ class DownloadWorkerHandler:
 
         await send(message(TASK_COMPLETED, taskId=task_id, result=self._result(resolved)))
         log_event("INFO", "resolver completed", "COORDINATOR WORKER", taskId=task_id, filename=resolved.filename)
+        log_info("COORDINATOR WORKER", f"Hoàn tất giải mã cho tệp: {resolved.filename} (TaskId: {task_id})")
 
     @staticmethod
     def _result(resolved: ResolvedDownload) -> dict[str, Any]:

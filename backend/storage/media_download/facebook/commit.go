@@ -10,6 +10,7 @@ import (
 
 	pythonapi "backend/api/python"
 	"backend/events"
+	"backend/utils"
 )
 
 func copyFileWithContext(ctx context.Context, src, dst string) error {
@@ -105,6 +106,7 @@ func commitFacebookMedia(ctx context.Context, job *Job, workspace string) error 
 			NewPath:    publicPath,
 			ParentPath: parentPath,
 		})
+		utils.LogInfo("[STORAGE] Đã lưu tệp an toàn vào đích: %s", publicPath)
 	}
 
 	return nil
@@ -156,5 +158,6 @@ func commitVideoFile(ctx context.Context, sourceFile, destination, filename, job
 		NewPath:    publicPath,
 		ParentPath: parentPath,
 	})
+	utils.LogInfo("[STORAGE] Đã lưu tệp an toàn vào đích: %s", publicPath)
 	return finalPath, nil
 }

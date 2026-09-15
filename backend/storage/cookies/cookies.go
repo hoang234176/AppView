@@ -1,15 +1,18 @@
 package cookies
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"backend/configs"
+	"backend/utils"
 )
 
 var platformRegex = regexp.MustCompile(`^[a-z0-9_-]+$`)
@@ -314,6 +317,40 @@ func mergeNetscapeCookies(existingContent, newContent, defaultDomain string) str
 	return sb.String()
 }
 
+// extractCookieFieldNames extracts only the cookie key/names without any values.
+func extractCookieFieldNames(content string) []string {
+	var names []string
+	seen := make(map[string]bool)
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) >= 7 {
+			name := strings.TrimSpace(parts[5])
+			if name != "" && !seen[name] {
+				seen[name] = true
+				names = append(names, name)
+			}
+		} else if strings.Contains(line, "=") {
+			for _, pair := range strings.Split(line, ";") {
+				pair = strings.TrimSpace(pair)
+				if kv := strings.SplitN(pair, "=", 2); len(kv) == 2 {
+					name := strings.TrimSpace(kv[0])
+					if name != "" && !seen[name] {
+						seen[name] = true
+						names = append(names, name)
+					}
+				}
+			}
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
 // Save writes or merges cookie content to ~/.tmp-appview/cookies/<platform>.txt with 0600 permissions.
 // Existing cookie attributes and lines are preserved; incoming cookies only add new keys or update existing values.
 func Save(platform string, content string) (time.Time, error) {
@@ -329,6 +366,15 @@ func Save(platform string, content string) (time.Time, error) {
 		finalContent = mergeNetscapeCookies(string(existingBytes), content, defaultDomain)
 	} else {
 		finalContent = formatNetscapeCookies(content, defaultDomain)
+	}
+
+	// Log updated cookie field names (names only, each on its own line)
+	updatedFields := extractCookieFieldNames(content)
+	if len(updatedFields) > 0 {
+		utils.LogInfo("[COOKIE] Đã lưu cập nhật cookie cho %s vào storage (%d trường):", safePlatform, len(updatedFields))
+		for _, field := range updatedFields {
+			utils.LogInfo("[COOKIE]   • %s", field)
+		}
 	}
 
 	// Write with 0600 permissions

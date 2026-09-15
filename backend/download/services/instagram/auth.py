@@ -21,7 +21,7 @@ import urllib.request
 
 import yt_dlp
 
-from logger import log_error, log_info, log_warning
+from logger import log_cookie_update, log_error, log_info, log_warning
 
 
 async def load_instagram_cookies() -> Optional[str]:
@@ -145,7 +145,7 @@ def update_instagram_session_cookies_from_headers(set_cookie_headers: list[str])
     # updating matching keys and preserving all untouched keys (sessionid, ds_user_id, etc.).
     netscape_content = dict_to_netscape_cookies(updates)
     save_instagram_cookies_via_storage(netscape_content)
-    log_info("INSTAGRAM_AUTH", f"✓ Đã gửi {len(updates)} cookie cập nhật từ Instagram sang Go storage: {list(updates.keys())}")
+    log_cookie_update("instagram", updates.keys())
     return True
 
 

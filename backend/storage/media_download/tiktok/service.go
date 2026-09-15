@@ -122,6 +122,7 @@ func runJob(job *Job) {
 		}
 		_ = os.RemoveAll(workspace)
 		setJobStage(job, "completed")
+		utils.LogInfo("[TIKTOK] ✓ Tải xuống hoàn tất: %s", job.Filename)
 		return
 	}
 
@@ -166,6 +167,7 @@ func runJob(job *Job) {
 		}
 		_ = os.RemoveAll(workspace)
 		setJobStage(job, "completed")
+		utils.LogInfo("[TIKTOK] ✓ Tải xuống hoàn tất: %s", job.Filename)
 		return
 	}
 
@@ -291,6 +293,7 @@ func startConversion(job *Job, convertDir string) {
 
 	_ = os.RemoveAll(workspace)
 	setJobStage(job, "completed")
+	utils.LogInfo("[TIKTOK] ✓ Tải xuống hoàn tất: %s", job.Filename)
 }
 
 func CancelJob(id string) bool {

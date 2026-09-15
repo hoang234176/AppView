@@ -9,7 +9,13 @@ import (
 // LoadEnvironment loads this service's optional local .env file. Values from
 // the OS (including deployment tooling) are never overwritten.
 func LoadEnvironment() {
-	file, err := os.Open(".env")
+	for _, envPath := range []string{".env", "../.env", "../../.env"} {
+		loadEnvFile(envPath)
+	}
+}
+
+func loadEnvFile(path string) {
+	file, err := os.Open(path)
 	if err != nil {
 		return
 	}

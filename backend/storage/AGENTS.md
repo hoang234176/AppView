@@ -61,6 +61,8 @@ It is local-first by design and MUST NOT be redesigned to a remote storage servi
 - Registers only `download_file`; re-registers after reconnect.
 - Payload: `{ "url", "filename", "destination" (relative, optional), "password" (optional), "audioUrl" (optional), "headers" (optional), "source" (optional) }`.
 - Archive payloads delegate to `pythonapi.StartArchiveJob`; platform media payloads (e.g. `source: "youtube"`, `source: "tiktok"`, `source: "facebook"`, `source: "instagram"`) route to `media_download/<platform>`.
+- Handler MUST strictly check and prioritize explicit `source` attribute before falling back to URL heuristics. Media hosted on shared CDNs (e.g. Meta's `*.fbcdn.net` used by Instagram) MUST NOT be intercepted by Facebook.
+- Outbound worker connection checks `STORAGE_COORDINATOR_WS_URL` and `STORAGE_COORDINATOR_WORKER_ID` with fallback to `COORDINATOR_WS_URL` and `COORDINATOR_WORKER_ID`.
 - Sends metadata-only progress (snapshot-derived); MUST NOT send file bytes or local filesystem paths on the WebSocket.
 - Worker cancellation/disconnect stops monitoring only — does not cancel an in-progress archive or YouTube job (Coordinator can safely requeue/reattach).
 - Finite dial timeouts and bounded reconnect backoff — Coordinator outage MUST NOT crash Fiber.

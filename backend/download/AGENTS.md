@@ -15,7 +15,7 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
 - `services/task_manager.py`, `progress_manager.py`, `websocket_manager.py` — in-memory task lifecycle and broadcasts
 - `models/download_task.py` — Download task and stage contract (shared with Web/Mobile)
 - `worker/client.py`, `worker/handler.py`, `worker/protocol.py` — outbound Coordinator WebSocket adapter
-- `config.py` — env vars: `GO_STORAGE_BASE_URL`, `PYTHON_DOWNLOAD_PORT`, `PYTHON_DOWNLOAD_HOST`, `COORDINATOR_WS_URL`, `COORDINATOR_WORKER_ID`
+- `config.py` — env vars: `GO_STORAGE_BASE_URL`, `PYTHON_DOWNLOAD_PORT`, `PYTHON_DOWNLOAD_HOST`, `DOWNLOAD_COORDINATOR_WS_URL` / `COORDINATOR_WS_URL`, `DOWNLOAD_COORDINATOR_WORKER_ID` / `COORDINATOR_WORKER_ID`
 
 ## API contracts — preserve unless versioning is explicit
 
@@ -27,6 +27,7 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
 
 - Registers only `resolve_download`; does not register `download_file` or any archive capability.
 - Reuses `archive_service.resolver`; does not copy provider logic or start archive jobs from worker handler.
+- Supports `DOWNLOAD_COORDINATOR_WS_URL` and `DOWNLOAD_COORDINATOR_WORKER_ID` with fallback to `COORDINATOR_WS_URL` and `COORDINATOR_WORKER_ID`.
 - Sends `task.accepted` → (`task.progress`) → `task.completed` or `task.failed` per Coordinator protocol.
 - Source of truth for envelope shape: `backend/coordinator/docs/PROTOCOL.md`.
 - Finite dial timeouts and bounded reconnect backoff — Coordinator outage MUST NOT crash or block FastAPI.

@@ -130,10 +130,10 @@ class TikTokExtractor:
             loop.run_in_executor(None, lambda: finished.wait(timeout=1.5))
             raise
         except Exception as err:
-            err_msg = str(err).lower()
-            if not any(k in err_msg for k in ["login", "sign in", "auth", "private", "age"]):
+            err_msg = (str(err) + " " + str(getattr(err, "message", "")) + " " + str(getattr(err, "code", ""))).lower()
+            if not any(k in err_msg for k in ["login", "sign in", "auth", "private", "age", "blocked", "ip address", "captcha", "bot"]):
                 raise
-            log_info("TIKTOK_EXTRACTOR", f"yt-dlp yêu cầu xác thực ({err}), kiểm tra và nạp cookies TikTok...")
+            log_info("TIKTOK_EXTRACTOR", f"yt-dlp yêu cầu xác thực hoặc bị chặn IP ({err}), kiểm tra và nạp cookies TikTok...")
 
         # Step 2: Chỉ khi video yêu cầu đăng nhập mới nạp cookie và thử lại
         cookiejar = None

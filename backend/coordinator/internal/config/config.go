@@ -20,7 +20,9 @@ type Config struct {
 func Load() Config {
 	processAddress, processAddressSet := os.LookupEnv("COORDINATOR_HTTP_ADDR")
 	processPort, processPortSet := os.LookupEnv("PORT")
-	loadLocalEnv(".env")
+	for _, envPath := range []string{".env", "../.env", "../../.env"} {
+		loadLocalEnv(envPath)
+	}
 	return Config{
 		HTTPAddress:            httpAddress(processAddress, processAddressSet, processPort, processPortSet),
 		WorkerWebSocketPath:    stringEnv("COORDINATOR_WORKER_WS_PATH", "/ws/workers"),

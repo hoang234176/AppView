@@ -194,6 +194,7 @@ func runJob(job *Job) {
 		}
 		_ = os.RemoveAll(workspace)
 		setJobStage(job, "completed")
+		utils.LogInfo("[YOUTUBE] ✓ Tải xuống hoàn tất: %s", job.Filename)
 		return
 	}
 
@@ -318,6 +319,7 @@ func startConversion(job *Job, convertDir string) {
 
 	_ = os.RemoveAll(workspace)
 	setJobStage(job, "completed")
+	utils.LogInfo("[YOUTUBE] ✓ Tải xuống hoàn tất: %s", job.Filename)
 }
 
 // GetJobSnapshot returns the snapshot for a given job ID.

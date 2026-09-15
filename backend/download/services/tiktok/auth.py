@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Optional
 import yt_dlp.cookies
 
+from logger import log_cookie_update, log_info
 from services.youtube.auth import create_cookiejar_from_netscape
 from services.youtube.errors import (
     SourceAccessDeniedError,
@@ -37,6 +38,8 @@ def update_tiktok_session_cookies(session_cookies: dict[str, str]) -> None:
     }
     if not valid_updates:
         return
+
+    log_cookie_update("tiktok", valid_updates.keys())
 
     lines = ["# Netscape HTTP Cookie File"]
     for name, val in valid_updates.items():
@@ -76,10 +79,14 @@ def classify_tiktok_error(error_str: str) -> TikTokError:
         "confirm your age",
         "requires authentication",
         "log in to view",
+        "blocked",
+        "ip address is blocked",
+        "captcha",
+        "bot",
     ]):
         return TikTokError(
             code="SOURCE_AUTH_REQUIRED",
-            message="Video TikTok này yêu cầu tài khoản đã đăng nhập hoặc xác nhận độ tuổi."
+            message="Video TikTok này yêu cầu tài khoản đã đăng nhập hoặc bị chặn IP."
         )
 
     if any(phrase in lower for phrase in [

@@ -288,7 +288,9 @@ Read first: `backend/download/worker/{client,handler,protocol}.py`, `archive/ser
 
 ### Environment or deployment connectivity
 
-Read first: root `.gitignore`, relevant service `.env.example`, Coordinator `internal/config/config.go`, Download `config.py`/`worker/client.py`, and frontend endpoint configuration. Keep production hostnames out of source and use only public frontend configuration values.
+Read first: root `.gitignore`, root and backend `.env.example`, Coordinator `internal/config/config.go`, Download `config.py`/`worker/client.py`, Storage `configs/env.go`/`worker/client.go`, and frontend endpoint configuration.
+- **Deployment Topology**: Coordinator (Go) and Download (Python) are deployable to Cloud/VPS services (e.g. Render/Railway), whereas Storage (Go) always runs locally on the user's host machine to manage physical media volumes, local disk paths, and local cookie files.
+- **Environment Clusters**: `.env` and `.env.example` are partitioned into Shared, Backend Coordinator (Deploy), Backend Download (Deploy), and Backend Storage (Local). Dedicated WebSocket variables (`DOWNLOAD_COORDINATOR_WS_URL` and `STORAGE_COORDINATOR_WS_URL`) prevent connection collisions when running mixed cloud/local configurations.
 
 ### Backend logging or media serving paths
 

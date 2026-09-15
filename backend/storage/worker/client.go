@@ -28,8 +28,8 @@ func LoadConfig() Config {
 		hostname = "local"
 	}
 	return Config{
-		URL:                   stringEnv("COORDINATOR_WS_URL", "ws://localhost:8090/ws/workers"),
-		WorkerID:              stringEnv("COORDINATOR_WORKER_ID", "storage-go-"+hostname),
+		URL:                   stringEnv("STORAGE_COORDINATOR_WS_URL", stringEnv("COORDINATOR_WS_URL", "ws://localhost:8090/ws/workers")),
+		WorkerID:              stringEnv("STORAGE_COORDINATOR_WORKER_ID", stringEnv("COORDINATOR_WORKER_ID", "storage-go-"+hostname)),
 		HeartbeatInterval:     10 * time.Second,
 		ReconnectInitialDelay: time.Second,
 		ReconnectMaxDelay:     15 * time.Second,

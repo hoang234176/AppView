@@ -73,27 +73,33 @@ async def verify_youtube_cookies(raw_cookies: str) -> tuple[bool, str]:
 
 
 def _test_youtube_cookies_sync(jar: yt_dlp.cookies.YoutubeDLCookieJar) -> tuple[bool, str]:
+	import re
 	import yt_dlp
 
 	ydl_opts: dict[str, Any] = {
 		"quiet": True,
 		"no_warnings": True,
 		"skip_download": True,
-		"extract_flat": True,
 		"socket_timeout": 10,
 	}
 	try:
 		ydl = yt_dlp.YoutubeDL(ydl_opts)
 		ydl.cookiejar = jar
-		info = ydl.extract_info("https://www.youtube.com/watch?v=dQw4w9WgXcQ", download=False)
-		if info and (info.get("id") or info.get("title")):
-			return True, "Xác thực cookies YouTube thành công."
-		return False, "Không thể xác thực cookies với YouTube."
+		resp = ydl.urlopen("https://www.youtube.com/")
+		html = resp.read().decode("utf-8", errors="ignore")
+
+		logged_in_match = re.search(r'"LOGGED_IN"\s*:\s*(true|false)', html, re.IGNORECASE)
+		if logged_in_match:
+			is_logged_in = logged_in_match.group(1).lower() == "true"
+			if not is_logged_in:
+				return False, "Cookies YouTube đã hết hạn hoặc chưa đăng nhập tài khoản (LOGGED_IN: false). Vui lòng xuất cookies mới từ trình duyệt."
+
+		return True, "Xác thực cookies YouTube thành công."
 	except Exception as err:
 		error_msg = str(err).lower()
 		if any(w in error_msg for w in ["sign in", "login", "bot", "cookie", "forbidden", "permission"]):
 			return False, "Cookies YouTube không hợp lệ hoặc đã hết hạn."
-		return True, "Cookies hợp lệ."
+		return False, f"Không thể kết nối đến YouTube để xác thực cookies: {err}"
 
 
 def classify_extraction_error(error_str: str) -> YouTubeError:
