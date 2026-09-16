@@ -36,6 +36,7 @@ type DownloadPreview struct {
 	Reactions   any                `json:"reactions,omitempty"`
 	Photos      any                `json:"photos,omitempty"`
 	Videos      any                `json:"videos,omitempty"`
+	Items       any                `json:"items,omitempty"`
 	RawInfo     any                `json:"raw_info,omitempty"`
 }
 
@@ -73,7 +74,7 @@ func (c *Coordinator) PreviewDownload(ctx context.Context, sourceURL string) (Do
 		}
 		if current.State == task.Completed {
 			var preview DownloadPreview
-			if json.Unmarshal(current.Result, &preview) != nil || (preview.Source != "youtube" && preview.Source != "tiktok" && preview.Source != "facebook" && preview.Source != "instagram") || preview.Title == "" {
+			if json.Unmarshal(current.Result, &preview) != nil || (preview.Source != "youtube" && preview.Source != "tiktok" && preview.Source != "facebook" && preview.Source != "instagram" && preview.Source != "x" && preview.Source != "twitter") || preview.Title == "" {
 				return failure("PREVIEW_FAILED", "Dữ liệu xem trước không hợp lệ.")
 			}
 			if preview.Source == "youtube" && len(preview.Qualities) == 0 {

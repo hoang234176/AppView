@@ -60,3 +60,7 @@ class Config:
         "DOWNLOAD_COORDINATOR_WORKER_ID",
         os.getenv("COORDINATOR_WORKER_ID", f"download-{socket.gethostname()}"),
     )
+    TEST_X_URL: str = os.getenv(
+        "TEST_X_URL",
+        "https://x.com/Tiny_Asa/status/2098004129251725632?s=20",
+    )

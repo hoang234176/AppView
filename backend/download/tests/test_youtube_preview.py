@@ -172,7 +172,7 @@ class YouTubePreviewTests(unittest.IsolatedAsyncioTestCase):
             await router.resolve("https://youtube.com/watch?v=id", quality=1080)
 
     async def test_preview_rejects_other_sources(self):
-        for url in ["invalid", "https://twitter.com/user/status/123", "https://mediafire.com/file/test"]:
+        for url in ["invalid", "https://threads.net/t/123", "https://mediafire.com/file/test"]:
             with self.assertRaises(UnsupportedSourceError):
                 await SourceRouter().preview(url)
 

@@ -10,6 +10,7 @@ import (
 	pythonapi "backend/api/python"
 	"backend/media_download/facebook"
 	"backend/media_download/instagram"
+	"backend/media_download/x"
 	"backend/media_download/youtube"
 )
 
@@ -527,6 +528,67 @@ func TestHandlerRoutesToInstagram(t *testing.T) {
 
 	if !ig.started {
 		t.Fatalf("expected instagramOperations.Start to be called")
+	}
+	if len(sent) < 3 || sent[0].Type != TaskAccepted || sent[len(sent)-1].Type != TaskCompleted {
+		t.Fatalf("expected TaskAccepted and TaskCompleted, got %+v", sent)
+	}
+}
+
+type fakeXOperations struct {
+	started   bool
+	snapshots map[string]x.Snapshot
+}
+
+func (f *fakeXOperations) Start(id, sourceURL, filename, destination, audioURL string, items []x.DownloadItem, headers map[string]string) error {
+	f.started = true
+	if f.snapshots == nil {
+		f.snapshots = make(map[string]x.Snapshot)
+	}
+	f.snapshots[id] = x.Snapshot{
+		ID:       id,
+		Filename: filename,
+		State:    "completed",
+	}
+	return nil
+}
+
+func (f *fakeXOperations) Cancel(_ string) bool { return true }
+func (f *fakeXOperations) Delete(_ string) bool { return true }
+func (f *fakeXOperations) SetVideoDecision(_, _, _ string) error { return nil }
+func (f *fakeXOperations) ApplyVideoDecisions(_ string, _ map[string]string) error { return nil }
+
+func (f *fakeXOperations) Snapshot(id string) (x.Snapshot, bool) {
+	s, ok := f.snapshots[id]
+	return s, ok
+}
+
+func (f *fakeXOperations) Snapshots() []x.Snapshot {
+	var list []x.Snapshot
+	for _, s := range f.snapshots {
+		list = append(list, s)
+	}
+	return list
+}
+
+func (f *fakeXOperations) SetCanonicalID(_, _ string) bool {
+	return true
+}
+
+func TestHandlerRoutesToX(t *testing.T) {
+	xOps := &fakeXOperations{}
+	handler := NewHandler(nil, xOps)
+	handler.pollInterval = time.Millisecond
+
+	var sent []Message
+	handler.Handle(context.Background(), Message{
+		Type:    TaskAssign,
+		TaskID:  "x-task-1",
+		Action:  CapabilityDownloadFile,
+		Payload: []byte(`{"url":"https://x.com/user/status/123456","filename":"[X]_post_123456_01.jpeg","source":"x"}`),
+	}, collect(&sent))
+
+	if !xOps.started {
+		t.Fatalf("expected xOperations.Start to be called")
 	}
 	if len(sent) < 3 || sent[0].Type != TaskAccepted || sent[len(sent)-1].Type != TaskCompleted {
 		t.Fatalf("expected TaskAccepted and TaskCompleted, got %+v", sent)

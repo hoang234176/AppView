@@ -13,6 +13,7 @@ import (
 	"backend/media_download/facebook"
 	"backend/media_download/instagram"
 	"backend/media_download/tiktok"
+	"backend/media_download/x"
 	"backend/media_download/youtube"
 	"backend/utils"
 )
@@ -146,6 +147,52 @@ func (instagramOperations) SetCanonicalID(id, canonicalID string) bool {
 	return instagram.SetCanonicalID(id, canonicalID)
 }
 
+// XOperations is the Storage-side business boundary for X downloads.
+type XOperations interface {
+	Start(id, sourceURL, filename, destination, audioURL string, items []x.DownloadItem, headers map[string]string) error
+	Cancel(id string) bool
+	Delete(id string) bool
+	SetVideoDecision(id, videoID, quality string) error
+	ApplyVideoDecisions(id string, decisions map[string]string) error
+	Snapshot(id string) (x.Snapshot, bool)
+	Snapshots() []x.Snapshot
+	SetCanonicalID(id, canonicalID string) bool
+}
+
+type xOperations struct{}
+
+func (xOperations) Start(id, sourceURL, filename, destination, audioURL string, items []x.DownloadItem, headers map[string]string) error {
+	return x.StartJob(id, sourceURL, filename, destination, audioURL, items, headers)
+}
+
+func (xOperations) Cancel(id string) bool {
+	return x.CancelJob(id)
+}
+
+func (xOperations) Delete(id string) bool {
+	return x.DeleteJob(id)
+}
+
+func (xOperations) SetVideoDecision(id, videoID, quality string) error {
+	return x.SetVideoDecision(id, videoID, quality)
+}
+
+func (xOperations) ApplyVideoDecisions(id string, decisions map[string]string) error {
+	return x.ApplyVideoDecisions(id, decisions)
+}
+
+func (xOperations) Snapshot(id string) (x.Snapshot, bool) {
+	return x.GetJobSnapshot(id)
+}
+
+func (xOperations) Snapshots() []x.Snapshot {
+	return x.GetJobSnapshots()
+}
+
+func (xOperations) SetCanonicalID(id, canonicalID string) bool {
+	return x.SetCanonicalID(id, canonicalID)
+}
+
 type tiktokOperations struct{}
 
 func (tiktokOperations) Start(id, sourceURL, filename, destination, audioURL string, items []tiktok.DownloadItem, headers map[string]string) error {
@@ -275,6 +322,7 @@ type Handler struct {
 	tiktok       TikTokOperations
 	facebook     FacebookOperations
 	instagram    InstagramOperations
+	x            XOperations
 	pollInterval time.Duration
 }
 
@@ -286,6 +334,7 @@ func NewHandler(archive ArchiveOperations, optionalOps ...any) *Handler {
 	var tt TikTokOperations = tiktokOperations{}
 	var fb FacebookOperations = facebookOperations{}
 	var ig InstagramOperations = instagramOperations{}
+	var xOps XOperations = xOperations{}
 	for _, op := range optionalOps {
 		switch v := op.(type) {
 		case YouTubeOperations:
@@ -304,9 +353,13 @@ func NewHandler(archive ArchiveOperations, optionalOps ...any) *Handler {
 			if v != nil {
 				ig = v
 			}
+		case XOperations:
+			if v != nil {
+				xOps = v
+			}
 		}
 	}
-	return &Handler{archive: archive, youtube: yt, tiktok: tt, facebook: fb, instagram: ig, pollInterval: time.Second}
+	return &Handler{archive: archive, youtube: yt, tiktok: tt, facebook: fb, instagram: ig, x: xOps, pollInterval: time.Second}
 }
 
 func (h *Handler) Capabilities() []string {
@@ -319,7 +372,8 @@ func (h *Handler) History() StorageHistoryPayload {
 	ttSnapshots := h.tiktok.Snapshots()
 	fbSnapshots := h.facebook.Snapshots()
 	igSnapshots := h.instagram.Snapshots()
-	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots)+len(ttSnapshots)+len(fbSnapshots)+len(igSnapshots))
+	xSnapshots := h.x.Snapshots()
+	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots)+len(ttSnapshots)+len(fbSnapshots)+len(igSnapshots)+len(xSnapshots))
 	for _, snapshot := range archiveSnapshots {
 		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
 			jobs = append(jobs, storageSnapshot(snapshot))
@@ -345,7 +399,45 @@ func (h *Handler) History() StorageHistoryPayload {
 			jobs = append(jobs, instagramStorageSnapshot(snapshot))
 		}
 	}
+	for _, snapshot := range xSnapshots {
+		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
+			jobs = append(jobs, xStorageSnapshot(snapshot))
+		}
+	}
 	return StorageHistoryPayload{Jobs: jobs}
+}
+
+func xStorageSnapshot(snapshot x.Snapshot) StorageJobSnapshot {
+	dl, tot := clampProgress(snapshot.DownloadedBytes, snapshot.TotalBytes)
+	return StorageJobSnapshot{
+		ID:                    snapshot.ID,
+		CanonicalID:           snapshot.CanonicalID,
+		Source:                "x",
+		SourceURL:             safeHistoryURL(snapshot.URL),
+		Filename:              snapshot.Filename,
+		Destination:           snapshot.Destination,
+		State:                 snapshot.State,
+		DownloadedBytes:       dl,
+		TotalBytes:            tot,
+		SpeedBytes:            snapshot.SpeedBytes,
+		ExtractedPercent:      0,
+		ConversionTotal:       snapshot.Conversion.Total,
+		ConversionCurrent:     snapshot.Conversion.Current,
+		ConversionFailed:      snapshot.Conversion.Failed,
+		ErrorCode:             snapshot.ErrorCode,
+		Error:                 snapshot.Error,
+		PasswordRequired:      false,
+		ArchiveDownloaded:     false,
+		ArchiveExtracted:      false,
+		VideoScanState:        snapshot.VideoScanState,
+		TotalVideoCount:       snapshot.TotalVideoCount,
+		InvalidVideoCount:     snapshot.InvalidVideoCount,
+		OptimizationCancelled: snapshot.OptimizationCancelled,
+		CancelledFromStage:    snapshot.CancelledFromStage,
+		Videos:                snapshot.Videos,
+		CreatedAt:             snapshot.CreatedAt,
+		UpdatedAt:             snapshot.UpdatedAt,
+	}
 }
 
 func clampProgress(downloaded, total int64) (int64, int64) {
@@ -606,6 +698,21 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 		return
 	}
 
+	if isXRequest(request) {
+		if _, exists := h.x.Snapshot(task.TaskID); !exists {
+			utils.LogEvent("INFO", "storage x start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
+			if err := h.x.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.AudioURL, toXItems(request.Items), request.Headers); err != nil {
+				h.fail(send, task.TaskID, "STORAGE_START_FAILED", "Storage không thể bắt đầu tác vụ tải X.")
+				return
+			}
+		}
+		if request.ParentJobID != "" {
+			h.x.SetCanonicalID(task.TaskID, request.ParentJobID)
+		}
+		h.monitor(ctx, task.TaskID, send)
+		return
+	}
+
 	// A requeued Coordinator task keeps its original ID. If local Storage has
 	// already started that archive job, only reconnect monitoring; do not start
 	// a second download or cancel the existing one.
@@ -662,6 +769,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		h.tiktok.Delete(control.ArchiveTaskID)
 		h.facebook.Delete(control.ArchiveTaskID)
 		h.instagram.Delete(control.ArchiveTaskID)
+		h.x.Delete(control.ArchiveTaskID)
 		h.archive.Delete(control.ArchiveTaskID)
 		_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
 		return
@@ -827,6 +935,46 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		return
 	}
 
+	if _, isX := h.x.Snapshot(control.ArchiveTaskID); isX {
+		var err error
+		if control.Operation == "video_decision" {
+			err = h.x.SetVideoDecision(control.ArchiveTaskID, control.VideoID, control.Quality)
+		} else if control.Operation == "video_apply" {
+			var decisions map[string]string
+			if len(control.Decisions) > 0 {
+				if unmarshalErr := json.Unmarshal(control.Decisions, &decisions); unmarshalErr != nil {
+					var str string
+					if json.Unmarshal(control.Decisions, &str) == nil {
+						_ = json.Unmarshal([]byte(str), &decisions)
+					}
+				}
+			}
+			err = h.x.ApplyVideoDecisions(control.ArchiveTaskID, decisions)
+		} else if control.Operation == "cancel" {
+			if !h.x.Cancel(control.ArchiveTaskID) {
+				err = fmt.Errorf("x job not found")
+			}
+		} else {
+			err = fmt.Errorf("thao tác %s không được hỗ trợ cho X", control.Operation)
+		}
+
+		if err != nil {
+			h.fail(send, controlTaskID, "STORAGE_CONTROL_FAILED", err.Error())
+			return
+		}
+
+		if control.Operation == "video_decision" || control.Operation == "video_apply" {
+			if snapshot, ok := h.x.Snapshot(control.ArchiveTaskID); ok {
+				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{xStorageSnapshot(snapshot)}}})
+			}
+			_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
+			return
+		}
+
+		h.monitor(ctx, control.ArchiveTaskID, send)
+		return
+	}
+
 
 	var err error
 	if control.Operation == "video_decision" {
@@ -943,6 +1091,21 @@ func toInstagramItems(items []downloadItemPayload) []instagram.DownloadItem {
 	return result
 }
 
+func toXItems(items []downloadItemPayload) []x.DownloadItem {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]x.DownloadItem, len(items))
+	for i, item := range items {
+		result[i] = x.DownloadItem{
+			URL:      item.URL,
+			Filename: item.Filename,
+			Type:     item.Type,
+		}
+	}
+	return result
+}
+
 func isYouTubeRequest(request downloadRequest) bool {
 	src := strings.TrimSpace(request.Source)
 	if src != "" {
@@ -982,6 +1145,15 @@ func isFacebookRequest(request downloadRequest) bool {
 	return strings.Contains(u, "facebook.com") || strings.Contains(u, "fb.watch") || strings.Contains(u, "fb.com") || strings.Contains(u, "fbcdn.net")
 }
 
+func isXRequest(request downloadRequest) bool {
+	src := strings.TrimSpace(request.Source)
+	if src != "" {
+		return strings.EqualFold(src, "x") || strings.EqualFold(src, "twitter")
+	}
+	u := strings.ToLower(request.URL)
+	return strings.Contains(u, "x.com") || strings.Contains(u, "twitter.com") || strings.Contains(u, "twimg.com")
+}
+
 func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
 	var request downloadRequest
 	if len(payload) == 0 || json.Unmarshal(payload, &request) != nil {
@@ -1016,7 +1188,64 @@ func (h *Handler) monitor(ctx context.Context, taskID string, send SendFunc) {
 		h.monitorInstagram(ctx, taskID, send)
 		return
 	}
+	if _, isX := h.x.Snapshot(taskID); isX {
+		h.monitorX(ctx, taskID, send)
+		return
+	}
 	h.monitorArchive(ctx, taskID, send)
+}
+
+func (h *Handler) monitorX(ctx context.Context, taskID string, send SendFunc) {
+	for {
+		snapshot, exists := h.x.Snapshot(taskID)
+		if !exists {
+			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ X được giao.")
+			return
+		}
+		if err := send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{xStorageSnapshot(snapshot)}}}); err != nil {
+			return
+		}
+
+		switch snapshot.State {
+		case "completed":
+			utils.LogEvent("INFO", "storage x completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
+				"jobId":    snapshot.ID,
+				"filename": snapshot.Filename,
+				"state":    snapshot.State,
+			}})
+			return
+		case "cancelled":
+			utils.LogEvent("WARN", "storage x cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ X đã bị hủy cục bộ.")
+			return
+		case "error":
+			utils.LogEvent("ERROR", "storage x failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename, "error": snapshot.Error})
+			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải X: "+snapshot.Error)
+			return
+		default:
+			utils.LogEvent("DEBUG", "storage x progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
+				"state":           snapshot.State,
+				"filename":        snapshot.Filename,
+				"downloadedBytes": snapshot.DownloadedBytes,
+				"totalBytes":      snapshot.TotalBytes,
+				"speedBytes":      snapshot.SpeedBytes,
+			}}); err != nil {
+				return
+			}
+		}
+
+		interval := h.pollInterval
+		if interval <= 0 {
+			interval = time.Millisecond
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+		}
+	}
 }
 
 func (h *Handler) monitorFacebook(ctx context.Context, taskID string, send SendFunc) {

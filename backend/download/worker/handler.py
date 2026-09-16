@@ -77,6 +77,12 @@ class DownloadWorkerHandler:
                 info = await extractor.inspect(url.strip())
                 await send(message(TASK_COMPLETED, taskId=task_id, result=info))
                 return
+            if payload.get("operation") == "x_inspect":
+                from services.x.extractor import XExtractor
+                extractor = XExtractor()
+                info = await extractor.inspect(url.strip())
+                await send(message(TASK_COMPLETED, taskId=task_id, result=info))
+                return
             quality = payload.get("quality")
             if quality is not None and (type(quality) is not int or quality <= 0):
                 await self._fail(send, task_id, "INVALID_QUALITY", "Chất lượng tải xuống không hợp lệ.")

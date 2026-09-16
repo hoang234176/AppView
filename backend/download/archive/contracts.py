@@ -48,6 +48,8 @@ def format_photo_download_filename(
         platform_tag = "[Instagram]"
     elif clean_platform.lower() == "youtube":
         platform_tag = "[YouTube]"
+    elif clean_platform.lower() in ("x", "twitter"):
+        platform_tag = "[X]"
     else:
         platform_tag = f"[{clean_platform.title()}]"
 
@@ -112,6 +114,8 @@ def format_video_download_filename(
         platform_tag = "[Instagram]"
     elif clean_platform.lower() == "youtube":
         platform_tag = "[YouTube]"
+    elif clean_platform.lower() in ("x", "twitter"):
+        platform_tag = "[X]"
     else:
         platform_tag = f"[{clean_platform.title()}]"
 

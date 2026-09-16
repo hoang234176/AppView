@@ -242,6 +242,9 @@ class CoordinatorWorkerClient:
         elif platform == "instagram":
             from services.instagram.auth import verify_instagram_cookies
             valid, message_str = await verify_instagram_cookies(raw_cookies)
+        elif platform in ("x", "twitter"):
+            from services.x.auth import verify_x_cookies
+            valid, message_str = await verify_x_cookies(raw_cookies)
 
         level = "INFO" if valid else "WARN"
         log_event(level, "cookie verification completed", "COOKIE_VERIFY", platform=platform, valid=valid, detail=message_str)

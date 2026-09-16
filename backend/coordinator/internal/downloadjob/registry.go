@@ -139,6 +139,8 @@ func (r *Registry) MergeStorageHistory(workerID string, snapshots []protocol.Sto
 				next.Source = "facebook"
 			} else if strings.Contains(next.URL, "instagram.com") || strings.Contains(next.URL, "instagr.am") || strings.Contains(next.SourceURL, "instagram.com") || strings.Contains(next.SourceURL, "instagr.am") || strings.Contains(next.URL, "cdninstagram.com") {
 				next.Source = "instagram"
+			} else if strings.Contains(next.URL, "x.com") || strings.Contains(next.URL, "twitter.com") || strings.Contains(next.SourceURL, "x.com") || strings.Contains(next.SourceURL, "twitter.com") || strings.Contains(next.URL, "twimg.com") {
+				next.Source = "x"
 			} else if strings.HasSuffix(strings.ToLower(next.Filename), ".zip") || strings.HasSuffix(strings.ToLower(next.Filename), ".rar") || strings.HasSuffix(strings.ToLower(next.Filename), ".7z") || strings.HasSuffix(strings.ToLower(next.Filename), ".tar") || strings.HasSuffix(strings.ToLower(next.Filename), ".gz") {
 				next.Source = "archive"
 			}
@@ -270,6 +272,8 @@ func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, 
 			job.Source = "facebook"
 		} else if strings.Contains(job.URL, "instagram.com") || strings.Contains(job.URL, "instagr.am") {
 			job.Source = "instagram"
+		} else if strings.Contains(job.URL, "x.com") || strings.Contains(job.URL, "twitter.com") {
+			job.Source = "x"
 		}
 	}
 	job.State, job.Stage, job.storagePending, job.UpdatedAt = Downloading, string(Downloading), true, time.Now().UTC()

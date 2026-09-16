@@ -10,6 +10,7 @@ from logger import log_info, safe_url
 from services.facebook.resolver import FacebookResolver
 from services.instagram.resolver import InstagramResolver
 from services.tiktok.resolver import TikTokResolver
+from services.x.resolver import XResolver
 from services.youtube.errors import UnsupportedSourceError
 from services.youtube.resolver import YouTubeResolver
 
@@ -23,6 +24,7 @@ class SourceRouter(DownloadResolver):
             TikTokResolver(),
             FacebookResolver(),
             InstagramResolver(),
+            XResolver(),
             MediaFireResolver(),
         ]
 
@@ -51,7 +53,7 @@ class SourceRouter(DownloadResolver):
                 title = res.get("title") or "Không có tiêu đề"
                 log_info("INSPECT", f"✓ Kiểm tra link thành công: \"{title}\" ({platform_name})")
                 return res
-        raise UnsupportedSourceError("Liên kết không được hỗ trợ. Hiện hỗ trợ YouTube, TikTok, Facebook và Instagram.")
+        raise UnsupportedSourceError("Liên kết không được hỗ trợ. Hiện hỗ trợ YouTube, TikTok, Facebook, Instagram và X (Twitter).")
 
     async def resolve(
         self,
@@ -93,7 +95,7 @@ class SourceRouter(DownloadResolver):
                 return resolved
 
         raise UnsupportedSourceError(
-            "Nguồn tải không được hỗ trợ. Hiện hỗ trợ MediaFire, YouTube, TikTok, Facebook và Instagram."
+            "Nguồn tải không được hỗ trợ. Hiện hỗ trợ MediaFire, YouTube, TikTok, Facebook, Instagram và X (Twitter)."
         )
 
 

@@ -74,6 +74,16 @@ func assembleNetscapeCookies(platform string, fields map[string]string) string {
 			"rur",
 			"datr",
 		}
+	} else if platform == "x" || platform == "twitter" {
+		domain = ".x.com"
+		orderedKeys = []string{
+			"auth_token",
+			"ct0",
+			"twid",
+			"kdt",
+			"guest_id",
+			"personalization_id",
+		}
 	}
 	used := make(map[string]bool)
 	cleanValue := func(v string) string {
@@ -91,6 +101,9 @@ func assembleNetscapeCookies(platform string, fields map[string]string) string {
 				if platform == "youtube" && key != "LOGIN_INFO" {
 					sb.WriteString(fmt.Sprintf(".google.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", key, cleaned))
 				}
+				if platform == "x" || platform == "twitter" {
+					sb.WriteString(fmt.Sprintf(".twitter.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", key, cleaned))
+				}
 				used[key] = true
 				hasAny = true
 			}
@@ -105,6 +118,9 @@ func assembleNetscapeCookies(platform string, fields map[string]string) string {
 					sb.WriteString(fmt.Sprintf("%s\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", domain, cleanKey, cleaned))
 					if platform == "youtube" && cleanKey != "LOGIN_INFO" {
 						sb.WriteString(fmt.Sprintf(".google.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", cleanKey, cleaned))
+					}
+					if platform == "x" || platform == "twitter" {
+						sb.WriteString(fmt.Sprintf(".twitter.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", cleanKey, cleaned))
 					}
 					hasAny = true
 				}

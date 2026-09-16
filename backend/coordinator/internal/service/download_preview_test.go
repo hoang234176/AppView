@@ -329,3 +329,50 @@ func TestCreateTikTokDownload_ForwardsItemsAndIndices(t *testing.T) {
 		t.Fatalf("storageTask.items = %v; want 2 items", storageTask["items"])
 	}
 }
+
+func TestPreviewXPost(t *testing.T) {
+	c, resolver, _ := newDownloadCoordinator(t)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		preview, failure := c.PreviewDownload(context.Background(), "https://x.com/user/status/2096884361048285611")
+		if failure != nil {
+			t.Errorf("preview failed: %v", failure)
+			return
+		}
+		if preview.Source != "x" || preview.Title == "" || preview.Content != "Tweet text content" {
+			t.Errorf("unexpected preview: %+v", preview)
+		}
+		if len(preview.Images) != 1 {
+			t.Errorf("expected 1 image, got %d", len(preview.Images))
+		}
+	}()
+	assignment := waitPreviewAssignment(t, resolver)
+	if err := c.TaskAccepted("resolver", assignment.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	resJSON := `{
+		"source": "x",
+		"type": "photo",
+		"title": "Tweet Title",
+		"uploader": "Author Name",
+		"content": "Tweet text content",
+		"qualities": [],
+		"images": [
+			{"id": "photo_1", "type": "photo", "label": "Ảnh 1", "url": "https://pbs.twimg.com/media/test.jpg"}
+		],
+		"photos": [
+			{"index": 1, "type": "photo", "download_url": "https://pbs.twimg.com/media/test.jpg?name=orig"}
+		],
+		"has_video": false,
+		"has_audio": false
+	}`
+	if err := c.TaskCompleted("resolver", assignment.TaskID, json.RawMessage(resJSON)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("x preview timed out")
+	}
+}

@@ -55,6 +55,8 @@ It is local-first by design and MUST NOT be redesigned to a remote storage servi
 - Facebook video and photo downloads commit directly to destination without creating subfolders.
 - Instagram runtime state lives at `APPVIEW_STATE_DIR/media_download/instagram/jobs/<id>.json` and workspaces at `media_download/instagram/workspaces/<id>/`.
 - Instagram video and photo downloads commit directly to destination without creating subfolders.
+- X (Twitter) runtime state lives at `APPVIEW_STATE_DIR/media_download/x/jobs/<id>.json` and workspaces at `media_download/x/workspaces/<id>/`.
+- X video, photo, and post text downloads commit directly to destination without creating subfolders.
 
 ## Worker adapter invariants
 
