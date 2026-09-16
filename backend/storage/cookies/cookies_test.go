@@ -224,3 +224,75 @@ func TestSaveMergePreservesMultiDomainCookies(t *testing.T) {
 		}
 	}
 }
+
+func TestSaveMergeNeverOverwritesWithEmptyValue(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("APPVIEW_STATE_DIR", tempDir)
+
+	initial := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tkeep_this_sid\n"
+	if _, err := Save("youtube", initial); err != nil {
+		t.Fatalf("initial save: %v", err)
+	}
+
+	// Incoming has empty value for SID
+	incoming := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\t\n"
+	if _, err := Save("youtube", incoming); err != nil {
+		t.Fatalf("incoming save: %v", err)
+	}
+
+	content, _, _ := Read("youtube")
+	if !strings.Contains(content, "keep_this_sid") {
+		t.Fatalf("expected non-empty SID to be preserved, got:\n%s", content)
+	}
+}
+
+func TestSaveMergePreservesEssentialYouTubeTokens(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("APPVIEW_STATE_DIR", tempDir)
+
+	initial := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_123\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSID\tsid1p_456\n"
+	if _, err := Save("youtube", initial); err != nil {
+		t.Fatalf("initial save: %v", err)
+	}
+
+	// Incoming only has a new token (e.g. VISITOR_INFO1_LIVE), missing SID and __Secure-1PSID
+	incoming := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tVISITOR_INFO1_LIVE\tvis_789\n"
+	if _, err := Save("youtube", incoming); err != nil {
+		t.Fatalf("incoming save: %v", err)
+	}
+
+	content, _, _ := Read("youtube")
+	if !strings.Contains(content, "sid_123") || !strings.Contains(content, "sid1p_456") {
+		t.Fatalf("expected essential tokens to be preserved, got:\n%s", content)
+	}
+	if !strings.Contains(content, "vis_789") {
+		t.Fatalf("expected new token to be added, got:\n%s", content)
+	}
+}
+
+func TestSaveNoOpWhenUnchanged(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("APPVIEW_STATE_DIR", tempDir)
+
+	initial := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_123\n"
+	t1, err := Save("youtube", initial)
+	if err != nil {
+		t.Fatalf("save 1: %v", err)
+	}
+
+	// Saving identical content
+	t2, err := Save("youtube", initial)
+	if err != nil {
+		t.Fatalf("save 2: %v", err)
+	}
+
+	if !t1.Equal(t2) {
+		t.Fatalf("expected mod times to be equal (no-op), got t1=%v t2=%v", t1, t2)
+	}
+}

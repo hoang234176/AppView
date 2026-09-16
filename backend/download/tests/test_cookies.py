@@ -101,3 +101,66 @@ class TestSocialCookies(unittest.IsolatedAsyncioTestCase):
             tt_cookies = await load_tiktok_cookies()
             self.assertEqual(tt_cookies, "# sample cookies")
             mock_get.assert_called_with("tiktok")
+
+    def test_export_and_detect_cookie_changes(self):
+        from services.youtube.auth import (
+            detect_cookie_changes,
+            export_cookiejar_to_netscape,
+            has_essential_session_cookies,
+        )
+
+        raw = (
+            "# Netscape HTTP Cookie File\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_123\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tsidts_old\n"
+        )
+        jar = create_cookiejar_from_netscape(raw)
+        self.assertTrue(has_essential_session_cookies(jar))
+
+        # No changes
+        changed, _ = detect_cookie_changes(raw, jar)
+        self.assertFalse(changed)
+
+        # Update token in a new jar
+        updated_raw = (
+            "# Netscape HTTP Cookie File\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_123\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tsidts_NEW\n"
+        )
+        jar_updated = create_cookiejar_from_netscape(updated_raw)
+        changed, exported = detect_cookie_changes(raw, jar_updated)
+        self.assertTrue(changed)
+        self.assertIn("sidts_NEW", exported)
+        self.assertIn("sid_123", exported)
+
+        # Missing session cookies in jar -> must reject
+        jar_no_session = create_cookiejar_from_netscape(
+            "# Netscape HTTP Cookie File\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\tVISITOR_INFO\txyz\n"
+        )
+        self.assertFalse(has_essential_session_cookies(jar_no_session))
+        changed, _ = detect_cookie_changes(raw, jar_no_session)
+        self.assertFalse(changed)
+
+    def test_maybe_dispatch_cookie_update(self):
+        from services.youtube.extractor import YouTubeExtractor
+
+        extractor = YouTubeExtractor()
+        raw = (
+            "# Netscape HTTP Cookie File\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_123\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tsidts_old\n"
+        )
+        jar_updated = create_cookiejar_from_netscape(
+            "# Netscape HTTP Cookie File\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_123\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tsidts_NEW\n"
+        )
+
+        with patch("worker.client.coordinator_worker_client.dispatch_save_cookies") as mock_dispatch:
+            extractor._maybe_dispatch_cookie_update(jar_updated, raw)
+            mock_dispatch.assert_called_once()
+            args = mock_dispatch.call_args[0]
+            self.assertEqual(args[0], "youtube")
+            self.assertIn("sidts_NEW", args[1])
+            self.assertIn("sid_123", args[1])

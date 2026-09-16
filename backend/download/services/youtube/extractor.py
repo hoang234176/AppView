@@ -16,7 +16,7 @@ from typing import Any, Optional
 import yt_dlp
 
 from archive.contracts import format_video_download_filename
-from logger import log_error, log_info
+from logger import log_error, log_info, log_warning
 from services.resolution import extract_format_quality, format_matches_quality
 from services.youtube.auth import classify_extraction_error, get_youtube_ydl_auth_opts
 from services.youtube.errors import (
@@ -156,7 +156,9 @@ class YouTubeExtractor:
             finished,
         )
         try:
-            return await future
+            post = await future
+            self._maybe_dispatch_cookie_update(cookiejar, raw_cookies)
+            return post
         except asyncio.CancelledError:
             cancel_event.set()
             ydl = ydl_ref[0]
@@ -169,6 +171,24 @@ class YouTubeExtractor:
             while not finished.is_set() and loop.time() < deadline:
                 await asyncio.sleep(0.01)
             raise
+
+    def _maybe_dispatch_cookie_update(
+        self,
+        cookiejar: Optional[Any],
+        raw_cookies: Optional[str],
+    ) -> None:
+        """Safely detect and dispatch refreshed cookies from yt-dlp to Storage via Coordinator."""
+        if cookiejar is None:
+            return
+        try:
+            from services.youtube.auth import detect_cookie_changes
+            has_changes, new_netscape = detect_cookie_changes(raw_cookies, cookiejar)
+            if has_changes and new_netscape:
+                from worker.client import coordinator_worker_client
+                log_info("YOUTUBE_EXTRACTOR", "Phát hiện session tokens mới từ YouTube, tự động cập nhật qua Storage...")
+                coordinator_worker_client.dispatch_save_cookies("youtube", new_netscape)
+        except Exception as err:
+            log_warning("YOUTUBE_EXTRACTOR", f"Không thể tự động cập nhật cookie YouTube: {err}")
 
     def _extract_sync(
         self,

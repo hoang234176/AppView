@@ -259,7 +259,9 @@ func mergeNetscapeCookies(existingContent, newContent, defaultDomain string) str
 		k := cookieKey(domain, path, e.name)
 		if idx, found := keyIndex[k]; found {
 			target := entries[idx]
-			target.value = e.value
+			if strings.TrimSpace(e.value) != "" {
+				target.value = e.value
+			}
 			if e.flag != "" {
 				target.flag = e.flag
 			}
@@ -368,6 +370,83 @@ func extractCookieFieldNames(content string) []string {
 	return names
 }
 
+// preserveEssentialYouTubeTokens ensures that essential session tokens (SID, HSID, SSID, __Secure-1PSID, __Secure-3PSID)
+// that exist in existingContent are never dropped in finalContent.
+func preserveEssentialYouTubeTokens(existingContent, mergedContent string) string {
+	essential := map[string]bool{
+		"SID":               true,
+		"HSID":              true,
+		"SSID":              true,
+		"__Secure-1PSID":    true,
+		"__Secure-3PSID":    true,
+		"__Secure-1PAPISID":  true,
+		"__Secure-3PAPISID":  true,
+	}
+
+	mergedEntries := make(map[string]bool)
+	for _, l := range strings.Split(mergedContent, "\n") {
+		e := parseNetscapeLine(l)
+		if e != nil && !e.isComment && e.name != "" && strings.TrimSpace(e.value) != "" {
+			k := strings.ToLower(e.domain) + "|" + e.path + "|" + e.name
+			mergedEntries[k] = true
+		}
+	}
+
+	var missingEntries []*cookieEntry
+	for _, l := range strings.Split(existingContent, "\n") {
+		e := parseNetscapeLine(l)
+		if e != nil && !e.isComment && e.name != "" && essential[e.name] && strings.TrimSpace(e.value) != "" {
+			k := strings.ToLower(e.domain) + "|" + e.path + "|" + e.name
+			if !mergedEntries[k] {
+				missingEntries = append(missingEntries, e)
+			}
+		}
+	}
+
+	if len(missingEntries) == 0 {
+		return mergedContent
+	}
+
+	var sb strings.Builder
+	sb.WriteString(strings.TrimRight(mergedContent, "\n") + "\n")
+	for _, e := range missingEntries {
+		sb.WriteString(fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			e.domain, e.flag, e.path, e.secure, e.expiration, e.name, e.value))
+	}
+	return sb.String()
+}
+
+// detectChangedCookieFields compares old and new cookie contents and returns the sorted names
+// of cookie fields that have new or modified values.
+func detectChangedCookieFields(oldContent, newContent string) []string {
+	oldEntries := make(map[string]string)
+	for _, l := range strings.Split(oldContent, "\n") {
+		e := parseNetscapeLine(l)
+		if e != nil && !e.isComment && e.name != "" {
+			k := strings.ToLower(e.domain) + "|" + e.path + "|" + e.name
+			oldEntries[k] = e.value
+		}
+	}
+
+	var changed []string
+	seen := make(map[string]bool)
+	for _, l := range strings.Split(newContent, "\n") {
+		e := parseNetscapeLine(l)
+		if e != nil && !e.isComment && e.name != "" {
+			k := strings.ToLower(e.domain) + "|" + e.path + "|" + e.name
+			oldVal, exists := oldEntries[k]
+			if !exists || oldVal != e.value {
+				if !seen[e.name] {
+					seen[e.name] = true
+					changed = append(changed, e.name)
+				}
+			}
+		}
+	}
+	sort.Strings(changed)
+	return changed
+}
+
 // Save writes or merges cookie content to ~/.tmp-appview/cookies/<platform>.txt with 0600 permissions.
 // Existing cookie attributes and lines are preserved; incoming cookies only add new keys or update existing values.
 func Save(platform string, content string) (time.Time, error) {
@@ -378,18 +457,37 @@ func Save(platform string, content string) (time.Time, error) {
 	safePlatform, _ := SanitizePlatform(platform)
 	defaultDomain := defaultDomainForPlatform(safePlatform)
 
-	finalContent := content
+	var existingContent string
 	if existingBytes, err := os.ReadFile(path); err == nil && len(existingBytes) > 0 {
-		finalContent = mergeNetscapeCookies(string(existingBytes), content, defaultDomain)
+		existingContent = string(existingBytes)
+	}
+
+	finalContent := content
+	if existingContent != "" {
+		finalContent = mergeNetscapeCookies(existingContent, content, defaultDomain)
 	} else {
 		finalContent = formatNetscapeCookies(content, defaultDomain)
 	}
 
+	// Double safeguard: essential YouTube session tokens must never be dropped
+	if existingContent != "" && safePlatform == "youtube" {
+		finalContent = preserveEssentialYouTubeTokens(existingContent, finalContent)
+	}
+
+	// Avoid rewriting disk if content is identical
+	if existingContent != "" && strings.TrimSpace(finalContent) == strings.TrimSpace(existingContent) {
+		info, err := os.Stat(path)
+		if err == nil {
+			return info.ModTime().UTC(), nil
+		}
+		return time.Now().UTC(), nil
+	}
+
 	// Log updated cookie field names (names only, each on its own line)
-	updatedFields := extractCookieFieldNames(content)
-	if len(updatedFields) > 0 {
-		utils.LogInfo("[COOKIE] Đã lưu cập nhật cookie cho %s vào storage (%d trường):", safePlatform, len(updatedFields))
-		for _, field := range updatedFields {
+	changedFields := detectChangedCookieFields(existingContent, finalContent)
+	if len(changedFields) > 0 {
+		utils.LogInfo("[COOKIE] Đã lưu cập nhật %d trường cookie cho %s vào storage:", len(changedFields), safePlatform)
+		for _, field := range changedFields {
 			utils.LogInfo("[COOKIE]   • %s", field)
 		}
 	}
