@@ -86,7 +86,8 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
               img.type.isEmpty)
           .toList();
       final targetImages = photos.isNotEmpty ? photos : _preview!.images;
-      final isImages = _mediaTypeTab == 'images' || (!_preview!.hasVideo && targetImages.isNotEmpty);
+      final isTextOnly = !_preview!.hasVideo && targetImages.isEmpty;
+      final isImages = !isTextOnly && (_mediaTypeTab == 'images' || (!_preview!.hasVideo && targetImages.isNotEmpty));
 
       if (isImages && _selectedIndices.isEmpty) {
         setState(() {
@@ -101,9 +102,9 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
           .startCoordinatorDownload(
             url: url,
             destination: canonicalDownloadDestination(_destination),
-            quality: isImages ? null : _quality,
+            quality: (isImages || isTextOnly) ? null : _quality,
             selectedIndices: isImages ? _selectedIndices : null,
-            mediaType: isImages ? 'images' : 'video',
+            mediaType: isTextOnly ? 'text' : isImages ? 'images' : 'video',
           );
       if (!mounted) return;
       setState(() => _busy = false);
@@ -431,41 +432,50 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                       final isFacebook = preview.source == 'facebook';
                       final isTikTok = preview.source == 'tiktok';
                       final isInstagram = preview.source == 'instagram';
-                      final accentColor = isInstagram
-                          ? const Color(0xFFE1306C)
-                          : (isFacebook
-                              ? const Color(0xFF1877F2)
-                              : (isTikTok ? const Color(0xFF22D3EE) : Colors.redAccent));
+                      final isX = preview.source == 'x' || preview.source == 'twitter';
+                      final accentColor = isX
+                          ? const Color(0xFFE7E9EA)
+                          : (isInstagram
+                              ? const Color(0xFFE1306C)
+                              : (isFacebook
+                                  ? const Color(0xFF1877F2)
+                                  : (isTikTok ? const Color(0xFF22D3EE) : Colors.redAccent)));
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Unified Post Card (Instagram / Facebook / TikTok / YouTube)
+                          // Unified Post Card (Instagram / Facebook / TikTok / YouTube / X)
                           () {
-                            final platformName = isInstagram
-                                ? 'Instagram'
-                                : (isFacebook ? 'Facebook' : (isTikTok ? 'TikTok' : 'YouTube'));
-                            final platformIconAsset = isInstagram
-                                ? 'assets/icons/instagram.svg'
-                                : (isFacebook
-                                    ? 'assets/icons/facebook.svg'
-                                    : (isTikTok ? 'assets/icons/tiktok.svg' : 'assets/icons/youtube.svg'));
+                            final platformName = isX
+                                ? 'X (Twitter)'
+                                : (isInstagram
+                                    ? 'Instagram'
+                                    : (isFacebook ? 'Facebook' : (isTikTok ? 'TikTok' : 'YouTube')));
+                            final platformIconAsset = isX
+                                ? 'assets/icons/twitter.svg'
+                                : (isInstagram
+                                    ? 'assets/icons/instagram.svg'
+                                    : (isFacebook
+                                        ? 'assets/icons/facebook.svg'
+                                        : (isTikTok ? 'assets/icons/tiktok.svg' : 'assets/icons/youtube.svg')));
 
                             final authorName = preview.author?.name.isNotEmpty == true
                                 ? preview.author!.name
                                 : (preview.uploader.isNotEmpty
-                                    ? ((isTikTok || isInstagram) && !preview.uploader.startsWith('@')
+                                    ? ((isTikTok || isInstagram || isX) && !preview.uploader.startsWith('@')
                                         ? '@${preview.uploader}'
                                         : preview.uploader)
                                     : (preview.title.isNotEmpty ? preview.title : '$platformName Post'));
 
                             final subtitle = preview.createdTime.isNotEmpty
                                 ? preview.createdTime
-                                : (isInstagram
-                                    ? 'Bài viết Instagram'
-                                    : (isFacebook
-                                        ? 'Bài viết Facebook'
-                                        : (isTikTok ? 'Video / Ảnh TikTok' : 'Video YouTube')));
+                                : (isX
+                                    ? 'Bài viết X (Twitter)'
+                                    : (isInstagram
+                                        ? 'Bài viết Instagram'
+                                        : (isFacebook
+                                            ? 'Bài viết Facebook'
+                                            : (isTikTok ? 'Video / Ảnh TikTok' : 'Video YouTube'))));
 
                             final showVideoVisual = (hasVideo && _mediaTypeTab == 'video') || (hasVideo && !hasImages);
                             final showImageVisual = !showVideoVisual && hasImages;
@@ -606,6 +616,82 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                             accentColor,
                                           );
                                         },
+                                      )
+                                    else if (preview.content.isNotEmpty || preview.title.isNotEmpty)
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF18191C),
+                                          border: Border(
+                                            top: BorderSide(color: Color(0xFF383C42)),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: const [
+                                                Icon(
+                                                  Icons.article_rounded,
+                                                  color: Colors.white70,
+                                                  size: 15,
+                                                ),
+                                                SizedBox(width: 6),
+                                                Text(
+                                                  'Nội dung bài viết:',
+                                                  style: TextStyle(
+                                                    color: Colors.white70,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Container(
+                                              width: double.infinity,
+                                              padding: const EdgeInsets.all(10),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black45,
+                                                borderRadius: BorderRadius.circular(10),
+                                                border: Border.all(color: const Color(0xFF2E3136)),
+                                              ),
+                                              child: Text(
+                                                preview.content.isNotEmpty ? preview.content : preview.title,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  height: 1.4,
+                                                ),
+                                                maxLines: 8,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: const [
+                                                Text(
+                                                  'Định dạng: .txt',
+                                                  style: TextStyle(
+                                                    color: Color(0xFF34D399),
+                                                    fontSize: 10,
+                                                    fontFamily: 'monospace',
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Sẽ lưu thành tệp văn bản',
+                                                  style: TextStyle(
+                                                    color: Colors.white38,
+                                                    fontSize: 10,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                   ],
                                 ),
@@ -1096,7 +1182,13 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                 foregroundColor: AppTheme.bgBlock,
                 textStyle: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              child: Text(preview == null ? 'Tiếp tục' : 'Tải xuống'),
+              child: Text(
+                preview == null
+                    ? 'Tiếp tục'
+                    : (!preview.hasVideo && preview.images.isEmpty
+                        ? 'Tải bài viết (.txt)'
+                        : 'Tải xuống'),
+              ),
             ),
           ],
         ),
@@ -1309,6 +1401,10 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
         (cleanUrl.contains('youtube.com') || cleanUrl.contains('youtu.be'));
     final isIg = cleanUrl.isNotEmpty &&
         (cleanUrl.contains('instagram.com') || cleanUrl.contains('instagr.am'));
+    final isX = cleanUrl.isNotEmpty &&
+        (cleanUrl.contains('x.com') ||
+            cleanUrl.contains('twitter.com') ||
+            cleanUrl.contains('t.co'));
 
     final platforms = [
       _SupportedPlatform(
@@ -1339,6 +1435,13 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
         color: const Color(0xFFE1306C),
         isActive: isIg,
       ),
+      _SupportedPlatform(
+        id: 'x',
+        name: 'X (Twitter)',
+        iconAsset: 'assets/icons/twitter.svg',
+        color: const Color(0xFFE7E9EA),
+        isActive: isX,
+      ),
     ];
 
     final sortedPlatforms = List<_SupportedPlatform>.from(platforms);
@@ -1348,7 +1451,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
       return 0;
     });
 
-    const initialVisibleCount = 4;
+    const initialVisibleCount = 5;
     final hasMore = sortedPlatforms.length > initialVisibleCount;
     final displayedPlatforms = (_isPlatformsExpanded || !hasMore)
         ? sortedPlatforms

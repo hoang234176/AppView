@@ -45,7 +45,7 @@ export const FabSpeedDial = ({ onCreateFolder, onDownloadArchive, onDownloadMedi
           <button
             type="button"
             onClick={() => handleAction(onDownloadMedia)}
-            title="Tải ảnh/video từ Facebook, TikTok, YouTube, Instagram"
+            title="Tải ảnh/video từ Facebook, TikTok, YouTube, Instagram, X"
             className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#1c1d21] border border-[#383c42] hover:border-rose-400 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer group"
           >
             <span className="text-xs font-bold text-gray-200 group-hover:text-rose-300">Tải ảnh/video</span>

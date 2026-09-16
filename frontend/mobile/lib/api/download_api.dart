@@ -312,7 +312,11 @@ class DownloadTaskModel {
                     : (url.contains('instagram.com') ||
                             url.contains('instagr.am')
                         ? 'instagram'
-                        : ''))));
+                        : (url.contains('x.com') ||
+                                url.contains('twitter.com') ||
+                                url.contains('t.co')
+                            ? 'x'
+                            : '')))));
     return DownloadTaskModel(
       taskId: json['id']?.toString() ?? '',
       originalUrl: url,

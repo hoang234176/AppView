@@ -435,7 +435,8 @@ function App() {
       job.url?.includes('youtube.com') || job.url?.includes('youtu.be') ? 'youtube' :
       job.url?.includes('tiktok.com') ? 'tiktok' :
       (job.url?.includes('facebook.com') || job.url?.includes('fb.watch') || job.url?.includes('fb.com') || job.url?.includes('fb.me')) ? 'facebook' :
-      (job.url?.includes('instagram.com') || job.url?.includes('instagr.am')) ? 'instagram' : ''
+      (job.url?.includes('instagram.com') || job.url?.includes('instagr.am')) ? 'instagram' :
+      (job.url?.includes('x.com') || job.url?.includes('twitter.com') || job.url?.includes('t.co')) ? 'x' : ''
     );
     return {
       task_id: job.id,

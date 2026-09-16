@@ -12,6 +12,7 @@ import {
   Video,
   Settings,
   ZoomIn,
+  FileText,
 } from 'lucide-react';
 import { previewMediaDownload, startMediaDownload, getProxiedImageUrl } from '../api/downloadApi';
 import { canonicalDownloadDestination } from '../utils/downloadDestination';
@@ -39,6 +40,12 @@ const YouTubeIcon = ({ className = 'w-3.5 h-3.5' }) => (
 const InstagramIcon = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={`${className} fill-current`} viewBox="0 0 24 24">
     <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+  </svg>
+);
+
+const XIcon = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg className={`${className} fill-current`} viewBox="0 0 24 24">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
   </svg>
 );
 
@@ -145,7 +152,8 @@ export const DownloadMediaModal = ({
     setError('');
 
     if (preview) {
-      const isImages = mediaTypeTab === 'images' || (!preview.has_video && targetImages.length > 0);
+      const isTextOnly = !hasVideo && !hasImages;
+      const isImages = !isTextOnly && (mediaTypeTab === 'images' || (!preview.has_video && targetImages.length > 0));
 
       if (isImages && selectedIndices.length === 0) {
         setError('Vui lòng chọn ít nhất một ảnh để tải xuống.');
@@ -153,9 +161,9 @@ export const DownloadMediaModal = ({
         return;
       }
 
-      const mediaType = isImages ? 'images' : 'video';
+      const mediaType = isTextOnly ? 'text' : isImages ? 'images' : 'video';
       const indices = isImages ? selectedIndices : null;
-      const chosenQuality = isImages ? null : quality;
+      const chosenQuality = (isImages || isTextOnly) ? null : quality;
 
       const result = await startMediaDownload(
         url.trim(),
@@ -229,6 +237,12 @@ export const DownloadMediaModal = ({
   const isIgUrl = Boolean(
     cleanUrl && (cleanUrl.includes('instagram.com') || cleanUrl.includes('instagr.am'))
   );
+  const isXUrl = Boolean(
+    cleanUrl &&
+      (cleanUrl.includes('x.com') ||
+        cleanUrl.includes('twitter.com') ||
+        cleanUrl.includes('t.co'))
+  );
 
   const supportedPlatforms = [
     {
@@ -259,6 +273,13 @@ export const DownloadMediaModal = ({
       active: isIgUrl,
       activeClass: 'bg-pink-500/20 text-pink-400 border border-pink-500/40 shadow-sm',
     },
+    {
+      id: 'x',
+      name: 'X (Twitter)',
+      icon: XIcon,
+      active: isXUrl,
+      activeClass: 'bg-white/20 text-white border border-white/40 shadow-sm',
+    },
   ];
 
   const sortedPlatforms = [...supportedPlatforms].sort((a, b) => {
@@ -270,6 +291,7 @@ export const DownloadMediaModal = ({
   const isInstagram = preview?.source === 'instagram';
   const isFacebook = preview?.source === 'facebook';
   const isTikTok = preview?.source === 'tiktok';
+  const isX = preview?.source === 'x' || preview?.source === 'twitter';
   const isAuthRequired =
     Boolean(error) &&
     (error.toLowerCase().includes('cookie') ||
@@ -432,24 +454,30 @@ export const DownloadMediaModal = ({
             </>
           ) : (
             <div className="space-y-3">
-              {/* Unified Media Preview Card (Facebook / TikTok / YouTube / Instagram) */}
+              {/* Unified Media Preview Card (Facebook / TikTok / YouTube / Instagram / X) */}
               {(() => {
-                const platformName = isInstagram ? 'Instagram' : isFacebook ? 'Facebook' : isTikTok ? 'TikTok' : 'YouTube';
-                const accentColorClass = isInstagram
+                const platformName = isX ? 'X (Twitter)' : isInstagram ? 'Instagram' : isFacebook ? 'Facebook' : isTikTok ? 'TikTok' : 'YouTube';
+                const accentColorClass = isX
+                  ? 'text-zinc-200'
+                  : isInstagram
                   ? 'text-pink-400'
                   : isFacebook
                   ? 'text-[#1877F2]'
                   : isTikTok
                   ? 'text-cyan-400'
                   : 'text-rose-400';
-                const badgeBgClass = isInstagram
+                const badgeBgClass = isX
+                  ? 'bg-white/10 text-white border-white/25'
+                  : isInstagram
                   ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
                   : isFacebook
                   ? 'bg-[#1877F2]/15 text-[#1877F2] border-[#1877F2]/30'
                   : isTikTok
                   ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
                   : 'bg-rose-500/15 text-rose-400 border-rose-500/30';
-                const avatarBgClass = isInstagram
+                const avatarBgClass = isX
+                  ? 'bg-zinc-800 text-white border-zinc-600'
+                  : isInstagram
                   ? 'bg-pink-500/20 text-pink-400 border-pink-500/30'
                   : isFacebook
                   ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
@@ -460,14 +488,16 @@ export const DownloadMediaModal = ({
                 const authorName =
                   preview.author?.name ||
                   (preview.uploader
-                    ? (isTikTok || isInstagram) && !preview.uploader.startsWith('@')
+                    ? (isTikTok || isInstagram || isX) && !preview.uploader.startsWith('@')
                       ? `@${preview.uploader}`
                       : preview.uploader
                     : preview.title || `${platformName} Post`);
 
                 const subtitle =
                   preview.created_time ||
-                  (isInstagram
+                  (isX
+                    ? 'Bài viết X (Twitter)'
+                    : isInstagram
                     ? 'Bài viết Instagram'
                     : isFacebook
                     ? 'Bài viết Facebook'
@@ -538,7 +568,9 @@ export const DownloadMediaModal = ({
                       <div
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeBgClass} border flex-shrink-0`}
                       >
-                        {isInstagram ? (
+                        {isX ? (
+                          <XIcon className="w-3 h-3" />
+                        ) : isInstagram ? (
                           <InstagramIcon className="w-3 h-3" />
                         ) : isFacebook ? (
                           <FacebookIcon className="w-3 h-3" />
@@ -601,6 +633,21 @@ export const DownloadMediaModal = ({
                           <ZoomIn className="w-4 h-4" />
                         </div>
                       </div>
+                    ) : (preview.content || preview.text || preview.title) ? (
+                      /* Text-only Post Box (e.g. X text tweet) */
+                      <div className="p-4 bg-[#18191c] rounded-b-2xl border-t border-[#383c42]/60 space-y-2.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-400">
+                          <FileText className="w-3.5 h-3.5 text-zinc-300" />
+                          <span>Nội dung bài viết:</span>
+                        </div>
+                        <div className="text-xs text-zinc-200 leading-relaxed font-normal whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar p-3 rounded-xl bg-black/40 border border-[#2e3136]">
+                          {preview.content || preview.text || preview.title}
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-zinc-400 pt-0.5">
+                          <span>Định dạng: <code className="text-emerald-400 font-mono">.txt</code></span>
+                          <span className="text-zinc-400">Sẽ lưu thành tệp văn bản</span>
+                        </div>
+                      </div>
                     ) : null}
                   </div>
                 );
@@ -616,7 +663,9 @@ export const DownloadMediaModal = ({
                           onClick={() => setMediaTypeTab('video')}
                           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium text-xs transition-all ${
                             mediaTypeTab === 'video'
-                              ? isInstagram
+                              ? isX
+                                ? 'bg-zinc-700/60 text-white border border-zinc-500/50 shadow-sm'
+                                : isInstagram
                                 ? 'bg-pink-600/25 text-pink-300 border border-pink-500/40 shadow-sm'
                                 : isFacebook
                                 ? 'bg-blue-600/25 text-blue-300 border border-blue-500/40 shadow-sm'
@@ -634,7 +683,9 @@ export const DownloadMediaModal = ({
                           onClick={() => setMediaTypeTab('images')}
                           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium text-xs transition-all ${
                             mediaTypeTab === 'images'
-                              ? isInstagram
+                              ? isX
+                                ? 'bg-zinc-700/60 text-white border border-zinc-500/50 shadow-sm'
+                                : isInstagram
                                 ? 'bg-pink-600/25 text-pink-300 border border-pink-500/40 shadow-sm'
                                 : isFacebook
                                 ? 'bg-blue-600/25 text-blue-300 border border-blue-500/40 shadow-sm'
@@ -711,7 +762,9 @@ export const DownloadMediaModal = ({
                                     onClick={() => setPreviewImageIndex(idx)}
                                     className={`group relative flex-shrink-0 w-[76px] h-[76px] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 select-none [isolation:isolate] [contain:paint] ${
                                       isSelected
-                                        ? isInstagram
+                                        ? isX
+                                          ? 'border-white shadow-md ring-2 ring-white/40 opacity-100'
+                                          : isInstagram
                                           ? 'border-pink-400 shadow-md ring-2 ring-pink-400/40 opacity-100'
                                           : isFacebook
                                           ? 'border-blue-400 shadow-md ring-2 ring-blue-400/40 opacity-100'
@@ -743,7 +796,9 @@ export const DownloadMediaModal = ({
                                       }}
                                       className={`absolute top-1 right-1 rounded-full p-1 z-10 transition-all ${
                                         isSelected
-                                          ? isInstagram
+                                          ? isX
+                                            ? 'bg-zinc-800 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                            : isInstagram
                                             ? 'bg-pink-500 text-white shadow-sm ring-1 ring-white/60 scale-105'
                                             : isFacebook
                                             ? 'bg-blue-600 text-white shadow-sm ring-1 ring-white/60 scale-105'
@@ -780,7 +835,9 @@ export const DownloadMediaModal = ({
                                   }
                                 }}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                                  isInstagram
+                                  isX
+                                    ? 'text-white bg-white/10 hover:bg-white/20 active:bg-white/30 border-white/20'
+                                    : isInstagram
                                     ? 'text-pink-400 bg-pink-500/10 hover:bg-pink-500/20 active:bg-pink-500/30 border-pink-500/20'
                                     : isFacebook
                                     ? 'text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border-blue-500/20'
@@ -882,7 +939,15 @@ export const DownloadMediaModal = ({
               ) : preview ? (
                 <>
                   <Download className="w-4 h-4" />
-                  <span>Tải xuống</span>
+                  <span>
+                    {!hasVideo && !hasImages
+                      ? 'Tải bài viết (.txt)'
+                      : mediaTypeTab === 'images' || (!hasVideo && hasImages)
+                      ? targetImages.length > 1
+                        ? `Tải ${selectedIndices.length} ảnh`
+                        : 'Tải ảnh (.jpeg)'
+                      : 'Tải Video (.mp4)'}
+                  </span>
                 </>
               ) : (
                 <span>Tiếp tục</span>
@@ -937,7 +1002,9 @@ export const DownloadMediaModal = ({
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors border ${
                     isSelected
-                      ? isInstagram
+                      ? isX
+                        ? 'bg-zinc-800 text-white border-zinc-600 shadow-md'
+                        : isInstagram
                         ? 'bg-pink-500 text-white border-pink-400 shadow-md'
                         : isFacebook
                         ? 'bg-blue-600 text-white border-blue-500 shadow-md'
