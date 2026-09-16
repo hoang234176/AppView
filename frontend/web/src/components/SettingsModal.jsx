@@ -871,75 +871,87 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex items-center justify-between pt-2 border-t border-[#383c42]/40">
-                      {isCookieInputOpen ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsCookieInputOpen(false);
-                            setIsCookieVerified(false);
-                            setCookieVerifyMsg(null);
-                          }}
-                          className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
-                        >
-                          Hủy
-                        </button>
-                      ) : (
-                        <div />
-                      )}
-
-                      <div className="flex items-center gap-2">
+                    <div className="pt-2 border-t border-[#383c42]/40 space-y-2">
+                      {isCookieInputOpen && (
                         <button
                           type="button"
                           onClick={handleVerifyYoutubeCookie}
                           disabled={isVerifyingCookie}
-                          className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 ${(isVerifyingCookie) ? "animate-spin" : ""}`} />
-                          <span>
-                            {(isVerifyingCookie)
-                              ? "Đang kiểm tra..."
-                              : (isCookieInputOpen ? "Kiểm tra thuộc tính đang nhập" : "Kiểm tra cookie trong txt")}
-                          </span>
+                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingCookie ? "animate-spin" : ""}`} />
+                          <span>{isVerifyingCookie ? "Đang kiểm tra..." : "Kiểm tra"}</span>
                         </button>
+                      )}
 
+                      <div className="flex items-center justify-between">
                         {isCookieInputOpen ? (
                           <button
                             type="button"
-                            onClick={handleSaveYoutubeCookie}
-                            disabled={!isCookieVerified || isSavingCookie}
-                            className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
-                              isCookieVerified
-                                ? "text-white bg-red-600 hover:bg-red-500 active:bg-red-700 shadow-red-600/30 ring-2 ring-red-400/50"
-                                : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
-                            }`}
-                          >
-                            {isSavingCookie ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Đang lưu...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Lưu cookie</span>
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
                             onClick={() => {
-                              setIsCookieInputOpen(true);
+                              setIsCookieInputOpen(false);
                               setIsCookieVerified(false);
                               setCookieVerifyMsg(null);
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-red-600 hover:bg-red-500 active:bg-red-700 rounded-xl shadow-lg shadow-red-600/20 transition-all"
+                            className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
                           >
-                            <Cookie className="w-3.5 h-3.5" />
-                            <span>Nhập cookie</span>
+                            Hủy
                           </button>
+                        ) : (
+                          <div />
                         )}
+
+                        <div className="flex items-center gap-2">
+                          {!isCookieInputOpen && (
+                            <button
+                              type="button"
+                              onClick={handleVerifyYoutubeCookie}
+                              disabled={isVerifyingCookie}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingCookie ? "animate-spin" : ""}`} />
+                              <span>{isVerifyingCookie ? "Đang kiểm tra..." : "Kiểm tra youtube.txt"}</span>
+                            </button>
+                          )}
+
+                          {isCookieInputOpen ? (
+                            <button
+                              type="button"
+                              onClick={handleSaveYoutubeCookie}
+                              disabled={!isCookieVerified || isSavingCookie}
+                              className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
+                                isCookieVerified
+                                  ? "text-white bg-red-600 hover:bg-red-500 active:bg-red-700 shadow-red-600/30 ring-2 ring-red-400/50"
+                                  : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
+                              }`}
+                            >
+                              {isSavingCookie ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Đang lưu...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Lưu cookie</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsCookieInputOpen(true);
+                                setIsCookieVerified(false);
+                                setCookieVerifyMsg(null);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-red-600 hover:bg-red-500 active:bg-red-700 rounded-xl shadow-lg shadow-red-600/20 transition-all"
+                            >
+                              <Cookie className="w-3.5 h-3.5" />
+                              <span>Nhập cookie</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1001,11 +1013,11 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     >
                       <div className="space-y-2 pt-1">
                         <p className="text-[11px] text-gray-400 mb-2">
-                          Nhập các giá trị cookie từ tài khoản TikTok của bạn (quan trọng: <code className="text-cyan-400">sessionid</code>):
+                          Nhập các giá trị cookie từ tài khoản TikTok của bạn:
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {[
-                            { key: "sessionid", label: "sessionid (quan trọng)" },
+                            { key: "sessionid", label: "sessionid" },
                             { key: "sessionid_ss", label: "sessionid_ss" },
                             { key: "sid_tt", label: "sid_tt" },
                             { key: "sid_guard", label: "sid_guard" },
@@ -1078,75 +1090,87 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex items-center justify-between pt-2 border-t border-[#383c42]/40">
-                      {isTiktokCookieInputOpen ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsTiktokCookieInputOpen(false);
-                            setIsTiktokCookieVerified(false);
-                            setTiktokCookieVerifyMsg(null);
-                          }}
-                          className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
-                        >
-                          Hủy
-                        </button>
-                      ) : (
-                        <div />
-                      )}
-
-                      <div className="flex items-center gap-2">
+                    <div className="pt-2 border-t border-[#383c42]/40 space-y-2">
+                      {isTiktokCookieInputOpen && (
                         <button
                           type="button"
                           onClick={handleVerifyTiktokCookie}
                           disabled={isVerifyingTiktokCookie}
-                          className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 ${(isVerifyingTiktokCookie) ? "animate-spin" : ""}`} />
-                          <span>
-                            {(isVerifyingTiktokCookie)
-                              ? "Đang kiểm tra..."
-                              : (isTiktokCookieInputOpen ? "Kiểm tra thuộc tính đang nhập" : "Kiểm tra cookie trong txt")}
-                          </span>
+                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingTiktokCookie ? "animate-spin" : ""}`} />
+                          <span>{isVerifyingTiktokCookie ? "Đang kiểm tra..." : "Kiểm tra"}</span>
                         </button>
+                      )}
 
+                      <div className="flex items-center justify-between">
                         {isTiktokCookieInputOpen ? (
                           <button
                             type="button"
-                            onClick={handleSaveTiktokCookie}
-                            disabled={!isTiktokCookieVerified || isSavingTiktokCookie}
-                            className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
-                              isTiktokCookieVerified
-                                ? "text-white bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 shadow-cyan-600/30 ring-2 ring-cyan-400/50"
-                                : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
-                            }`}
-                          >
-                            {isSavingTiktokCookie ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Đang lưu...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Lưu cookie</span>
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
                             onClick={() => {
-                              setIsTiktokCookieInputOpen(true);
+                              setIsTiktokCookieInputOpen(false);
                               setIsTiktokCookieVerified(false);
                               setTiktokCookieVerifyMsg(null);
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 rounded-xl shadow-lg shadow-cyan-600/20 transition-all"
+                            className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
                           >
-                            <Cookie className="w-3.5 h-3.5" />
-                            <span>Nhập cookie</span>
+                            Hủy
                           </button>
+                        ) : (
+                          <div />
                         )}
+
+                        <div className="flex items-center gap-2">
+                          {!isTiktokCookieInputOpen && (
+                            <button
+                              type="button"
+                              onClick={handleVerifyTiktokCookie}
+                              disabled={isVerifyingTiktokCookie}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingTiktokCookie ? "animate-spin" : ""}`} />
+                              <span>{isVerifyingTiktokCookie ? "Đang kiểm tra..." : "Kiểm tra tiktok.txt"}</span>
+                            </button>
+                          )}
+
+                          {isTiktokCookieInputOpen ? (
+                            <button
+                              type="button"
+                              onClick={handleSaveTiktokCookie}
+                              disabled={!isTiktokCookieVerified || isSavingTiktokCookie}
+                              className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
+                                isTiktokCookieVerified
+                                  ? "text-white bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 shadow-cyan-600/30 ring-2 ring-cyan-400/50"
+                                  : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
+                              }`}
+                            >
+                              {isSavingTiktokCookie ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Đang lưu...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Lưu cookie</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsTiktokCookieInputOpen(true);
+                                setIsTiktokCookieVerified(false);
+                                setTiktokCookieVerifyMsg(null);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 rounded-xl shadow-lg shadow-cyan-600/20 transition-all"
+                            >
+                              <Cookie className="w-3.5 h-3.5" />
+                              <span>Nhập cookie</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1208,12 +1232,12 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     >
                       <div className="space-y-2 pt-1">
                         <p className="text-[11px] text-gray-400 mb-2">
-                          Nhập các giá trị cookie từ Facebook (quan trọng: <code className="text-blue-400">c_user</code> và <code className="text-blue-400">xs</code>):
+                          Nhập các giá trị cookie từ tài khoản Facebook của bạn:
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {[
-                            { key: "c_user", label: "c_user (User ID - quan trọng)" },
-                            { key: "xs", label: "xs (Session token - quan trọng)" },
+                            { key: "c_user", label: "c_user" },
+                            { key: "xs", label: "xs" },
                             { key: "fr", label: "fr" },
                             { key: "datr", label: "datr" },
                             { key: "sb", label: "sb" },
@@ -1284,75 +1308,87 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex items-center justify-between pt-2 border-t border-[#383c42]/40">
-                      {isFbCookieInputOpen ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsFbCookieInputOpen(false);
-                            setIsFbCookieVerified(false);
-                            setFbCookieVerifyMsg(null);
-                          }}
-                          className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
-                        >
-                          Hủy
-                        </button>
-                      ) : (
-                        <div />
-                      )}
-
-                      <div className="flex items-center gap-2">
+                    <div className="pt-2 border-t border-[#383c42]/40 space-y-2">
+                      {isFbCookieInputOpen && (
                         <button
                           type="button"
                           onClick={handleVerifyFbCookie}
                           disabled={isVerifyingFbCookie}
-                          className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 ${(isVerifyingFbCookie) ? "animate-spin" : ""}`} />
-                          <span>
-                            {(isVerifyingFbCookie)
-                              ? "Đang kiểm tra..."
-                              : (isFbCookieInputOpen ? "Kiểm tra thuộc tính đang nhập" : "Kiểm tra cookie trong txt")}
-                          </span>
+                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingFbCookie ? "animate-spin" : ""}`} />
+                          <span>{isVerifyingFbCookie ? "Đang kiểm tra..." : "Kiểm tra"}</span>
                         </button>
+                      )}
 
+                      <div className="flex items-center justify-between">
                         {isFbCookieInputOpen ? (
                           <button
                             type="button"
-                            onClick={handleSaveFbCookie}
-                            disabled={!isFbCookieVerified || isSavingFbCookie}
-                            className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
-                              isFbCookieVerified
-                                ? "text-white bg-[#1877F2] hover:bg-blue-600 active:bg-blue-700 shadow-blue-600/30 ring-2 ring-blue-400/50"
-                                : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
-                            }`}
-                          >
-                            {isSavingFbCookie ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Đang lưu...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Lưu cookie</span>
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
                             onClick={() => {
-                              setIsFbCookieInputOpen(true);
+                              setIsFbCookieInputOpen(false);
                               setIsFbCookieVerified(false);
                               setFbCookieVerifyMsg(null);
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-[#1877F2] hover:bg-blue-600 active:bg-blue-700 rounded-xl shadow-lg shadow-blue-600/20 transition-all"
+                            className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
                           >
-                            <Cookie className="w-3.5 h-3.5" />
-                            <span>Nhập cookie</span>
+                            Hủy
                           </button>
+                        ) : (
+                          <div />
                         )}
+
+                        <div className="flex items-center gap-2">
+                          {!isFbCookieInputOpen && (
+                            <button
+                              type="button"
+                              onClick={handleVerifyFbCookie}
+                              disabled={isVerifyingFbCookie}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingFbCookie ? "animate-spin" : ""}`} />
+                              <span>{isVerifyingFbCookie ? "Đang kiểm tra..." : "Kiểm tra facebook.txt"}</span>
+                            </button>
+                          )}
+
+                          {isFbCookieInputOpen ? (
+                            <button
+                              type="button"
+                              onClick={handleSaveFbCookie}
+                              disabled={!isFbCookieVerified || isSavingFbCookie}
+                              className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
+                                isFbCookieVerified
+                                  ? "text-white bg-[#1877F2] hover:bg-blue-600 active:bg-blue-700 shadow-blue-600/30 ring-2 ring-blue-400/50"
+                                  : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
+                              }`}
+                            >
+                              {isSavingFbCookie ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Đang lưu...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Lưu cookie</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsFbCookieInputOpen(true);
+                                setIsFbCookieVerified(false);
+                                setFbCookieVerifyMsg(null);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-[#1877F2] hover:bg-blue-600 active:bg-blue-700 rounded-xl shadow-lg shadow-blue-600/20 transition-all"
+                            >
+                              <Cookie className="w-3.5 h-3.5" />
+                              <span>Nhập cookie</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1414,12 +1450,12 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     >
                       <div className="space-y-2 pt-1">
                         <p className="text-[11px] text-gray-400 mb-2">
-                          Nhập các giá trị cookie từ tài khoản Instagram của bạn (quan trọng: <code className="text-pink-400">sessionid</code>):
+                          Nhập các giá trị cookie từ tài khoản Instagram của bạn:
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {[
-                            { key: "sessionid", label: "sessionid (quan trọng)" },
-                            { key: "ds_user_id", label: "ds_user_id (User ID)" },
+                            { key: "sessionid", label: "sessionid" },
+                            { key: "ds_user_id", label: "ds_user_id" },
                             { key: "mid", label: "mid" },
                             { key: "csrftoken", label: "csrftoken" },
                             { key: "rur", label: "rur" },
@@ -1490,75 +1526,87 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex items-center justify-between pt-2 border-t border-[#383c42]/40">
-                      {isIgCookieInputOpen ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsIgCookieInputOpen(false);
-                            setIsIgCookieVerified(false);
-                            setIgCookieVerifyMsg(null);
-                          }}
-                          className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
-                        >
-                          Hủy
-                        </button>
-                      ) : (
-                        <div />
-                      )}
-
-                      <div className="flex items-center gap-2">
+                    <div className="pt-2 border-t border-[#383c42]/40 space-y-2">
+                      {isIgCookieInputOpen && (
                         <button
                           type="button"
                           onClick={handleVerifyIgCookie}
                           disabled={isVerifyingIgCookie}
-                          className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 ${(isVerifyingIgCookie) ? "animate-spin" : ""}`} />
-                          <span>
-                            {(isVerifyingIgCookie)
-                              ? "Đang kiểm tra..."
-                              : (isIgCookieInputOpen ? "Kiểm tra thuộc tính đang nhập" : "Kiểm tra cookie trong txt")}
-                          </span>
+                          <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingIgCookie ? "animate-spin" : ""}`} />
+                          <span>{isVerifyingIgCookie ? "Đang kiểm tra..." : "Kiểm tra"}</span>
                         </button>
+                      )}
 
+                      <div className="flex items-center justify-between">
                         {isIgCookieInputOpen ? (
                           <button
                             type="button"
-                            onClick={handleSaveIgCookie}
-                            disabled={!isIgCookieVerified || isSavingIgCookie}
-                            className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
-                              isIgCookieVerified
-                                ? "text-white bg-pink-600 hover:bg-pink-500 active:bg-pink-700 shadow-pink-600/30 ring-2 ring-pink-400/50"
-                                : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
-                            }`}
-                          >
-                            {isSavingIgCookie ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Đang lưu...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Lưu cookie</span>
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
                             onClick={() => {
-                              setIsIgCookieInputOpen(true);
+                              setIsIgCookieInputOpen(false);
                               setIsIgCookieVerified(false);
                               setIgCookieVerifyMsg(null);
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-pink-600 hover:bg-pink-500 active:bg-pink-700 rounded-xl shadow-lg shadow-pink-600/20 transition-all"
+                            className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
                           >
-                            <Cookie className="w-3.5 h-3.5" />
-                            <span>Nhập cookie</span>
+                            Hủy
                           </button>
+                        ) : (
+                          <div />
                         )}
+
+                        <div className="flex items-center gap-2">
+                          {!isIgCookieInputOpen && (
+                            <button
+                              type="button"
+                              onClick={handleVerifyIgCookie}
+                              disabled={isVerifyingIgCookie}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingIgCookie ? "animate-spin" : ""}`} />
+                              <span>{isVerifyingIgCookie ? "Đang kiểm tra..." : "Kiểm tra instagram.txt"}</span>
+                            </button>
+                          )}
+
+                          {isIgCookieInputOpen ? (
+                            <button
+                              type="button"
+                              onClick={handleSaveIgCookie}
+                              disabled={!isIgCookieVerified || isSavingIgCookie}
+                              className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
+                                isIgCookieVerified
+                                  ? "text-white bg-pink-600 hover:bg-pink-500 active:bg-pink-700 shadow-pink-600/30 ring-2 ring-pink-400/50"
+                                  : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
+                              }`}
+                            >
+                              {isSavingIgCookie ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Đang lưu...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Lưu cookie</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsIgCookieInputOpen(true);
+                                setIsIgCookieVerified(false);
+                                setIgCookieVerifyMsg(null);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-pink-600 hover:bg-pink-500 active:bg-pink-700 rounded-xl shadow-lg shadow-pink-600/20 transition-all"
+                            >
+                              <Cookie className="w-3.5 h-3.5" />
+                              <span>Nhập cookie</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1604,13 +1652,6 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
 
                   {/* Body Content */}
                   <div className={`border-t border-[#383c42]/60 p-3 space-y-3 ${isXOpen ? "block" : "hidden"}`}>
-                    <div className="text-xs text-gray-400 space-y-1">
-                      <p>Hỗ trợ tải bài viết, ảnh gốc và video từ tài khoản cá nhân, nội dung giới hạn hoặc nhạy cảm.</p>
-                      <p className="text-[11px] text-gray-500">
-                        Cookie được lưu an toàn tại máy chủ Storage worker (<code className="text-gray-400 font-mono">~/.tmp-appview/cookies/x.txt</code>).
-                      </p>
-                    </div>
-
                     {/* Sliding Input Box */}
                     <div className={`overflow-hidden transition-all duration-200 ${isXCookieInputOpen ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"}`}>
                       <div className="bg-[#121316] border border-[#383c42] rounded-xl p-3 space-y-2.5 mt-2">
@@ -1621,8 +1662,8 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
 
                         <div className="space-y-2">
                           {[
-                            { key: 'auth_token', label: 'auth_token (Bắt buộc - Phiên đăng nhập)' },
-                            { key: 'ct0', label: 'ct0 (Khuyên dùng - CSRF Token)' },
+                            { key: 'auth_token', label: 'auth_token' },
+                            { key: 'ct0', label: 'ct0' },
                           ].map(({ key, label }) => (
                             <div key={key} className="space-y-1">
                               <label className="text-[11px] font-medium text-gray-400 flex items-center justify-between">
@@ -1690,75 +1731,87 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex items-center justify-between pt-2 border-t border-[#383c42]/40">
-                      {isXCookieInputOpen ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsXCookieInputOpen(false);
-                            setIsXCookieVerified(false);
-                            setXCookieVerifyMsg(null);
-                          }}
-                          className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
-                        >
-                          Hủy
-                        </button>
-                      ) : (
-                        <div />
-                      )}
-
-                      <div className="flex items-center gap-2">
+                    <div className="pt-2 border-t border-[#383c42]/40 space-y-2">
+                      {isXCookieInputOpen && (
                         <button
                           type="button"
                           onClick={handleVerifyXCookie}
                           disabled={isVerifyingXCookie}
-                          className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
                         >
                           <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingXCookie ? "animate-spin" : ""}`} />
-                          <span>
-                            {isVerifyingXCookie
-                              ? "Đang kiểm tra..."
-                              : (isXCookieInputOpen ? "Kiểm tra thuộc tính đang nhập" : "Kiểm tra cookie trong txt")}
-                          </span>
+                          <span>{isVerifyingXCookie ? "Đang kiểm tra..." : "Kiểm tra"}</span>
                         </button>
+                      )}
 
+                      <div className="flex items-center justify-between">
                         {isXCookieInputOpen ? (
                           <button
                             type="button"
-                            onClick={handleSaveXCookie}
-                            disabled={!isXCookieVerified || isSavingXCookie}
-                            className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
-                              isXCookieVerified
-                                ? "text-black bg-white hover:bg-gray-100 active:bg-gray-200 shadow-white/20 ring-2 ring-white/50"
-                                : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
-                            }`}
-                          >
-                            {isSavingXCookie ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Đang lưu...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Lưu cookie</span>
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
                             onClick={() => {
-                              setIsXCookieInputOpen(true);
+                              setIsXCookieInputOpen(false);
                               setIsXCookieVerified(false);
                               setXCookieVerifyMsg(null);
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-white/15 hover:bg-white/25 active:bg-white/30 border border-white/20 rounded-xl shadow-lg transition-all"
+                            className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
                           >
-                            <Cookie className="w-3.5 h-3.5" />
-                            <span>Nhập cookie</span>
+                            Hủy
                           </button>
+                        ) : (
+                          <div />
                         )}
+
+                        <div className="flex items-center gap-2">
+                          {!isXCookieInputOpen && (
+                            <button
+                              type="button"
+                              onClick={handleVerifyXCookie}
+                              disabled={isVerifyingXCookie}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-gray-200 bg-white/10 hover:bg-white/15 active:bg-white/5 disabled:opacity-50 rounded-xl transition-all"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingXCookie ? "animate-spin" : ""}`} />
+                              <span>{isVerifyingXCookie ? "Đang kiểm tra..." : "Kiểm tra x.txt"}</span>
+                            </button>
+                          )}
+
+                          {isXCookieInputOpen ? (
+                            <button
+                              type="button"
+                              onClick={handleSaveXCookie}
+                              disabled={!isXCookieVerified || isSavingXCookie}
+                              className={`flex items-center gap-1.5 px-4 py-1.5 font-bold rounded-xl transition-all shadow-lg ${
+                                isXCookieVerified
+                                  ? "text-black bg-white hover:bg-gray-100 active:bg-gray-200 shadow-white/20 ring-2 ring-white/50"
+                                  : "text-gray-500 bg-[#2a2b2f] cursor-not-allowed opacity-60"
+                              }`}
+                            >
+                              {isSavingXCookie ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Đang lưu...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Lưu cookie</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsXCookieInputOpen(true);
+                                setIsXCookieVerified(false);
+                                setXCookieVerifyMsg(null);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 font-bold text-white bg-white/15 hover:bg-white/25 active:bg-white/30 border border-white/20 rounded-xl shadow-lg transition-all"
+                            >
+                              <Cookie className="w-3.5 h-3.5" />
+                              <span>Nhập cookie</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
