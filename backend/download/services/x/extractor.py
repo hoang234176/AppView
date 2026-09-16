@@ -379,7 +379,7 @@ class XExtractor:
                         thumbnail = photo_url
                     # High-res photo URL
                     high_res_url = f"{photo_url}?name=orig" if "?" not in photo_url else photo_url
-                    filename = format_photo_download_filename("X", clean_title, item_index, ext=".jpeg")
+                    filename = format_photo_download_filename("X", clean_title, status_id, item_index, ext=".jpeg")
                     items.append({
                         "index": item_index,
                         "type": "photo",

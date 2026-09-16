@@ -117,13 +117,13 @@ class XResolver(DownloadResolver):
 
         primary_item = items[0]
         download_url = primary_item.get("download_url") or ""
-        filename = primary_item.get("filename") or "x_media.mp4"
+        single_filename = primary_item.get("filename") or "x_media.mp4"
         if primary_item.get("type") == "photo":
-            ext = ".jpeg"
+            single_ext = ".jpeg"
         elif primary_item.get("type") == "text":
-            ext = ".txt"
+            single_ext = ".txt"
         else:
-            ext = ".mp4"
+            single_ext = ".mp4"
 
         # Headers safe for twimg CDN download
         headers = {
@@ -142,12 +142,20 @@ class XResolver(DownloadResolver):
                 }
                 for it in items
             ]
+            clean_base = single_filename.rsplit("_", 1)[0]
+            if not clean_base.startswith("[X]_"):
+                clean_base = f"[X]_{clean_title}"
+            final_filename = f"{clean_base}.zip"
+            final_ext = ".zip"
+        else:
+            final_filename = single_filename
+            final_ext = single_ext
 
         return ResolvedDownload(
             original_url=clean_url,
             download_url=download_url,
-            filename=filename,
-            extension=ext,
+            filename=final_filename,
+            extension=final_ext,
             headers=headers,
             source="x",
             items=multi_items,

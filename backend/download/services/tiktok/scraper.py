@@ -170,8 +170,20 @@ class TikTokWebScraper:
             try:
                 data = json.loads(m2.group(1).strip())
                 scope = data.get("__DEFAULT_SCOPE__", {})
-                detail = scope.get("webapp.video-detail", {})
+                # Support both modern reflow structure (webapp.reflow.video.detail) and legacy (webapp.video-detail)
+                detail = (
+                    scope.get("webapp.reflow.video.detail")
+                    or scope.get("webapp.video-detail")
+                    or {}
+                )
                 item = detail.get("itemInfo", {}).get("itemStruct")
+                if not item:
+                    # Fallback: scan any scope key containing 'detail'
+                    for k, v in scope.items():
+                        if isinstance(v, dict) and "itemInfo" in v:
+                            item = v.get("itemInfo", {}).get("itemStruct")
+                            if item:
+                                break
                 if item and isinstance(item, dict):
                     return item
             except Exception as e:
