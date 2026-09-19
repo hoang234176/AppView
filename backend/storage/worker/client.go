@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -130,6 +131,10 @@ func (c *Client) connectOnce(ctx context.Context) error {
 		return safeConn.Send(Message{Type: FilesystemEvent, WorkerID: c.config.WorkerID, Event: &event})
 	})
 	defer events.SetPublisher(nil)
+	events.SetBatchProgressPublisher(func(event events.BatchJobProgressEvent) error {
+		return safeConn.Send(Message{Type: BatchJobProgressMessage, WorkerID: c.config.WorkerID, BatchJobProgress: &event})
+	})
+	defer events.SetBatchProgressPublisher(nil)
 	connectionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	closeOnContextDone := make(chan struct{})
@@ -143,10 +148,13 @@ func (c *Client) connectOnce(ctx context.Context) error {
 	var assignments sync.WaitGroup
 	heartbeatDone := make(chan struct{})
 	go c.heartbeat(connectionCtx, safeConn, heartbeatDone)
+	driveMonitorDone := make(chan struct{})
+	go c.monitorDrives(connectionCtx, safeConn, driveMonitorDone)
 	defer func() {
 		close(closeOnContextDone)
 		cancel()
 		<-heartbeatDone
+		<-driveMonitorDone
 		assignments.Wait()
 	}()
 
@@ -186,6 +194,47 @@ func (c *Client) heartbeat(ctx context.Context, conn *serializedConnection, done
 		case <-ticker.C:
 			if err := conn.Send(Message{Type: WorkerHeartbeat, WorkerID: c.config.WorkerID}); err != nil {
 				return
+			}
+		}
+	}
+}
+
+func (c *Client) monitorDrives(ctx context.Context, conn *serializedConnection, done chan<- struct{}) {
+	defer close(done)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	var lastSignature string
+	// Seed initial signature
+	if info, err := CurrentStorageInfo(); err == nil {
+		var sig strings.Builder
+		for _, d := range info.Drives {
+			sig.WriteString(fmt.Sprintf("%s:%t:%d:%d;", d.ID, d.Available, d.TotalBytes, d.UsedBytes))
+		}
+		lastSignature = sig.String()
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			info, err := CurrentStorageInfo()
+			if err != nil {
+				continue
+			}
+			var sig strings.Builder
+			for _, d := range info.Drives {
+				sig.WriteString(fmt.Sprintf("%s:%t:%d:%d;", d.ID, d.Available, d.TotalBytes, d.UsedBytes))
+			}
+			curSig := sig.String()
+			if curSig != lastSignature {
+				lastSignature = curSig
+				_ = conn.Send(Message{
+					Type:        StorageInfoMessage,
+					WorkerID:    c.config.WorkerID,
+					StorageInfo: &info,
+				})
 			}
 		}
 	}

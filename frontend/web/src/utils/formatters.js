@@ -1,4 +1,4 @@
-import { getApiBaseUrl, getRootFolderPath } from '../api/axiosConfig';
+import { getApiBaseUrl, getRootFolderPath, getActiveDrive } from '../api/axiosConfig';
 
 /**
  * Format ISO Date string to readable Vietnamese date time
@@ -22,8 +22,8 @@ export const formatDate = (isoString) => {
  * Split path string into breadcrumb array
  * e.g., "Cosplay/Coser@不可爱羚 - 阮梅" -> [{ name: 'Trang chủ', path: '' }, { name: 'Cosplay', path: 'Cosplay' }, ...]
  */
-export const parseBreadcrumbs = (pathString) => {
-  const breadcrumbs = [{ name: 'Trang chủ', path: '' }];
+export const parseBreadcrumbs = (pathString, driveName = 'Trang chủ') => {
+  const breadcrumbs = [{ name: driveName, path: '' }];
   if (!pathString || pathString.trim() === '') return breadcrumbs;
 
   const parts = pathString.split('/').filter(Boolean);
@@ -48,11 +48,10 @@ export const getPictureUrl = (picture) => {
   if (picture.url && picture.url.trim() !== '') return picture.url;
   if (picture.path) {
     const baseUrl = getApiBaseUrl();
-    const rootPath = getRootFolderPath();
-    const rootQuery = rootPath ? `?root_path=${encodeURIComponent(rootPath)}` : '';
+    const activeDrive = getActiveDrive() || 'HDD';
     const cleanPath = picture.path.startsWith('/') ? picture.path.slice(1) : picture.path;
     const encodedPath = cleanPath.split('/').map(encodeURIComponent).join('/');
-    return `${baseUrl}/pictures/${encodedPath}${rootQuery}`;
+    return `${baseUrl}/pictures/${encodeURIComponent(activeDrive)}/${encodedPath}`;
   }
   return '';
 };
@@ -64,15 +63,14 @@ export const getThumbnailUrl = (picture) => {
   if (!picture) return '';
   if (picture.thumbnail_url && picture.thumbnail_url.trim() !== '') return picture.thumbnail_url;
   if (picture.url && picture.url.trim() !== '') {
-    return picture.url.replace(/\/pictures\//i, '/thumbnails/');
+    return picture.url.replace(/\/pictures\//i, '/thumbnails/').replace(/\/picture\//i, '/thumbnail/');
   }
   if (picture.path) {
     const baseUrl = getApiBaseUrl();
-    const rootPath = getRootFolderPath();
-    const rootQuery = rootPath ? `?root_path=${encodeURIComponent(rootPath)}` : '';
+    const activeDrive = getActiveDrive() || 'HDD';
     const cleanPath = picture.path.startsWith('/') ? picture.path.slice(1) : picture.path;
     const encodedPath = cleanPath.split('/').map(encodeURIComponent).join('/');
-    return `${baseUrl}/thumbnails/${encodedPath}${rootQuery}`;
+    return `${baseUrl}/thumbnails/${encodeURIComponent(activeDrive)}/${encodedPath}`;
   }
   return '';
 };
@@ -86,6 +84,32 @@ export const formatFileSize = (bytes) => {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+};
+
+/**
+ * Format drive used and total capacity concisely for compact UI cards
+ * e.g., { used: "42.5 GB", total: "466 GB" }
+ */
+export const formatDriveCapacity = (usedBytes, totalBytes) => {
+  const format = (bytes, roundInt = false) => {
+    if (!bytes || bytes <= 0) return { str: '0 B', val: '0', unit: 'B' };
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const val = bytes / Math.pow(k, i);
+    const numStr = roundInt && val >= 10 ? String(Math.round(val)) : String(parseFloat(val.toFixed(1)));
+    return { str: `${numStr} ${sizes[i]}`, val: numStr, unit: sizes[i] };
+  };
+  const u = format(usedBytes, false);
+  const t = format(totalBytes, true);
+  return {
+    used: u.str,
+    total: t.str,
+    usedVal: u.val,
+    usedUnit: u.unit,
+    totalVal: t.val,
+    totalUnit: t.unit,
+  };
 };
 
 /**
@@ -107,9 +131,10 @@ export const getVideoStreamUrl = (video) => {
   if (video.url) return video.url;
   if (video.path) {
     const baseUrl = getApiBaseUrl();
+    const activeDrive = getActiveDrive() || 'HDD';
     const cleanPath = video.path.startsWith('/') ? video.path.slice(1) : video.path;
     const encodedPath = cleanPath.split('/').map(p => encodeURIComponent(p).replace(/#/g, '%2523')).join('/');
-    return `${baseUrl}/videos/${encodedPath}`;
+    return `${baseUrl}/videos/${encodeURIComponent(activeDrive)}/${encodedPath}`;
   }
   return '';
 };
@@ -120,11 +145,15 @@ export const getVideoStreamUrl = (video) => {
 export const getVideoThumbnailUrl = (video) => {
   if (!video) return '';
   if (video.thumbnail_url) return video.thumbnail_url;
+  if (video.url) {
+    return video.url.replace(/\/videos\//i, '/thumbnails/').replace(/\/video\//i, '/thumbnail/');
+  }
   if (video.path) {
     const baseUrl = getApiBaseUrl();
+    const activeDrive = getActiveDrive() || 'HDD';
     const cleanPath = video.path.startsWith('/') ? video.path.slice(1) : video.path;
     const encodedPath = cleanPath.split('/').map(encodeURIComponent).join('/');
-    return `${baseUrl}/thumbnails/${encodedPath}`;
+    return `${baseUrl}/thumbnails/${encodeURIComponent(activeDrive)}/${encodedPath}`;
   }
   return '';
 };

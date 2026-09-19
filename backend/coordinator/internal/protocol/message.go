@@ -25,6 +25,7 @@ const (
 	CookieSave             MessageType = "cookie.save"
 	CookieGet              MessageType = "cookie.get"
 	CookieVerify           MessageType = "cookie.verify"
+	BatchJobProgressMessage MessageType = "batch_job_progress"
 	Error                  MessageType = "error"
 )
 
@@ -32,27 +33,40 @@ const (
 // Result intentionally retain raw JSON: the coordinator routes opaque worker
 // data and must not learn scraping or filesystem-specific schemas.
 type Message struct {
-	Type           MessageType            `json:"type"`
-	TaskID         string                 `json:"taskId,omitempty"`
-	WorkerID       string                 `json:"workerId,omitempty"`
-	Action         string                 `json:"action,omitempty"`
-	Capabilities   []Capability           `json:"capabilities,omitempty"`
-	Payload        json.RawMessage        `json:"payload,omitempty"`
-	Result         json.RawMessage        `json:"result,omitempty"`
-	Progress       json.RawMessage        `json:"progress,omitempty"`
-	Error          *ErrorPayload          `json:"error,omitempty"`
-	Event          *FilesystemEvent       `json:"event,omitempty"`
-	StorageHistory *StorageHistoryPayload `json:"storageHistory,omitempty"`
-	StorageInfo    *StorageInfo           `json:"storageInfo,omitempty"`
-	DownloadEvent  *DownloadEvent         `json:"download,omitempty"`
+	Type             MessageType            `json:"type"`
+	TaskID           string                 `json:"taskId,omitempty"`
+	WorkerID         string                 `json:"workerId,omitempty"`
+	Action           string                 `json:"action,omitempty"`
+	Capabilities     []Capability           `json:"capabilities,omitempty"`
+	Payload          json.RawMessage        `json:"payload,omitempty"`
+	Result           json.RawMessage        `json:"result,omitempty"`
+	Progress         json.RawMessage        `json:"progress,omitempty"`
+	Error            *ErrorPayload          `json:"error,omitempty"`
+	Event            *FilesystemEvent       `json:"event,omitempty"`
+	StorageHistory   *StorageHistoryPayload `json:"storageHistory,omitempty"`
+	StorageInfo      *StorageInfo           `json:"storageInfo,omitempty"`
+	DownloadEvent    *DownloadEvent         `json:"download,omitempty"`
+	BatchJobProgress *BatchJobProgress      `json:"batchJob,omitempty"`
 }
 
-type StorageInfo struct {
+type DriveInfo struct {
+	ID             string  `json:"id"`
 	DisplayName    string  `json:"displayName"`
+	Path           string  `json:"path,omitempty"`
+	Available      bool    `json:"available"`
 	TotalBytes     int64   `json:"totalBytes"`
 	UsedBytes      int64   `json:"usedBytes"`
 	AvailableBytes int64   `json:"availableBytes"`
 	UsedPercent    float64 `json:"usedPercent"`
+}
+
+type StorageInfo struct {
+	DisplayName    string      `json:"displayName"`
+	TotalBytes     int64       `json:"totalBytes"`
+	UsedBytes      int64       `json:"usedBytes"`
+	AvailableBytes int64       `json:"availableBytes"`
+	UsedPercent    float64     `json:"usedPercent"`
+	Drives         []DriveInfo `json:"drives,omitempty"`
 }
 
 // StorageHistoryPayload is metadata-only durable state sent by one identified
@@ -121,14 +135,34 @@ type DownloadEvent struct {
 	Kind  string `json:"kind"`
 }
 
+type BatchJobProgress struct {
+	ID          string    `json:"id"`
+	Action      string    `json:"action"`
+	SrcDrive    string    `json:"src_drive"`
+	DestDrive   string    `json:"dest_drive"`
+	DestFolder  string    `json:"dest_folder"`
+	Status      string    `json:"status"` // "running", "completed", "failed"
+	Percent     int       `json:"percent"`
+	TotalBytes  int64     `json:"total_bytes"`
+	CopiedBytes int64     `json:"copied_bytes"`
+	CurrentFile string    `json:"current_file"`
+	Message     string    `json:"message"`
+	Error       string    `json:"error,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type FilesystemEvent struct {
-	Type          string `json:"type"`
-	Path          string `json:"path,omitempty"`
-	OldPath       string `json:"oldPath,omitempty"`
-	NewPath       string `json:"newPath,omitempty"`
-	ParentPath    string `json:"parentPath,omitempty"`
-	OldParentPath string `json:"oldParentPath,omitempty"`
-	NewParentPath string `json:"newParentPath,omitempty"`
+	Type          string          `json:"type"`
+	Drive         string          `json:"drive,omitempty"`
+	Path          string          `json:"path,omitempty"`
+	OldPath       string          `json:"oldPath,omitempty"`
+	NewPath       string          `json:"newPath,omitempty"`
+	ParentPath    string          `json:"parentPath,omitempty"`
+	OldParentPath string          `json:"oldParentPath,omitempty"`
+	NewParentPath string          `json:"newParentPath,omitempty"`
+	Paths         []string        `json:"paths,omitempty"`
+	Item          json.RawMessage `json:"item,omitempty"`
+	Items         json.RawMessage `json:"items,omitempty"`
 }
 
 type ErrorPayload struct {

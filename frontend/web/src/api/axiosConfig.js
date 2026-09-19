@@ -168,6 +168,18 @@ export const saveServerConfig = (host, _portIgnored, _rootPathIgnored) => {
   return { host: cleanHost, baseUrl: coordinatorBase };
 };
 
+const KEY_ACTIVE_DRIVE = 'appview_active_drive';
+
+export const getActiveDrive = () => {
+  return localStorage.getItem(KEY_ACTIVE_DRIVE) || 'HDD';
+};
+
+export const setActiveDrive = (driveId) => {
+  if (driveId) {
+    localStorage.setItem(KEY_ACTIVE_DRIVE, driveId);
+  }
+};
+
 // Create dynamic axios instance
 export const createApiClient = () => {
   const baseURL = getApiBaseUrl();
@@ -176,7 +188,7 @@ export const createApiClient = () => {
     timeout: 15000,
     headers: {
       'Content-Type': 'application/json',
-      // X-Root-Folder-Path header no longer sent; backend uses its own ROOT_PATH.
+      'X-Drive': getActiveDrive(),
     },
   });
 };

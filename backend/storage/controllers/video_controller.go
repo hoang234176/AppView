@@ -31,7 +31,7 @@ func GetVideos(c *fiber.Ctx) error {
 // StreamVideo is the main entry point dispatching video requests to format-specific handlers
 func StreamVideo(c *fiber.Ctx) error {
 	rootPath := configs.GetRootFolderPath(c)
-	escapedPath, err := utils.EscapedMediaPath(c, "/api/v1/videos/")
+	escapedPath, err := utils.EscapedMediaPath(c, "/videos/", "/video/")
 	if err != nil {
 		return err
 	}

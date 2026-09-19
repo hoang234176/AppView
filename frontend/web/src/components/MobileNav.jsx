@@ -6,8 +6,10 @@ import {
   ChevronDown, 
   Home, 
   X,
-  Settings
+  Settings,
+  HardDrive
 } from 'lucide-react';
+import { LiquidDriveButton } from './FolderTreeSidebar';
 
 /**
  * Mobile Recursive Tree Node Component
@@ -33,7 +35,7 @@ const MobileTreeNodeItem = ({ node, depth = 1, currentPath, onNavigate, onCloseD
     <div className="select-none">
       <div 
         onClick={handleSelect}
-        className={`flex items-center gap-2 py-3 min-h-[44px] rounded-[24px] text-sm font-medium cursor-pointer transition-all ${
+        className={`flex items-center gap-2 py-2 min-h-[38px] rounded-xl text-xs font-medium cursor-pointer transition-all ${
           isSelected 
             ? 'bg-[#8ab4f8] text-[#1c1d21] font-bold shadow-md' 
             : 'text-gray-300 hover:bg-[#28292d] hover:text-white'
@@ -93,7 +95,10 @@ export const MobileNav = ({
   treeData = [],
   folders = [],
   onNavigate,
-  onOpenConfig
+  onOpenConfig,
+  drives = [],
+  activeDrive = 'HDD',
+  onSelectDrive
 }) => {
   const [expandedNodes, setExpandedNodes] = useState({});
 
@@ -117,15 +122,16 @@ export const MobileNav = ({
 
       {/* Drawer content: Animated Slide-in from Left */}
       <div className="relative w-80 max-w-[85vw] bg-[#1c1d21] border-r border-[#383c42] h-full flex flex-col p-4 shadow-2xl z-10 animate-slide-in-left">
-        {/* Drawer Header: Displays ONLY 'DANH MỤC THƯ MỤC' and Close Button */}
-        <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[#383c42] flex-shrink-0">
-          <span className="font-extrabold text-sm text-gray-300 uppercase tracking-widest px-1">
-            Danh mục thư mục
+        {/* Drawer Header: Displays Subfolder Header and Close Button */}
+        <div className="flex items-center justify-between pb-3 mb-2 border-b border-[#383c42] flex-shrink-0">
+          <span className="flex items-center gap-1.5 text-blue-400 font-bold text-sm truncate">
+            <FolderOpen className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+            <span className="truncate">Thư mục trên {activeDrive}</span>
           </span>
 
           <button 
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+            className="p-1.5 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors flex-shrink-0 ml-2"
             title="Đóng danh mục"
           >
             <X className="w-5 h-5" />
@@ -134,22 +140,6 @@ export const MobileNav = ({
 
         {/* Scrollable Folder Tree Area */}
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-1">
-          {/* Root Node */}
-          <div 
-            onClick={() => {
-              onNavigate('');
-              onClose();
-            }}
-            className={`flex items-center gap-3 py-3 min-h-[44px] rounded-[24px] text-sm font-semibold cursor-pointer transition-all ${
-              currentPath === '' 
-                ? 'bg-[#8ab4f8] text-[#1c1d21] font-bold shadow-md' 
-                : 'text-gray-300 hover:bg-[#28292d] hover:text-white'
-            }`}
-            style={{ paddingLeft: '12px', paddingRight: '12px' }}
-          >
-            <Home className="w-4.5 h-4.5 text-blue-400 flex-shrink-0" />
-            <span className="truncate">Thư viện gốc (Root)</span>
-          </div>
 
           {/* Recursive Tree Data */}
           {Array.isArray(treeData) && treeData.length > 0 ? (
@@ -197,25 +187,52 @@ export const MobileNav = ({
           )}
         </div>
 
-        {/* Bottom Settings Button in Mobile Drawer */}
-        {onOpenConfig && (
-          <div className="pt-3 mt-4 border-t border-[#383c42] flex-shrink-0">
+        {/* Bottom Section: Ổ CỨNG + Cài đặt */}
+        <div className="pt-2.5 mt-2 border-t border-[#383c42] flex-shrink-0 space-y-2">
+          {/* Drives Header */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-extrabold text-[#9aa0a6] uppercase tracking-wider flex items-center gap-1.5">
+              <HardDrive className="w-3.5 h-3.5 text-blue-400" />
+              Ổ cứng
+            </span>
+          </div>
+
+          {/* Horizontal Liquid Drive Buttons (Bình nước gợn sóng) */}
+          {drives && drives.length > 0 && (
+            <div className="flex items-center gap-2">
+              {drives.map((drive) => (
+                <LiquidDriveButton
+                  key={drive.id}
+                  drive={drive}
+                  isActive={drive.id === activeDrive}
+                  onClick={() => {
+                    if (onSelectDrive) onSelectDrive(drive.id);
+                    onNavigate('');
+                    onClose();
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Bottom Settings Button in Mobile Drawer */}
+          {onOpenConfig && (
             <button
               type="button"
               onClick={() => {
                 onOpenConfig();
                 onClose();
               }}
-              className="w-full flex items-center justify-between p-3 rounded-[24px] bg-[#28292d] hover:bg-[#383c42] text-gray-200 text-xs font-semibold border border-[#383c42] transition-colors shadow-sm"
+              className="w-full flex items-center justify-between p-2.5 rounded-[20px] bg-[#202124] hover:bg-[#28292d] text-gray-200 text-xs font-semibold border border-[#383c42] transition-colors shadow-sm"
             >
               <div className="flex items-center gap-2.5">
-                <Settings className="w-4.5 h-4.5 text-blue-400" />
+                <Settings className="w-4 h-4 text-blue-400" />
                 <span>Cài đặt Máy chủ</span>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-400" />
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

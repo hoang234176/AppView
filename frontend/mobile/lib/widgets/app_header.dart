@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/download_provider.dart';
 import '../screens/download_screen.dart';
+import 'rolling_number.dart';
 
 class AppHeader extends StatefulWidget {
   final VoidCallback onOpenDrawer;
@@ -80,13 +81,77 @@ class _AppHeaderState extends State<AppHeader>
                 ),
               ],
             ),
-            child:
-                _isSearching
+            child: appState.isSelectMode
+                ? _buildSelectHeader(appState)
+                : _isSearching
                     ? _buildSearchBar(appState)
                     : _buildDefaultHeader(appState),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSelectHeader(AppStateProvider appState) {
+    final count = appState.totalSelectedCount;
+
+    return Row(
+      children: [
+        // Close (X) button to exit select mode
+        IconButton(
+          onPressed: () => appState.exitSelectMode(),
+          icon: const Icon(
+            Icons.close_rounded,
+            color: Colors.white,
+            size: 22,
+          ),
+          tooltip: 'Thoát chế độ chọn',
+          style: IconButton.styleFrom(
+            backgroundColor: AppTheme.bgCard,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppTheme.borderColor),
+            ),
+            padding: const EdgeInsets.all(8),
+            minimumSize: const Size(40, 40),
+          ),
+        ),
+        const SizedBox(width: 12),
+
+        // Selected count with RollingNumber
+        Expanded(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Đã chọn ',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white70,
+                ),
+              ),
+              RollingNumber(
+                value: count,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.googleBlue,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const Text(
+                ' mục',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

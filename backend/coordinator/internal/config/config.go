@@ -20,7 +20,7 @@ type Config struct {
 func Load() Config {
 	processAddress, processAddressSet := os.LookupEnv("COORDINATOR_HTTP_ADDR")
 	processPort, processPortSet := os.LookupEnv("PORT")
-	for _, envPath := range []string{".env", "../.env", "../../.env"} {
+	for _, envPath := range []string{".env", "../.env", "../../.env", "backend/.env"} {
 		loadLocalEnv(envPath)
 	}
 	return Config{

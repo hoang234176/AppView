@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -8,6 +9,7 @@ import '../providers/app_state_provider.dart';
 import '../api/api_config.dart';
 import '../api/download_api.dart';
 import '../api/cache_api.dart';
+import '../services/filesystem_events_service.dart';
 import '../utils/formatters.dart';
 import 'app_toast.dart';
 
@@ -34,6 +36,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   String? _errorMessage;
   String? _cacheMsg;
   StorageInfoModel? _storageInfo;
+  StreamSubscription<Map<String, dynamic>>? _storageSubscription;
   bool _isLoadingStorage = false;
   bool _isCheckingConnection = false;
   bool _isConnected = false;
@@ -152,6 +155,14 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     super.initState();
     final settings = context.read<SettingsProvider>();
     _hostController = TextEditingController(text: settings.serverHost);
+    _storageSubscription = StorageRealtimeBus.events.listen((raw) {
+      if (mounted) {
+        setState(() {
+          _storageInfo = StorageInfoModel.fromJson(raw);
+          _isLoadingStorage = false;
+        });
+      }
+    });
     _loadCacheInfo();
     _fetchCookieStatus();
     _fetchTiktokCookieStatus();
@@ -163,6 +174,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
 
   @override
   void dispose() {
+    _storageSubscription?.cancel();
     _hostController.dispose();
     for (final c in _cookieControllers.values) {
       c.dispose();
@@ -1018,13 +1030,13 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                             const Row(
                               children: [
                                 Icon(
-                                  Icons.dns_rounded,
+                                  Icons.storage_rounded,
                                   size: 16,
                                   color: AppTheme.googleBlue,
                                 ),
                                 SizedBox(width: 6),
                                 Text(
-                                  'Storage',
+                                  'Ổ đĩa lưu trữ',
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
@@ -1056,56 +1068,211 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                 ],
                               )
                             else if (_storageInfo != null)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        _storageInfo!.displayName,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      Text(
-                                        '${_storageInfo!.usedPercent.round()}%',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.googleBlue,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: (
-                                        _storageInfo!.usedPercent / 100
-                                      ).clamp(0.0, 1.0),
-                                      minHeight: 6,
-                                      backgroundColor: AppTheme.bgBlock,
-                                      valueColor:
-                                          const AlwaysStoppedAnimation<Color>(
-                                            AppTheme.googleBlue,
+                              _storageInfo!.drives.isNotEmpty
+                                  ? Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        for (int i = 0; i < _storageInfo!.drives.length; i++) ...[
+                                          if (i > 0) const SizedBox(height: 10),
+                                          Builder(
+                                            builder: (context) {
+                                              final d = _storageInfo!.drives[i];
+                                              final isConn = d.isConnected;
+                                              final p = isConn ? d.usedPercent.round() : 0;
+                                              final isDanger = isConn && p >= 91;
+                                              final isWarning = isConn && p >= 75 && !isDanger;
+                                              final statusColor = !isConn || isDanger
+                                                  ? const Color(0xFFEF4444)
+                                                  : isWarning
+                                                      ? const Color(0xFFF97316)
+                                                      : AppTheme.googleBlue;
+
+                                              return Container(
+                                                padding: const EdgeInsets.all(12),
+                                                decoration: BoxDecoration(
+                                                  color: AppTheme.bgBlock,
+                                                  borderRadius: BorderRadius.circular(16),
+                                                  border: Border.all(color: AppTheme.borderColor),
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Container(
+                                                          padding: const EdgeInsets.all(6),
+                                                          decoration: BoxDecoration(
+                                                            color: statusColor.withValues(alpha: 0.15),
+                                                            borderRadius: BorderRadius.circular(10),
+                                                          ),
+                                                          child: Icon(
+                                                            isConn ? Icons.storage_rounded : Icons.link_off_rounded,
+                                                            size: 16,
+                                                            color: statusColor,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 8),
+                                                        Expanded(
+                                                          child: Text(
+                                                            d.name.isNotEmpty ? d.name : d.id,
+                                                            style: const TextStyle(
+                                                              fontSize: 13,
+                                                              fontWeight: FontWeight.bold,
+                                                              color: Colors.white,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                          decoration: BoxDecoration(
+                                                            color: statusColor.withValues(alpha: 0.2),
+                                                            borderRadius: BorderRadius.circular(12),
+                                                            border: Border.all(
+                                                              color: statusColor.withValues(alpha: 0.4),
+                                                            ),
+                                                          ),
+                                                          child: Text(
+                                                            isConn ? '$p%' : 'Ngắt kết nối',
+                                                            style: TextStyle(
+                                                              fontSize: 11.5,
+                                                              fontWeight: FontWeight.bold,
+                                                              color: statusColor,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 10),
+                                                    if (isConn) ...[
+                                                      ClipRRect(
+                                                        borderRadius: BorderRadius.circular(6),
+                                                        child: LinearProgressIndicator(
+                                                          value: (d.usedPercent / 100).clamp(0.0, 1.0),
+                                                          minHeight: 7,
+                                                          backgroundColor: AppTheme.bgInput,
+                                                          valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Row(
+                                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                        children: [
+                                                          Text.rich(
+                                                            TextSpan(
+                                                              text: 'Đã dùng: ',
+                                                              style: const TextStyle(
+                                                                fontSize: 11,
+                                                                color: Colors.white70,
+                                                              ),
+                                                              children: [
+                                                                TextSpan(
+                                                                  text: Formatters.formatFileSize(d.usedBytes),
+                                                                  style: TextStyle(
+                                                                    fontSize: 11,
+                                                                    fontWeight: FontWeight.w600,
+                                                                    color: statusColor,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                          Text.rich(
+                                                            TextSpan(
+                                                              text: 'Còn trống: ',
+                                                              style: const TextStyle(
+                                                                fontSize: 11,
+                                                                color: Colors.white70,
+                                                              ),
+                                                              children: [
+                                                                TextSpan(
+                                                                  text: Formatters.formatFileSize(d.availableBytes),
+                                                                  style: const TextStyle(
+                                                                    fontSize: 11,
+                                                                    fontWeight: FontWeight.bold,
+                                                                    color: Color(0xFF34D399),
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ] else ...[
+                                                      const Padding(
+                                                        padding: EdgeInsets.symmetric(vertical: 4),
+                                                        child: Row(
+                                                          children: [
+                                                            Icon(Icons.link_off_rounded, size: 14, color: Color(0xFFF87171)),
+                                                            SizedBox(width: 6),
+                                                            Text(
+                                                              'Ổ đĩa đã ngắt kết nối',
+                                                              style: TextStyle(
+                                                                fontSize: 11,
+                                                                color: Color(0xFFF87171),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                              );
+                                            },
                                           ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    '${Formatters.formatFileSize(_storageInfo!.usedBytes)} / ${Formatters.formatFileSize(_storageInfo!.totalBytes)} đã dùng • ${Formatters.formatFileSize(_storageInfo!.availableBytes)} còn trống',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.white54,
-                                    ),
-                                  ),
-                                ],
-                              )
+                                        ],
+                                      ],
+                                    )
+                                  : Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              _storageInfo!.displayName,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${_storageInfo!.usedPercent.round()}%',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppTheme.googleBlue,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(4),
+                                          child: LinearProgressIndicator(
+                                            value: (
+                                              _storageInfo!.usedPercent / 100
+                                            ).clamp(0.0, 1.0),
+                                            minHeight: 6,
+                                            backgroundColor: AppTheme.bgBlock,
+                                            valueColor:
+                                                const AlwaysStoppedAnimation<Color>(
+                                                  AppTheme.googleBlue,
+                                                ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          '${Formatters.formatFileSize(_storageInfo!.usedBytes)} / ${Formatters.formatFileSize(_storageInfo!.totalBytes)} đã dùng • ${Formatters.formatFileSize(_storageInfo!.availableBytes)} còn trống',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white54,
+                                          ),
+                                        ),
+                                      ],
+                                    )
                             else
                               Text(
                                 _isConnected

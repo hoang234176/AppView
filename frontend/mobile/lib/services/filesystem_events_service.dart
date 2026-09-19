@@ -7,12 +7,28 @@ import '../api/api_config.dart';
 
 typedef FilesystemEventHandler = void Function(Map<String, dynamic> event);
 typedef RealtimeConnectedHandler = void Function();
+typedef StorageInfoHandler = void Function(Map<String, dynamic> storageInfo);
+typedef BatchJobProgressHandler = void Function(Map<String, dynamic> batchJob);
 
 /// Shares download invalidations from the one app-level Coordinator socket.
 class DownloadRealtimeBus {
   static final StreamController<void> _controller = StreamController<void>.broadcast();
   static Stream<void> get events => _controller.stream;
   static void notify() => _controller.add(null);
+}
+
+/// Shares storage updates from the Coordinator socket.
+class StorageRealtimeBus {
+  static final StreamController<Map<String, dynamic>> _controller = StreamController<Map<String, dynamic>>.broadcast();
+  static Stream<Map<String, dynamic>> get events => _controller.stream;
+  static void notify(Map<String, dynamic> info) => _controller.add(info);
+}
+
+/// Shares batch transfer progress updates from the Coordinator socket.
+class TransferRealtimeBus {
+  static final StreamController<Map<String, dynamic>> _controller = StreamController<Map<String, dynamic>>.broadcast();
+  static Stream<Map<String, dynamic>> get events => _controller.stream;
+  static void notify(Map<String, dynamic> job) => _controller.add(job);
 }
 
 /// One bounded-retry Coordinator invalidation socket for the mobile app.
@@ -22,11 +38,17 @@ class FilesystemEventsService {
   FilesystemEventsService({
     required FilesystemEventHandler onEvent,
     required RealtimeConnectedHandler onConnected,
+    StorageInfoHandler? onStorageInfo,
+    BatchJobProgressHandler? onBatchJobProgress,
   }) : _onEvent = onEvent,
-       _onConnected = onConnected;
+       _onConnected = onConnected,
+       _onStorageInfo = onStorageInfo,
+       _onBatchJobProgress = onBatchJobProgress;
 
   final FilesystemEventHandler _onEvent;
   final RealtimeConnectedHandler _onConnected;
+  final StorageInfoHandler? _onStorageInfo;
+  final BatchJobProgressHandler? _onBatchJobProgress;
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   Timer? _reconnectTimer;
@@ -89,6 +111,24 @@ class FilesystemEventsService {
       final decoded = jsonDecode(message);
       if (decoded is! Map) return;
       if (decoded['type'] == 'download_event') { DownloadRealtimeBus.notify(); return; }
+      if (decoded['type'] == 'batch_job_progress') {
+        final job = decoded['batchJob'];
+        if (job is Map) {
+          final mapped = Map<String, dynamic>.from(job);
+          TransferRealtimeBus.notify(mapped);
+          _onBatchJobProgress?.call(mapped);
+        }
+        return;
+      }
+      if (decoded['type'] == 'storage.info') {
+        final info = decoded['storageInfo'];
+        if (info is Map) {
+          final mapped = Map<String, dynamic>.from(info);
+          StorageRealtimeBus.notify(mapped);
+          _onStorageInfo?.call(mapped);
+        }
+        return;
+      }
       if (decoded['type'] != 'filesystem_event') return;
       final event = decoded['event'];
       if (event is Map) {

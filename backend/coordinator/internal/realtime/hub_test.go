@@ -4,6 +4,7 @@ import (
 	"appview/coordinator/internal/protocol"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -20,10 +21,10 @@ func TestHubFansOutAndRecoversAfterDisconnect(t *testing.T) {
 	if count := hub.Broadcast(event); count != 2 {
 		t.Fatalf("subscriber count = %d, want 2", count)
 	}
-	if got := <-first; got.Event == nil || *got.Event != event {
+	if got := <-first; got.Event == nil || !reflect.DeepEqual(*got.Event, event) {
 		t.Fatalf("first event = %#v, want %#v", got, event)
 	}
-	if got := <-second; got.Event == nil || *got.Event != event {
+	if got := <-second; got.Event == nil || !reflect.DeepEqual(*got.Event, event) {
 		t.Fatalf("second event = %#v, want %#v", got, event)
 	}
 	hub.Unsubscribe(firstID)
@@ -31,7 +32,7 @@ func TestHubFansOutAndRecoversAfterDisconnect(t *testing.T) {
 	if count := hub.Broadcast(event); count != 1 {
 		t.Fatalf("subscriber count after disconnect = %d, want 1", count)
 	}
-	if got := <-second; got.Event == nil || *got.Event != event {
+	if got := <-second; got.Event == nil || !reflect.DeepEqual(*got.Event, event) {
 		t.Fatalf("remaining subscriber event = %#v, want %#v", got, event)
 	}
 }

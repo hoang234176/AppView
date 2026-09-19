@@ -28,8 +28,8 @@ class Formatters {
 
   /// Split path string into breadcrumb array
   /// e.g., "Cosplay/Coser@不可爱羚 - 阮梅" -> [{ name: 'Trang chủ', path: '' }, { name: 'Cosplay', path: 'Cosplay' }, ...]
-  static List<BreadcrumbItem> parseBreadcrumbs(String pathString) {
-    final breadcrumbs = [BreadcrumbItem(name: 'Trang chủ', path: '')];
+  static List<BreadcrumbItem> parseBreadcrumbs(String pathString, {String rootName = 'Trang chủ'}) {
+    final breadcrumbs = [BreadcrumbItem(name: rootName, path: '')];
     if (pathString.trim().isEmpty) return breadcrumbs;
 
     final parts = pathString.split('/').where((p) => p.isNotEmpty).toList();
@@ -53,7 +53,7 @@ class Formatters {
     return segments.map((seg) => Uri.encodeComponent(seg)).join('/');
   }
 
-  /// Convert picture object to original image API endpoint (/pictures/*)
+  /// Convert picture object to original image API endpoint (/pictures/:drive/*)
   static String getPictureUrl(String baseUrl, PictureItem picture) {
     if (picture.url != null && picture.url!.isNotEmpty) {
       return picture.url!;
@@ -61,25 +61,25 @@ class Formatters {
     if (picture.path.isNotEmpty) {
       final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
       final encodedPath = encodePathSegments(picture.path);
-      final rootQuery = ApiConfig.rootFolderPath.isNotEmpty ? '?root_path=${Uri.encodeComponent(ApiConfig.rootFolderPath)}' : '';
-      return '$cleanBase/pictures/$encodedPath$rootQuery';
+      final drive = ApiConfig.activeDrive.isNotEmpty ? Uri.encodeComponent(ApiConfig.activeDrive) : 'HDD';
+      return '$cleanBase/pictures/$drive/$encodedPath';
     }
     return '';
   }
 
-  /// Convert picture object to thumbnail API endpoint (/thumbnails/*) for grid preview
+  /// Convert picture object to thumbnail API endpoint (/thumbnails/:drive/*) for grid preview
   static String getThumbnailUrl(String baseUrl, PictureItem picture) {
     if (picture.thumbnailUrl != null && picture.thumbnailUrl!.isNotEmpty) {
       return picture.thumbnailUrl!;
     }
     if (picture.url != null && picture.url!.isNotEmpty) {
-      return picture.url!.replaceAll('/pictures/', '/thumbnails/');
+      return picture.url!.replaceAll('/pictures/', '/thumbnails/').replaceAll('/picture/', '/thumbnail/');
     }
     if (picture.path.isNotEmpty) {
       final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
       final encodedPath = encodePathSegments(picture.path);
-      final rootQuery = ApiConfig.rootFolderPath.isNotEmpty ? '?root_path=${Uri.encodeComponent(ApiConfig.rootFolderPath)}' : '';
-      return '$cleanBase/thumbnails/$encodedPath$rootQuery';
+      final drive = ApiConfig.activeDrive.isNotEmpty ? Uri.encodeComponent(ApiConfig.activeDrive) : 'HDD';
+      return '$cleanBase/thumbnails/$drive/$encodedPath';
     }
     return '';
   }
@@ -91,6 +91,37 @@ class Formatters {
     final i = (log(bytes) / log(1024)).floor();
     final size = bytes / pow(1024, i);
     return '${size.toStringAsFixed(1)} ${suffixes[i]}';
+  }
+
+  /// Format bytes to compact readable size (rounds to int if >= 10 to fit in compact UI)
+  static String formatCompactFileSize(int? bytes) {
+    if (bytes == null || bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    final i = (log(bytes) / log(1024)).floor();
+    final size = bytes / pow(1024, i);
+    final formatted = size >= 10 ? size.round().toString() : size.toStringAsFixed(1);
+    return '$formatted ${suffixes[i]}';
+  }
+
+  /// Format drive used and total capacity concisely for compact UI cards
+  /// e.g. usedVal: "42.5", usedUnit: "GB", totalVal: "466", totalUnit: "GB"
+  static ({String usedVal, String usedUnit, String totalVal, String totalUnit}) formatDriveCapacity(int? usedBytes, int? totalBytes) {
+    ({String val, String unit}) formatPart(int? bytes, bool roundInt) {
+      if (bytes == null || bytes <= 0) {
+        return (val: '0', unit: 'B');
+      }
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      final i = (log(bytes) / log(1024)).floor().clamp(0, sizes.length - 1);
+      final val = bytes / pow(1024, i);
+      final numStr = roundInt && val >= 10
+          ? val.round().toString()
+          : (val == val.roundToDouble() ? val.toInt().toString() : val.toStringAsFixed(1));
+      return (val: numStr, unit: sizes[i]);
+    }
+
+    final u = formatPart(usedBytes, false);
+    final t = formatPart(totalBytes, true);
+    return (usedVal: u.val, usedUnit: u.unit, totalVal: t.val, totalUnit: t.unit);
   }
 
   /// Format speed bytes per second to readable string (KB/s, MB/s)
@@ -132,25 +163,25 @@ class Formatters {
       final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
       final cleanPath = video.path.startsWith('/') ? video.path.substring(1) : video.path;
       final encodedPath = cleanPath.split('/').map((seg) => Uri.encodeComponent(seg)).join('/');
-      final rootQuery = ApiConfig.rootFolderPath.isNotEmpty ? '?root_path=${Uri.encodeComponent(ApiConfig.rootFolderPath)}' : '';
-      return '$cleanBase/videos/$encodedPath$rootQuery';
+      final drive = ApiConfig.activeDrive.isNotEmpty ? Uri.encodeComponent(ApiConfig.activeDrive) : 'HDD';
+      return '$cleanBase/videos/$drive/$encodedPath';
     }
     return '';
   }
 
-  /// Convert video object to thumbnail API endpoint (/thumbnails/*) for grid preview
+  /// Convert video object to thumbnail API endpoint (/thumbnails/:drive/*) for grid preview
   static String getVideoThumbnailUrl(String baseUrl, VideoItem video) {
     if (video.thumbnailUrl != null && video.thumbnailUrl!.isNotEmpty) {
       return video.thumbnailUrl!;
     }
     if (video.url != null && video.url!.isNotEmpty) {
-      return video.url!.replaceAll('/videos/', '/thumbnails/');
+      return video.url!.replaceAll('/videos/', '/thumbnails/').replaceAll('/video/', '/thumbnail/');
     }
     if (video.path.isNotEmpty) {
       final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
       final encodedPath = encodePathSegments(video.path);
-      final rootQuery = ApiConfig.rootFolderPath.isNotEmpty ? '?root_path=${Uri.encodeComponent(ApiConfig.rootFolderPath)}' : '';
-      return '$cleanBase/thumbnails/$encodedPath$rootQuery';
+      final drive = ApiConfig.activeDrive.isNotEmpty ? Uri.encodeComponent(ApiConfig.activeDrive) : 'HDD';
+      return '$cleanBase/thumbnails/$drive/$encodedPath';
     }
     return '';
   }

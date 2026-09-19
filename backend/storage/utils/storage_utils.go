@@ -35,14 +35,18 @@ func ServeFileSafely(c *fiber.Ctx, fullPath string) error {
 	// never routes a local filename through URL parsing again.
 	file, err := os.Open(fullPath)
 	if err != nil {
-		return err
+		if os.IsNotExist(err) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Không tìm thấy tệp tin"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	info, err := file.Stat()
 	if err != nil {
 		_ = file.Close()
-		return err
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	if len(c.Response().Header.ContentType()) == 0 {
+	currentType := string(c.Response().Header.ContentType())
+	if currentType == "" || strings.HasPrefix(currentType, "text/plain") || currentType == "application/octet-stream" {
 		if contentType := mime.TypeByExtension(filepath.Ext(fullPath)); contentType != "" {
 			c.Set(fiber.HeaderContentType, contentType)
 		}
@@ -60,7 +64,6 @@ func ServeFileSafely(c *fiber.Ctx, fullPath string) error {
 			_ = file.Close()
 			c.Status(fiber.StatusRequestedRangeNotSatisfiable)
 			c.Set(fiber.HeaderContentRange, fmt.Sprintf("bytes */%d", size))
-			c.Set(fiber.HeaderContentLength, "0")
 			return nil
 		}
 		length := int64(end - start + 1)
@@ -151,6 +154,33 @@ func ResolveFilePath(rootPath string, escapedRelPath string) (string, string, er
 				if strings.Contains(strings.ToLower(entry.Name()), strings.ToLower(prefix)) {
 					matchedRel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
 					return filepath.Join(rootPath, matchedRel), matchedRel, nil
+				}
+			}
+		}
+	}
+
+	// 4. Fallback search on other configured drives if not found on rootPath
+	for _, drive := range configs.STORAGE_DRIVES {
+		if filepath.Clean(drive.Path) == filepath.Clean(rootPath) {
+			continue
+		}
+		candPath := filepath.Join(drive.Path, filepath.FromSlash(decodedRel))
+		if _, err := os.Stat(candPath); err == nil {
+			return candPath, decodedRel, nil
+		}
+		candDir := filepath.Join(drive.Path, dirRel)
+		if entries, err := os.ReadDir(candDir); err == nil {
+			for _, entry := range entries {
+				if strings.EqualFold(entry.Name(), fileName) {
+					matchedRel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
+					return filepath.Join(drive.Path, matchedRel), matchedRel, nil
+				}
+			}
+			sanitizedTarget := sanitizeName(fileName)
+			for _, entry := range entries {
+				if !entry.IsDir() && sanitizeName(entry.Name()) == sanitizedTarget {
+					matchedRel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
+					return filepath.Join(drive.Path, matchedRel), matchedRel, nil
 				}
 			}
 		}
@@ -682,5 +712,56 @@ func MoveItem(rootPath string, srcRel string, destRel string) error {
 	}
 
 	LogInfo("[STORAGE SERVICE] Đã di chuyển thành công %s đến %s", srcRel, destRel)
+	return nil
+}
+
+func GetFileItem(baseDir, relPath, drive string) any {
+	cleanRel := filepath.ToSlash(filepath.Clean(relPath))
+	fullPath := filepath.Join(baseDir, cleanRel)
+	info, err := os.Stat(fullPath)
+	if err != nil || info.IsDir() {
+		return nil
+	}
+	name := info.Name()
+	if drive == "" {
+		drive = "HDD"
+	}
+	encodedPath := EncodePathSegments(cleanRel)
+
+	if IsImageFile(name) {
+		w, h := GetImageDimensions(fullPath, info.ModTime())
+		return &models.PictureItem{
+			Type:         "picture",
+			Name:         name,
+			Path:         cleanRel,
+			Size:         info.Size(),
+			ModTime:      info.ModTime(),
+			Width:        w,
+			Height:       h,
+			Extension:    strings.TrimPrefix(filepath.Ext(name), "."),
+			URL:          fmt.Sprintf("/api/v1/pictures/%s/%s", drive, encodedPath),
+			ThumbnailURL: fmt.Sprintf("/api/v1/thumbnails/%s/%s", drive, encodedPath),
+		}
+	}
+	if IsVideoFile(name) {
+		w, h := GetVideoDimensions(fullPath, info.ModTime())
+		resolution := ""
+		if w > 0 && h > 0 {
+			resolution = fmt.Sprintf("%dx%d", w, h)
+		}
+		return &models.VideoItem{
+			Type:         "video",
+			Name:         name,
+			Path:         cleanRel,
+			Size:         info.Size(),
+			ModTime:      info.ModTime(),
+			Width:        w,
+			Height:       h,
+			Resolution:   resolution,
+			Extension:    strings.TrimPrefix(filepath.Ext(name), "."),
+			URL:          fmt.Sprintf("/api/v1/videos/%s/%s", drive, encodedPath),
+			ThumbnailURL: fmt.Sprintf("/api/v1/thumbnails/%s/%s", drive, encodedPath),
+		}
+	}
 	return nil
 }

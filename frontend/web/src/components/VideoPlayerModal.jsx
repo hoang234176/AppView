@@ -17,6 +17,7 @@ import {
   Check
 } from 'lucide-react';
 import { formatDate, formatFileSize, getVideoStreamUrl } from '../utils/formatters';
+import { RollingNumber } from './common/RollingNumber';
 
 export const VideoPlayerModal = memo(({ videos = [], currentIndex, onClose, onSelectIndex }) => {
   const videoRef = useRef(null);
@@ -446,7 +447,7 @@ export const VideoPlayerModal = memo(({ videos = [], currentIndex, onClose, onSe
       <div className={`absolute top-0 left-0 right-0 z-30 px-6 py-4 flex items-center justify-between bg-gradient-to-b from-black/90 via-black/60 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className="flex items-center gap-3 min-w-0">
           <span className="bg-purple-600/30 border border-purple-400/40 text-purple-200 font-mono text-xs px-3 py-1 rounded-[24px]">
-            Video {currentIndex + 1} / {videos.length}
+            Video <RollingNumber value={currentIndex + 1} /> / <RollingNumber value={videos.length} />
           </span>
           <h2 className="text-sm font-semibold text-white truncate max-w-xs sm:max-w-md" title={currentVid.name}>
             {currentVid.name}

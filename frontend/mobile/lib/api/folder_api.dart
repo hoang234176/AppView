@@ -7,6 +7,7 @@ import '../models/video_item.dart';
 import '../models/tree_node.dart';
 import '../models/api_result.dart';
 import '../utils/formatters.dart';
+import 'download_api.dart';
 
 class FolderApi {
   static Dio _createDio() {
@@ -15,9 +16,9 @@ class FolderApi {
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
-      headers: const {
+      headers: {
         'Content-Type': 'application/json',
-        // X-Root-Folder-Path is no longer sent; Storage uses its own ROOT_PATH.
+        'X-Drive': ApiConfig.activeDrive,
       },
     );
     return Dio(options);
@@ -38,6 +39,9 @@ class FolderApi {
     final Map<String, dynamic> queryParams = {};
     if (folderPath.trim().isNotEmpty) {
       queryParams['path'] = folderPath.trim();
+    }
+    if (ApiConfig.activeDrive.isNotEmpty) {
+      queryParams['drive'] = ApiConfig.activeDrive;
     }
     if (folderLimit != null) queryParams['folder_limit'] = folderLimit;
     if (pictureLimit != null) queryParams['picture_limit'] = pictureLimit;
@@ -195,15 +199,19 @@ class FolderApi {
   /// Fetch full nested folder tree structure from backend API
   /// Endpoint: /tree-folder
   static Future<ApiResult<List<TreeNode>>> fetchFolderTree({
+    String? drive,
     CancelToken? cancelToken,
   }) async {
     final dio = _createDio();
     try {
+      final targetDrive = (drive != null && drive.isNotEmpty) ? drive : ApiConfig.activeDrive;
+      final Map<String, dynamic> queryParams = {};
+      if (targetDrive.isNotEmpty) {
+        queryParams['drive'] = targetDrive;
+      }
       final response = await dio.get(
         '/tree-folder',
-        queryParameters: {
-          'root_path': ApiConfig.rootFolderPath,
-        },
+        queryParameters: queryParams,
         cancelToken: cancelToken,
       );
 
@@ -238,6 +246,58 @@ class FolderApi {
         ApiErrorInfo(
           status: 500,
           message: 'Lỗi cây thư mục: $e',
+        ),
+      );
+    }
+  }
+
+  /// Fetch list of configured storage drives from backend API
+  /// Endpoint: /drives
+  static Future<ApiResult<List<DriveInfoModel>>> fetchDrives({
+    CancelToken? cancelToken,
+  }) async {
+    final dio = _createDio();
+    try {
+      final response = await dio.get('/drives', cancelToken: cancelToken);
+      final resData = response.data;
+      List<DriveInfoModel> drives = [];
+      dynamic driveArray;
+
+      if (resData is Map<String, dynamic>) {
+        if (resData['drives'] is List) {
+          driveArray = resData['drives'];
+        } else if (resData['data'] is Map && resData['data']['drives'] is List) {
+          driveArray = resData['data']['drives'];
+        } else if (resData['data'] is List) {
+          driveArray = resData['data'];
+        }
+      } else if (resData is List) {
+        driveArray = resData;
+      }
+
+      if (driveArray is List) {
+        drives = driveArray
+            .whereType<Map<String, dynamic>>()
+            .map((d) => DriveInfoModel.fromJson(d))
+            .toList();
+      }
+
+      return ApiResult.success(drives);
+    } on DioException catch (e) {
+      if (CancelToken.isCancel(e)) {
+        return ApiResult.canceled();
+      }
+      return ApiResult.failure(
+        ApiErrorInfo(
+          status: e.response?.statusCode ?? 0,
+          message: 'Lỗi tải danh sách ổ đĩa: ${e.message}',
+        ),
+      );
+    } catch (e) {
+      return ApiResult.failure(
+        ApiErrorInfo(
+          status: 500,
+          message: 'Lỗi danh sách ổ đĩa: $e',
         ),
       );
     }
@@ -399,6 +459,59 @@ class FolderApi {
       return ApiResult.failure(ApiErrorInfo(message: errorMessage, status: e.response?.statusCode));
     } catch (e) {
       return ApiResult.failure(ApiErrorInfo(message: 'Lỗi xóa file: $e'));
+    }
+  }
+
+  /// Execute batch items operation (copy, move, delete)
+  /// Endpoint: POST /items/batch
+  static Future<ApiResult<Map<String, dynamic>>> executeBatchItems({
+    required String action,
+    required List<Map<String, dynamic>> items,
+    required String destFolder,
+    String? srcDrive,
+    String? destDrive,
+  }) async {
+    final dio = _createDio();
+    try {
+      final response = await dio.post(
+        '/items/batch',
+        data: {
+          'action': action,
+          'items': items,
+          'dest_folder': destFolder,
+          'src_drive': srcDrive ?? ApiConfig.activeDrive,
+          'dest_drive': destDrive ?? srcDrive ?? ApiConfig.activeDrive,
+        },
+      );
+
+      final resData = response.data;
+      if (resData is Map<String, dynamic>) {
+        return ApiResult.success(resData, message: resData['job']?['message']?.toString() ?? 'Thành công');
+      }
+      return ApiResult.success({}, message: 'Thao tác thành công');
+    } on DioException catch (e) {
+      String errorMessage = 'Không thể thực hiện thao tác.';
+      if (e.response != null && e.response?.data is Map && (e.response?.data['message'] != null || e.response?.data['error'] != null)) {
+        errorMessage = (e.response?.data['message'] ?? e.response?.data['error']).toString();
+      }
+      return ApiResult.failure(ApiErrorInfo(message: errorMessage, status: e.response?.statusCode));
+    } catch (e) {
+      return ApiResult.failure(ApiErrorInfo(message: 'Lỗi thực hiện: $e'));
+    }
+  }
+
+  /// Poll batch job status
+  /// Endpoint: GET /jobs/batch/:job_id
+  static Future<Map<String, dynamic>?> fetchBatchJobStatus(String jobId) async {
+    final dio = _createDio();
+    try {
+      final response = await dio.get('/jobs/batch/$jobId');
+      if (response.data is Map && response.data['job'] is Map) {
+        return Map<String, dynamic>.from(response.data['job']);
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 }

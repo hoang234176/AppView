@@ -60,6 +60,47 @@ void main() {
       expect(info.usedBytes, 400000000);
       expect(info.availableBytes, 600000000);
       expect(info.usedPercent, 40.0);
+      expect(info.drives, isEmpty);
+    },
+  );
+
+  test(
+    'StorageInfoModel deserializes multi-drive list correctly',
+    () {
+      final info = StorageInfoModel.fromJson({
+        'displayName': 'AppView Storage',
+        'totalBytes': 2000000000,
+        'usedBytes': 800000000,
+        'availableBytes': 1200000000,
+        'usedPercent': 40.0,
+        'drives': [
+          {
+            'id': 'HDD',
+            'name': 'HDD',
+            'path': '/Volumes/HDD',
+            'totalBytes': 1000000000,
+            'usedBytes': 500000000,
+            'availableBytes': 500000000,
+            'usedPercent': 50.0,
+          },
+          {
+            'id': 'SSD',
+            'name': 'SSD',
+            'path': '/Volumes/SSD',
+            'totalBytes': 1000000000,
+            'usedBytes': 300000000,
+            'availableBytes': 700000000,
+            'usedPercent': 30.0,
+          },
+        ],
+      });
+      expect(info.drives.length, 2);
+      expect(info.drives[0].id, 'HDD');
+      expect(info.drives[0].path, '/Volumes/HDD');
+      expect(info.drives[0].usedPercent, 50.0);
+      expect(info.drives[1].id, 'SSD');
+      expect(info.drives[1].path, '/Volumes/SSD');
+      expect(info.drives[1].usedPercent, 30.0);
     },
   );
 

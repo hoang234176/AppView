@@ -38,6 +38,14 @@ func (h *Hub) BroadcastDownload(event protocol.DownloadEvent) int {
 	return h.broadcast(protocol.Message{Type: protocol.DownloadEventMessage, DownloadEvent: &event})
 }
 
+func (h *Hub) BroadcastStorage(info protocol.StorageInfo) int {
+	return h.broadcast(protocol.Message{Type: protocol.StorageInfoMessage, StorageInfo: &info})
+}
+
+func (h *Hub) BroadcastBatchJob(job protocol.BatchJobProgress) int {
+	return h.broadcast(protocol.Message{Type: protocol.BatchJobProgressMessage, BatchJobProgress: &job})
+}
+
 func (h *Hub) broadcast(message protocol.Message) int {
 	h.mu.Lock()
 	defer h.mu.Unlock()

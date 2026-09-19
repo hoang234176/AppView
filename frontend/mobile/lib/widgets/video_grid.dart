@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../models/video_item.dart';
 import '../utils/formatters.dart';
 import '../screens/video_player_screen.dart';
+import '../providers/app_state_provider.dart';
 import 'media_info_dialog.dart';
-import 'folder_action_dialogs.dart';
+import 'batch_action_dialog.dart';
+import 'rolling_number.dart';
 
 class VideoGrid extends StatelessWidget {
   final List<VideoItem> videos;
@@ -56,7 +59,24 @@ class VideoGrid extends StatelessWidget {
                     size: video.size,
                     width: video.width,
                     height: video.height,
+                    extension: video.extension,
+                    resolution: video.resolution,
                     modTime: video.modTime,
+                    isVideo: true,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy_rounded, color: Color(0xFF8AB4F8)),
+                title: const Text('Sao chép video', style: TextStyle(color: Colors.white, fontSize: 14)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  BatchActionDialog.show(
+                    context,
+                    action: 'copy',
+                    items: [
+                      {'type': 'video', 'name': video.name, 'path': video.path}
+                    ],
                   );
                 },
               ),
@@ -65,7 +85,13 @@ class VideoGrid extends StatelessWidget {
                 title: const Text('Di chuyển video', style: TextStyle(color: Colors.white, fontSize: 14)),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  MoveItemDialog.show(context, srcPath: video.path, itemName: video.name, isFolder: false);
+                  BatchActionDialog.show(
+                    context,
+                    action: 'move',
+                    items: [
+                      {'type': 'video', 'name': video.name, 'path': video.path}
+                    ],
+                  );
                 },
               ),
               ListTile(
@@ -73,7 +99,13 @@ class VideoGrid extends StatelessWidget {
                 title: const Text('Xóa video này', style: TextStyle(color: Colors.redAccent, fontSize: 14)),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  DeleteFileDialog.show(context, filePath: video.path, fileName: video.name);
+                  BatchActionDialog.show(
+                    context,
+                    action: 'delete',
+                    items: [
+                      {'type': 'video', 'name': video.name, 'path': video.path}
+                    ],
+                  );
                 },
               ),
             ],
@@ -86,6 +118,9 @@ class VideoGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (videos.isEmpty) return const SizedBox.shrink();
+    final appState = context.watch<AppStateProvider>();
+    final isSelectMode = appState.isSelectMode;
+    final isAllVideosSelected = appState.isAllVideosSelected;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -94,29 +129,81 @@ class VideoGrid extends StatelessWidget {
         children: [
           // Section Title
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Icon(Icons.video_library_rounded, size: 16, color: AppTheme.videoPurple),
-                const SizedBox(width: 6),
-                const Text(
-                  'VIDEO',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
-                    color: Color(0xFF9AA0A6),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.video_library_rounded, size: 16, color: AppTheme.videoPurple),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'VIDEO',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                        color: Color(0xFF9AA0A6),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('(', style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: Color(0xFF80868B))),
+                        RollingNumber(
+                          value: videos.length,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontFamily: 'monospace',
+                            color: Color(0xFF80868B),
+                          ),
+                        ),
+                        if (totalCount != null && totalCount! > videos.length) ...[
+                          const Text('/', style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: Color(0xFF80868B))),
+                          RollingNumber(
+                            value: totalCount!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontFamily: 'monospace',
+                              color: Color(0xFF80868B),
+                            ),
+                          ),
+                        ],
+                        const Text(')', style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: Color(0xFF80868B))),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  '(${(totalCount != null && totalCount! > videos.length) ? "${videos.length}/$totalCount" : "${videos.length}"})',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    color: Color(0xFF80868B),
+                if (isSelectMode)
+                  GestureDetector(
+                    onTap: () => appState.toggleSelectAllVideos(),
+                    behavior: HitTestBehavior.opaque,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: isAllVideosSelected ? AppTheme.googleBlue : const Color(0xFF28292D),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isAllVideosSelected ? AppTheme.googleBlue : const Color(0xFF383C42),
+                          width: 1.8,
+                        ),
+                        boxShadow: [
+                          if (isAllVideosSelected)
+                            BoxShadow(
+                              color: AppTheme.googleBlue.withValues(alpha: 0.3),
+                              blurRadius: 6,
+                            ),
+                        ],
+                      ),
+                      child: isAllVideosSelected
+                          ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                          : null,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -133,7 +220,7 @@ class VideoGrid extends StatelessWidget {
             ),
             itemBuilder: (context, index) {
               final video = videos[index];
-              return _buildVideoCard(context, video, index);
+              return _buildVideoCard(context, video, index, appState);
             },
           ),
         ],
@@ -141,24 +228,49 @@ class VideoGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildVideoCard(BuildContext context, VideoItem video, int index) {
+  Widget _buildVideoCard(BuildContext context, VideoItem video, int index, AppStateProvider appState) {
+    final isSelectMode = appState.isSelectMode;
+    final isSelected = appState.isVideoSelected(video.path);
+
     return InkWell(
-      onTap: () => _openVideo(context, index),
+      onLongPress: () {
+        if (!isSelectMode) {
+          appState.enterSelectModeWithItem(type: 'video', path: video.path);
+        }
+      },
+      onTap: () {
+        if (isSelectMode) {
+          appState.toggleSelectItem(type: 'video', path: video.path);
+        } else {
+          _openVideo(context, index);
+        }
+      },
       borderRadius: AppTheme.borderRadius,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
-          color: AppTheme.bgCard,
+          color: isSelected ? const Color(0xFF1E2638) : AppTheme.bgCard,
           borderRadius: AppTheme.borderRadius,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 8,
+              color: isSelected
+                  ? AppTheme.googleBlue.withValues(alpha: 0.25)
+                  : Colors.black.withValues(alpha: 0.3),
+              blurRadius: isSelected ? 10 : 8,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
+        foregroundDecoration: BoxDecoration(
+          borderRadius: AppTheme.borderRadius,
+          border: Border.all(
+            color: isSelected ? AppTheme.googleBlue : AppTheme.borderColor,
+            width: isSelected ? 2.0 : 1.0,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: AppTheme.borderRadius,
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Thumbnail Aspect Ratio Box with Centered Play Button
@@ -222,6 +334,35 @@ class VideoGrid extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                  // Selection Checkbox Overlay in Select Mode
+                  if (isSelectMode)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppTheme.googleBlue : Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.8),
+                            width: 1.8,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: isSelected
+                            ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                            : null,
+                      ),
+                    ),
 
                   // File Size Badge (Bottom Right)
                   Positioned(
@@ -319,6 +460,7 @@ class VideoGrid extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

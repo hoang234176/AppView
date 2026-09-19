@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../models/picture_item.dart';
 import '../utils/formatters.dart';
 import '../screens/lightbox_screen.dart';
+import '../providers/app_state_provider.dart';
 import 'media_info_dialog.dart';
-import 'folder_action_dialogs.dart';
+import 'batch_action_dialog.dart';
+import 'rolling_number.dart';
 
 class PictureGrid extends StatelessWidget {
   final List<PictureItem> pictures;
@@ -63,11 +66,31 @@ class PictureGrid extends StatelessWidget {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.copy_rounded, color: Color(0xFF8AB4F8)),
+                title: const Text('Sao chép file', style: TextStyle(color: Colors.white, fontSize: 14)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  BatchActionDialog.show(
+                    context,
+                    action: 'copy',
+                    items: [
+                      {'type': 'picture', 'name': picture.name, 'path': picture.path}
+                    ],
+                  );
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.drive_file_move_rounded, color: Colors.amber),
                 title: const Text('Di chuyển file', style: TextStyle(color: Colors.white, fontSize: 14)),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  MoveItemDialog.show(context, srcPath: picture.path, itemName: picture.name, isFolder: false);
+                  BatchActionDialog.show(
+                    context,
+                    action: 'move',
+                    items: [
+                      {'type': 'picture', 'name': picture.name, 'path': picture.path}
+                    ],
+                  );
                 },
               ),
               ListTile(
@@ -75,7 +98,13 @@ class PictureGrid extends StatelessWidget {
                 title: const Text('Xóa ảnh này', style: TextStyle(color: Colors.redAccent, fontSize: 14)),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  DeleteFileDialog.show(context, filePath: picture.path, fileName: picture.name);
+                  BatchActionDialog.show(
+                    context,
+                    action: 'delete',
+                    items: [
+                      {'type': 'picture', 'name': picture.name, 'path': picture.path}
+                    ],
+                  );
                 },
               ),
             ],
@@ -88,6 +117,10 @@ class PictureGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (pictures.isEmpty) return const SizedBox.shrink();
+    final appState = context.watch<AppStateProvider>();
+
+    final isSelectMode = appState.isSelectMode;
+    final isAllPicturesSelected = appState.isAllPicturesSelected;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -96,29 +129,81 @@ class PictureGrid extends StatelessWidget {
         children: [
           // Section Title
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Icon(Icons.image_rounded, color: AppTheme.googleBlue, size: 16),
-                const SizedBox(width: 6),
-                const Text(
-                  'HÌNH ẢNH',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                    color: Color(0xFF9AA0A6),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.image_rounded, color: AppTheme.googleBlue, size: 16),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'HÌNH ẢNH',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: Color(0xFF9AA0A6),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('(', style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: Color(0xFF80868B))),
+                        RollingNumber(
+                          value: pictures.length,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontFamily: 'monospace',
+                            color: Color(0xFF80868B),
+                          ),
+                        ),
+                        if (totalCount != null && totalCount! > pictures.length) ...[
+                          const Text('/', style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: Color(0xFF80868B))),
+                          RollingNumber(
+                            value: totalCount!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontFamily: 'monospace',
+                              color: Color(0xFF80868B),
+                            ),
+                          ),
+                        ],
+                        const Text(')', style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: Color(0xFF80868B))),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  '(${(totalCount != null && totalCount! > pictures.length) ? "${pictures.length}/$totalCount" : "${pictures.length}"})',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    color: Color(0xFF80868B),
+                if (isSelectMode)
+                  GestureDetector(
+                    onTap: () => appState.toggleSelectAllPictures(),
+                    behavior: HitTestBehavior.opaque,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: isAllPicturesSelected ? AppTheme.googleBlue : const Color(0xFF28292D),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isAllPicturesSelected ? AppTheme.googleBlue : const Color(0xFF383C42),
+                          width: 1.8,
+                        ),
+                        boxShadow: [
+                          if (isAllPicturesSelected)
+                            BoxShadow(
+                              color: AppTheme.googleBlue.withValues(alpha: 0.3),
+                              blurRadius: 6,
+                            ),
+                        ],
+                      ),
+                      child: isAllPicturesSelected
+                          ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                          : null,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -135,7 +220,7 @@ class PictureGrid extends StatelessWidget {
             ),
             itemBuilder: (context, index) {
               final picture = pictures[index];
-              return _buildPictureCard(context, picture, index);
+              return _buildPictureCard(context, picture, index, appState);
             },
           ),
         ],
@@ -143,27 +228,55 @@ class PictureGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildPictureCard(BuildContext context, PictureItem picture, int index) {
+  Widget _buildPictureCard(
+    BuildContext context,
+    PictureItem picture,
+    int index,
+    AppStateProvider appState,
+  ) {
     final thumbUrl = picture.thumbnailUrl ?? picture.url ?? '';
+    final isSelectMode = appState.isSelectMode;
+    final isSelected = appState.isPictureSelected(picture.path);
 
     return InkWell(
-      onTap: () => _openLightbox(context, index),
+      onLongPress: () {
+        if (!isSelectMode) {
+          appState.enterSelectModeWithItem(type: 'picture', path: picture.path);
+        }
+      },
+      onTap: () {
+        if (isSelectMode) {
+          appState.toggleSelectItem(type: 'picture', path: picture.path);
+        } else {
+          _openLightbox(context, index);
+        }
+      },
       borderRadius: AppTheme.borderRadius,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
-          color: AppTheme.bgCard,
+          color: isSelected ? const Color(0xFF1E2638) : AppTheme.bgCard,
           borderRadius: AppTheme.borderRadius,
-          border: Border.all(color: AppTheme.borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 6,
+              color: isSelected
+                  ? AppTheme.googleBlue.withValues(alpha: 0.25)
+                  : Colors.black.withValues(alpha: 0.2),
+              blurRadius: isSelected ? 8 : 6,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
+        foregroundDecoration: BoxDecoration(
+          borderRadius: AppTheme.borderRadius,
+          border: Border.all(
+            color: isSelected ? AppTheme.googleBlue : AppTheme.borderColor,
+            width: isSelected ? 2.0 : 1.0,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: AppTheme.borderRadius,
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Thumbnail Aspect Ratio Container
@@ -181,6 +294,35 @@ class PictureGrid extends StatelessWidget {
                     ),
                     errorWidget: (context, url, error) => _buildErrorImage(),
                   ),
+
+                  // Selection Checkbox Overlay in Select Mode
+                  if (isSelectMode)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppTheme.googleBlue : Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.8),
+                            width: 1.8,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: isSelected
+                            ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                            : null,
+                      ),
+                    ),
 
                   // File Size Badge with Storage Icon
                   Positioned(
@@ -278,7 +420,8 @@ class PictureGrid extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildErrorImage() {

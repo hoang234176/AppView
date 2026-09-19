@@ -25,23 +25,25 @@ const (
 	CookieStatus       = "cookie.status"
 	CookieSave         = "cookie.save"
 	CookieGet          = "cookie.get"
+	BatchJobProgressMessage = "batch_job_progress"
 
 	CapabilityDownloadFile = "download_file"
 )
 
 type Message struct {
-	Type           string                  `json:"type"`
-	TaskID         string                  `json:"taskId,omitempty"`
-	WorkerID       string                  `json:"workerId,omitempty"`
-	Action         string                  `json:"action,omitempty"`
-	Capabilities   []string                `json:"capabilities,omitempty"`
-	Payload        json.RawMessage         `json:"payload,omitempty"`
-	Result         any                     `json:"result,omitempty"`
-	Progress       any                     `json:"progress,omitempty"`
-	Error          *ErrorPayload           `json:"error,omitempty"`
-	Event          *events.FilesystemEvent `json:"event,omitempty"`
-	StorageHistory *StorageHistoryPayload  `json:"storageHistory,omitempty"`
-	StorageInfo    *StorageInfo            `json:"storageInfo,omitempty"`
+	Type             string                        `json:"type"`
+	TaskID           string                        `json:"taskId,omitempty"`
+	WorkerID         string                        `json:"workerId,omitempty"`
+	Action           string                        `json:"action,omitempty"`
+	Capabilities     []string                      `json:"capabilities,omitempty"`
+	Payload          json.RawMessage               `json:"payload,omitempty"`
+	Result           any                           `json:"result,omitempty"`
+	Progress         any                           `json:"progress,omitempty"`
+	Error            *ErrorPayload                 `json:"error,omitempty"`
+	Event            *events.FilesystemEvent       `json:"event,omitempty"`
+	StorageHistory   *StorageHistoryPayload        `json:"storageHistory,omitempty"`
+	StorageInfo      *StorageInfo                  `json:"storageInfo,omitempty"`
+	BatchJobProgress *events.BatchJobProgressEvent `json:"batchJob,omitempty"`
 }
 
 // StorageHistoryPayload contains safe durable metadata only. Workspace paths,

@@ -16,6 +16,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { formatDate, getPictureUrl } from '../utils/formatters';
+import { RollingNumber } from './common/RollingNumber';
 
 export const LightboxModal = memo(({ 
   pictures = [], 
@@ -258,7 +259,7 @@ export const LightboxModal = memo(({
           <div className="flex items-center justify-between gap-3 min-w-0">
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="bg-[#8ab4f8]/20 border border-[#8ab4f8]/40 text-[#8ab4f8] font-mono text-xs px-2.5 py-1 rounded-[24px] flex-shrink-0">
-                {currentIndex + 1} / {totalPictures || pictures.length}
+                <RollingNumber value={currentIndex + 1} /> / <RollingNumber value={totalPictures || pictures.length} />
               </span>
               <h2 className="text-xs sm:text-sm font-semibold text-white truncate max-w-[200px] sm:max-w-md" title={currentPic.name}>
                 {currentPic.name}

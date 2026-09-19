@@ -398,12 +398,54 @@ class DownloadSummaryModel {
   }
 }
 
+class DriveInfoModel {
+  final String id;
+  final String name;
+  final String path;
+  final bool available;
+  final int totalBytes;
+  final int usedBytes;
+  final int availableBytes;
+  final double usedPercent;
+
+  const DriveInfoModel({
+    required this.id,
+    required this.name,
+    this.path = '',
+    this.available = true,
+    this.totalBytes = 0,
+    this.usedBytes = 0,
+    this.availableBytes = 0,
+    this.usedPercent = 0.0,
+  });
+
+  bool get isConnected => available && totalBytes > 0;
+
+  factory DriveInfoModel.fromJson(Map<String, dynamic> json) {
+    final total = (json['totalBytes'] as num?)?.toInt() ?? 0;
+    final avail = json['available'] == null
+        ? total > 0
+        : (json['available'] == true || json['available'] == 1);
+    return DriveInfoModel(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? json['displayName']?.toString() ?? json['id']?.toString() ?? '',
+      path: json['path']?.toString() ?? '',
+      available: avail,
+      totalBytes: total,
+      usedBytes: (json['usedBytes'] as num?)?.toInt() ?? 0,
+      availableBytes: (json['availableBytes'] as num?)?.toInt() ?? 0,
+      usedPercent: (json['usedPercent'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
 class StorageInfoModel {
   final String displayName;
   final int totalBytes;
   final int usedBytes;
   final int availableBytes;
   final double usedPercent;
+  final List<DriveInfoModel> drives;
 
   const StorageInfoModel({
     required this.displayName,
@@ -411,15 +453,26 @@ class StorageInfoModel {
     required this.usedBytes,
     required this.availableBytes,
     required this.usedPercent,
+    this.drives = const [],
   });
 
   factory StorageInfoModel.fromJson(Map<String, dynamic> json) {
+    final drivesList = json['drives'];
+    List<DriveInfoModel> drives = [];
+    if (drivesList is List) {
+      drives = drivesList
+          .whereType<Map>()
+          .map((d) => DriveInfoModel.fromJson(Map<String, dynamic>.from(d)))
+          .toList();
+    }
+
     return StorageInfoModel(
       displayName: json['displayName']?.toString() ?? '',
       totalBytes: (json['totalBytes'] as num?)?.toInt() ?? 0,
       usedBytes: (json['usedBytes'] as num?)?.toInt() ?? 0,
       availableBytes: (json['availableBytes'] as num?)?.toInt() ?? 0,
       usedPercent: (json['usedPercent'] as num?)?.toDouble() ?? 0.0,
+      drives: drives,
     );
   }
 }

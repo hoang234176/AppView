@@ -12,7 +12,6 @@ import { LoadingSkeleton } from './components/LoadingSkeleton';
 import { MobileNav } from './components/MobileNav';
 import { CreateFolderModal } from './components/CreateFolderModal';
 import { RenameFolderModal } from './components/RenameFolderModal';
-import { MoveItemModal } from './components/MoveItemModal';
 import { MediaInfoModal } from './components/MediaInfoModal';
 import { DeleteModal } from './components/DeleteModal';
 import { ContextMenu } from './components/ContextMenu';
@@ -22,11 +21,12 @@ import { DownloadMediafireModal } from './components/DownloadMediafireModal';
 import { DownloadMediaModal } from './components/DownloadMediaModal';
 import { DownloadPanelModal } from './components/DownloadPanelModal';
 import { DownloadSnackbar } from './components/DownloadSnackbar';
-import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder } from './api/folderApi';
+import { BatchActionModal } from './components/BatchActionModal';
+import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
 import { isActiveDownload, needsDownloadAttention } from './utils/downloadPresentation';
-import { getApiBaseUrl, getCoordinatorEventsWsUrl, getServerHost, saveServerConfig, isServerConfigured, validateCoordinatorHost } from './api/axiosConfig';
-import { FolderX, Loader2 } from 'lucide-react';
+import { getApiBaseUrl, getCoordinatorEventsWsUrl, getServerHost, saveServerConfig, isServerConfigured, validateCoordinatorHost, getActiveDrive, setActiveDrive } from './api/axiosConfig';
+import { FolderX, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import './styles/index.css';
 
 const isSameOrDescendantPath = (candidate, parent) => Boolean(parent) && (candidate === parent || candidate.startsWith(`${parent}/`));
@@ -43,6 +43,8 @@ function App() {
   };
 
   const [currentPath, setCurrentPath] = useState(getInitialPathFromUrl);
+  const [drives, setDrives] = useState([]);
+  const [activeDrive, setActiveDriveState] = useState(getActiveDrive);
   const [folders, setFolders] = useState([]);
   const [pictures, setPictures] = useState([]);
   const [videos, setVideos] = useState([]);
@@ -71,7 +73,6 @@ function App() {
   const [showRenameFolderModal, setShowRenameFolderModal] = useState(false);
   const [targetFolder, setTargetFolder] = useState(null);
   const [infoModalData, setInfoModalData] = useState({ isOpen: false, item: null, type: 'picture' });
-  const [moveModalData, setMoveModalData] = useState({ isOpen: false, item: null });
   const [deleteModalData, setDeleteModalData] = useState({ isOpen: false, item: null, isFolder: false });
 
   // Download Service State
@@ -89,6 +90,7 @@ function App() {
   const realtimeRefreshRef = useRef(null);
   const refreshCoordinatorDownloadsRef = useRef(null);
   const downloadRefreshTimerRef = useRef(null);
+  const loadDrivesRef = useRef(null);
 
   const PAGE_SIZE = 20;
   const [folderLimit, setFolderLimit] = useState(PAGE_SIZE);
@@ -105,9 +107,13 @@ function App() {
     setInfoModalData({ isOpen: true, item, type });
   };
 
-  const handleOpenMoveItem = (item) => {
-    setMoveModalData({ isOpen: true, item });
-  };
+  const handleOpenMoveItem = useCallback((item, type = 'folder') => {
+    setBatchModalState({
+      isOpen: true,
+      action: 'move',
+      items: [{ type, item }],
+    });
+  }, []);
 
   const handleOpenDeleteItem = (item, isFolder = false) => {
     setDeleteModalData({ isOpen: true, item, isFolder });
@@ -117,6 +123,34 @@ function App() {
 
   const handleCloseContextMenu = () => {
     setContextMenu({ isOpen: false, x: 0, y: 0, mode: 'empty', folder: null });
+  };
+
+  // Select Mode State
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedItems, setSelectedItems] = useState(new Map());
+  const [batchModalState, setBatchModalState] = useState({ isOpen: false, action: null });
+  const [transferTasks, setTransferTasks] = useState([]);
+  const transferTasksRef = useRef(transferTasks);
+  transferTasksRef.current = transferTasks;
+  const [toastMessage, setToastMessage] = useState(null);
+  const toastTimerRef = useRef(null);
+  const transferPollRef = useRef(null);
+
+  const showToast = (message) => {
+    setToastMessage(message);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
+  const handleEnterSelectMode = () => {
+    setIsSelectMode(true);
+  };
+
+  const handleExitSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedItems(new Map());
   };
 
   const activeControllerRef = useRef(null);
@@ -183,6 +217,33 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [configVersion]);
 
+  const loadDrives = useCallback(async () => {
+    try {
+      const loadedDrives = await fetchDrives();
+      if (Array.isArray(loadedDrives) && loadedDrives.length > 0) {
+        setDrives(loadedDrives);
+      }
+    } catch {
+      // Ignore error
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDrives();
+  }, [configVersion, loadDrives]);
+
+  const handleSelectDrive = (driveId) => {
+    if (driveId === activeDrive) return;
+    if (isSelectMode) {
+      handleExitSelectMode();
+    }
+    setActiveDrive(driveId);
+    setActiveDriveState(driveId);
+    setCurrentPath('');
+    updateUrlPath('');
+    setPage(1);
+  };
+
   const loadTreeData = useCallback(async () => {
     if (!isServerConfigured()) {
       setTreeData([]);
@@ -195,7 +256,7 @@ function App() {
     } else {
       setTreeData([]);
     }
-  }, []);
+  }, [activeDrive]);
 
   const loadData = useCallback(async (path = currentPath, opts = {}, isSilent = false) => {
     if (activeControllerRef.current) {
@@ -288,7 +349,7 @@ function App() {
         setIsLoadingMore(false);
       }
     }
-  }, [currentPath]);
+  }, [currentPath, activeDrive]);
 
   const refreshFromFilesystemEvent = useCallback((event = null) => {
     let nextPath = currentPath;
@@ -306,22 +367,157 @@ function App() {
     const normOld = normalize(oldPath);
     const normNew = normalize(newPath);
 
+    // 1. File Created - Incremental prepend without reloading entire folder
+    if (type === 'file_created') {
+      if (normCurrent === normNewParent || normCurrent === normOldParent) {
+        if (event.item) {
+          const formatted = normalizeMediaItem(event.item, activeDrive);
+          if (formatted.type === 'video') {
+            setVideos((prev) => [formatted, ...prev.filter((v) => normalize(v.path) !== normNew)]);
+            setTotalVideos((c) => c + 1);
+          } else {
+            setPictures((prev) => [formatted, ...prev.filter((p) => normalize(p.path) !== normNew)]);
+            setTotalPictures((c) => c + 1);
+          }
+          return;
+        }
+        refreshCurrent = true;
+      } else {
+        return;
+      }
+    }
+
+    // 2. File Deleted - Incremental filter without reloading entire folder
+    if (type === 'file_deleted') {
+      if (normCurrent === normOldParent || normCurrent === normNewParent) {
+        setPictures((prev) => {
+          const next = prev.filter((p) => normalize(p.path) !== normOld);
+          if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
+          return next;
+        });
+        setVideos((prev) => {
+          const next = prev.filter((v) => normalize(v.path) !== normOld);
+          if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
+          return next;
+        });
+        return;
+      }
+      return;
+    }
+
+    // 3. File Moved
+    if (type === 'file_moved') {
+      if (normCurrent === normOldParent) {
+        setPictures((prev) => {
+          const next = prev.filter((p) => normalize(p.path) !== normOld);
+          if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
+          return next;
+        });
+        setVideos((prev) => {
+          const next = prev.filter((v) => normalize(v.path) !== normOld);
+          if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
+          return next;
+        });
+      }
+      if (normCurrent === normNewParent) {
+        if (event.item) {
+          const formatted = normalizeMediaItem(event.item, activeDrive);
+          if (formatted.type === 'video') {
+            setVideos((prev) => [formatted, ...prev.filter((v) => normalize(v.path) !== normNew)]);
+            setTotalVideos((c) => c + 1);
+          } else {
+            setPictures((prev) => [formatted, ...prev.filter((p) => normalize(p.path) !== normNew)]);
+            setTotalPictures((c) => c + 1);
+          }
+        } else {
+          refreshCurrent = true;
+        }
+      }
+      if (normCurrent !== normOldParent && normCurrent !== normNewParent) {
+        return;
+      }
+      if (!refreshCurrent) return;
+    }
+
+    // 4. Batch Items Deleted
+    if (type === 'items_deleted') {
+      const delSet = new Set((event.paths || []).map(normalize));
+      setFolders((prev) => {
+        const next = prev.filter((f) => !delSet.has(normalize(f.path)));
+        if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - (prev.length - next.length)));
+        return next;
+      });
+      setPictures((prev) => {
+        const next = prev.filter((p) => !delSet.has(normalize(p.path)));
+        if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - (prev.length - next.length)));
+        return next;
+      });
+      setVideos((prev) => {
+        const next = prev.filter((v) => !delSet.has(normalize(v.path)));
+        if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - (prev.length - next.length)));
+        return next;
+      });
+      loadTreeData();
+      return;
+    }
+
+    // 5. Folder Created - Incremental add & Tree sync
+    if (type === 'folder_created') {
+      loadTreeData();
+      if (normCurrent === normNewParent) {
+        if (event.item) {
+          setFolders((prev) => [event.item, ...prev.filter((f) => normalize(f.path) !== normNew)]);
+          setTotalFolders((c) => c + 1);
+          return;
+        }
+        const folderName = newPath.split('/').pop();
+        const newFolder = { name: folderName, path: newPath };
+        setFolders((prev) => [newFolder, ...prev.filter((f) => normalize(f.path) !== normNew)]);
+        setTotalFolders((c) => c + 1);
+        return;
+      }
+      return;
+    }
+
+    // 6. Folder Deleted - Navigate out or filter & Tree sync
     if (type === 'folder_deleted') {
+      loadTreeData();
       if (isSameOrDescendantPath(normCurrent, normOld)) {
         nextPath = oldParentPath;
         refreshCurrent = true;
       } else if (normCurrent === normOldParent) {
-        refreshCurrent = true;
+        setFolders((prev) => {
+          const next = prev.filter((f) => normalize(f.path) !== normOld);
+          if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - 1));
+          return next;
+        });
+        return;
+      } else {
+        return;
       }
-    } else if (type === 'folder_moved' || type === 'folder_renamed') {
+    }
+
+    // 7. Folder Moved / Renamed - Tree sync
+    if (type === 'folder_moved' || type === 'folder_renamed') {
+      loadTreeData();
       if (isSameOrDescendantPath(normCurrent, normOld)) {
         nextPath = replacePathPrefix(currentPath, oldPath, newPath);
         refreshCurrent = true;
       } else if (normCurrent === normOldParent || normCurrent === normNewParent) {
         refreshCurrent = true;
+      } else {
+        return;
       }
-    } else if (type === 'folder_created' && (normCurrent === normNewParent || normCurrent === normNew)) {
-      refreshCurrent = true;
+    }
+
+    // 8. Batch Items Moved / Copied - Tree sync
+    if (type === 'items_moved' || type === 'items_copied') {
+      loadTreeData();
+      if (normCurrent === normNewParent || normCurrent === normOldParent) {
+        refreshCurrent = true;
+      } else {
+        return;
+      }
     }
 
     const pathChanged = nextPath !== currentPath;
@@ -340,11 +536,15 @@ function App() {
         loadData(nextPath, { limit: 0 }, false);
       }
     }, 120);
-  }, [currentPath, loadData, loadTreeData]);
+  }, [currentPath, activeDrive, loadData, loadTreeData]);
 
   useEffect(() => {
     realtimeRefreshRef.current = refreshFromFilesystemEvent;
   }, [refreshFromFilesystemEvent]);
+
+  useEffect(() => {
+    loadDrivesRef.current = loadDrives;
+  }, [loadDrives]);
 
   useEffect(() => {
 	if (!isConnected) return undefined;
@@ -359,14 +559,61 @@ function App() {
       realtimeSocketRef.current = socket;
       socket.onopen = () => {
         reconnectAttempt = 0;
+        loadDrivesRef.current?.();
         realtimeRefreshRef.current?.();
         refreshCoordinatorDownloadsRef.current?.();
       };
       socket.onmessage = (message) => {
         try {
           const payload = JSON.parse(message.data);
-          if (payload?.type === 'filesystem_event' && payload.event && typeof payload.event === 'object') {
+          if (payload?.type === 'storage.info' && Array.isArray(payload.storageInfo?.drives)) {
+            setDrives(payload.storageInfo.drives);
+          } else if (payload?.type === 'filesystem_event' && payload.event && typeof payload.event === 'object') {
             realtimeRefreshRef.current?.(payload.event);
+          } else if (payload?.type === 'batch_job_progress' && payload.batchJob) {
+            const job = payload.batchJob;
+            setTransferTasks((prev) => {
+              const idx = prev.findIndex((t) => t.id === job.id);
+              if (idx >= 0) {
+                return prev.map((item) => {
+                  if (item.id !== job.id) return item;
+                  return {
+                    ...item,
+                    action: job.action || item.action,
+                    percent: job.percent ?? item.percent,
+                    status: job.status || item.status,
+                    message: job.message || item.message,
+                    current_file: job.current_file ?? item.current_file,
+                    copied_bytes: job.copied_bytes ?? item.copied_bytes,
+                    total_bytes: job.total_bytes ?? item.total_bytes,
+                  };
+                });
+              } else {
+                return [
+                  ...prev,
+                  {
+                    id: job.id,
+                    action: job.action,
+                    dest_folder: job.dest_folder,
+                    percent: job.percent ?? 0,
+                    status: job.status || 'running',
+                    message: job.message || '',
+                    current_file: job.current_file || '',
+                    copied_bytes: job.copied_bytes || 0,
+                    total_bytes: job.total_bytes || 0,
+                  },
+                ];
+              }
+            });
+            if (job.status === 'completed') {
+              setTimeout(() => {
+                setTransferTasks((prev) => prev.filter((item) => item.id !== job.id));
+              }, 3500);
+            } else if (job.status === 'failed') {
+              setTimeout(() => {
+                setTransferTasks((prev) => prev.filter((item) => item.id !== job.id));
+              }, 4500);
+            }
           } else if (payload?.type === 'download_event') {
             if (downloadRefreshTimerRef.current) window.clearTimeout(downloadRefreshTimerRef.current);
             downloadRefreshTimerRef.current = window.setTimeout(() => {
@@ -474,6 +721,9 @@ function App() {
 
   const handleNavigate = (newPath) => {
 	if (!isConnected) return;
+    if (isSelectMode) {
+      handleExitSelectMode();
+    }
     if (newPath === currentPath) {
       refreshFromFilesystemEvent();
       return;
@@ -572,6 +822,256 @@ function App() {
   const visiblePictures = filteredPictures;
   const visibleVideos = filteredVideos;
 
+  const handleToggleSelectItem = useCallback((item, type) => {
+    const key = `${type}:${item.path}`;
+    setSelectedItems((prev) => {
+      const next = new Map(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.set(key, { type, item });
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelectAllFolders = useCallback(() => {
+    setSelectedItems((prev) => {
+      const isAll = visibleFolders.length > 0 && visibleFolders.every((f) => prev.has(`folder:${f.path}`));
+      const next = new Map(prev);
+      if (isAll) {
+        visibleFolders.forEach((f) => next.delete(`folder:${f.path}`));
+      } else {
+        visibleFolders.forEach((f) => next.set(`folder:${f.path}`, { type: 'folder', item: f }));
+      }
+      return next;
+    });
+  }, [visibleFolders]);
+
+  const handleToggleSelectAllPictures = useCallback(() => {
+    setSelectedItems((prev) => {
+      const isAll = visiblePictures.length > 0 && visiblePictures.every((p) => prev.has(`picture:${p.path}`));
+      const next = new Map(prev);
+      if (isAll) {
+        visiblePictures.forEach((p) => next.delete(`picture:${p.path}`));
+      } else {
+        visiblePictures.forEach((p) => next.set(`picture:${p.path}`, { type: 'picture', item: p }));
+      }
+      return next;
+    });
+  }, [visiblePictures]);
+
+  const handleToggleSelectAllVideos = useCallback(() => {
+    setSelectedItems((prev) => {
+      const isAll = visibleVideos.length > 0 && visibleVideos.every((v) => prev.has(`video:${v.path}`));
+      const next = new Map(prev);
+      if (isAll) {
+        visibleVideos.forEach((v) => next.delete(`video:${v.path}`));
+      } else {
+        visibleVideos.forEach((v) => next.set(`video:${v.path}`, { type: 'video', item: v }));
+      }
+      return next;
+    });
+  }, [visibleVideos]);
+
+  const handleBatchCopy = useCallback(() => {
+    setSelectedItems((prev) => {
+      if (prev.size > 0) {
+        setBatchModalState({ isOpen: true, action: 'copy' });
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleBatchMove = useCallback(() => {
+    setSelectedItems((prev) => {
+      if (prev.size > 0) {
+        setBatchModalState({ isOpen: true, action: 'move' });
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleBatchDelete = useCallback(() => {
+    setSelectedItems((prev) => {
+      if (prev.size > 0) {
+        setBatchModalState({ isOpen: true, action: 'delete' });
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleOpenVideo = useCallback((idx) => setVideoModalIndex(idx), []);
+  const handleOpenLightbox = useCallback((idx) => setLightbox({ pictures: [...visiblePictures], index: idx }), [visiblePictures]);
+  const handleDeleteMediaItem = useCallback((item) => handleOpenDeleteItem(item, false), []);
+
+  // Centralized polling effect for all active batch transfer jobs
+  useEffect(() => {
+    const runningJobs = transferTasks.filter((t) => t.status === 'running' && t.id && !t.id.startsWith('temp_'));
+    if (runningJobs.length === 0) {
+      if (transferPollRef.current) {
+        clearInterval(transferPollRef.current);
+        transferPollRef.current = null;
+      }
+      return;
+    }
+
+    if (!transferPollRef.current) {
+      transferPollRef.current = setInterval(async () => {
+        const active = transferTasksRef.current.filter((t) => t.status === 'running' && t.id && !t.id.startsWith('temp_'));
+        if (active.length === 0) {
+          if (transferPollRef.current) {
+            clearInterval(transferPollRef.current);
+            transferPollRef.current = null;
+          }
+          return;
+        }
+
+        await Promise.all(
+          active.map(async (task) => {
+            try {
+              const pollRes = await fetchBatchJobStatus(task.id);
+              if (pollRes.success && pollRes.job) {
+                const updated = pollRes.job;
+                setTransferTasks((prev) =>
+                  prev.map((item) => {
+                    if (item.id !== task.id) return item;
+                    return {
+                      ...item,
+                      action: updated.action || item.action,
+                      percent: updated.percent ?? item.percent,
+                      status: updated.status || item.status,
+                      message: updated.message || item.message,
+                      current_file: updated.current_file ?? item.current_file,
+                      copied_bytes: updated.copied_bytes ?? item.copied_bytes,
+                      total_bytes: updated.total_bytes ?? item.total_bytes,
+                    };
+                  })
+                );
+
+                if (updated.status === 'completed') {
+                  handleRefreshAll();
+                  setTimeout(() => {
+                    setTransferTasks((prev) => prev.filter((item) => item.id !== task.id));
+                  }, 3500);
+                } else if (updated.status === 'failed') {
+                  setTimeout(() => {
+                    setTransferTasks((prev) => prev.filter((item) => item.id !== task.id));
+                  }, 4500);
+                }
+              }
+            } catch (err) {
+              // Ignore transient polling errors
+            }
+          })
+        );
+      }, 400);
+    }
+  }, [transferTasks, handleRefreshAll]);
+
+  const handleCopySingleItem = useCallback((item, type = 'folder') => {
+    setBatchModalState({
+      isOpen: true,
+      action: 'copy',
+      items: [{ type, item }],
+    });
+  }, []);
+
+  const handleExecuteBatch = useCallback(async ({ action, selectedFolder, destDrive, items }) => {
+    setBatchModalState({ isOpen: false, action: null, items: [] });
+    if (isSelectMode) {
+      handleExitSelectMode();
+    }
+
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const destDisplayName = selectedFolder ? `/${selectedFolder}` : '/ (Thư mục gốc)';
+
+    const initialTask = {
+      id: tempId,
+      action,
+      dest: destDisplayName,
+      destDrive: destDrive || activeDrive,
+      srcDrive: activeDrive,
+      itemsCount: items.length,
+      status: 'running',
+      percent: 0,
+      copied_bytes: 0,
+      total_bytes: 0,
+      current_file: '',
+      message: action === 'copy' ? `Đang sao chép đến ${destDisplayName}...` : `Đang di chuyển đến ${destDisplayName}...`,
+    };
+
+    setTransferTasks((prev) => [initialTask, ...prev]);
+
+    const res = await executeBatchItems({
+      action,
+      items,
+      destFolder: selectedFolder,
+      srcDrive: activeDrive,
+      destDrive: destDrive || activeDrive,
+    });
+
+    if (!res.success) {
+      setTransferTasks((prev) =>
+        prev.map((item) =>
+          item.id === tempId
+            ? {
+                ...item,
+                status: 'failed',
+                message: res.message || 'Thao tác thất bại',
+              }
+            : item
+        )
+      );
+      setTimeout(() => {
+        setTransferTasks((prev) => prev.filter((item) => item.id !== tempId));
+      }, 4000);
+      return;
+    }
+
+    const job = res.data?.job || res.job;
+    if (job && job.status === 'completed') {
+      const finishedId = job.id || tempId;
+      setTransferTasks((prev) =>
+        prev.map((item) =>
+          item.id === tempId
+            ? {
+                ...item,
+                id: finishedId,
+                status: 'completed',
+                percent: 100,
+                message: job.message || 'Thao tác hoàn tất',
+              }
+            : item
+        )
+      );
+      handleRefreshAll();
+      setTimeout(() => {
+        setTransferTasks((prev) => prev.filter((item) => item.id !== finishedId && item.id !== tempId));
+      }, 3500);
+      return;
+    }
+
+    if (job && job.id) {
+      setTransferTasks((prev) =>
+        prev.map((item) =>
+          item.id === tempId
+            ? {
+                ...item,
+                id: job.id,
+                status: job.status || 'running',
+                percent: job.percent || 0,
+                copied_bytes: job.copied_bytes || 0,
+                total_bytes: job.total_bytes || 0,
+                current_file: job.current_file || '',
+                message: job.message || item.message,
+              }
+            : item
+        )
+      );
+    }
+  }, [activeDrive, handleExitSelectMode, handleRefreshAll]);
+
   const hasMore = (totalFolders > folders.length) || (totalPictures > pictures.length) || (totalVideos > videos.length);
 
   const remainingCount = Math.max(0, totalFolders - folders.length) +
@@ -622,7 +1122,12 @@ function App() {
         treeData={treeData}
         folders={filteredFolders}
         onNavigate={handleNavigate}
+        onFolderContextMenu={handleFolderContextMenu}
+        onEmptyContextMenu={handleEmptyContextMenu}
         onOpenConfig={() => setShowConfigModal(true)}
+        drives={drives}
+        activeDrive={activeDrive}
+        onSelectDrive={handleSelectDrive}
       />
 
       {/* Main Content Area */}
@@ -646,6 +1151,13 @@ function App() {
           hasPasswordError={hasPasswordError}
           isScanning={isScanning}
           isConverting={isConverting}
+          isSelectMode={isSelectMode}
+          onEnterSelectMode={handleEnterSelectMode}
+          onExitSelectMode={handleExitSelectMode}
+          selectedCount={selectedItems.size}
+          onBatchCopy={handleBatchCopy}
+          onBatchMove={handleBatchMove}
+          onBatchDelete={handleBatchDelete}
         />
 
         {/* Main Content Canvas */}
@@ -659,6 +1171,7 @@ function App() {
               totalFolders={searchQuery.trim() ? filteredFolders.length : totalFolders}
               totalPictures={searchQuery.trim() ? filteredPictures.length : totalPictures}
               totalVideos={searchQuery.trim() ? filteredVideos.length : totalVideos}
+              activeDrive={activeDrive}
             />
           </div>
 
@@ -705,24 +1218,38 @@ function App() {
                   totalCount={totalFolders}
                   onNavigate={handleNavigate}
                   onFolderContextMenu={handleFolderContextMenu}
+                  isSelectMode={isSelectMode}
+                  selectedItems={selectedItems}
+                  onToggleSelect={handleToggleSelectItem}
+                  onToggleSelectAll={handleToggleSelectAllFolders}
                 />
 
                 <VideoGrid
                   videos={visibleVideos}
                   totalCount={totalVideos}
-                  onOpenVideo={(idx) => setVideoModalIndex(idx)}
+                  onOpenVideo={handleOpenVideo}
                   onShowInfo={handleShowMediaInfo}
-                  onMoveItem={handleOpenMoveItem}
-                  onDeleteItem={(vid) => handleOpenDeleteItem(vid, false)}
+                  onCopyItem={(vid) => handleCopySingleItem(vid, 'video')}
+                  onMoveItem={(vid) => handleOpenMoveItem(vid, 'video')}
+                  onDeleteItem={handleDeleteMediaItem}
+                  isSelectMode={isSelectMode}
+                  selectedItems={selectedItems}
+                  onToggleSelect={handleToggleSelectItem}
+                  onToggleSelectAll={handleToggleSelectAllVideos}
                 />
 
                 <PictureGrid
                   pictures={visiblePictures}
                   totalCount={totalPictures}
-                  onOpenLightbox={(idx) => setLightbox({ pictures: [...visiblePictures], index: idx })}
+                  onOpenLightbox={handleOpenLightbox}
                   onShowInfo={handleShowMediaInfo}
-                  onMoveItem={handleOpenMoveItem}
-                  onDeleteItem={(pic) => handleOpenDeleteItem(pic, false)}
+                  onCopyItem={(pic) => handleCopySingleItem(pic, 'picture')}
+                  onMoveItem={(pic) => handleOpenMoveItem(pic, 'picture')}
+                  onDeleteItem={handleDeleteMediaItem}
+                  isSelectMode={isSelectMode}
+                  selectedItems={selectedItems}
+                  onToggleSelect={handleToggleSelectItem}
+                  onToggleSelectAll={handleToggleSelectAllPictures}
                 />
 
                 {hasMore && (
@@ -787,6 +1314,9 @@ function App() {
           folders={filteredFolders}
           onNavigate={handleNavigate}
           onOpenConfig={() => setShowConfigModal(true)}
+          drives={drives}
+          activeDrive={activeDrive}
+          onSelectDrive={handleSelectDrive}
         />
 
         {/* Floating Action Button */}
@@ -809,8 +1339,11 @@ function App() {
             setTargetFolder(folder);
             setShowRenameFolderModal(true);
           }}
+          onCopyFolder={(folder) => {
+            handleCopySingleItem(folder, 'folder');
+          }}
           onMoveFolder={(folder) => {
-            handleOpenMoveItem(folder);
+            handleOpenMoveItem(folder, 'folder');
           }}
           onDeleteFolder={(folder) => {
             handleOpenDeleteItem(folder, true);
@@ -825,16 +1358,6 @@ function App() {
           targetItem={deleteModalData.item}
           isFolder={deleteModalData.isFolder}
           onSuccess={handleRefreshAll}
-        />
-
-        {/* Move File or Folder Modal */}
-        <MoveItemModal
-          isOpen={moveModalData.isOpen}
-          onClose={() => setMoveModalData({ isOpen: false, item: null })}
-          item={moveModalData.item}
-          treeData={treeData}
-          currentPath={currentPath}
-          onMoveSuccess={handleRefreshAll}
         />
 
         {/* Create Folder Dialog Modal */}
@@ -897,6 +1420,7 @@ function App() {
         {/* Compact Bottom Snackbar */}
         <DownloadSnackbar
           tasks={downloadTasks}
+          transferTasks={transferTasks}
           summary={downloadSummary}
           onOpenPanel={() => setShowDownloadPanel(true)}
         />
@@ -930,6 +1454,27 @@ function App() {
           item={infoModalData.item}
           type={infoModalData.type}
         />
+
+        {/* Batch Action Modal for Select Mode & Single Item Actions */}
+        <BatchActionModal
+          isOpen={batchModalState.isOpen}
+          action={batchModalState.action}
+          onClose={() => setBatchModalState({ isOpen: false, action: null, items: [] })}
+          items={batchModalState.items && batchModalState.items.length > 0 ? batchModalState.items : Array.from(selectedItems.values())}
+          treeData={treeData}
+          currentPath={currentPath}
+          drives={drives}
+          activeDrive={activeDrive}
+          onConfirm={handleExecuteBatch}
+        />
+
+        {/* Floating Toast Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-[999999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#1c1d21] border border-blue-500/40 text-white text-xs font-semibold shadow-2xl animate-pop-fast">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
 
       </div>
     </div>

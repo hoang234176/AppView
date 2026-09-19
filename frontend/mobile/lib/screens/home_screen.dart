@@ -18,6 +18,7 @@ import '../widgets/config_api_dialog.dart';
 import '../widgets/folder_action_dialogs.dart';
 import '../widgets/fab_speed_dial.dart';
 import '../widgets/download_media_dialog.dart';
+import '../widgets/batch_bottom_action_bar.dart';
 import 'download_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -79,32 +80,34 @@ class _HomeScreenState extends State<HomeScreen> {
         key: _scaffoldKey,
         backgroundColor: AppTheme.bgApp,
         drawer: const FolderTreeDrawer(),
-        floatingActionButton: FabSpeedDial(
-          onCreateFolder: () {
-            if (!context.read<AppStateProvider>().isServerConnected) {
-              ConfigApiDialog.show(context);
-              return;
-            }
-            final currentPath = context.read<AppStateProvider>().currentPath;
-            CreateFolderDialog.show(context, currentPath);
-          },
-          onDownloadArchive: () {
-            if (!context.read<AppStateProvider>().isServerConnected) {
-              ConfigApiDialog.show(context);
-              return;
-            }
-            final currentPath = context.read<AppStateProvider>().currentPath;
-            DownloadScreen.showAddMediaFireDialog(context, currentPath);
-          },
-          onDownloadMedia: () {
-            if (!context.read<AppStateProvider>().isServerConnected) {
-              ConfigApiDialog.show(context);
-              return;
-            }
-            final currentPath = context.read<AppStateProvider>().currentPath;
-            DownloadMediaDialog.show(context, currentPath);
-          },
-        ),
+        floatingActionButton: context.watch<AppStateProvider>().isSelectMode
+            ? null
+            : FabSpeedDial(
+                onCreateFolder: () {
+                  if (!context.read<AppStateProvider>().isServerConnected) {
+                    ConfigApiDialog.show(context);
+                    return;
+                  }
+                  final currentPath = context.read<AppStateProvider>().currentPath;
+                  CreateFolderDialog.show(context, currentPath);
+                },
+                onDownloadArchive: () {
+                  if (!context.read<AppStateProvider>().isServerConnected) {
+                    ConfigApiDialog.show(context);
+                    return;
+                  }
+                  final currentPath = context.read<AppStateProvider>().currentPath;
+                  DownloadScreen.showAddMediaFireDialog(context, currentPath);
+                },
+                onDownloadMedia: () {
+                  if (!context.read<AppStateProvider>().isServerConnected) {
+                    ConfigApiDialog.show(context);
+                    return;
+                  }
+                  final currentPath = context.read<AppStateProvider>().currentPath;
+                  DownloadMediaDialog.show(context, currentPath);
+                },
+              ),
         body: SafeArea(
           bottom: false,
           child: Stack(
@@ -143,6 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
+              // Floating Batch Bottom Action Bar
+              const BatchBottomActionBar(),
             ],
           ),
         ),

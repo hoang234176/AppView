@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	pathpkg "path"
 	"path/filepath"
+	"strings"
 
 	"backend/configs"
 	"backend/events"
@@ -17,6 +17,19 @@ import (
 func Ping(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "pong"})
 }
+
+func GetDrives(c *fiber.Ctx) error {
+	drives := configs.GetDrivesWithStats()
+	defaultDrive := "HDD"
+	if len(drives) > 0 {
+		defaultDrive = drives[0].ID
+	}
+	return c.JSON(fiber.Map{
+		"drives":       drives,
+		"defaultDrive": defaultDrive,
+	})
+}
+
 
 func GetFolders(c *fiber.Ctx) error {
 	rootPath := configs.GetRootFolderPath(c)
@@ -93,16 +106,28 @@ func GetFolders(c *fiber.Ctx) error {
 		}
 	}
 
+	driveParam := strings.TrimSpace(c.Params("drive", ""))
+	if driveParam == "" {
+		driveParam = strings.TrimSpace(c.Query("drive", c.Get("X-Drive", "")))
+	}
+	if driveParam == "" {
+		d := configs.FindDriveForPath(rootPath)
+		driveParam = d.ID
+	}
+	if driveParam == "" {
+		driveParam = "HDD"
+	}
+
 	for i := range pictures {
 		encodedPath := utils.EncodePathSegments(pictures[i].Path)
-		pictures[i].URL = fmt.Sprintf("%s/api/v1/pictures/%s?root_path=%s", c.BaseURL(), encodedPath, url.QueryEscape(rootPath))
-		pictures[i].ThumbnailURL = fmt.Sprintf("%s/api/v1/thumbnails/%s?root_path=%s", c.BaseURL(), encodedPath, url.QueryEscape(rootPath))
+		pictures[i].URL = fmt.Sprintf("%s/api/v1/pictures/%s/%s", c.BaseURL(), driveParam, encodedPath)
+		pictures[i].ThumbnailURL = fmt.Sprintf("%s/api/v1/thumbnails/%s/%s", c.BaseURL(), driveParam, encodedPath)
 	}
 
 	for i := range videos {
 		encodedPath := utils.EncodePathSegments(videos[i].Path)
-		videos[i].URL = fmt.Sprintf("%s/api/v1/videos/%s?root_path=%s", c.BaseURL(), encodedPath, url.QueryEscape(rootPath))
-		videos[i].ThumbnailURL = fmt.Sprintf("%s/api/v1/thumbnails/%s?root_path=%s", c.BaseURL(), encodedPath, url.QueryEscape(rootPath))
+		videos[i].URL = fmt.Sprintf("%s/api/v1/videos/%s/%s", c.BaseURL(), driveParam, encodedPath)
+		videos[i].ThumbnailURL = fmt.Sprintf("%s/api/v1/thumbnails/%s/%s", c.BaseURL(), driveParam, encodedPath)
 	}
 
 	return c.JSON(fiber.Map{
@@ -121,6 +146,21 @@ func GetFolders(c *fiber.Ctx) error {
 	})
 }
 
+func resolveDriveParam(c *fiber.Ctx, rootPath string) string {
+	driveParam := strings.TrimSpace(c.Params("drive", ""))
+	if driveParam == "" {
+		driveParam = strings.TrimSpace(c.Query("drive", c.Get("X-Drive", "")))
+	}
+	if driveParam == "" {
+		d := configs.FindDriveForPath(rootPath)
+		driveParam = d.ID
+	}
+	if driveParam == "" {
+		driveParam = "HDD"
+	}
+	return driveParam
+}
+
 func CreateFolder(c *fiber.Ctx) error {
 	rootPath := configs.GetRootFolderPath(c)
 	var req struct {
@@ -135,7 +175,15 @@ func CreateFolder(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	publishFolderEvent(events.FilesystemEvent{Type: "folder_created", Path: folder.Path, NewPath: folder.Path, ParentPath: folderParent(folder.Path)})
+	drive := resolveDriveParam(c, rootPath)
+	publishFolderEvent(events.FilesystemEvent{
+		Type:       "folder_created",
+		Drive:      drive,
+		Path:       folder.Path,
+		NewPath:    folder.Path,
+		ParentPath: folderParent(folder.Path),
+		Item:       folder,
+	})
 
 	return c.JSON(fiber.Map{"message": "Đã tạo thư mục thành công", "data": folder})
 }
@@ -155,7 +203,17 @@ func RenameFolder(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	oldPath := filepath.ToSlash(filepath.Clean(req.Path))
-	publishFolderEvent(events.FilesystemEvent{Type: "folder_renamed", OldPath: oldPath, NewPath: folder.Path, OldParentPath: folderParent(oldPath), NewParentPath: folderParent(folder.Path), ParentPath: folderParent(folder.Path)})
+	drive := resolveDriveParam(c, rootPath)
+	publishFolderEvent(events.FilesystemEvent{
+		Type:          "folder_renamed",
+		Drive:         drive,
+		OldPath:       oldPath,
+		NewPath:       folder.Path,
+		OldParentPath: folderParent(oldPath),
+		NewParentPath: folderParent(folder.Path),
+		ParentPath:    folderParent(folder.Path),
+		Item:          folder,
+	})
 
 	return c.JSON(fiber.Map{"message": "Đổi tên thành công", "data": folder})
 }
@@ -178,7 +236,15 @@ func DeleteFolder(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	cleanPath := filepath.ToSlash(filepath.Clean(path))
-	publishFolderEvent(events.FilesystemEvent{Type: "folder_deleted", Path: cleanPath, OldPath: cleanPath, ParentPath: folderParent(cleanPath), OldParentPath: folderParent(cleanPath)})
+	drive := resolveDriveParam(c, rootPath)
+	publishFolderEvent(events.FilesystemEvent{
+		Type:          "folder_deleted",
+		Drive:         drive,
+		Path:          cleanPath,
+		OldPath:       cleanPath,
+		ParentPath:    folderParent(cleanPath),
+		OldParentPath: folderParent(cleanPath),
+	})
 
 	return c.JSON(fiber.Map{"message": "Đã xóa thư mục thành công"})
 }
@@ -200,6 +266,16 @@ func DeleteFile(c *fiber.Ctx) error {
 	if err := utils.DeleteFile(rootPath, path); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	cleanPath := filepath.ToSlash(filepath.Clean(path))
+	drive := resolveDriveParam(c, rootPath)
+	publishFolderEvent(events.FilesystemEvent{
+		Type:          "file_deleted",
+		Drive:         drive,
+		Path:          cleanPath,
+		OldPath:       cleanPath,
+		ParentPath:    folderParent(cleanPath),
+		OldParentPath: folderParent(cleanPath),
+	})
 
 	return c.JSON(fiber.Map{"message": "Đã xóa tệp thành công"})
 }
@@ -245,10 +321,32 @@ func HandleMoveItem(c *fiber.Ctx) error {
 	if err := utils.MoveItem(rootPath, src, dest); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	oldPath := filepath.ToSlash(filepath.Clean(src))
+	newPath := filepath.ToSlash(filepath.Join(dest, filepath.Base(src)))
+	drive := resolveDriveParam(c, rootPath)
+
 	if statErr == nil && info.IsDir() {
-		oldPath := filepath.ToSlash(filepath.Clean(src))
-		newPath := filepath.ToSlash(filepath.Join(dest, filepath.Base(src)))
-		publishFolderEvent(events.FilesystemEvent{Type: "folder_moved", OldPath: oldPath, NewPath: newPath, OldParentPath: folderParent(oldPath), NewParentPath: folderParent(newPath), ParentPath: folderParent(newPath)})
+		publishFolderEvent(events.FilesystemEvent{
+			Type:          "folder_moved",
+			Drive:         drive,
+			OldPath:       oldPath,
+			NewPath:       newPath,
+			OldParentPath: folderParent(oldPath),
+			NewParentPath: folderParent(newPath),
+			ParentPath:    folderParent(newPath),
+		})
+	} else {
+		item := utils.GetFileItem(rootPath, newPath, drive)
+		publishFolderEvent(events.FilesystemEvent{
+			Type:          "file_moved",
+			Drive:         drive,
+			OldPath:       oldPath,
+			NewPath:       newPath,
+			OldParentPath: folderParent(oldPath),
+			NewParentPath: folderParent(newPath),
+			ParentPath:    folderParent(newPath),
+			Item:          item,
+		})
 	}
 
 	return c.JSON(fiber.Map{"message": "Di chuyển thành công"})

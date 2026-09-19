@@ -1,4 +1,21 @@
-import { createApiClient, getApiBaseUrl } from './axiosConfig';
+import { createApiClient, getApiBaseUrl, getActiveDrive } from './axiosConfig';
+
+/**
+ * Fetch available storage drives (e.g. HDD, SSD)
+ * Endpoint: /drives
+ */
+export const fetchDrives = async () => {
+  const client = createApiClient();
+  try {
+    const response = await client.get('/drives');
+    return response.data?.drives || [];
+  } catch (error) {
+    return [
+      { id: 'HDD', name: 'HDD', path: '/Volumes/HDD', available: true },
+      { id: 'SSD', name: 'SSD', path: '/Volumes/SSD', available: true },
+    ];
+  }
+};
 
 /**
  * Fetch folder content from backend API with AbortSignal support
@@ -12,6 +29,10 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
   
   try {
     const params = { ...queryOptions };
+    const activeDrive = getActiveDrive();
+    if (activeDrive) {
+      params.drive = activeDrive;
+    }
     if (folderPath && folderPath.trim() !== '') {
       params.path = folderPath;
     }
@@ -38,13 +59,15 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
     const totalVideos = dataContainer?.total_videos ?? rawVideos.length;
 
     const baseUrl = getApiBaseUrl();
+    const driveName = activeDrive ? encodeURIComponent(activeDrive) : 'HDD';
+
     const pictures = rawPictures.map((pic) => {
       const cleanPath = pic.path?.startsWith('/') ? pic.path.slice(1) : (pic.path || '');
       const encodedPath = cleanPath.split('/').map(p => encodeURIComponent(p).replace(/#/g, '%2523')).join('/');
       return {
         ...pic,
-        url: `${baseUrl}/pictures/${encodedPath}`,
-        thumbnail_url: `${baseUrl}/thumbnails/${encodedPath}`,
+        url: pic.url || `${baseUrl}/pictures/${driveName}/${encodedPath}`,
+        thumbnail_url: pic.thumbnail_url || `${baseUrl}/thumbnails/${driveName}/${encodedPath}`,
       };
     });
 
@@ -53,7 +76,8 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
       const encodedPath = cleanPath.split('/').map(p => encodeURIComponent(p).replace(/#/g, '%2523')).join('/');
       return {
         ...v,
-        url: `${baseUrl}/videos/${encodedPath}`,
+        url: v.url || `${baseUrl}/videos/${driveName}/${encodedPath}`,
+        thumbnail_url: v.thumbnail_url || `${baseUrl}/thumbnails/${driveName}/${encodedPath}`,
       };
     });
 
@@ -108,10 +132,21 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
  * Fetch full nested folder tree structure from backend API
  * Endpoint: /tree-folder
  */
-export const fetchFolderTree = async (signal = null) => {
+export const fetchFolderTree = async (driveOrSignal = null, signal = null) => {
   const client = createApiClient();
   try {
-    const response = await client.get('/tree-folder', { signal });
+    let targetDrive = null;
+    let cancelSignal = signal;
+
+    if (typeof driveOrSignal === 'string') {
+      targetDrive = driveOrSignal;
+    } else if (driveOrSignal && typeof driveOrSignal === 'object' && ('aborted' in driveOrSignal || 'signal' in driveOrSignal)) {
+      cancelSignal = driveOrSignal;
+    }
+
+    const activeDrive = targetDrive || getActiveDrive();
+    const params = activeDrive ? { drive: activeDrive } : {};
+    const response = await client.get('/tree-folder', { params, signal: cancelSignal });
     const resData = response.data;
     
     let treeArray = [];
@@ -286,4 +321,76 @@ export const deleteFile = async (filePath) => {
       message,
     };
   }
+};
+
+/**
+ * Execute batch items action (copy, move, delete)
+ * Endpoint: POST /items/batch
+ */
+export const executeBatchItems = async ({ action, items, destFolder, srcDrive, destDrive }) => {
+  const client = createApiClient();
+  try {
+    const response = await client.post('/items/batch', {
+      action,
+      items,
+      dest_folder: destFolder,
+      src_drive: srcDrive,
+      dest_drive: destDrive,
+    });
+    return {
+      success: true,
+      data: response.data,
+      job: response.data?.job,
+    };
+  } catch (error) {
+    console.error('Lỗi khi thực hiện thao tác batch:', error);
+    let message = 'Không thể thực hiện thao tác.';
+    if (error.response?.data?.error || error.response?.data?.message) {
+      message = error.response?.data?.error || error.response?.data?.message;
+    }
+    return {
+      success: false,
+      message,
+    };
+  }
+};
+
+/**
+ * Poll batch job progress
+ * Endpoint: GET /jobs/batch/:job_id
+ */
+export const fetchBatchJobStatus = async (jobId) => {
+  const client = createApiClient();
+  try {
+    const response = await client.get(`/jobs/batch/${jobId}`);
+    return {
+      success: true,
+      job: response.data?.job,
+    };
+  } catch (error) {
+    return { success: false, error };
+  }
+};
+
+export const normalizeMediaItem = (item, activeDrive) => {
+  if (!item) return null;
+  const baseUrl = getApiBaseUrl();
+  const driveName = activeDrive ? encodeURIComponent(activeDrive) : 'HDD';
+  const cleanPath = item.path?.startsWith('/') ? item.path.slice(1) : (item.path || '');
+  const encodedPath = cleanPath.split('/').map(p => encodeURIComponent(p).replace(/#/g, '%2523')).join('/');
+  const isVid = item.type === 'video' || /\.(mp4|mkv|webm|avi|mov|flv|wmv|m4v)$/i.test(item.name || item.path || '');
+  if (isVid) {
+    return {
+      ...item,
+      type: 'video',
+      url: item.url || `${baseUrl}/videos/${driveName}/${encodedPath}`,
+      thumbnail_url: item.thumbnail_url || `${baseUrl}/thumbnails/${driveName}/${encodedPath}`,
+    };
+  }
+  return {
+    ...item,
+    type: 'picture',
+    url: item.url || `${baseUrl}/pictures/${driveName}/${encodedPath}`,
+    thumbnail_url: item.thumbnail_url || `${baseUrl}/thumbnails/${driveName}/${encodedPath}`,
+  };
 };

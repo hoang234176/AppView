@@ -12,7 +12,7 @@ import (
 
 func ServePicture(c *fiber.Ctx) error {
 	rootPath := configs.GetRootFolderPath(c)
-	escapedPath, err := utils.EscapedMediaPath(c, "/api/v1/pictures/")
+	escapedPath, err := utils.EscapedMediaPath(c, "/pictures/", "/picture/")
 	if err != nil {
 		return err
 	}
@@ -27,7 +27,7 @@ func ServePicture(c *fiber.Ctx) error {
 
 func ServeThumbnail(c *fiber.Ctx) error {
 	rootPath := configs.GetRootFolderPath(c)
-	escapedPath, err := utils.EscapedMediaPath(c, "/api/v1/thumbnails/")
+	escapedPath, err := utils.EscapedMediaPath(c, "/thumbnails/", "/thumbnail/")
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,8 @@ func ServeThumbnail(c *fiber.Ctx) error {
 	}
 	utils.LogEvent("DEBUG", "thumbnail path resolved", map[string]any{"action": "thumbnail_open", "requestPath": c.Path(), "rawPath": escapedPath, "decodedRelativePath": resolvedRelPath, "rootPath": rootPath, "resolvedFilesystemPath": fullPath})
 
-	thumbDir := filepath.Join(rootPath, ".thumbnails")
+	drive := configs.FindDriveForPath(fullPath)
+	thumbDir := filepath.Join(drive.Path, ".thumbnails")
 	thumbPath := filepath.Join(thumbDir, resolvedRelPath+".jpg")
 
 	if _, err := os.Stat(thumbPath); err == nil {
@@ -54,6 +55,7 @@ func ServeThumbnail(c *fiber.Ctx) error {
 	if utils.IsImageFile(resolvedRelPath) || utils.IsVideoFile(resolvedRelPath) {
 		if _, statErr := os.Stat(fullPath); statErr != nil {
 			utils.LogEvent("WARN", "thumbnail source file not found", map[string]any{"action": "thumbnail_open", "decodedRelativePath": resolvedRelPath, "error": statErr.Error()})
+			return c.Status(fiber.StatusNotFound).SendString("No thumbnail")
 		}
 		return utils.ServeFileSafely(c, fullPath)
 	}

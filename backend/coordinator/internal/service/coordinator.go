@@ -163,6 +163,9 @@ func (c *Coordinator) StorageInfo(workerID string, info *protocol.StorageInfo) e
 	c.storageInfo.Lock()
 	c.storageInfo.workerID, c.storageInfo.value = workerID, *info
 	c.storageInfo.Unlock()
+	if c.realtime != nil {
+		c.realtime.BroadcastStorage(*info)
+	}
 	return nil
 }
 func (c *Coordinator) GetStorageInfo() (protocol.StorageInfo, bool) {
@@ -439,11 +442,27 @@ func (c *Coordinator) FilesystemEvent(workerID string, event *protocol.Filesyste
 	event.ParentPath = cleanRel(event.ParentPath)
 	event.OldParentPath = cleanRel(event.OldParentPath)
 	event.NewParentPath = cleanRel(event.NewParentPath)
+	for i, p := range event.Paths {
+		event.Paths[i] = cleanRel(p)
+	}
 	if !validFilesystemEvent(*event) {
 		return fmt.Errorf("invalid filesystem event")
 	}
 	count := c.realtime.Broadcast(*event)
 	logging.Event("INFO", "filesystem event broadcast", map[string]any{"workerId": workerID, "eventType": event.Type, "subscriberCount": count, "oldPath": event.OldPath, "newPath": event.NewPath})
+	return nil
+}
+
+func (c *Coordinator) BatchJobProgress(workerID string, job *protocol.BatchJobProgress) error {
+	if _, ok := c.workers.Get(workerID); !ok {
+		return fmt.Errorf("unknown worker")
+	}
+	if job == nil || job.ID == "" {
+		return fmt.Errorf("invalid batch job progress")
+	}
+	if c.realtime != nil {
+		c.realtime.BroadcastBatchJob(*job)
+	}
 	return nil
 }
 
@@ -490,6 +509,11 @@ func validFilesystemEvent(event protocol.FilesystemEvent) bool {
 	if !validFilesystemPath(event.Path) || !validFilesystemPath(event.OldPath) || !validFilesystemPath(event.NewPath) || !validFilesystemPath(event.ParentPath) || !validFilesystemPath(event.OldParentPath) || !validFilesystemPath(event.NewParentPath) {
 		return false
 	}
+	for _, p := range event.Paths {
+		if !validFilesystemPath(p) {
+			return false
+		}
+	}
 	switch event.Type {
 	case "folder_created":
 		return event.NewPath != "" || event.Path != ""
@@ -497,6 +521,14 @@ func validFilesystemEvent(event protocol.FilesystemEvent) bool {
 		return event.OldPath != "" || event.Path != ""
 	case "folder_moved", "folder_renamed":
 		return event.OldPath != "" && event.NewPath != ""
+	case "file_created":
+		return event.NewPath != "" || event.Path != ""
+	case "file_deleted":
+		return event.OldPath != "" || event.Path != ""
+	case "file_moved", "file_renamed":
+		return event.OldPath != "" && event.NewPath != ""
+	case "items_deleted", "items_moved", "items_copied":
+		return true
 	default:
 		return false
 	}

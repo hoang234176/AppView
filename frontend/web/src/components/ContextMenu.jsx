@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { FolderPlus, RefreshCw, Edit3, Folder, FolderInput, Trash2 } from 'lucide-react';
+import { FolderPlus, RefreshCw, Edit3, Folder, FolderInput, Trash2, Copy } from 'lucide-react';
 
 export const ContextMenu = ({ 
   x, 
@@ -10,6 +10,7 @@ export const ContextMenu = ({
   targetFolder = null,
   onCreateFolder, 
   onRenameFolder,
+  onCopyFolder,
   onMoveFolder,
   onDeleteFolder,
   onRefresh 
@@ -43,7 +44,7 @@ export const ContextMenu = ({
   if (!isOpen) return null;
 
   const menuWidth = 220;
-  const menuHeight = mode === 'folder' ? 140 : 120;
+  const menuHeight = mode === 'folder' ? 180 : 120;
   const adjustedX = Math.min(x, window.innerWidth - menuWidth - 10);
   const adjustedY = Math.min(y, window.innerHeight - menuHeight - 10);
 
@@ -71,6 +72,18 @@ export const ContextMenu = ({
           >
             <Edit3 className="w-4 h-4 text-blue-400" />
             <span>Đổi tên thư mục</span>
+          </button>
+
+          {/* Folder Context Menu Option: Copy */}
+          <button
+            onClick={() => {
+              onClose();
+              if (onCopyFolder) onCopyFolder(targetFolder);
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-gray-200 hover:text-white hover:bg-blue-500/20 rounded-[14px] transition-colors"
+          >
+            <Copy className="w-4 h-4 text-blue-400" />
+            <span>Sao chép thư mục</span>
           </button>
 
           {/* Folder Context Menu Option: Move */}

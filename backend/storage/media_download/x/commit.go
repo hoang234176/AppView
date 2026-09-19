@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	pythonapi "backend/api/python"
+	"backend/configs"
 	"backend/events"
 	"backend/utils"
 )
@@ -100,6 +101,14 @@ func commitXMedia(ctx context.Context, job *Job, workspace string) error {
 		if parentPath != "" {
 			publicPath = parentPath + "/" + filepath.Base(finalPath)
 		}
+		item := utils.GetFileItem(configs.DEFAULT_ROOT_PATH, publicPath, "")
+		_ = events.Publish(events.FilesystemEvent{
+			Type:       "file_created",
+			Path:       publicPath,
+			NewPath:    publicPath,
+			ParentPath: parentPath,
+			Item:       item,
+		})
 		_ = events.Publish(events.FilesystemEvent{
 			Type:       "folder_created",
 			Path:       publicPath,
@@ -152,6 +161,14 @@ func commitMediaFile(ctx context.Context, sourceFile, destination, filename, job
 	if parentPath != "" {
 		publicPath = parentPath + "/" + filepath.Base(finalPath)
 	}
+	item := utils.GetFileItem(configs.DEFAULT_ROOT_PATH, publicPath, "")
+	_ = events.Publish(events.FilesystemEvent{
+		Type:       "file_created",
+		Path:       publicPath,
+		NewPath:    publicPath,
+		ParentPath: parentPath,
+		Item:       item,
+	})
 	_ = events.Publish(events.FilesystemEvent{
 		Type:       "folder_created",
 		Path:       publicPath,

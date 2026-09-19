@@ -39,12 +39,29 @@ class ApiConfig {
   // Root path key is never read by frontend after this change; kept to avoid
   // corrupting saved settings.
   static const String prefKeyApiBaseUrl = 'appview_api_base_url';
+  static const String prefKeyActiveDrive = 'appview_active_drive';
 
   static String _serverHost = defaultServerHost;
   static String _currentBaseUrl = defaultApiBaseUrl;
   static bool _hasSavedServerEndpoint = false;
+  static String _activeDrive = 'HDD';
 
   static String get serverHost => _serverHost;
+  static String get activeDrive => _activeDrive;
+  static void setActiveDrive(String driveId) {
+    final clean = driveId.trim();
+    if (clean.isNotEmpty) {
+      _activeDrive = clean;
+    }
+  }
+
+  static Future<void> saveActiveDrive(String driveId) async {
+    setActiveDrive(driveId);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(prefKeyActiveDrive, _activeDrive);
+    } catch (_) {}
+  }
 
   // Legacy compatibility accessors.
   /// @deprecated Use serverHost instead.
@@ -108,6 +125,11 @@ class ApiConfig {
           _hasSavedServerEndpoint
               ? 'http://$_serverHost:$_storagePortDefault/api/v1'
               : defaultApiBaseUrl;
+
+      final savedDrive = prefs.getString(prefKeyActiveDrive);
+      if (savedDrive != null && savedDrive.trim().isNotEmpty) {
+        _activeDrive = savedDrive.trim();
+      }
     } catch (_) {
       _serverHost = defaultServerHost;
       _currentBaseUrl = defaultApiBaseUrl;
@@ -193,9 +215,9 @@ class ApiConfig {
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
-      headers: const {
+      headers: {
         'Content-Type': 'application/json',
-        // X-Root-Folder-Path header is no longer sent; backend uses ROOT_PATH.
+        'X-Drive': activeDrive,
       },
     );
     return Dio(options);

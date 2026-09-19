@@ -50,7 +50,8 @@ func TestFolderMutationsPublishEventsOnlyAfterSuccess(t *testing.T) {
 		t.Fatalf("received %d events, want %d: %#v", len(received), len(want), received)
 	}
 	for i := range want {
-		if received[i] != want[i] {
+		r, w := received[i], want[i]
+		if r.Type != w.Type || r.Path != w.Path || r.OldPath != w.OldPath || r.NewPath != w.NewPath || r.ParentPath != w.ParentPath || r.OldParentPath != w.OldParentPath || r.NewParentPath != w.NewParentPath {
 			t.Fatalf("event %d = %#v, want %#v", i, received[i], want[i])
 		}
 	}
