@@ -1379,6 +1379,7 @@ function App() {
         {showDownloadMediaModal && <DownloadMediaModal
           currentPath={currentPath}
           treeData={treeData}
+          activeDrive={activeDrive}
           onClose={() => setShowDownloadMediaModal(false)}
           onSuccess={(job) => {
             handleCoordinatorJobCreated(job);
@@ -1392,6 +1393,7 @@ function App() {
           onClose={() => setShowDownloadMediafireModal(false)}
           currentPath={currentPath}
           treeData={treeData}
+          activeDrive={activeDrive}
           onSuccess={(job) => {
             // The modal passes the accepted parent job; retain and poll that
             // exact Coordinator ID instead of creating another legacy task.

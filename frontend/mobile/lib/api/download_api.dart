@@ -1,11 +1,22 @@
 import 'package:dio/dio.dart';
 import 'api_config.dart';
 
-String canonicalDownloadDestination(String selectedPath) {
-  final selected = selectedPath
+String canonicalDownloadDestination(String selectedPath, [String? drive]) {
+  var selected = selectedPath
       .trim()
       .replaceFirst(RegExp(r'^/+'), '')
       .replaceFirst(RegExp(r'/+$'), '');
+  final cleanDrive = (drive ?? '')
+      .trim()
+      .replaceFirst(RegExp(r'^/+'), '')
+      .replaceFirst(RegExp(r'/+$'), '');
+  if (cleanDrive.isNotEmpty) {
+    final lowerSelected = selected.toLowerCase();
+    final lowerDrive = cleanDrive.toLowerCase();
+    if (!lowerSelected.startsWith('$lowerDrive/') && lowerSelected != lowerDrive) {
+      selected = selected.isNotEmpty ? '$cleanDrive/$selected' : cleanDrive;
+    }
+  }
   return selected.isEmpty ? '/' : '/$selected';
 }
 
@@ -611,6 +622,7 @@ class DownloadApi {
   static Future<Map<String, dynamic>> startCoordinatorDownload({
     required String url,
     String destination = '',
+    String? drive,
     String? password,
     int? quality,
     List<int>? selectedIndices,
@@ -622,6 +634,7 @@ class DownloadApi {
         data: {
           'url': url,
           'destination': destination,
+          if (drive != null && drive.isNotEmpty) 'drive': drive,
           if (password != null && password.isNotEmpty) 'password': password,
           if (quality != null) 'quality': quality,
           if (selectedIndices != null) ...{

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../providers/app_state_provider.dart';
 import '../providers/download_provider.dart';
 import '../api/download_api.dart';
 import '../utils/formatters.dart';
@@ -96,9 +97,11 @@ class _AddMediaFireArchiveDialogState
       _errorMessage = null;
     });
 
+    final activeDrive = context.read<AppStateProvider>().activeDrive;
     final res = await context.read<DownloadProvider>().startCoordinatorDownload(
       url: url,
-      destination: canonicalDownloadDestination(_selectedDest),
+      destination: canonicalDownloadDestination(_selectedDest, activeDrive),
+      drive: activeDrive,
       password:
           _pwdController.text.trim().isEmpty
               ? null

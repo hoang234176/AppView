@@ -19,6 +19,7 @@ export const DownloadMediafireModal = ({
   onClose,
   currentPath = '',
   treeData = [],
+  activeDrive = '',
   onSuccess
 }) => {
   const [url, setUrl] = useState('');
@@ -74,7 +75,15 @@ export const DownloadMediafireModal = ({
     setIsSubmitting(true);
     setErrorMsg(null);
 
-    const res = await startArchiveDownload(url.trim(), canonicalDownloadDestination(destination), password.trim() || null);
+    const res = await startArchiveDownload(
+      url.trim(),
+      canonicalDownloadDestination(destination, activeDrive),
+      password.trim() || null,
+      null,
+      null,
+      null,
+      activeDrive
+    );
 
     setIsSubmitting(false);
     if (res.success) {

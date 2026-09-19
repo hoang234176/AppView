@@ -35,6 +35,7 @@ type Job struct {
 	Filename          string                       `json:"filename,omitempty"`
 	DisplayName       string                       `json:"displayName,omitempty"`
 	Destination       string                       `json:"destination,omitempty"`
+	Drive             string                       `json:"drive,omitempty"`
 	State             State                        `json:"state"`
 	Stage             string                       `json:"stage,omitempty"`
 	ResolveTaskID     string                       `json:"resolveTaskId,omitempty"`
@@ -81,6 +82,7 @@ type CreateRequest struct {
 	URL         string
 	Filename    string
 	Destination string
+	Drive       string
 	Password    string
 }
 
@@ -105,6 +107,7 @@ func NewJob(id string, request CreateRequest) Job {
 		Filename:    request.Filename,
 		DisplayName: request.Filename,
 		Destination: request.Destination,
+		Drive:       request.Drive,
 		password:    request.Password,
 	}
 }
@@ -115,6 +118,7 @@ type StorageRequest struct {
 	Headers     map[string]string
 	Filename    string
 	Destination string
+	Drive       string
 	Password    string
 	Source      string
 	Items       []any

@@ -53,6 +53,7 @@ const XIcon = ({ className = 'w-3.5 h-3.5' }) => (
 export const DownloadMediaModal = ({
   currentPath = '',
   treeData = [],
+  activeDrive = '',
   onClose,
   onSuccess,
   onOpenSettings,
@@ -167,10 +168,11 @@ export const DownloadMediaModal = ({
 
       const result = await startMediaDownload(
         url.trim(),
-        canonicalDownloadDestination(destination),
+        canonicalDownloadDestination(destination, activeDrive),
         chosenQuality,
         indices,
-        mediaType
+        mediaType,
+        activeDrive
       );
       if (!mounted.current) return;
       setBusy(false);

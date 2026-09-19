@@ -192,6 +192,9 @@ func ResolveDriveRoot(driveParam string) string {
 	if driveParam != "" {
 		for _, d := range STORAGE_DRIVES {
 			if strings.EqualFold(d.ID, driveParam) || strings.EqualFold(d.Name, driveParam) {
+				if strings.EqualFold(d.ID, "HDD") && DEFAULT_ROOT_PATH != "" {
+					return DEFAULT_ROOT_PATH
+				}
 				return d.Path
 			}
 		}

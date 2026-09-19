@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/api/download_api.dart';
+import 'package:mobile/providers/app_state_provider.dart';
 import 'package:mobile/widgets/download_media_dialog.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   test('preview consumes normalized resolutions and optional metadata', () {
@@ -19,13 +21,19 @@ void main() {
   testWidgets('media entry is separate and validates URL before preview', (
     tester,
   ) async {
+    final appState = AppStateProvider();
     await tester.pumpWidget(
-      const MaterialApp(home: DownloadMediaDialog(currentPath: '/Ảnh/Test')),
+      ChangeNotifierProvider<AppStateProvider>.value(
+        value: appState,
+        child: const MaterialApp(
+          home: DownloadMediaDialog(currentPath: '/Ảnh/Test'),
+        ),
+      ),
     );
     expect(find.text('Tải ảnh/video'), findsOneWidget);
-    expect(find.text('Liên kết'), findsOneWidget);
+    expect(find.text('Dán liên kết MXH'), findsOneWidget);
     expect(find.text('Tiếp tục'), findsOneWidget);
-    expect(find.text('Lưu vào: /Ảnh/Test'), findsOneWidget);
+    expect(find.text('Chọn thư mục lưu trữ:'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
     expect(
       tester.widget<TextField>(find.byType(TextField)).obscureText,

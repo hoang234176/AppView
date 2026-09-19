@@ -22,6 +22,7 @@ type createDownloadRequest struct {
 	URL                  string `json:"url"`
 	Filename             string `json:"filename,omitempty"`
 	Destination          string `json:"destination,omitempty"`
+	Drive                string `json:"drive,omitempty"`
 	Password             string `json:"password,omitempty"`
 	Quality              *int   `json:"quality,omitempty"`
 	SelectedIndices      []int  `json:"selectedIndices,omitempty"`
@@ -71,7 +72,7 @@ func (h *DownloadHandler) Create(writer http.ResponseWriter, request *http.Reque
 		mediaType = strings.TrimSpace(body.MediaTypeSnake)
 	}
 	job, err := h.coordinator.CreateDownload(service.DownloadRequest{
-		URL: body.URL, Filename: body.Filename, Destination: body.Destination, Password: body.Password, Quality: quality,
+		URL: body.URL, Filename: body.Filename, Destination: body.Destination, Drive: body.Drive, Password: body.Password, Quality: quality,
 		SelectedIndices: selectedIndices, MediaType: mediaType,
 	})
 	if err != nil {

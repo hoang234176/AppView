@@ -34,6 +34,7 @@ type ArchiveJob struct {
 	URL               string
 	Filename          string
 	Destination       string
+	Drive             string
 	Stage             string
 	DownloadedBytes   int64
 	TotalBytes        int64
@@ -71,6 +72,7 @@ type ArchiveJobSnapshot struct {
 	Filename              string  `json:"filename"`
 	URL                   string  `json:"url,omitempty"`
 	Destination           string  `json:"destination,omitempty"`
+	Drive                 string  `json:"drive,omitempty"`
 	DownloadedBytes       int64   `json:"downloaded_bytes"`
 	TotalBytes            int64   `json:"total_bytes,omitempty"`
 	SpeedBytes            int64   `json:"speed_bytes"`
@@ -112,25 +114,67 @@ var archiveJobs = struct {
 }{items: make(map[string]*ArchiveJob)}
 
 func SafeArchivePath(relative string) (string, error) {
-	root := filepath.Clean(configs.DEFAULT_ROOT_PATH)
-	// Public clients use absolute logical paths below Storage's configured root
-	// (for example /Test or /Albums/Test). No library segment is implicit.
-	// Strip only leading separators before joining, so filepath.Join can never
-	// discard ROOT_PATH; traversal remains rejected below.
+	full, _, _, err := SafeArchivePathWithDrive("", relative)
+	return full, err
+}
+
+func SafeArchivePathWithDrive(drive, relative string) (string, string, string, error) {
+	drive = strings.TrimSpace(drive)
 	logical := strings.TrimLeft(strings.TrimSpace(relative), "/\\")
 	clean := filepath.Clean(logical)
-	if clean == "." || clean == "" {
-		return root, nil
+	if clean == "." {
+		clean = ""
 	}
+
+	// If drive is not explicitly provided, check if the first segment of relative is a known drive ID
+	if clean != "" {
+		parts := strings.Split(clean, string(os.PathSeparator))
+		if len(parts) > 0 {
+			for _, d := range configs.STORAGE_DRIVES {
+				if strings.EqualFold(d.ID, parts[0]) || strings.EqualFold(d.Name, parts[0]) {
+					if drive == "" {
+						drive = d.ID
+					}
+					if strings.EqualFold(drive, d.ID) || strings.EqualFold(drive, d.Name) {
+						if len(parts) > 1 {
+							clean = filepath.Clean(strings.Join(parts[1:], string(os.PathSeparator)))
+						} else {
+							clean = ""
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+
+	var root string
+	if drive == "" {
+		root = filepath.Clean(configs.DEFAULT_ROOT_PATH)
+		d := configs.FindDriveForPath(root)
+		if d.ID != "" && d.ID != "DEFAULT" {
+			drive = d.ID
+		} else {
+			drive = "HDD"
+		}
+	} else {
+		root = filepath.Clean(configs.ResolveDriveRoot(drive))
+	}
+	if clean == "" || clean == "." {
+		return root, drive, "", nil
+	}
+
 	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) {
-		return "", fmt.Errorf("đường dẫn đích phải tương đối và nằm trong thư mục lưu trữ")
+		return "", drive, "", fmt.Errorf("đường dẫn đích phải tương đối và nằm trong thư mục lưu trữ")
 	}
+
 	path := filepath.Join(root, clean)
 	rel, err := filepath.Rel(root, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", fmt.Errorf("đường dẫn đích nằm ngoài thư mục lưu trữ")
+		return "", drive, "", fmt.Errorf("đường dẫn đích nằm ngoài thư mục lưu trữ")
 	}
-	return path, nil
+
+	return path, drive, filepath.ToSlash(clean), nil
 }
 
 func safeArchivePath(relative string) (string, error) {
@@ -210,6 +254,7 @@ func archiveJobSnapshot(job *ArchiveJob) ArchiveJobSnapshot {
 	var result ArchiveJobSnapshot
 	result.ID, result.CanonicalID, result.State, result.Filename = job.ID, job.CanonicalID, job.Stage, job.Filename
 	result.URL, result.Destination = job.URL, job.Destination
+	result.Drive = job.Drive
 	result.DownloadedBytes, result.TotalBytes, result.SpeedBytes = job.DownloadedBytes, job.TotalBytes, job.SpeedBytes
 	result.ExtractedPct = job.ExtractedPct
 	result.Conversion.Total, result.Conversion.Current, result.Conversion.Failed = job.ConvertTotal, job.ConvertCurrent, job.ConvertFailed
@@ -387,9 +432,11 @@ func StartArchiveJobWithCanonicalIDAndStreams(id, sourceURL, filename, destinati
 	if id == "" || sourceURL == "" {
 		return fmt.Errorf("thiếu task_id hoặc URL tải")
 	}
-	if _, err := safeArchivePath(destination); err != nil {
+	destinationPath, targetDrive, _, err := SafeArchivePathWithDrive("", destination)
+	if err != nil {
 		return err
 	}
+	_ = destinationPath
 	if _, err := archiveWorkspace(id); err != nil {
 		return err
 	}
@@ -404,6 +451,7 @@ func StartArchiveJobWithCanonicalIDAndStreams(id, sourceURL, filename, destinati
 		URL:         sourceURL,
 		Filename:    archiveSafeName(filename),
 		Destination: destination,
+		Drive:       targetDrive,
 		Stage:       "downloading",
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -1003,12 +1051,12 @@ func commitArchiveResult(job *ArchiveJob) error {
 
 func commitArchiveResultWithContext(ctx context.Context, job *ArchiveJob) error {
 	job.mu.RLock()
-	source, name, destination := job.extractedPath, job.extractedName, job.Destination
+	source, name, destination, drive := job.extractedPath, job.extractedName, job.Destination, job.Drive
 	job.mu.RUnlock()
 	if source == "" || name == "" {
 		return fmt.Errorf("không tìm thấy thư mục đã giải nén trong workspace")
 	}
-	destinationPath, err := safeArchivePath(destination)
+	destinationPath, targetDrive, relPath, err := SafeArchivePathWithDrive(drive, destination)
 	if err != nil {
 		return err
 	}
@@ -1020,7 +1068,7 @@ func commitArchiveResultWithContext(ctx context.Context, job *ArchiveJob) error 
 	if err := os.RemoveAll(partialPath); err != nil {
 		return fmt.Errorf("không thể dọn thư mục copy tạm: %w", err)
 	}
-	LogInfo("[ARCHIVE] [%s] chuyển kết quả SSD -> HDD: %s", job.ID, finalPath)
+	LogInfo("[ARCHIVE] [%s] chuyển kết quả workspace -> %s: %s", job.ID, targetDrive, finalPath)
 	if err := copyDirectoryContext(ctx, source, partialPath); err != nil {
 		if ctx.Err() != nil {
 			_ = os.RemoveAll(partialPath)
@@ -1034,18 +1082,12 @@ func commitArchiveResultWithContext(ctx context.Context, job *ArchiveJob) error 
 	if err := os.Rename(partialPath, finalPath); err != nil {
 		return fmt.Errorf("không thể hoàn tất chuyển thư mục kết quả: %w", err)
 	}
-	// The SSD workspace is private. Emit one public destination invalidation
-	// only after its atomic final rename has succeeded.
-	cleanDest := strings.Trim(filepath.ToSlash(filepath.Clean(job.Destination)), "/")
-	if cleanDest == "." {
-		cleanDest = ""
-	}
-	parentPath := cleanDest
+	parentPath := relPath
 	publicPath := filepath.Base(finalPath)
 	if parentPath != "" {
 		publicPath = parentPath + "/" + filepath.Base(finalPath)
 	}
-	if err := events.Publish(events.FilesystemEvent{Type: "folder_created", Path: publicPath, NewPath: publicPath, ParentPath: parentPath}); err != nil {
+	if err := events.Publish(events.FilesystemEvent{Type: "folder_created", Drive: targetDrive, Path: publicPath, NewPath: publicPath, ParentPath: parentPath}); err != nil {
 		LogInfo("[ARCHIVE] [%s] không phát được filesystem event sau commit: %v", job.ID, err)
 	}
 	if workspace, err := archiveWorkspace(job.ID); err == nil {
@@ -1053,7 +1095,7 @@ func commitArchiveResultWithContext(ctx context.Context, job *ArchiveJob) error 
 			LogInfo("[ARCHIVE] [%s] đã chuyển xong nhưng chưa dọn workspace %s: %v", job.ID, workspace, err)
 		}
 	}
-	LogInfo("[ARCHIVE] [%s] đã chuyển hoàn tất đến HDD: %s", job.ID, finalPath)
+	LogInfo("[ARCHIVE] [%s] đã chuyển hoàn tất đến %s: %s", job.ID, targetDrive, finalPath)
 	return nil
 }
 

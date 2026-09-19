@@ -102,6 +102,7 @@ type DownloadRequest struct {
 	URL             string
 	Filename        string
 	Destination     string
+	Drive           string
 	Password        string
 	Quality         int
 	SelectedIndices []int
@@ -112,6 +113,7 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 	request.URL = strings.TrimSpace(request.URL)
 	request.Filename = strings.TrimSpace(request.Filename)
 	request.Destination = strings.TrimSpace(request.Destination)
+	request.Drive = strings.TrimSpace(request.Drive)
 	if request.URL == "" {
 		return downloadjob.Job{}, fmt.Errorf("url is required")
 	}
@@ -119,7 +121,7 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 		return downloadjob.Job{}, fmt.Errorf("quality must be a positive resolution")
 	}
 	created, err := c.downloads.Create(downloadjob.NewJob(newID(), downloadjob.CreateRequest{
-		URL: request.URL, Filename: request.Filename, Destination: request.Destination, Password: request.Password,
+		URL: request.URL, Filename: request.Filename, Destination: request.Destination, Drive: request.Drive, Password: request.Password,
 	}))
 	if err != nil {
 		return downloadjob.Job{}, err
@@ -590,6 +592,9 @@ func (c *Coordinator) handleDownloadCompletion(completed task.Task) {
 		}
 		if len(storageRequest.Headers) > 0 {
 			payloadMap["headers"] = storageRequest.Headers
+		}
+		if storageRequest.Drive != "" {
+			payloadMap["drive"] = storageRequest.Drive
 		}
 		if storageRequest.Source != "" {
 			payloadMap["source"] = storageRequest.Source

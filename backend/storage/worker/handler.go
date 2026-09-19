@@ -803,7 +803,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		if control.Operation == "video_decision" || control.Operation == "video_apply" {
+		if control.Operation == "video_decision" || control.Operation == "video_apply" || control.Operation == "cancel" {
 			if snapshot, ok := h.youtube.Snapshot(control.ArchiveTaskID); ok {
 				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{youtubeStorageSnapshot(snapshot)}}})
 			}
@@ -843,7 +843,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		if control.Operation == "video_decision" || control.Operation == "video_apply" {
+		if control.Operation == "video_decision" || control.Operation == "video_apply" || control.Operation == "cancel" {
 			if snapshot, ok := h.tiktok.Snapshot(control.ArchiveTaskID); ok {
 				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{tiktokStorageSnapshot(snapshot)}}})
 			}
@@ -883,7 +883,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		if control.Operation == "video_decision" || control.Operation == "video_apply" {
+		if control.Operation == "video_decision" || control.Operation == "video_apply" || control.Operation == "cancel" {
 			if snapshot, ok := h.facebook.Snapshot(control.ArchiveTaskID); ok {
 				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{facebookStorageSnapshot(snapshot)}}})
 			}
@@ -923,7 +923,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		if control.Operation == "video_decision" || control.Operation == "video_apply" {
+		if control.Operation == "video_decision" || control.Operation == "video_apply" || control.Operation == "cancel" {
 			if snapshot, ok := h.instagram.Snapshot(control.ArchiveTaskID); ok {
 				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{instagramStorageSnapshot(snapshot)}}})
 			}
@@ -963,7 +963,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		if control.Operation == "video_decision" || control.Operation == "video_apply" {
+		if control.Operation == "video_decision" || control.Operation == "video_apply" || control.Operation == "cancel" {
 			if snapshot, ok := h.x.Snapshot(control.ArchiveTaskID); ok {
 				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{xStorageSnapshot(snapshot)}}})
 			}
@@ -1013,9 +1013,9 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		h.fail(send, controlTaskID, "ARCHIVE_RETRY_FAILED", "Storage không thể tiếp tục archive.")
 		return
 	}
-	if control.Operation == "video_decision" || control.Operation == "video_apply" {
-		// A decision/apply is a short control operation while the original archive
-		// monitor remains busy/waiting. Persist + publish one canonical snapshot
+	if control.Operation == "video_decision" || control.Operation == "video_apply" || control.Operation == "cancel" {
+		// A decision/apply/cancel is a short control operation while the original archive
+		// monitor remains busy/waiting or has ended. Persist + publish one canonical snapshot
 		// then finish this control task; do not attach a second long monitor.
 		if snapshot, ok := h.archive.Snapshot(control.ArchiveTaskID); ok {
 			_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{storageSnapshot(snapshot)}}})
@@ -1040,6 +1040,7 @@ type downloadRequest struct {
 	Headers     map[string]string     `json:"headers,omitempty"`
 	Filename    string                `json:"filename"`
 	Destination string                `json:"destination"`
+	Drive       string                `json:"drive,omitempty"`
 	Password    string                `json:"password"`
 	ParentJobID string                `json:"parentJobId"`
 	Source      string                `json:"source,omitempty"`
@@ -1163,10 +1164,22 @@ func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
 	request.AudioURL = strings.TrimSpace(request.AudioURL)
 	request.Filename = strings.TrimSpace(request.Filename)
 	request.Destination = strings.TrimSpace(request.Destination)
+	request.Drive = strings.TrimSpace(request.Drive)
 	request.ParentJobID = strings.TrimSpace(request.ParentJobID)
 	request.Source = strings.TrimSpace(request.Source)
 	if (request.URL == "" && len(request.Items) == 0) || request.Filename == "" {
 		return downloadRequest{}, fmt.Errorf("payload.url và payload.filename không được để trống")
+	}
+	if request.Drive != "" {
+		trimmedDest := strings.Trim(request.Destination, "/")
+		drivePrefix := strings.Trim(request.Drive, "/")
+		if !strings.HasPrefix(trimmedDest, drivePrefix+"/") && trimmedDest != drivePrefix {
+			if trimmedDest == "" {
+				request.Destination = "/" + drivePrefix
+			} else {
+				request.Destination = "/" + drivePrefix + "/" + trimmedDest
+			}
+		}
 	}
 	return request, nil
 }

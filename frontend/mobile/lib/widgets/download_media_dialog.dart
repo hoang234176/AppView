@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../api/download_api.dart';
+import '../providers/app_state_provider.dart';
 import '../providers/download_provider.dart';
 import '../theme/app_theme.dart';
 import 'app_select_menu.dart';
@@ -97,11 +98,13 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
         return;
       }
 
+      final activeDrive = context.read<AppStateProvider>().activeDrive;
       final result = await context
           .read<DownloadProvider>()
           .startCoordinatorDownload(
             url: url,
-            destination: canonicalDownloadDestination(_destination),
+            destination: canonicalDownloadDestination(_destination, activeDrive),
+            drive: activeDrive,
             quality: (isImages || isTextOnly) ? null : _quality,
             selectedIndices: isImages ? _selectedIndices : null,
             mediaType: isTextOnly ? 'text' : isImages ? 'images' : 'video',

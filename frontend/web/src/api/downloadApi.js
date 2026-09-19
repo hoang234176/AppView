@@ -27,11 +27,12 @@ const createCoordinatorClient = () => {
  * Submit one parent Coordinator download job. Legacy Python endpoints below
  * remain available only for compatibility controls that have not migrated.
  */
-export const startArchiveDownload = async (url, destination = '', password = null, quality = null, selectedIndices = null, mediaType = null) => {
+export const startArchiveDownload = async (url, destination = '', password = null, quality = null, selectedIndices = null, mediaType = null, drive = null) => {
   try {
     const payload = {
       url,
       destination,
+      ...(drive ? { drive } : {}),
       ...(password ? { password } : {}),
       ...(quality !== null ? { quality } : {}),
       ...(selectedIndices !== null && selectedIndices !== undefined ? {
@@ -71,8 +72,8 @@ export const previewMediaDownload = async (url, signal) => {
   return response.data;
 };
 
-export const startMediaDownload = (url, destination, quality, selectedIndices = null, mediaType = null) =>
-  startArchiveDownload(url, destination, null, quality, selectedIndices, mediaType);
+export const startMediaDownload = (url, destination, quality, selectedIndices = null, mediaType = null, drive = null) =>
+  startArchiveDownload(url, destination, null, quality, selectedIndices, mediaType, drive);
 
 export const fetchCoordinatorDownload = async (jobId) => {
   try {

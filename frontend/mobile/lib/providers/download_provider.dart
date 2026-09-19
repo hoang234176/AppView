@@ -106,6 +106,7 @@ class DownloadProvider extends ChangeNotifier {
   Future<Map<String, dynamic>> startCoordinatorDownload({
     required String url,
     String destination = '',
+    String? drive,
     String? password,
     int? quality,
     List<int>? selectedIndices,
@@ -114,6 +115,7 @@ class DownloadProvider extends ChangeNotifier {
     final response = await DownloadApi.startCoordinatorDownload(
       url: url,
       destination: destination,
+      drive: drive,
       password: password,
       quality: quality,
       selectedIndices: selectedIndices,

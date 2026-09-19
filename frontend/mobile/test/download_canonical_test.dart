@@ -21,6 +21,14 @@ void main() {
         '/Ảnh #1/玉汇 @test',
       );
       expect(canonicalDownloadDestination('Test'), isNot('/Albums/Test'));
+
+      // Multi-drive tests
+      expect(canonicalDownloadDestination('', 'SSD'), '/SSD');
+      expect(canonicalDownloadDestination('Test', 'SSD'), '/SSD/Test');
+      expect(canonicalDownloadDestination('/Test', 'SSD'), '/SSD/Test');
+      expect(canonicalDownloadDestination('SSD/Test', 'SSD'), '/SSD/Test');
+      expect(canonicalDownloadDestination('/SSD/Test', 'SSD'), '/SSD/Test');
+      expect(canonicalDownloadDestination('Test', 'HDD'), '/HDD/Test');
     },
   );
 

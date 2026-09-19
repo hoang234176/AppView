@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	pythonapi "backend/api/python"
 	"backend/configs"
@@ -55,7 +54,7 @@ func commitMediaFile(ctx context.Context, sourceFile, destination, filename, job
 		return "", fmt.Errorf("file phương tiện trong workspace không tồn tại: %w", err)
 	}
 
-	destinationPath, err := pythonapi.SafeArchivePath(destination)
+	destinationPath, targetDrive, relPath, err := pythonapi.SafeArchivePathWithDrive("", destination)
 	if err != nil {
 		return "", err
 	}
@@ -80,18 +79,15 @@ func commitMediaFile(ctx context.Context, sourceFile, destination, filename, job
 		return "", fmt.Errorf("không thể hoàn tất chuyển file phương tiện: %w", err)
 	}
 
-	cleanDest := strings.Trim(filepath.ToSlash(filepath.Clean(destination)), "/")
-	if cleanDest == "." {
-		cleanDest = ""
-	}
-	parentPath := cleanDest
+	parentPath := relPath
 	publicPath := filepath.Base(finalPath)
 	if parentPath != "" {
 		publicPath = parentPath + "/" + filepath.Base(finalPath)
 	}
-	item := utils.GetFileItem(configs.DEFAULT_ROOT_PATH, publicPath, "")
+	item := utils.GetFileItem(configs.ResolveDriveRoot(targetDrive), publicPath, targetDrive)
 	_ = events.Publish(events.FilesystemEvent{
 		Type:       "file_created",
+		Drive:      targetDrive,
 		Path:       publicPath,
 		NewPath:    publicPath,
 		ParentPath: parentPath,
@@ -99,11 +95,12 @@ func commitMediaFile(ctx context.Context, sourceFile, destination, filename, job
 	})
 	_ = events.Publish(events.FilesystemEvent{
 		Type:       "folder_created",
+		Drive:      targetDrive,
 		Path:       publicPath,
 		NewPath:    publicPath,
 		ParentPath: parentPath,
 	})
-	utils.LogInfo("[STORAGE] Đã lưu tệp an toàn vào đích: %s", publicPath)
+	utils.LogInfo("[STORAGE] Đã lưu tệp an toàn vào đích [%s]: %s", targetDrive, publicPath)
 
 	return finalPath, nil
 }
