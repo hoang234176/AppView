@@ -19,7 +19,7 @@ export const DeleteModal = ({ isOpen, onClose, targetItem, isFolder = false, onS
 
     if (res.success) {
       onClose();
-      if (onSuccess) onSuccess(res.message);
+      if (onSuccess) onSuccess(targetItem, isFolder, res.message);
     } else {
       setErrorMsg(res.message || 'Không thể xóa phần tử này.');
     }

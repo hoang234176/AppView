@@ -61,13 +61,20 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
     const baseUrl = getApiBaseUrl();
     const driveName = activeDrive ? encodeURIComponent(activeDrive) : 'HDD';
 
+    const toAbsoluteUrl = (url, fallback) => {
+      if (!url) return fallback;
+      if (/^https?:\/\//i.test(url)) return url;
+      const origin = baseUrl.replace(/\/api\/v1\/?$/, '');
+      return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
+    };
+
     const pictures = rawPictures.map((pic) => {
       const cleanPath = pic.path?.startsWith('/') ? pic.path.slice(1) : (pic.path || '');
       const encodedPath = cleanPath.split('/').map(p => encodeURIComponent(p).replace(/#/g, '%2523')).join('/');
       return {
         ...pic,
-        url: pic.url || `${baseUrl}/pictures/${driveName}/${encodedPath}`,
-        thumbnail_url: pic.thumbnail_url || `${baseUrl}/thumbnails/${driveName}/${encodedPath}`,
+        url: toAbsoluteUrl(pic.url, `${baseUrl}/pictures/${driveName}/${encodedPath}`),
+        thumbnail_url: toAbsoluteUrl(pic.thumbnail_url, `${baseUrl}/thumbnails/${driveName}/${encodedPath}`),
       };
     });
 
@@ -76,8 +83,8 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
       const encodedPath = cleanPath.split('/').map(p => encodeURIComponent(p).replace(/#/g, '%2523')).join('/');
       return {
         ...v,
-        url: v.url || `${baseUrl}/videos/${driveName}/${encodedPath}`,
-        thumbnail_url: v.thumbnail_url || `${baseUrl}/thumbnails/${driveName}/${encodedPath}`,
+        url: toAbsoluteUrl(v.url, `${baseUrl}/videos/${driveName}/${encodedPath}`),
+        thumbnail_url: toAbsoluteUrl(v.thumbnail_url, `${baseUrl}/thumbnails/${driveName}/${encodedPath}`),
       };
     });
 
@@ -378,19 +385,27 @@ export const normalizeMediaItem = (item, activeDrive) => {
   const driveName = activeDrive ? encodeURIComponent(activeDrive) : 'HDD';
   const cleanPath = item.path?.startsWith('/') ? item.path.slice(1) : (item.path || '');
   const encodedPath = cleanPath.split('/').map(p => encodeURIComponent(p).replace(/#/g, '%2523')).join('/');
+
+  const toAbsoluteUrl = (url, fallback) => {
+    if (!url) return fallback;
+    if (/^https?:\/\//i.test(url)) return url;
+    const origin = baseUrl.replace(/\/api\/v1\/?$/, '');
+    return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   const isVid = item.type === 'video' || /\.(mp4|mkv|webm|avi|mov|flv|wmv|m4v)$/i.test(item.name || item.path || '');
   if (isVid) {
     return {
       ...item,
       type: 'video',
-      url: item.url || `${baseUrl}/videos/${driveName}/${encodedPath}`,
-      thumbnail_url: item.thumbnail_url || `${baseUrl}/thumbnails/${driveName}/${encodedPath}`,
+      url: toAbsoluteUrl(item.url, `${baseUrl}/videos/${driveName}/${encodedPath}`),
+      thumbnail_url: toAbsoluteUrl(item.thumbnail_url, `${baseUrl}/thumbnails/${driveName}/${encodedPath}`),
     };
   }
   return {
     ...item,
     type: 'picture',
-    url: item.url || `${baseUrl}/pictures/${driveName}/${encodedPath}`,
-    thumbnail_url: item.thumbnail_url || `${baseUrl}/thumbnails/${driveName}/${encodedPath}`,
+    url: toAbsoluteUrl(item.url, `${baseUrl}/pictures/${driveName}/${encodedPath}`),
+    thumbnail_url: toAbsoluteUrl(item.thumbnail_url, `${baseUrl}/thumbnails/${driveName}/${encodedPath}`),
   };
 };

@@ -352,6 +352,9 @@ function App() {
   }, [currentPath, activeDrive]);
 
   const refreshFromFilesystemEvent = useCallback((event = null) => {
+    if (event?.drive && activeDrive && event.drive.toUpperCase() !== activeDrive.toUpperCase()) {
+      return;
+    }
     let nextPath = currentPath;
     let refreshCurrent = event === null;
     const type = event?.type;
@@ -1357,7 +1360,26 @@ function App() {
           onClose={() => setDeleteModalData({ isOpen: false, item: null, isFolder: false })}
           targetItem={deleteModalData.item}
           isFolder={deleteModalData.isFolder}
-          onSuccess={handleRefreshAll}
+          onSuccess={(item, isFolder) => {
+            const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
+            if (isFolder) {
+              loadTreeData();
+              setFolders((prev) => prev.filter((f) => normalize(f.path) !== normalize(item?.path)));
+              setTotalFolders((c) => Math.max(0, c - 1));
+            } else {
+              const norm = normalize(item?.path || item?.name);
+              setPictures((prev) => {
+                const next = prev.filter((p) => normalize(p.path || p.name) !== norm);
+                if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
+                return next;
+              });
+              setVideos((prev) => {
+                const next = prev.filter((v) => normalize(v.path || v.name) !== norm);
+                if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
+                return next;
+              });
+            }
+          }}
         />
 
         {/* Create Folder Dialog Modal */}

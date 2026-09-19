@@ -380,7 +380,7 @@ class _DeleteFolderConfirmDialogState extends State<DeleteFolderConfirmDialog> {
 
     if (res.success) {
       Navigator.of(context).pop();
-      appState.refreshAll();
+      appState.removeFolderLocally(widget.folder.path);
       AppToast.showSuccess(
         context,
         'Đã xóa thư mục "${widget.folder.name}" thành công!',
@@ -526,7 +526,7 @@ class _DeleteFileDialogState extends State<DeleteFileDialog> {
 
     if (res.success) {
       Navigator.of(context).pop();
-      appState.refreshAll();
+      appState.removeFileLocally(widget.filePath);
       AppToast.showSuccess(
         context,
         'Đã xóa file "${widget.fileName}" thành công!',

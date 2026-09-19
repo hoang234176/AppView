@@ -3,6 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/api/download_api.dart';
 import 'package:mobile/api/api_config.dart';
 import 'package:mobile/providers/download_provider.dart';
+import 'package:mobile/utils/formatters.dart';
+import 'package:mobile/models/video_item.dart';
+import 'package:mobile/models/picture_item.dart';
 
 void main() {
   test(
@@ -183,4 +186,42 @@ void main() {
       expect(DownloadProvider.downloadGroup(task('cancelled')), 'cancelled');
     },
   );
+
+  test('Formatters correctly resolves relative URLs to absolute Storage URLs across drives', () {
+    const baseUrl = 'http://192.168.1.50:8080/api/v1';
+
+    final video = VideoItem(
+      name: 'clip.mp4',
+      path: 'Videos/clip.mp4',
+      size: 1048576,
+      url: '/api/v1/videos/SSD/Videos/clip.mp4',
+      thumbnailUrl: '/api/v1/thumbnails/SSD/Videos/clip.mp4',
+    );
+
+    expect(
+      Formatters.getVideoStreamUrl(baseUrl, video),
+      'http://192.168.1.50:8080/api/v1/videos/SSD/Videos/clip.mp4',
+    );
+    expect(
+      Formatters.getVideoThumbnailUrl(baseUrl, video),
+      'http://192.168.1.50:8080/api/v1/thumbnails/SSD/Videos/clip.mp4',
+    );
+
+    final picture = PictureItem(
+      name: 'photo.jpg',
+      path: 'Photos/photo.jpg',
+      size: 524288,
+      url: '/api/v1/pictures/HDD/Photos/photo.jpg',
+      thumbnailUrl: '/api/v1/thumbnails/HDD/Photos/photo.jpg',
+    );
+
+    expect(
+      Formatters.getPictureUrl(baseUrl, picture),
+      'http://192.168.1.50:8080/api/v1/pictures/HDD/Photos/photo.jpg',
+    );
+    expect(
+      Formatters.getThumbnailUrl(baseUrl, picture),
+      'http://192.168.1.50:8080/api/v1/thumbnails/HDD/Photos/photo.jpg',
+    );
+  });
 }

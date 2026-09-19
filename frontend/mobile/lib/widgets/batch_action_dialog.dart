@@ -136,7 +136,7 @@ class _BatchActionDialogState extends State<BatchActionDialog> {
       if (res.success) {
         Navigator.of(context).pop();
         appState.exitSelectMode();
-        appState.refreshAll();
+        appState.removeBatchItemsLocally(widget.items);
         AppToast.showSuccess(
           context,
           'Đã xóa $_totalCount mục thành công!',

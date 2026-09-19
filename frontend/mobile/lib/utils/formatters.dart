@@ -53,10 +53,19 @@ class Formatters {
     return segments.map((seg) => Uri.encodeComponent(seg)).join('/');
   }
 
+  /// Resolve relative URL to absolute URL using baseUrl origin
+  static String _resolveAbsoluteUrl(String baseUrl, String? url) {
+    if (url == null || url.isEmpty) return '';
+    if (url.contains('://')) return url;
+    final origin = baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final slash = url.startsWith('/') ? '' : '/';
+    return '$origin$slash$url';
+  }
+
   /// Convert picture object to original image API endpoint (/pictures/:drive/*)
   static String getPictureUrl(String baseUrl, PictureItem picture) {
     if (picture.url != null && picture.url!.isNotEmpty) {
-      return picture.url!;
+      return _resolveAbsoluteUrl(baseUrl, picture.url);
     }
     if (picture.path.isNotEmpty) {
       final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
@@ -70,10 +79,11 @@ class Formatters {
   /// Convert picture object to thumbnail API endpoint (/thumbnails/:drive/*) for grid preview
   static String getThumbnailUrl(String baseUrl, PictureItem picture) {
     if (picture.thumbnailUrl != null && picture.thumbnailUrl!.isNotEmpty) {
-      return picture.thumbnailUrl!;
+      return _resolveAbsoluteUrl(baseUrl, picture.thumbnailUrl);
     }
     if (picture.url != null && picture.url!.isNotEmpty) {
-      return picture.url!.replaceAll('/pictures/', '/thumbnails/').replaceAll('/picture/', '/thumbnail/');
+      final thumb = picture.url!.replaceAll('/pictures/', '/thumbnails/').replaceAll('/picture/', '/thumbnail/');
+      return _resolveAbsoluteUrl(baseUrl, thumb);
     }
     if (picture.path.isNotEmpty) {
       final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
@@ -136,7 +146,7 @@ class Formatters {
   /// Get Video Streaming URL from /videos/* endpoint
   static String getVideoStreamUrl(String baseUrl, VideoItem video) {
     if (video.url != null && video.url!.isNotEmpty) {
-      final rawUrl = video.url!;
+      final rawUrl = _resolveAbsoluteUrl(baseUrl, video.url);
       final parts = rawUrl.split('?');
       final pathPart = parts.first;
       final queryPart = parts.length > 1 ? '?${parts.sublist(1).join('?')}' : '';
@@ -172,10 +182,11 @@ class Formatters {
   /// Convert video object to thumbnail API endpoint (/thumbnails/:drive/*) for grid preview
   static String getVideoThumbnailUrl(String baseUrl, VideoItem video) {
     if (video.thumbnailUrl != null && video.thumbnailUrl!.isNotEmpty) {
-      return video.thumbnailUrl!;
+      return _resolveAbsoluteUrl(baseUrl, video.thumbnailUrl);
     }
     if (video.url != null && video.url!.isNotEmpty) {
-      return video.url!.replaceAll('/videos/', '/thumbnails/').replaceAll('/video/', '/thumbnail/');
+      final thumb = video.url!.replaceAll('/videos/', '/thumbnails/').replaceAll('/video/', '/thumbnail/');
+      return _resolveAbsoluteUrl(baseUrl, thumb);
     }
     if (video.path.isNotEmpty) {
       final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;

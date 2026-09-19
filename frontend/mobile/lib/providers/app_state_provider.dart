@@ -390,6 +390,60 @@ class AppStateProvider extends ChangeNotifier {
     await refreshCurrentFolder(includeTree: true);
   }
 
+  void removeFileLocally(String path) {
+    String normalize(String p) => p.replaceAll(RegExp(r'^/+|\/+$'), '');
+    final norm = normalize(path);
+    final prevPicLen = _pictures.length;
+    _pictures = _pictures.where((p) => normalize(p.path) != norm).toList();
+    if (_pictures.length != prevPicLen) {
+      _totalPictures = (_totalPictures - (prevPicLen - _pictures.length)).clamp(0, 999999);
+    }
+    final prevVidLen = _videos.length;
+    _videos = _videos.where((v) => normalize(v.path) != norm).toList();
+    if (_videos.length != prevVidLen) {
+      _totalVideos = (_totalVideos - (prevVidLen - _videos.length)).clamp(0, 999999);
+    }
+    notifyListeners();
+  }
+
+  void removeFolderLocally(String path) {
+    String normalize(String p) => p.replaceAll(RegExp(r'^/+|\/+$'), '');
+    final norm = normalize(path);
+    final prevLen = _folders.length;
+    _folders = _folders.where((f) => normalize(f.path) != norm).toList();
+    if (_folders.length != prevLen) {
+      _totalFolders = (_totalFolders - (prevLen - _folders.length)).clamp(0, 999999);
+    }
+    loadTreeData();
+    notifyListeners();
+  }
+
+  void removeBatchItemsLocally(List<Map<String, dynamic>> items) {
+    String normalize(String p) => p.replaceAll(RegExp(r'^/+|\/+$'), '');
+    final delPaths = items.map((it) => normalize(it['path']?.toString() ?? '')).toSet();
+
+    final prevFolderLen = _folders.length;
+    _folders = _folders.where((f) => !delPaths.contains(normalize(f.path))).toList();
+    if (_folders.length != prevFolderLen) {
+      _totalFolders = (_totalFolders - (prevFolderLen - _folders.length)).clamp(0, 999999);
+      loadTreeData();
+    }
+
+    final prevPicLen = _pictures.length;
+    _pictures = _pictures.where((p) => !delPaths.contains(normalize(p.path))).toList();
+    if (_pictures.length != prevPicLen) {
+      _totalPictures = (_totalPictures - (prevPicLen - _pictures.length)).clamp(0, 999999);
+    }
+
+    final prevVidLen = _videos.length;
+    _videos = _videos.where((v) => !delPaths.contains(normalize(v.path))).toList();
+    if (_videos.length != prevVidLen) {
+      _totalVideos = (_totalVideos - (prevVidLen - _videos.length)).clamp(0, 999999);
+    }
+
+    notifyListeners();
+  }
+
   void startTransfer({
     required String action,
     required String destFolder,
@@ -615,6 +669,12 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   void _handleFilesystemEvent(Map<String, dynamic> event) {
+    final eventDrive = event['drive']?.toString();
+    if (eventDrive != null &&
+        eventDrive.isNotEmpty &&
+        eventDrive.toUpperCase() != _activeDrive.toUpperCase()) {
+      return;
+    }
     final type = event['type']?.toString();
     final oldPath =
         event['oldPath']?.toString() ?? event['path']?.toString() ?? '';
