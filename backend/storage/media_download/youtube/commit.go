@@ -93,13 +93,6 @@ func commitMediaFile(ctx context.Context, sourceFile, destination, filename, job
 		ParentPath: parentPath,
 		Item:       item,
 	})
-	_ = events.Publish(events.FilesystemEvent{
-		Type:       "folder_created",
-		Drive:      targetDrive,
-		Path:       publicPath,
-		NewPath:    publicPath,
-		ParentPath: parentPath,
-	})
 	utils.LogInfo("[STORAGE] Đã lưu tệp an toàn vào đích [%s]: %s", targetDrive, publicPath)
 
 	return finalPath, nil

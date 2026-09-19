@@ -239,7 +239,7 @@ class _BreadcrumbsBarState extends State<BreadcrumbsBar> {
                         ],
                       ),
                     ),
-                    if (hasTransfer)
+                    if (hasTransfer && !isCompleted)
                       Positioned(
                         left: 0,
                         right: 0,
@@ -259,7 +259,7 @@ class _BreadcrumbsBarState extends State<BreadcrumbsBar> {
                   ],
                 ),
               ),
-              if (hasTransfer) ...[
+              if (hasTransfer && !isCompleted) ...[
                 const SizedBox(height: 6),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -274,9 +274,6 @@ class _BreadcrumbsBarState extends State<BreadcrumbsBar> {
                             valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF9AA0A6)),
                           ),
                         ),
-                        const SizedBox(width: 6),
-                      ] else if (isCompleted) ...[
-                        const Icon(Icons.check_circle_rounded, size: 14, color: Colors.greenAccent),
                         const SizedBox(width: 6),
                       ] else if (isFailed) ...[
                         const Icon(Icons.error_rounded, size: 14, color: Colors.redAccent),

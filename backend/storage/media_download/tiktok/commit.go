@@ -105,13 +105,6 @@ func commitTikTokMedia(ctx context.Context, job *Job, workspace string) error {
 			ParentPath: parentPath,
 			Item:       fileItem,
 		})
-		_ = events.Publish(events.FilesystemEvent{
-			Type:       "folder_created",
-			Drive:      targetDrive,
-			Path:       publicPath,
-			NewPath:    publicPath,
-			ParentPath: parentPath,
-		})
 		utils.LogInfo("[STORAGE] Đã lưu tệp an toàn vào đích [%s]: %s", targetDrive, publicPath)
 	}
 
@@ -162,13 +155,6 @@ func commitVideoFile(ctx context.Context, sourceFile, destination, filename, job
 		NewPath:    publicPath,
 		ParentPath: parentPath,
 		Item:       item,
-	})
-	_ = events.Publish(events.FilesystemEvent{
-		Type:       "folder_created",
-		Drive:      targetDrive,
-		Path:       publicPath,
-		NewPath:    publicPath,
-		ParentPath: parentPath,
 	})
 	utils.LogInfo("[STORAGE] Đã lưu tệp an toàn vào đích [%s]: %s", targetDrive, publicPath)
 	return finalPath, nil

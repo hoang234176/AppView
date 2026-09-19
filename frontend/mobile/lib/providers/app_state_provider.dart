@@ -529,11 +529,9 @@ class AppStateProvider extends ChangeNotifier {
             if (pollStatus == 'completed') {
               timer.cancel();
               _transferPollTimer = null;
+              _transferProgress = null;
+              notifyListeners();
               refreshAll();
-              Timer(const Duration(seconds: 3), () {
-                _transferProgress = null;
-                notifyListeners();
-              });
             } else if (pollStatus == 'failed') {
               timer.cancel();
               _transferPollTimer = null;
@@ -652,12 +650,8 @@ class AppStateProvider extends ChangeNotifier {
     notifyListeners();
 
     if (status == 'completed') {
-      Timer(const Duration(seconds: 3), () {
-        if (_transferProgress?.status == 'completed') {
-          _transferProgress = null;
-          notifyListeners();
-        }
-      });
+      _transferProgress = null;
+      notifyListeners();
     } else if (status == 'failed') {
       Timer(const Duration(seconds: 4), () {
         if (_transferProgress?.status == 'failed') {
