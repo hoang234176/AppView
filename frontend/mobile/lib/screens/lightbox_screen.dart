@@ -144,6 +144,8 @@ class _LightboxScreenState extends State<LightboxScreen> {
             ? picturesList[_currentIndex]
             : widget.pictures[_currentIndex];
     final opacity = (1.0 - (_dragOffsetY / 400)).clamp(0.0, 1.0);
+    final topPadding = MediaQuery.viewPaddingOf(context).top;
+    final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
 
     return Scaffold(
       backgroundColor: Color.fromRGBO(12, 13, 16, opacity),
@@ -248,9 +250,11 @@ class _LightboxScreenState extends State<LightboxScreen> {
                     left: 0,
                     right: 0,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                      padding: EdgeInsets.only(
+                        top: topPadding + 10,
+                        left: 12,
+                        right: 12,
+                        bottom: 12,
                       ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -334,9 +338,11 @@ class _LightboxScreenState extends State<LightboxScreen> {
                     left: 0,
                     right: 0,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                      padding: EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        top: 14,
+                        bottom: bottomPadding + 14,
                       ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
