@@ -195,14 +195,8 @@ def _test_x_cookies_sync(cookie_dict: dict[str, str]) -> tuple[bool, str]:
                 tweet_res = data.get("data", {}).get("tweetResult", {}).get("result", {})
                 typename = tweet_res.get("__typename")
                 if typename in ("Tweet", "TweetWithVisibilityResults"):
-                    core = tweet_res.get("core", {}).get("user_results", {}).get("result", {}).get("legacy", {})
-                    author_name = core.get("name") or ""
-                    screen_name = core.get("screen_name") or ""
-                    detail = f"@{screen_name}" if screen_name else "tài khoản X"
-                    if author_name:
-                        detail += f" ({author_name})"
-                    return True, f"Cookies X hợp lệ! Đã kết nối và xác thực thành công máy chủ X qua {detail}."
-                return True, "Cookies X hợp lệ! Đã kết nối và xác thực thành công máy chủ X."
+                    return True, "Cookies X hợp lệ! Đã kết nối và xác thực thành công với máy chủ X."
+                return True, "Cookies X hợp lệ! Đã kết nối và xác thực thành công với máy chủ X."
     except urllib.error.HTTPError as http_err:
         if http_err.code in (401, 403):
             return False, "Cookies X không hợp lệ hoặc đã hết hạn đăng nhập (HTTP 401/403)."
