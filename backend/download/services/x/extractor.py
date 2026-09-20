@@ -300,8 +300,10 @@ class XExtractor:
     def _normalize_post(self, data: dict[str, Any], status_id: str, original_url: str) -> dict[str, Any]:
         """Normalize raw X API response into standardized AppView inspect structure."""
         text = str(data.get("text") or "").strip()
-        # Clean t.co trailing URLs from text if desired or keep
-        title = text.split("\n")[0][:80].strip() if text else f"post_{status_id}"
+        # Clean t.co trailing URLs from title for clean file names
+        text_without_urls = re.sub(r"https?://t\.co/[A-Za-z0-9]+", "", text).strip()
+        title_source = text_without_urls or text
+        title = title_source.split("\n")[0][:80].strip() if title_source else f"post_{status_id}"
         clean_title = sanitize_filename(title)
 
         user_info = data.get("user") or {}

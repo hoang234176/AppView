@@ -73,13 +73,36 @@ func HandleBatchItems(c *fiber.Ctx) error {
 		destDrive = srcDrive
 	}
 	destRoot := configs.ResolveDriveRoot(destDrive)
-
 	isSameDrive := (filepath.Clean(srcRoot) == filepath.Clean(destRoot))
 
 	jobID := fmt.Sprintf("batch_%d", time.Now().UnixNano())
 	totalBytes := utils.CalculateTotalBytes(srcRoot, req.Items)
 	if totalBytes <= 0 {
 		totalBytes = 1 // Prevent division by zero
+	}
+
+	destFolderReq := strings.TrimSpace(req.DestFolder)
+	if !isSameDrive && destFolderReq != "" {
+		// Strip leading drive identifiers if inadvertently passed from client path history
+		clean := filepath.ToSlash(filepath.Clean(destFolderReq))
+		clean = strings.TrimPrefix(clean, "/")
+		for _, d := range configs.STORAGE_DRIVES {
+			if strings.EqualFold(clean, d.ID) || strings.EqualFold(clean, d.Name) {
+				clean = ""
+				break
+			}
+			pfx := strings.ToLower(d.ID) + "/"
+			if strings.HasPrefix(strings.ToLower(clean), pfx) {
+				clean = clean[len(pfx):]
+				break
+			}
+			pfxName := strings.ToLower(d.Name) + "/"
+			if strings.HasPrefix(strings.ToLower(clean), pfxName) {
+				clean = clean[len(pfxName):]
+				break
+			}
+		}
+		req.DestFolder = clean
 	}
 
 	destDisplayName := req.DestFolder
