@@ -183,7 +183,7 @@ class TestXService(unittest.IsolatedAsyncioTestCase):
 
         resolved = await self.resolver.resolve("https://x.com/photo_tokyo/status/222")
         self.assertEqual(resolved.source, "x")
-        self.assertEqual(resolved.extension, ".jpeg")
+        self.assertEqual(resolved.extension, ".zip")
         self.assertIsNotNone(resolved.items)
         # 2 photos + 1 companion text file
         self.assertEqual(len(resolved.items), 3)

@@ -136,12 +136,12 @@ async def verify_youtube_cookies(raw_cookies: str) -> tuple[bool, str]:
 
 	loop = asyncio.get_running_loop()
 	try:
-		return await loop.run_in_executor(None, _test_youtube_cookies_sync, jar)
+		return await loop.run_in_executor(None, _test_youtube_cookies_sync, jar, raw_cookies)
 	except Exception as err:
 		return False, f"Xác thực thất bại: {err}"
 
 
-def _test_youtube_cookies_sync(jar: yt_dlp.cookies.YoutubeDLCookieJar) -> tuple[bool, str]:
+def _test_youtube_cookies_sync(jar: yt_dlp.cookies.YoutubeDLCookieJar, raw_cookies: Optional[str] = None) -> tuple[bool, str]:
 	import re
 	import yt_dlp
 
@@ -166,6 +166,15 @@ def _test_youtube_cookies_sync(jar: yt_dlp.cookies.YoutubeDLCookieJar) -> tuple[
 			is_logged_in = logged_in_match.group(1).lower() == "true"
 			if not is_logged_in:
 				return False, "Cookies YouTube chưa đăng nhập hoặc đã hết hạn (LOGGED_IN: false). Cần đầy đủ session cookies (SID, HSID, SSID, __Secure-1PSID, __Secure-1PSIDTS...) từ trình duyệt."
+
+		if raw_cookies:
+			try:
+				has_changes, new_netscape = detect_cookie_changes(raw_cookies, jar)
+				if has_changes and new_netscape:
+					from worker.client import coordinator_worker_client
+					coordinator_worker_client.dispatch_save_cookies("youtube", new_netscape)
+			except Exception:
+				pass
 
 		return True, "Xác thực cookies YouTube thành công."
 	except Exception as err:

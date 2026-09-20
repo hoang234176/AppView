@@ -125,7 +125,10 @@ class MediaDownloadPreview {
           .whereType<Map>()
           .map((m) => MediaImageItem.fromJson(Map<String, dynamic>.from(m)))
           .toList()),
-      hasVideo = json['has_video'] == true,
+      hasVideo = json['has_video'] == true ||
+          json['source'] == 'youtube' ||
+          (json['qualities'] as List? ?? const []).isNotEmpty ||
+          json['type'] == 'video',
       hasAudio = json['has_audio'] == true;
 }
 

@@ -147,8 +147,16 @@ class YouTubePreviewTests(unittest.IsolatedAsyncioTestCase):
         await handler.handle({"type": "task.assign", "taskId": "preview", "action": "resolve_download",
                               "payload": {"url": "https://youtube.com/watch?v=id", "operation": "preview"}}, send)
         result = send.await_args_list[-1].args[0]["result"]
-        self.assertEqual(result, {"source": "youtube", "title": "A video", "uploader": "A channel",
-                                  "thumbnail": "https://i.ytimg.com/vi/id/default.jpg", "qualities": [2160, 1080, 720]})
+        self.assertEqual(result, {
+            "source": "youtube",
+            "type": "video",
+            "title": "A video",
+            "thumbnail": "https://i.ytimg.com/vi/id/default.jpg",
+            "uploader": "A channel",
+            "qualities": [2160, 1080, 720],
+            "has_video": True,
+            "has_audio": True,
+        })
         self.assertNotIn("media.example", json.dumps(result))
         self.assertNotIn("secret-cookie", json.dumps(result))
 

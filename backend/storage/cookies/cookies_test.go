@@ -296,3 +296,32 @@ func TestSaveNoOpWhenUnchanged(t *testing.T) {
 		t.Fatalf("expected mod times to be equal (no-op), got t1=%v t2=%v", t1, t2)
 	}
 }
+
+func TestDetectCookieDiff(t *testing.T) {
+	oldContent := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\told_sid\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tYSC\tysc_val\n"
+
+	newContent := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tnew_sid\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tYSC\tysc_val\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tPREF\tf1=50000000\n"
+
+	updated, added := detectCookieDiff(oldContent, newContent)
+
+	if len(updated) != 1 || updated[0] != "SID" {
+		t.Fatalf("expected updated=[SID], got %v", updated)
+	}
+	if len(added) != 1 || added[0] != "PREF" {
+		t.Fatalf("expected added=[PREF], got %v", added)
+	}
+
+	// Test when old content is empty (all should be added)
+	updatedEmpty, addedEmpty := detectCookieDiff("", newContent)
+	if len(updatedEmpty) != 0 {
+		t.Fatalf("expected updated=[] on empty old, got %v", updatedEmpty)
+	}
+	if len(addedEmpty) != 3 {
+		t.Fatalf("expected added=3 on empty old, got %v", addedEmpty)
+	}
+}

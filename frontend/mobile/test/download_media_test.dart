@@ -16,6 +16,26 @@ void main() {
     expect(preview.qualities.first, 2160);
     expect(preview.thumbnail, '');
     expect(preview.uploader, '');
+    expect(preview.hasVideo, isTrue);
+  });
+
+  test('preview identifies video posts even without has_video field', () {
+    final previewVideo = MediaDownloadPreview.fromJson({
+      'source': 'facebook',
+      'type': 'video',
+      'title': 'FB Video',
+    });
+    expect(previewVideo.hasVideo, isTrue);
+
+    final previewText = MediaDownloadPreview.fromJson({
+      'source': 'facebook',
+      'type': 'post',
+      'title': 'Status only',
+      'content': 'Hello world',
+      'has_video': false,
+    });
+    expect(previewText.hasVideo, isFalse);
+    expect(previewText.images.isEmpty, isTrue);
   });
 
   testWidgets('media entry is separate and validates URL before preview', (

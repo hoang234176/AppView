@@ -87,8 +87,13 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
               img.type.isEmpty)
           .toList();
       final targetImages = photos.isNotEmpty ? photos : _preview!.images;
-      final isTextOnly = !_preview!.hasVideo && targetImages.isEmpty;
-      final isImages = !isTextOnly && (_mediaTypeTab == 'images' || (!_preview!.hasVideo && targetImages.isNotEmpty));
+      final hasVideo = _preview!.hasVideo ||
+          _preview!.source == 'youtube' ||
+          _preview!.qualities.isNotEmpty ||
+          _preview!.type == 'video';
+      final hasImages = targetImages.isNotEmpty;
+      final isTextOnly = !hasVideo && !hasImages;
+      final isImages = !isTextOnly && (_mediaTypeTab == 'images' || (!hasVideo && hasImages));
 
       if (isImages && _selectedIndices.isEmpty) {
         setState(() {
@@ -139,7 +144,10 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
           ? photos
           : preview.images.where((img) => img.type != 'video').toList();
       final hasImages = targetImages.isNotEmpty;
-      final hasVideo = preview.hasVideo || preview.source == 'youtube' || preview.qualities.isNotEmpty;
+      final hasVideo = preview.hasVideo ||
+          preview.source == 'youtube' ||
+          preview.qualities.isNotEmpty ||
+          preview.type == 'video';
 
       setState(() {
         _preview = preview;
@@ -431,7 +439,8 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                       final hasImages = targetImages.isNotEmpty;
                       final hasVideo = preview.hasVideo ||
                           preview.source == 'youtube' ||
-                          preview.qualities.isNotEmpty;
+                          preview.qualities.isNotEmpty ||
+                          preview.type == 'video';
                       final isFacebook = preview.source == 'facebook';
                       final isTikTok = preview.source == 'tiktok';
                       final isInstagram = preview.source == 'instagram';
@@ -597,7 +606,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                     ),
 
                                     // Video thumbnail or initial review photo in card
-                                    if (showVideoVisual && preview.thumbnail.isNotEmpty)
+                                    if (showVideoVisual)
                                       _buildMediaPreviewBox(
                                         imageUrl: preview.thumbnail,
                                         isVideo: true,
@@ -620,7 +629,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                           );
                                         },
                                       )
-                                    else if (preview.content.isNotEmpty || preview.title.isNotEmpty)
+                                    else if (!hasVideo && !hasImages && (preview.content.isNotEmpty || preview.title.isNotEmpty))
                                       Container(
                                         width: double.infinity,
                                         padding: const EdgeInsets.all(14),
@@ -1188,9 +1197,32 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
               child: Text(
                 preview == null
                     ? 'Tiếp tục'
-                    : (!preview.hasVideo && preview.images.isEmpty
-                        ? 'Tải bài viết (.txt)'
-                        : 'Tải xuống'),
+                    : () {
+                        final hasVideo = preview.hasVideo ||
+                            preview.source == 'youtube' ||
+                            preview.qualities.isNotEmpty ||
+                            preview.type == 'video';
+                        final photos = preview.images
+                            .where((img) =>
+                                img.type == 'slideshow_photo' ||
+                                img.type == 'post_photo' ||
+                                img.type == 'photo' ||
+                                img.type.isEmpty)
+                            .toList();
+                        final targetImages = photos.isNotEmpty
+                            ? photos
+                            : preview.images.where((img) => img.type != 'video').toList();
+                        final hasImages = targetImages.isNotEmpty;
+                        final isTextOnly = !hasVideo && !hasImages;
+
+                        if (isTextOnly) return 'Tải bài viết (.txt)';
+                        if (_mediaTypeTab == 'images' || (!hasVideo && hasImages)) {
+                          return targetImages.length > 1
+                              ? 'Tải ${targetImages.length} ảnh'
+                              : 'Tải ảnh';
+                        }
+                        return 'Tải Video';
+                      }(),
               ),
             ),
           ],
@@ -1267,6 +1299,14 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                       size: 36,
                     ),
                   ),
+                ),
+              )
+            else
+              Center(
+                child: Icon(
+                  isVideo ? Icons.videocam_rounded : Icons.photo_library_rounded,
+                  color: Colors.white24,
+                  size: 44,
                 ),
               ),
             // Top-right Expand / Zoom icon (if clickable for preview)

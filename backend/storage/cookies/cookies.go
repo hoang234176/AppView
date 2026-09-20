@@ -416,35 +416,58 @@ func preserveEssentialYouTubeTokens(existingContent, mergedContent string) strin
 	return sb.String()
 }
 
-// detectChangedCookieFields compares old and new cookie contents and returns the sorted names
-// of cookie fields that have new or modified values.
-func detectChangedCookieFields(oldContent, newContent string) []string {
+// detectCookieDiff compares old and new cookie contents and returns:
+// - updatedFields: names of cookie fields that existed previously but have modified values/attributes
+// - addedFields: names of cookie fields that are newly added (did not exist in oldContent)
+func detectCookieDiff(oldContent, newContent string) ([]string, []string) {
 	oldEntries := make(map[string]string)
+	oldNames := make(map[string]bool)
 	for _, l := range strings.Split(oldContent, "\n") {
 		e := parseNetscapeLine(l)
 		if e != nil && !e.isComment && e.name != "" {
 			k := strings.ToLower(e.domain) + "|" + e.path + "|" + e.name
 			oldEntries[k] = e.value
+			oldNames[e.name] = true
 		}
 	}
 
-	var changed []string
-	seen := make(map[string]bool)
+	var updatedFields []string
+	var addedFields []string
+	seenUpdated := make(map[string]bool)
+	seenAdded := make(map[string]bool)
+
 	for _, l := range strings.Split(newContent, "\n") {
 		e := parseNetscapeLine(l)
 		if e != nil && !e.isComment && e.name != "" {
 			k := strings.ToLower(e.domain) + "|" + e.path + "|" + e.name
 			oldVal, exists := oldEntries[k]
-			if !exists || oldVal != e.value {
-				if !seen[e.name] {
-					seen[e.name] = true
-					changed = append(changed, e.name)
+			if !oldNames[e.name] {
+				// Field never existed anywhere in the old cookie file
+				if !seenAdded[e.name] {
+					seenAdded[e.name] = true
+					addedFields = append(addedFields, e.name)
+				}
+			} else if !exists || oldVal != e.value {
+				// Field existed in old file, but its value/domain/path has changed
+				if !seenUpdated[e.name] && !seenAdded[e.name] {
+					seenUpdated[e.name] = true
+					updatedFields = append(updatedFields, e.name)
 				}
 			}
 		}
 	}
-	sort.Strings(changed)
-	return changed
+
+	sort.Strings(updatedFields)
+	sort.Strings(addedFields)
+	return updatedFields, addedFields
+}
+
+// detectChangedCookieFields returns all modified or newly added field names.
+func detectChangedCookieFields(oldContent, newContent string) []string {
+	updated, added := detectCookieDiff(oldContent, newContent)
+	all := append(updated, added...)
+	sort.Strings(all)
+	return all
 }
 
 // Save writes or merges cookie content to ~/.tmp-appview/cookies/<platform>.txt with 0600 permissions.
@@ -483,12 +506,15 @@ func Save(platform string, content string) (time.Time, error) {
 		return time.Now().UTC(), nil
 	}
 
-	// Log updated cookie field names (names only, each on its own line)
-	changedFields := detectChangedCookieFields(existingContent, finalContent)
-	if len(changedFields) > 0 {
-		utils.LogInfo("[COOKIE] Đã lưu cập nhật %d trường cookie cho %s vào storage:", len(changedFields), safePlatform)
-		for _, field := range changedFields {
-			utils.LogInfo("[COOKIE]   • %s", field)
+	// Log updated vs newly added cookie field names (names only, safe for privacy)
+	updatedFields, addedFields := detectCookieDiff(existingContent, finalContent)
+	if len(updatedFields) > 0 || len(addedFields) > 0 {
+		utils.LogInfo("[COOKIE] [%s] Phát hiện thay đổi cookie khi lưu vào storage:", safePlatform)
+		if len(updatedFields) > 0 {
+			utils.LogInfo("[COOKIE]   • Có các trường cập nhật sau (%d): %s", len(updatedFields), strings.Join(updatedFields, ", "))
+		}
+		if len(addedFields) > 0 {
+			utils.LogInfo("[COOKIE]   • Có các trường được thêm mới sau (%d): %s", len(addedFields), strings.Join(addedFields, ", "))
 		}
 	}
 

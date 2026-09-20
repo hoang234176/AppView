@@ -35,8 +35,16 @@ class YouTubeResolver(DownloadResolver):
         if not self.supports(url):
             raise UnsupportedSourceError("URL không phải là liên kết YouTube hợp lệ.")
         post = await self._extractor.extract(url.strip(), preview=True)
-        return {"source": post.source, "title": post.title, "thumbnail": post.thumbnail,
-                "uploader": post.uploader, "qualities": post.qualities}
+        return {
+            "source": post.source,
+            "type": "video",
+            "title": post.title,
+            "thumbnail": post.thumbnail,
+            "uploader": post.uploader,
+            "qualities": post.qualities,
+            "has_video": True,
+            "has_audio": True,
+        }
 
     async def resolve(self, url: str, *, quality: Optional[int] = None) -> ResolvedDownload:
         """Resolve YouTube URL to normalized media descriptor."""
