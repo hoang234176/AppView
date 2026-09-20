@@ -50,6 +50,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     super.initState();
     _transformationController = TransformationController();
     _currentIndex = widget.initialIndex;
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _initializeVideo();
   }
 
@@ -58,6 +59,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _hideControlsTimer?.cancel();
     _controller?.dispose();
     _transformationController.dispose();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,

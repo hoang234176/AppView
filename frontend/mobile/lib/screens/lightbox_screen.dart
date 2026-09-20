@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
@@ -40,6 +41,7 @@ class _LightboxScreenState extends State<LightboxScreen> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   @override
@@ -49,6 +51,7 @@ class _LightboxScreenState extends State<LightboxScreen> {
     for (final controller in _photoViewControllers.values) {
       controller.dispose();
     }
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
@@ -144,8 +147,7 @@ class _LightboxScreenState extends State<LightboxScreen> {
 
     return Scaffold(
       backgroundColor: Color.fromRGBO(12, 13, 16, opacity),
-      body: SafeArea(
-        child: GestureDetector(
+      body: GestureDetector(
           onVerticalDragUpdate: (details) {
             final controller = _getController(_currentIndex);
             final currentScale = controller.scale ?? 1.0;
@@ -530,16 +532,15 @@ class _LightboxScreenState extends State<LightboxScreen> {
                                           )
                                           : Colors.white.withValues(alpha: 0.1),
                                 ),
-                                tooltip: 'Thông tin ảnh',
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                              tooltip: 'Thông tin ảnh',
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
