@@ -212,14 +212,16 @@ class FolderGrid extends StatelessWidget {
             ),
           ),
 
-          // Items Grid
+          // Square cards — same width as PictureGrid.
+          // childAspectRatio: 1.0 makes the cell square.
+          // Footer is compact so icon area = most of the square.
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: folders.length,
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 220,
-              mainAxisExtent: 82,
+              maxCrossAxisExtent: 180,
+              childAspectRatio: 1.0,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
             ),
@@ -237,6 +239,11 @@ class FolderGrid extends StatelessWidget {
     final appState = context.watch<AppStateProvider>();
     final isSelectMode = appState.isSelectMode;
     final isSelected = appState.isFolderSelected(folder.path);
+
+    final Color iconColor = isSelected ? AppTheme.googleBlue : AppTheme.folderYellow;
+    final Color bgTint = isSelected
+        ? AppTheme.googleBlue.withValues(alpha: 0.08)
+        : AppTheme.folderYellow.withValues(alpha: 0.06);
 
     return InkWell(
       onTap: () {
@@ -256,103 +263,134 @@ class FolderGrid extends StatelessWidget {
       borderRadius: AppTheme.borderRadius,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.only(left: 10, right: 8, top: 8, bottom: 8),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF1E2638) : AppTheme.bgCard,
           borderRadius: AppTheme.borderRadius,
-          border: Border.all(
-            color: isSelected ? AppTheme.googleBlue : AppTheme.borderColor,
-            width: isSelected ? 1.8 : 1.0,
-          ),
           boxShadow: [
             BoxShadow(
               color: isSelected
                   ? AppTheme.googleBlue.withValues(alpha: 0.25)
-                  : Colors.black.withValues(alpha: 0.15),
-              blurRadius: isSelected ? 8 : 4,
+                  : Colors.black.withValues(alpha: 0.2),
+              blurRadius: isSelected ? 8 : 6,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppTheme.googleBlue.withValues(alpha: 0.2)
-                    : AppTheme.folderYellow.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected
-                      ? AppTheme.googleBlue.withValues(alpha: 0.4)
-                      : AppTheme.folderYellow.withValues(alpha: 0.25),
+        foregroundDecoration: BoxDecoration(
+          borderRadius: AppTheme.borderRadius,
+          border: Border.all(
+            color: isSelected ? AppTheme.googleBlue : AppTheme.borderColor,
+            width: isSelected ? 2.0 : 1.0,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: AppTheme.borderRadius,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Icon area — Expanded fills most of the square card.
+              Expanded(
+                child: Stack(
+                  children: [
+                    // Full-bleed background tint
+                    Positioned.fill(child: Container(color: bgTint)),
+
+                    // Icon with guaranteed top spacing:
+                    // SizedBox(10) = hard 10px gap from top (≥5% of 180px cell).
+                    // Icon is then centered in the remaining space below.
+                    Positioned.fill(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 10), // hard top spacer ≥5%
+                          Expanded(
+                            child: Center(
+                              child: Icon(Icons.folder_rounded, size: 82, color: iconColor),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Select checkbox — top-left, same style as picture/video cards
+                    if (isSelectMode)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppTheme.googleBlue
+                                : Colors.black.withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.8),
+                              width: 1.8,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: isSelected
+                              ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                              : null,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              child: Icon(
-                Icons.folder_rounded,
-                color: isSelected ? AppTheme.googleBlue : AppTheme.folderYellow,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    folder.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    folder.path,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: Color(0xFF9AA0A6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelectMode)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 22,
-                height: 22,
+
+              // Footer — compact padding so it doesn't eat too much of the square.
+              // top/bottom: 6px (tighter than picture/video's 8px).
+              Container(
                 decoration: BoxDecoration(
-                  color: isSelected ? AppTheme.googleBlue : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.6),
-                    width: 1.8,
+                  border: Border(
+                    top: BorderSide(
+                      color: isSelected
+                          ? AppTheme.googleBlue.withValues(alpha: 0.18)
+                          : AppTheme.folderYellow.withValues(alpha: 0.10),
+                    ),
                   ),
                 ),
-                child: isSelected
-                    ? const Icon(Icons.check_rounded, size: 15, color: Colors.white)
-                    : null,
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF80868B), size: 18),
-                onPressed: () => _showFolderOptionsModal(context, folder),
-                padding: EdgeInsets.zero,
-                alignment: Alignment.center,
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                splashRadius: 18,
+                padding: const EdgeInsets.only(left: 10, right: 2, top: 6, bottom: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        folder.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? AppTheme.googleBlue : Colors.white,
+                        ),
+                      ),
+                    ),
+                    if (isSelectMode)
+                      const SizedBox(width: 4)
+                    else
+                      IconButton(
+                        icon: const Icon(Icons.more_vert_rounded,
+                            color: Color(0xFF80868B), size: 18),
+                        onPressed: () => _showFolderOptionsModal(context, folder),
+                        padding: EdgeInsets.zero,
+                        alignment: Alignment.center,
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        splashRadius: 18,
+                      ),
+                  ],
+                ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );

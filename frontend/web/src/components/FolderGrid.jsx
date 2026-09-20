@@ -8,7 +8,7 @@ const FolderCard = React.memo(({
   isSelectMode,
   onToggleSelect,
   onNavigate,
-  onFolderContextMenu
+  onFolderContextMenu,
 }) => {
   return (
     <div
@@ -27,42 +27,54 @@ const FolderCard = React.memo(({
           onFolderContextMenu(e, folder);
         }
       }}
-      className={`group bg-[#202124] hover:bg-[#2d2f31] border rounded-[24px] p-4.5 cursor-pointer transition-[border-color,background-color] duration-150 flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 relative ${
+      className={`group relative bg-[#202124] border rounded-[24px] shadow-sm hover:shadow-xl cursor-pointer transition-[border-color,background-color,box-shadow] duration-150 flex flex-col hover:-translate-y-1 aspect-square ${
         isSelected
-          ? 'border-yellow-400 bg-yellow-500/10 ring-1 ring-yellow-400/30'
-          : 'border-[#383c42] hover:border-[#8ab4f8]/60'
+          ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-500/10'
+          : 'border-[#383c42] hover:border-yellow-400/70'
       }`}
     >
-      <div className="flex items-center gap-3.5 min-w-0">
-        {/* Select Checkbox in card */}
-        {isSelectMode && (
-          <div className="flex-shrink-0">
-            <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-colors duration-150 ${
-              isSelected
-                ? 'bg-yellow-400 border-yellow-400 text-[#1c1d21] shadow-sm'
-                : 'border-gray-500 bg-black/30 group-hover:border-yellow-400'
-            }`}>
-              {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-            </div>
+      {/* Select Checkbox — top-left corner over icon area */}
+      {isSelectMode && (
+        <div className="absolute top-2.5 left-2.5 z-20">
+          <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors duration-150 shadow-md ${
+            isSelected
+              ? 'bg-yellow-400 border-yellow-400 text-[#1c1d21] scale-105'
+              : 'border-white/70 bg-black/60 hover:border-white'
+          }`}>
+            {isSelected && <Check className="w-4 h-4 stroke-[3]" />}
           </div>
-        )}
-
-        <div className="w-12 h-12 rounded-[24px] bg-yellow-500/10 border border-yellow-500/20 group-hover:bg-yellow-500/15 group-hover:border-yellow-400/35 flex items-center justify-center flex-shrink-0 transition-colors">
-          <Folder className="w-6 h-6 text-yellow-400 fill-yellow-400/20" />
         </div>
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-gray-200 group-hover:text-yellow-300 truncate">
-            {folder.name}
-          </h3>
-          <p className="text-xs text-gray-400 truncate mt-0.5 font-mono">
-            {folder.path}
-          </p>
+      )}
+
+      {/*
+        Icon area — flex-1 fills remaining space after footer.
+        Total card = aspect-square → icon area becomes a short rectangle.
+        Layout: flex-col with a fixed 12px top spacer, then icon centered
+        in the remaining space. 12px is always ≥5% of icon area height
+        at any viewport size.
+      */}
+      <div className="relative flex-1 min-h-0 bg-yellow-500/[0.07] overflow-hidden flex flex-col items-center rounded-t-[24px] border-b border-yellow-500/10 group-hover:bg-yellow-500/[0.12] transition-colors duration-200">
+        {/* Hard spacer — icon top edge is always ≥12px from container top */}
+        <div className="h-3 w-full flex-shrink-0" />
+        {/* Remaining space: icon centered inside */}
+        <div className="flex-1 flex items-center justify-center">
+          <Folder className="w-[104px] h-[104px] text-yellow-400 fill-yellow-400/20 group-hover:scale-110 transition-transform duration-300 drop-shadow-sm" />
         </div>
       </div>
 
-      {!isSelectMode && (
-        <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-yellow-400 group-hover:translate-x-1 transition-all flex-shrink-0 ml-2" />
-      )}
+      {/* Footer — fixed height, takes the bottom slice of the square card */}
+      <div className="px-3.5 py-3.5 bg-[#202124] rounded-b-[24px] flex items-center gap-2">
+        <h3
+          className="text-xs font-semibold text-gray-200 group-hover:text-yellow-300 truncate min-w-0 flex-1"
+          title={folder.name}
+        >
+          {folder.name}
+        </h3>
+
+        {!isSelectMode && (
+          <ArrowRight className="w-3.5 h-3.5 text-gray-500 group-hover:text-yellow-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+        )}
+      </div>
     </div>
   );
 });
@@ -88,7 +100,10 @@ export const FolderGrid = ({
     <section className="px-6 sm:px-8 pt-4 pb-2 max-w-7xl mx-auto mb-2">
       <div className="flex items-center justify-between mb-4 px-1">
         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-          <Folder className="w-4 h-4 text-yellow-400 fill-yellow-400/20" /> Thư Mục <span className="text-xs font-mono text-gray-500">(<RollingNumber value={countDisplay} />)</span>
+          <Folder className="w-4 h-4 text-yellow-400 fill-yellow-400/20" /> Thư Mục{' '}
+          <span className="text-xs font-mono text-gray-500">
+            (<RollingNumber value={countDisplay} />)
+          </span>
         </h2>
 
         {isSelectMode && (
@@ -104,9 +119,11 @@ export const FolderGrid = ({
                   : 'bg-[#28292d] border-[#383c42] hover:border-yellow-400/60 hover:bg-[#383c42] text-gray-400 hover:text-white'
               }`}
             >
-              <Check className={`w-3.5 h-3.5 stroke-[2.5] transition-all ${
-                isAllSelected ? 'scale-100 opacity-100' : 'scale-75 opacity-0 group-hover:opacity-60'
-              }`} />
+              <Check
+                className={`w-3.5 h-3.5 stroke-[2.5] transition-all ${
+                  isAllSelected ? 'scale-100 opacity-100' : 'scale-75 opacity-0 group-hover:opacity-60'
+                }`}
+              />
             </button>
             <div className="pointer-events-none absolute right-0 top-full mt-1.5 hidden group-hover:flex items-center whitespace-nowrap rounded-lg bg-[#18191c] px-2.5 py-1 text-[11px] font-medium text-gray-200 shadow-xl border border-[#383c42] z-30 animate-fade-in">
               {isAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
@@ -115,7 +132,8 @@ export const FolderGrid = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+      {/* Same column count as PictureGrid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
         {folders.map((folder, idx) => (
           <FolderCard
             key={folder.path || idx}
