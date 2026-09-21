@@ -10,6 +10,7 @@ import '../api/folder_api.dart';
 import '../api/download_api.dart';
 import '../api/api_config.dart';
 import '../services/filesystem_events_service.dart';
+import '../utils/formatters.dart';
 
 class TransferProgress {
   final String action;
@@ -700,7 +701,20 @@ class AppStateProvider extends ChangeNotifier {
               RegExp(r'\.(mp4|mkv|webm|avi|mov|flv|wmv|m4v)$', caseSensitive: false).hasMatch(name);
 
           if (isVid) {
-            final vid = VideoItem.fromJson(itemMap);
+            final rawVideo = VideoItem.fromJson(itemMap);
+            final vid = VideoItem(
+              name: rawVideo.name,
+              path: rawVideo.path,
+              type: rawVideo.type,
+              url: Formatters.getVideoStreamUrl(ApiConfig.baseUrl, rawVideo),
+              thumbnailUrl: Formatters.getVideoThumbnailUrl(ApiConfig.baseUrl, rawVideo),
+              modTime: rawVideo.modTime,
+              size: rawVideo.size,
+              width: rawVideo.width,
+              height: rawVideo.height,
+              extension: rawVideo.extension,
+              resolution: rawVideo.resolution,
+            );
             _videos = [vid, ..._videos.where((v) => normalize(v.path) != normNew)];
             _totalVideos++;
           } else {
