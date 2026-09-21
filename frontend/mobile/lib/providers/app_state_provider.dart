@@ -718,7 +718,19 @@ class AppStateProvider extends ChangeNotifier {
             _videos = [vid, ..._videos.where((v) => normalize(v.path) != normNew)];
             _totalVideos++;
           } else {
-            final pic = PictureItem.fromJson(itemMap);
+            final rawPicture = PictureItem.fromJson(itemMap);
+            final pic = PictureItem(
+              name: rawPicture.name,
+              path: rawPicture.path,
+              type: rawPicture.type,
+              url: Formatters.getPictureUrl(ApiConfig.baseUrl, rawPicture),
+              thumbnailUrl: Formatters.getThumbnailUrl(ApiConfig.baseUrl, rawPicture),
+              modTime: rawPicture.modTime,
+              size: rawPicture.size,
+              width: rawPicture.width,
+              height: rawPicture.height,
+              extension: rawPicture.extension,
+            );
             _pictures = [pic, ..._pictures.where((p) => normalize(p.path) != normNew)];
             _totalPictures++;
           }
