@@ -30,4 +30,6 @@ func Register(mux *http.ServeMux, coordinator *service.Coordinator) {
 	mux.HandleFunc("POST /api/v1/cookies/verify", cookies.Verify)
 	mux.HandleFunc("POST /api/v1/cookies/save", cookies.Save)
 	mux.HandleFunc("GET /health", Health(coordinator))
+	mux.HandleFunc("GET /docs", DocsHandler())
+	mux.HandleFunc("GET /api/openapi.json", OpenAPISpecHandler())
 }
