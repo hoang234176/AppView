@@ -1,16 +1,57 @@
-# React + Vite
+# AppView Web Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`frontend/web` is the primary desktop-oriented web application for AppView, built with **React 19**, **Vite**, and **Tailwind CSS**.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🎯 Key Features & UI Modules
 
-## React Compiler
+1. **Media Library & Folder Explorer**:
+   - Seamless browsing of local folders, pictures, and video streams served by Go Storage (`:8080`).
+   - Breadcrumb navigation, folder creation, renaming, and batch move/delete actions.
+   - Real-time filesystem updates via Coordinator WebSocket (`/ws/events`).
+2. **Media Players & Viewers**:
+   - **Video Player Modal**: Full-featured video player supporting playback speed, rotation, full-screen, range seeking, and on-the-fly format conversion.
+   - **Lightbox Modal**: High-resolution image viewer with zoom, pan, rotation, and slideshow navigation.
+3. **Download Manager & Active Tasks**:
+   - Unified URL download dialog supporting social media platforms (YouTube, TikTok, Facebook, Instagram, X) and MediaFire archives.
+   - Multi-stage progress tracking (Resolving → Downloading → Converting) with floating snackbar notifications.
+   - Retry, password entry, and cooperative cancellation controls.
+4. **Cookie & Authentication Settings**:
+   - Platform-specific cookie management for YouTube, TikTok, Facebook, Instagram, and X.
+   - In-app cookie verification, format checking, and storage synchronization through Coordinator.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## ⚙️ Configuration & Environment
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Environment settings can be configured in `.env` (or via browser `localStorage` dynamically in Settings):
+
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_COORDINATOR_API_BASE_URL` | `http://localhost:8090` | Coordinator service base URL |
+| `VITE_STORAGE_API_BASE_URL` | `http://localhost:8080` | Storage service base URL |
+| `VITE_DOWNLOAD_API_BASE_URL` | `http://localhost:8000` | Legacy Python Download service base URL |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+ (Node 20+ recommended)
+- npm or pnpm
+
+### Installation & Run
+```bash
+# Install dependencies
+npm install
+
+# Start Vite development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
