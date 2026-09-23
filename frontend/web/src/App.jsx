@@ -90,6 +90,7 @@ function App() {
   const realtimeRefreshRef = useRef(null);
   const refreshCoordinatorDownloadsRef = useRef(null);
   const downloadRefreshTimerRef = useRef(null);
+  const downloadRefreshSequenceRef = useRef(0);
   const loadDrivesRef = useRef(null);
 
   const PAGE_SIZE = 20;
@@ -712,9 +713,11 @@ function App() {
   }, []);
 
   const refreshCoordinatorDownloads = useCallback(async () => {
+	const requestSequence = ++downloadRefreshSequenceRef.current;
 	if (!isConnected) { setDownloadTasks([]); return; }
     const response = await fetchCoordinatorDownloads();
-    if (isMountedRef.current && response.success) setDownloadTasks(response.data.map(mapCoordinatorJob));
+	if (requestSequence !== downloadRefreshSequenceRef.current) return;
+	if (isMountedRef.current && response.success) setDownloadTasks(response.data.map(mapCoordinatorJob));
   }, [isConnected, mapCoordinatorJob]);
   useEffect(() => { refreshCoordinatorDownloadsRef.current = refreshCoordinatorDownloads; refreshCoordinatorDownloads(); }, [refreshCoordinatorDownloads]);
 
