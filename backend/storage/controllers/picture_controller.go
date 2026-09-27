@@ -3,6 +3,7 @@ package controllers
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"backend/configs"
 	"backend/utils"
@@ -40,6 +41,9 @@ func ServeThumbnail(c *fiber.Ctx) error {
 
 	drive := configs.FindDriveForPath(fullPath)
 	thumbDir := filepath.Join(drive.Path, ".thumbnails")
+	if strings.HasPrefix(filepath.Clean(fullPath), filepath.Clean(rootPath)) {
+		thumbDir = filepath.Join(rootPath, ".thumbnails")
+	}
 	thumbPath := filepath.Join(thumbDir, resolvedRelPath+".jpg")
 
 	if _, err := os.Stat(thumbPath); err == nil {

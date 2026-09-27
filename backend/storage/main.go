@@ -15,6 +15,7 @@ import (
 	"backend/media_download/tiktok"
 	"backend/media_download/x"
 	"backend/media_download/youtube"
+	"backend/metadata"
 	"backend/routes"
 	"backend/utils"
 	"backend/worker"
@@ -25,6 +26,9 @@ import (
 
 func main() {
 	configs.LoadEnvironment()
+	if err := metadata.InitDB(); err != nil {
+		utils.LogEvent("WARN", "failed to initialize metadata db", map[string]any{"error": err.Error()})
+	}
 	pythonapi.LoadPersistentArchiveJobs()
 	youtube.LoadPersistentJobs()
 	tiktok.LoadPersistentJobs()

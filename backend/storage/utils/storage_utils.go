@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"backend/configs"
+	"backend/metadata"
 	"backend/models"
 
 	"github.com/disintegration/imaging"
@@ -383,13 +384,21 @@ func GetVideoDimensions(fullPath string, modTime time.Time) (int, int) {
 	return 0, 0
 }
 
+var pictureThumbSemaphore = make(chan struct{}, 4)
+
 func GenerateVideoThumbnail(srcPath string, thumbPath string) error {
 	_ = os.MkdirAll(filepath.Dir(thumbPath), 0755)
 
 	ffmpegSemaphore <- struct{}{}
 	defer func() { <-ffmpegSemaphore }()
 
+	drive := configs.FindDriveForPath(srcPath)
+	relPath, _ := filepath.Rel(drive.Path, srcPath)
+	cleanRel := filepath.ToSlash(relPath)
+
 	if fi, statErr := os.Stat(thumbPath); statErr == nil && fi.Size() > 0 {
+		w, h := GetVideoDimensions(srcPath, fi.ModTime())
+		_ = metadata.UpdateThumbStatus(drive.ID, cleanRel, true, w, h)
 		return nil
 	}
 
@@ -400,6 +409,8 @@ func GenerateVideoThumbnail(srcPath string, thumbPath string) error {
 	if err := cmd.Run(); err == nil {
 		if fi, statErr := os.Stat(thumbPath); statErr == nil && fi.Size() > 0 {
 			LogInfo("[THUMBNAIL] Đã tạo video thumbnail thành công: %s", thumbPath)
+			w, h := GetVideoDimensions(srcPath, fi.ModTime())
+			_ = metadata.UpdateThumbStatus(drive.ID, cleanRel, true, w, h)
 			return nil
 		}
 	}
@@ -411,6 +422,8 @@ func GenerateVideoThumbnail(srcPath string, thumbPath string) error {
 	if err := cmd0.Run(); err == nil {
 		if fi, statErr := os.Stat(thumbPath); statErr == nil && fi.Size() > 0 {
 			LogInfo("[THUMBNAIL] Đã tạo video thumbnail tại frame 0 thành công: %s", thumbPath)
+			w, h := GetVideoDimensions(srcPath, fi.ModTime())
+			_ = metadata.UpdateThumbStatus(drive.ID, cleanRel, true, w, h)
 			return nil
 		}
 	}
@@ -426,11 +439,17 @@ func GenerateThumbnail(srcPath string, thumbPath string) error {
 		return GenerateVideoThumbnail(srcPath, thumbPath)
 	}
 
+	pictureThumbSemaphore <- struct{}{}
+	defer func() { <-pictureThumbSemaphore }()
+
 	srcImg, err := imaging.Open(srcPath)
 	if err != nil {
 		LogError("[THUMBNAIL] Không thể mở ảnh: %s (%v)", srcPath, err)
 		return err
 	}
+
+	origBounds := srcImg.Bounds()
+	origW, origH := origBounds.Dx(), origBounds.Dy()
 
 	thumbImg := imaging.Fit(srcImg, 400, 400, imaging.Lanczos)
 
@@ -447,6 +466,12 @@ func GenerateThumbnail(srcPath string, thumbPath string) error {
 	}
 
 	LogInfo("[THUMBNAIL] Đã tạo thumbnail ảnh thành công: %s", thumbPath)
+
+	drive := configs.FindDriveForPath(srcPath)
+	if relPath, relErr := filepath.Rel(drive.Path, srcPath); relErr == nil {
+		_ = metadata.UpdateThumbStatus(drive.ID, filepath.ToSlash(relPath), true, origW, origH)
+	}
+
 	return nil
 }
 
@@ -515,6 +540,9 @@ func RenameSubFolder(baseDir string, targetRelPath string, newName string) (*mod
 	}
 
 	newRelPath, _ := filepath.Rel(baseDir, newFullPath)
+	drive := configs.FindDriveForPath(baseDir)
+	_ = metadata.RenameFolderMetadata(drive.ID, targetRelPath, newRelPath)
+
 	return &models.FolderItem{
 		Name: newName,
 		Path: filepath.ToSlash(newRelPath),
@@ -535,6 +563,9 @@ func DeleteSubFolder(baseDir string, targetRelPath string) error {
 		LogError("[STORAGE SERVICE] Lỗi xóa thư mục %s: %v", fullPath, err)
 		return err
 	}
+
+	drive := configs.FindDriveForPath(baseDir)
+	_ = metadata.DeleteFolderMetadata(drive.ID, targetRelPath)
 
 	// Also delete any associated thumbnail cache folders
 	_ = os.RemoveAll(filepath.Join(baseDir, ".thumbnails", targetRelPath))
@@ -558,6 +589,9 @@ func DeleteFile(baseDir string, targetRelPath string) error {
 		LogError("[STORAGE SERVICE] Lỗi xóa tệp %s: %v", fullPath, err)
 		return err
 	}
+
+	drive := configs.FindDriveForPath(baseDir)
+	_ = metadata.DeleteItemMetadata(drive.ID, targetRelPath)
 
 	// Also delete cached thumbnails from all possible thumbnail cache locations
 	_ = os.Remove(filepath.Join(baseDir, ".thumbnails", targetRelPath+".jpg"))
@@ -630,6 +664,9 @@ func GetPicturesInFolder(baseDir string, targetRelPath string) ([]*models.Pictur
 		return nil, err
 	}
 
+	drive := configs.FindDriveForPath(baseDir)
+	cachedMap, _ := metadata.GetFolderMetadata(drive.ID, targetRelPath)
+
 	var pictures []*models.PictureItem
 	for _, entry := range entries {
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || !IsImageFile(entry.Name()) {
@@ -640,8 +677,35 @@ func GetPicturesInFolder(baseDir string, targetRelPath string) ([]*models.Pictur
 			continue
 		}
 		itemRelPath := filepath.ToSlash(filepath.Join(targetRelPath, entry.Name()))
-		itemFullPath := filepath.Join(baseDir, itemRelPath)
-		w, h := GetImageDimensions(itemFullPath, info.ModTime())
+
+		w, h := 0, 0
+		if cached, ok := cachedMap[itemRelPath]; ok && cached.ModTime == info.ModTime().Unix() {
+			w = cached.Width
+			h = cached.Height
+		} else {
+			// Fast-path: do not block directory listing. Check in-memory cache if available.
+			pictureMetaMu.RLock()
+			itemFullPath := filepath.Join(baseDir, itemRelPath)
+			if memCached, ok := pictureMetaCache[itemFullPath]; ok && memCached.ModTime.Equal(info.ModTime()) {
+				w = memCached.Width
+				h = memCached.Height
+			}
+			pictureMetaMu.RUnlock()
+
+			// Async/lazy store basic info in metadata DB if missing
+			if cached == nil {
+				go func(p string, s int64, mt int64) {
+					_ = metadata.UpsertMetadata(&metadata.MediaMeta{
+						Drive:     drive.ID,
+						Path:      p,
+						Folder:    targetRelPath,
+						MediaType: "picture",
+						Size:      s,
+						ModTime:   mt,
+					})
+				}(itemRelPath, info.Size(), info.ModTime().Unix())
+			}
+		}
 
 		pictures = append(pictures, &models.PictureItem{
 			Type:      "picture",
@@ -665,6 +729,9 @@ func GetVideosInFolder(baseDir string, targetRelPath string) ([]*models.VideoIte
 		return nil, err
 	}
 
+	drive := configs.FindDriveForPath(baseDir)
+	cachedMap, _ := metadata.GetFolderMetadata(drive.ID, targetRelPath)
+
 	var videos []*models.VideoItem
 	for _, entry := range entries {
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || !IsVideoFile(entry.Name()) {
@@ -675,8 +742,36 @@ func GetVideosInFolder(baseDir string, targetRelPath string) ([]*models.VideoIte
 			continue
 		}
 		itemRelPath := filepath.ToSlash(filepath.Join(targetRelPath, entry.Name()))
-		itemFullPath := filepath.Join(baseDir, itemRelPath)
-		w, h := GetVideoDimensions(itemFullPath, info.ModTime())
+
+		w, h := 0, 0
+		if cached, ok := cachedMap[itemRelPath]; ok && cached.ModTime == info.ModTime().Unix() {
+			w = cached.Width
+			h = cached.Height
+		} else {
+			// Fast-path: do not block directory listing with ffprobe! If in memory cache, use it.
+			videoMetaMu.RLock()
+			itemFullPath := filepath.Join(baseDir, itemRelPath)
+			if memCached, ok := videoMetaCache[itemFullPath]; ok && memCached.ModTime.Equal(info.ModTime()) {
+				w = memCached.Width
+				h = memCached.Height
+			}
+			videoMetaMu.RUnlock()
+
+			// Async/lazy store basic info in metadata DB if missing
+			if cached == nil {
+				go func(p string, s int64, mt int64) {
+					_ = metadata.UpsertMetadata(&metadata.MediaMeta{
+						Drive:     drive.ID,
+						Path:      p,
+						Folder:    targetRelPath,
+						MediaType: "video",
+						Size:      s,
+						ModTime:   mt,
+					})
+				}(itemRelPath, info.Size(), info.ModTime().Unix())
+			}
+		}
+
 		resolution := ""
 		if w > 0 && h > 0 {
 			resolution = fmt.Sprintf("%dx%d", w, h)
@@ -726,6 +821,10 @@ func MoveItem(rootPath string, srcRel string, destRel string) error {
 		LogError("[STORAGE SERVICE] Lỗi di chuyển %s -> %s: %v", srcFull, destFull, err)
 		return err
 	}
+
+	newPath := filepath.ToSlash(filepath.Join(destClean, fileName))
+	drive := configs.FindDriveForPath(rootPath)
+	_ = metadata.MoveItemMetadata(drive.ID, srcRel, newPath, destClean)
 
 	LogInfo("[STORAGE SERVICE] Đã di chuyển thành công %s đến %s", srcRel, destRel)
 	return nil
