@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"backend/configs"
+	"backend/metadata"
 )
 
 type BatchItem struct {
@@ -197,6 +200,28 @@ func ExecuteBatchSameDrive(rootPath string, items []BatchItem, destRelFolder str
 				LogError("[BATCH SAME-DRIVE] Lỗi di chuyển %s -> %s: %v", srcFull, destFull, err)
 				return err
 			}
+
+			// Move metadata and thumbnail
+			drive := configs.FindDriveForPath(rootPath)
+			newRelPath := filepath.ToSlash(filepath.Join(cleanDest, fileName))
+			_ = metadata.MoveItemMetadata(drive.ID, item.Path, newRelPath, cleanDest)
+
+			if info.IsDir() {
+				oldThumb := filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(item.Path))
+				newThumb := filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(newRelPath))
+				if _, statErr := os.Stat(oldThumb); statErr == nil {
+					_ = os.MkdirAll(filepath.Dir(newThumb), 0755)
+					_ = os.Rename(oldThumb, newThumb)
+				}
+			} else {
+				oldThumb := filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(item.Path)+".jpg")
+				newThumb := filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(newRelPath)+".jpg")
+				if _, statErr := os.Stat(oldThumb); statErr == nil {
+					_ = os.MkdirAll(filepath.Dir(newThumb), 0755)
+					_ = os.Rename(oldThumb, newThumb)
+				}
+			}
+
 			if !info.IsDir() {
 				copiedBytes += info.Size()
 			}
@@ -224,6 +249,15 @@ func ExecuteBatchSameDrive(rootPath string, items []BatchItem, destRelFolder str
 			if err := os.RemoveAll(srcFull); err != nil {
 				LogError("[BATCH SAME-DRIVE] Lỗi xóa %s: %v", srcFull, err)
 				return err
+			}
+
+			drive := configs.FindDriveForPath(rootPath)
+			if info.IsDir() {
+				_ = metadata.DeleteFolderMetadata(drive.ID, item.Path)
+				_ = os.RemoveAll(filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(item.Path)))
+			} else {
+				_ = metadata.DeleteItemMetadata(drive.ID, item.Path)
+				_ = os.Remove(filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(item.Path)+".jpg"))
 			}
 			LogInfo("[BATCH SAME-DRIVE] Đã xóa: %s", cleanSrc)
 		}
@@ -273,6 +307,9 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 			LogInfo("[BATCH CROSS-DRIVE] Đã sao chép liên ổ đĩa: %s -> %s", srcFull, destFull)
 
 		case "move":
+			srcDrive := configs.FindDriveForPath(srcRoot)
+			newRelPath := filepath.ToSlash(filepath.Join(cleanDest, fileName))
+
 			// Di chuyển liên ổ: Sao chép hoàn tất 100% sang ổ đích trước, sau đó xóa nguồn
 			if info.IsDir() {
 				if err := copyDirWithProgress(srcFull, destFull, onProgress, &copiedBytes); err != nil {
@@ -281,6 +318,15 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 				if err := os.RemoveAll(srcFull); err != nil {
 					LogError("[BATCH CROSS-DRIVE] Đã sao chép xong nhưng lỗi xóa thư mục nguồn %s: %v", srcFull, err)
 				}
+
+				oldThumb := filepath.Join(srcRoot, ".thumbnails", filepath.FromSlash(item.Path))
+				newThumb := filepath.Join(destRoot, ".thumbnails", filepath.FromSlash(newRelPath))
+				if _, statErr := os.Stat(oldThumb); statErr == nil {
+					_ = os.MkdirAll(filepath.Dir(newThumb), 0755)
+					_ = copyDirWithProgress(oldThumb, newThumb, nil, nil)
+					_ = os.RemoveAll(oldThumb)
+				}
+				_ = metadata.DeleteFolderMetadata(srcDrive.ID, item.Path)
 			} else {
 				if err := copyFileWithProgress(srcFull, destFull, onProgress, &copiedBytes); err != nil {
 					return fmt.Errorf("lỗi di chuyển file (giai đoạn sao chép) %s sang %s: %w", srcFull, destFull, err)
@@ -288,6 +334,16 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 				if err := os.Remove(srcFull); err != nil {
 					LogError("[BATCH CROSS-DRIVE] Đã sao chép xong nhưng lỗi xóa file nguồn %s: %v", srcFull, err)
 				}
+
+				oldThumb := filepath.Join(srcRoot, ".thumbnails", filepath.FromSlash(item.Path)+".jpg")
+				newThumb := filepath.Join(destRoot, ".thumbnails", filepath.FromSlash(newRelPath)+".jpg")
+				if _, statErr := os.Stat(oldThumb); statErr == nil {
+					_ = os.MkdirAll(filepath.Dir(newThumb), 0755)
+					var dummy int64
+					_ = copyFileWithProgress(oldThumb, newThumb, nil, &dummy)
+					_ = os.Remove(oldThumb)
+				}
+				_ = metadata.DeleteItemMetadata(srcDrive.ID, item.Path)
 			}
 			LogInfo("[BATCH CROSS-DRIVE] Đã di chuyển liên ổ đĩa: %s -> %s", srcFull, destFull)
 
@@ -296,6 +352,14 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 			if err := os.RemoveAll(srcFull); err != nil {
 				LogError("[BATCH CROSS-DRIVE] Lỗi xóa %s: %v", srcFull, err)
 				return err
+			}
+			srcDrive := configs.FindDriveForPath(srcRoot)
+			if info.IsDir() {
+				_ = metadata.DeleteFolderMetadata(srcDrive.ID, item.Path)
+				_ = os.RemoveAll(filepath.Join(srcRoot, ".thumbnails", filepath.FromSlash(item.Path)))
+			} else {
+				_ = metadata.DeleteItemMetadata(srcDrive.ID, item.Path)
+				_ = os.Remove(filepath.Join(srcRoot, ".thumbnails", filepath.FromSlash(item.Path)+".jpg"))
 			}
 		}
 	}

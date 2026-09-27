@@ -543,6 +543,14 @@ func RenameSubFolder(baseDir string, targetRelPath string, newName string) (*mod
 	drive := configs.FindDriveForPath(baseDir)
 	_ = metadata.RenameFolderMetadata(drive.ID, targetRelPath, newRelPath)
 
+	// Move thumbnail directory as well
+	oldThumbDir := filepath.Join(baseDir, ".thumbnails", filepath.FromSlash(targetRelPath))
+	newThumbDir := filepath.Join(baseDir, ".thumbnails", filepath.FromSlash(newRelPath))
+	if _, statErr := os.Stat(oldThumbDir); statErr == nil {
+		_ = os.MkdirAll(filepath.Dir(newThumbDir), 0755)
+		_ = os.Rename(oldThumbDir, newThumbDir)
+	}
+
 	return &models.FolderItem{
 		Name: newName,
 		Path: filepath.ToSlash(newRelPath),
@@ -825,6 +833,25 @@ func MoveItem(rootPath string, srcRel string, destRel string) error {
 	newPath := filepath.ToSlash(filepath.Join(destClean, fileName))
 	drive := configs.FindDriveForPath(rootPath)
 	_ = metadata.MoveItemMetadata(drive.ID, srcRel, newPath, destClean)
+
+	destInfo, _ := os.Stat(destFull)
+
+	// Move corresponding thumbnail file or folder
+	if destInfo != nil && destInfo.IsDir() {
+		oldThumb := filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(srcRel))
+		newThumb := filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(newPath))
+		if _, statErr := os.Stat(oldThumb); statErr == nil {
+			_ = os.MkdirAll(filepath.Dir(newThumb), 0755)
+			_ = os.Rename(oldThumb, newThumb)
+		}
+	} else {
+		oldThumb := filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(srcRel)+".jpg")
+		newThumb := filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(newPath)+".jpg")
+		if _, statErr := os.Stat(oldThumb); statErr == nil {
+			_ = os.MkdirAll(filepath.Dir(newThumb), 0755)
+			_ = os.Rename(oldThumb, newThumb)
+		}
+	}
 
 	LogInfo("[STORAGE SERVICE] Đã di chuyển thành công %s đến %s", srcRel, destRel)
 	return nil
