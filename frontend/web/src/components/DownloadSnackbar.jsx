@@ -164,23 +164,23 @@ export const DownloadSnackbar = ({ tasks = [], transferTasks = [], summary = nul
         {/* Expanded detail list */}
         {detailsMounted && (
           <div className={`snackbar-details ${isExpanded ? 'snackbar-details-expanded' : ''}`}>
-            <div className="min-h-0 overflow-hidden">
-              <div className={`max-h-[460px] space-y-2.5 overflow-y-auto p-4 custom-scrollbar ${isExpanded ? 'border-b border-[#383c42]' : ''}`}>
-                
-                {/* List header */}
-                <div className="flex items-center justify-between pb-1.5 border-b border-[#383c42]/60">
-                  <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Download className="w-3.5 h-3.5 text-blue-400" />
-                    Đang chạy (<RollingNumber value={totalActiveCount} />)
-                  </span>
-                  <button
-                    onClick={() => setIsExpanded(false)}
-                    className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
-                  >
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+            <div className="min-h-0 overflow-hidden flex flex-col">
+              {/* List header (Sticky / Fixed at top, does not scroll with task list) */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#383c42]/60 bg-[#1c1d21] flex-shrink-0 z-10">
+                <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Download className="w-3.5 h-3.5 text-blue-400" />
+                  Đang chạy (<RollingNumber value={totalActiveCount} />)
+                </span>
+                <button
+                  onClick={() => setIsExpanded(false)}
+                  className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
+              {/* Scrollable task cards */}
+              <div className={`max-h-[460px] space-y-2.5 overflow-y-auto p-4 custom-scrollbar ${isExpanded ? 'border-b border-[#383c42]' : ''}`}>
                 {/* Transfer tasks cards (Copy / Move) */}
                 {activeTransferTasks.map((t) => {
                   const isCompleted = t.status === 'completed';

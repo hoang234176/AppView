@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   Check,
   Video,
+  Play,
   Settings,
   ZoomIn,
   FileText,
@@ -43,17 +44,37 @@ const InstagramIcon = ({ className = 'w-3.5 h-3.5' }) => (
   </svg>
 );
 
+const TelegramIcon = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg className={`${className} fill-current`} viewBox="0 0 24 24">
+    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.458c.538-.196 1.006.128.832.943z"/>
+  </svg>
+);
+
 const XIcon = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={`${className} fill-current`} viewBox="0 0 24 24">
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
   </svg>
 );
 
-// Mounted only while open: unmount aborts preview and discards its metadata.
+const formatBytes = (bytes) => {
+  if (!bytes || bytes <= 0) return '';
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+};
+
+const formatDuration = (seconds) => {
+  if (!seconds || seconds <= 0) return '';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
 export const DownloadMediaModal = ({
   currentPath = '',
   treeData = [],
   activeDrive = '',
+  downloadTasks = [],
   onClose,
   onSuccess,
   onOpenSettings,
@@ -63,11 +84,16 @@ export const DownloadMediaModal = ({
   const [mediaTypeTab, setMediaTypeTab] = useState('video');
   const [quality, setQuality] = useState(null);
   const [selectedIndices, setSelectedIndices] = useState([]);
+  const [selectedVideoIndices, setSelectedVideoIndices] = useState([]);
   const [previewImageIndex, setPreviewImageIndex] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState(currentPath || '');
   const [pasted, setPasted] = useState(false);
+  const [activeTaskIds, setActiveTaskIds] = useState({ video: null, images: null, text: null });
+  const [downloadedTypes, setDownloadedTypes] = useState({ video: false, images: false, text: false });
+  const [downloadingTypes, setDownloadingTypes] = useState({ video: false, images: false, text: false });
+  const closeTimerRef = useRef(null);
   const operation = useRef(null);
   const mounted = useRef(true);
 
@@ -77,12 +103,60 @@ export const DownloadMediaModal = ({
     );
     return postPhotos.length > 0 ? postPhotos : preview?.images || [];
   }, [preview]);
+
+  const targetVideos = useMemo(() => {
+    return (preview?.videos || []).filter((v) => v.type === 'video' || !v.type);
+  }, [preview]);
+
   const hasImages = targetImages.length > 0;
+  const hasMultipleVideos = targetVideos.length > 1;
   const hasVideo = Boolean(
     preview?.has_video ||
+      targetVideos.length > 0 ||
       preview?.source === 'youtube' ||
       (preview?.qualities && preview.qualities.length > 0)
   );
+
+  const getStatusForType = (typeKey) => {
+    if (downloadingTypes[typeKey]) return 'downloading';
+    if (downloadedTypes[typeKey]) return 'completed';
+    const taskId = activeTaskIds[typeKey];
+    if (!taskId) return 'idle';
+    if (taskId === true) return 'downloading'; // started, not matched yet
+    const foundTask = downloadTasks.find((t) => t.task_id === taskId || t.id === taskId);
+    if (!foundTask) return 'downloading';
+    if (foundTask.stage === 'completed') return 'completed';
+    if (foundTask.stage === 'error' || foundTask.stage === 'failed') return 'error';
+    return 'downloading';
+  };
+
+  const videoStatus = getStatusForType('video');
+  const imagesStatus = getStatusForType('images');
+  const textStatus = getStatusForType('text');
+
+  // Auto-close modal when background downloads actually finish
+  useEffect(() => {
+    if (!preview) return;
+    const isTextOnly = !hasVideo && !hasImages;
+    if (isTextOnly) {
+      if (textStatus === 'completed') onClose();
+      return;
+    }
+    if (hasVideo && !hasImages) {
+      if (videoStatus === 'completed') onClose();
+      return;
+    }
+    if (!hasVideo && hasImages) {
+      if (imagesStatus === 'completed') onClose();
+      return;
+    }
+    // Mixed post (both video and images)
+    if (hasVideo && hasImages) {
+      if (videoStatus === 'completed' && imagesStatus === 'completed') {
+        onClose();
+      }
+    }
+  }, [videoStatus, imagesStatus, textStatus, preview, hasVideo, hasImages, onClose]);
 
   // Keyboard navigation for image preview lightbox
   useEffect(() => {
@@ -131,20 +205,31 @@ export const DownloadMediaModal = ({
   }, []);
 
   const close = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
     operation.current?.abort();
     onClose();
   };
 
   useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const escape = (event) => {
-      if (event.key === 'Escape' && !(busy && preview)) {
-        operation.current?.abort();
-        onClose();
+      if (event.key === 'Escape') {
+        close();
       }
     };
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
-  }, [onClose, busy, preview]);
+  }, []);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -155,16 +240,113 @@ export const DownloadMediaModal = ({
     if (preview) {
       const isTextOnly = !hasVideo && !hasImages;
       const isImages = !isTextOnly && (mediaTypeTab === 'images' || (!preview.has_video && targetImages.length > 0));
+      const mediaType = isTextOnly ? 'text' : isImages ? 'images' : 'video';
 
+      // 1. Multiple videos: dispatch separate download task for each selected video
+      if (mediaType === 'video' && targetVideos.length > 1) {
+        if (selectedVideoIndices.length === 0) {
+          setError('Vui lòng chọn ít nhất một video để tải xuống.');
+          setBusy(false);
+          return;
+        }
+        setDownloadingTypes((prev) => ({ ...prev, video: true }));
+        let lastTaskId = null;
+        for (const idx of selectedVideoIndices) {
+          const result = await startMediaDownload(
+            url.trim(),
+            canonicalDownloadDestination(destination, activeDrive),
+            quality,
+            [idx],
+            'video',
+            activeDrive
+          );
+          if (result.success) {
+            onSuccess?.(result.data);
+            lastTaskId = result.data?.id || result.data?.task_id || result.data?.taskId || true;
+          } else {
+            setError(result.message);
+          }
+        }
+        if (!mounted.current) return;
+        setBusy(false);
+        if (lastTaskId) {
+          setActiveTaskIds((prev) => ({ ...prev, video: lastTaskId }));
+          if (!hasImages) {
+            closeTimerRef.current = setTimeout(() => {
+              if (mounted.current) onClose();
+            }, 2000);
+          } else {
+            const nextDownloaded = { ...downloadedTypes, video: true };
+            setDownloadedTypes(nextDownloaded);
+            setDownloadingTypes((prev) => ({ ...prev, video: false }));
+            if (nextDownloaded.video && nextDownloaded.images) {
+              closeTimerRef.current = setTimeout(() => {
+                if (mounted.current) onClose();
+              }, 2000);
+            }
+          }
+        }
+        return;
+      }
+
+      // 2. Multiple images: dispatch separate download task for each selected image
+      if (mediaType === 'images' && targetImages.length > 1) {
+        if (selectedIndices.length === 0) {
+          setError('Vui lòng chọn ít nhất một ảnh để tải xuống.');
+          setBusy(false);
+          return;
+        }
+        setDownloadingTypes((prev) => ({ ...prev, images: true }));
+        let lastTaskId = null;
+        for (const idx of selectedIndices) {
+          const result = await startMediaDownload(
+            url.trim(),
+            canonicalDownloadDestination(destination, activeDrive),
+            null,
+            [idx],
+            'images',
+            activeDrive
+          );
+          if (result.success) {
+            onSuccess?.(result.data);
+            lastTaskId = result.data?.id || result.data?.task_id || result.data?.taskId || true;
+          } else {
+            setError(result.message);
+          }
+        }
+        if (!mounted.current) return;
+        setBusy(false);
+        if (lastTaskId) {
+          setActiveTaskIds((prev) => ({ ...prev, images: lastTaskId }));
+          if (!hasVideo) {
+            closeTimerRef.current = setTimeout(() => {
+              if (mounted.current) onClose();
+            }, 2000);
+          } else {
+            const nextDownloaded = { ...downloadedTypes, images: true };
+            setDownloadedTypes(nextDownloaded);
+            setDownloadingTypes((prev) => ({ ...prev, images: false }));
+            if (nextDownloaded.video && nextDownloaded.images) {
+              closeTimerRef.current = setTimeout(() => {
+                if (mounted.current) onClose();
+              }, 2000);
+            }
+          }
+        }
+        return;
+      }
+
+      // 3. Single video / Single image / Text / Fallback
       if (isImages && selectedIndices.length === 0) {
         setError('Vui lòng chọn ít nhất một ảnh để tải xuống.');
         setBusy(false);
         return;
       }
 
-      const mediaType = isTextOnly ? 'text' : isImages ? 'images' : 'video';
       const indices = isImages ? selectedIndices : null;
       const chosenQuality = (isImages || isTextOnly) ? null : quality;
+
+      setDownloadingTypes((prev) => ({ ...prev, [mediaType]: true }));
 
       const result = await startMediaDownload(
         url.trim(),
@@ -177,9 +359,33 @@ export const DownloadMediaModal = ({
       if (!mounted.current) return;
       setBusy(false);
       if (result.success) {
-        onSuccess(result.data);
-        onClose();
+        onSuccess?.(result.data);
+        const taskId = result.data?.id || result.data?.task_id || result.data?.taskId || true;
+        setActiveTaskIds((prev) => ({ ...prev, [mediaType]: taskId }));
+
+        const isMixed = hasVideo && hasImages;
+        if (!isMixed) {
+          closeTimerRef.current = setTimeout(() => {
+            if (mounted.current) {
+              onClose();
+            }
+          }, 2000);
+        } else {
+          const nextDownloaded = { ...downloadedTypes, [mediaType]: true };
+          setDownloadedTypes(nextDownloaded);
+          setDownloadingTypes((prev) => ({ ...prev, [mediaType]: false }));
+
+          if (nextDownloaded.video && nextDownloaded.images) {
+            setDownloadingTypes((prev) => ({ ...prev, [mediaType]: true }));
+            closeTimerRef.current = setTimeout(() => {
+              if (mounted.current) {
+                onClose();
+              }
+            }, 2000);
+          }
+        }
       } else {
+        setDownloadingTypes((prev) => ({ ...prev, [mediaType]: false }));
         setError(result.message);
       }
       return;
@@ -191,6 +397,7 @@ export const DownloadMediaModal = ({
       const result = await previewMediaDownload(url.trim(), controller.signal);
       if (!mounted.current || controller.signal.aborted) return;
       setPreview(result);
+      setActiveTaskIds({ video: null, images: null, text: null });
       if (result.qualities && result.qualities.length > 0) {
         setQuality(result.qualities[0]);
       } else {
@@ -206,9 +413,13 @@ export const DownloadMediaModal = ({
       const imgs = pList.length > 0 ? pList : (result.images || []).filter((img) => img.type !== 'video');
       setSelectedIndices(imgs.map((_, i) => i));
 
+      const vList = (result.videos || []).filter((v) => v.type === 'video' || !v.type);
+      setSelectedVideoIndices(vList.map((_, i) => i));
+
       const hasImages = imgs.length > 0;
       const hasVideo = Boolean(
         result.has_video ||
+          vList.length > 0 ||
           result.source === 'youtube' ||
           (result.qualities && result.qualities.length > 0)
       );
@@ -238,6 +449,9 @@ export const DownloadMediaModal = ({
   const isTtUrl = Boolean(cleanUrl && cleanUrl.includes('tiktok.com'));
   const isIgUrl = Boolean(
     cleanUrl && (cleanUrl.includes('instagram.com') || cleanUrl.includes('instagr.am'))
+  );
+  const isTgUrl = Boolean(
+    cleanUrl && (cleanUrl.includes('t.me') || cleanUrl.includes('telegram.me'))
   );
   const isXUrl = Boolean(
     cleanUrl &&
@@ -276,6 +490,13 @@ export const DownloadMediaModal = ({
       activeClass: 'bg-pink-500/20 text-pink-400 border border-pink-500/40 shadow-sm',
     },
     {
+      id: 'telegram',
+      name: 'Telegram',
+      icon: TelegramIcon,
+      active: isTgUrl,
+      activeClass: 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-sm',
+    },
+    {
       id: 'x',
       name: 'X (Twitter)',
       icon: XIcon,
@@ -293,6 +514,7 @@ export const DownloadMediaModal = ({
   const isInstagram = preview?.source === 'instagram';
   const isFacebook = preview?.source === 'facebook';
   const isTikTok = preview?.source === 'tiktok';
+  const isTelegram = preview?.source === 'telegram';
   const isX = preview?.source === 'x' || preview?.source === 'twitter';
   const isAuthRequired =
     Boolean(error) &&
@@ -303,9 +525,7 @@ export const DownloadMediaModal = ({
   return (
     <div
       className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/80 animate-fade-in select-none"
-      onClick={() => {
-        if (!(busy && preview)) close();
-      }}
+      onClick={close}
     >
       <div
         role="dialog"
@@ -328,9 +548,8 @@ export const DownloadMediaModal = ({
           <button
             type="button"
             aria-label="Đóng"
-            disabled={busy && !!preview}
             onClick={close}
-            className="p-1.5 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+            className="p-1.5 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -458,8 +677,10 @@ export const DownloadMediaModal = ({
             <div className="space-y-3">
               {/* Unified Media Preview Card (Facebook / TikTok / YouTube / Instagram / X) */}
               {(() => {
-                const platformName = isX ? 'X (Twitter)' : isInstagram ? 'Instagram' : isFacebook ? 'Facebook' : isTikTok ? 'TikTok' : 'YouTube';
-                const accentColorClass = isX
+                const platformName = isTelegram ? 'Telegram' : isX ? 'X (Twitter)' : isInstagram ? 'Instagram' : isFacebook ? 'Facebook' : isTikTok ? 'TikTok' : 'YouTube';
+                const accentColorClass = isTelegram
+                  ? 'text-sky-400'
+                  : isX
                   ? 'text-zinc-200'
                   : isInstagram
                   ? 'text-pink-400'
@@ -468,7 +689,9 @@ export const DownloadMediaModal = ({
                   : isTikTok
                   ? 'text-cyan-400'
                   : 'text-rose-400';
-                const badgeBgClass = isX
+                const badgeBgClass = isTelegram
+                  ? 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                  : isX
                   ? 'bg-white/10 text-white border-white/25'
                   : isInstagram
                   ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
@@ -477,7 +700,9 @@ export const DownloadMediaModal = ({
                   : isTikTok
                   ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
                   : 'bg-rose-500/15 text-rose-400 border-rose-500/30';
-                const avatarBgClass = isX
+                const avatarBgClass = isTelegram
+                  ? 'bg-sky-500/20 text-sky-400 border-sky-500/30'
+                  : isX
                   ? 'bg-zinc-800 text-white border-zinc-600'
                   : isInstagram
                   ? 'bg-pink-500/20 text-pink-400 border-pink-500/30'
@@ -490,14 +715,16 @@ export const DownloadMediaModal = ({
                 const authorName =
                   preview.author?.name ||
                   (preview.uploader
-                    ? (isTikTok || isInstagram || isX) && !preview.uploader.startsWith('@')
+                    ? (isTikTok || isInstagram || isX || isTelegram) && !preview.uploader.startsWith('@')
                       ? `@${preview.uploader}`
                       : preview.uploader
                     : preview.title || `${platformName} Post`);
 
                 const subtitle =
                   preview.created_time ||
-                  (isX
+                  (isTelegram
+                    ? 'Bài viết Telegram'
+                    : isX
                     ? 'Bài viết X (Twitter)'
                     : isInstagram
                     ? 'Bài viết Instagram'
@@ -570,7 +797,9 @@ export const DownloadMediaModal = ({
                       <div
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeBgClass} border flex-shrink-0`}
                       >
-                        {isX ? (
+                        {isTelegram ? (
+                          <TelegramIcon className="w-3 h-3" />
+                        ) : isX ? (
                           <XIcon className="w-3 h-3" />
                         ) : isInstagram ? (
                           <InstagramIcon className="w-3 h-3" />
@@ -665,7 +894,9 @@ export const DownloadMediaModal = ({
                           onClick={() => setMediaTypeTab('video')}
                           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium text-xs transition-all ${
                             mediaTypeTab === 'video'
-                              ? isX
+                              ? isTelegram
+                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30 shadow-sm'
+                                : isX
                                 ? 'bg-zinc-700/60 text-white border border-zinc-500/50 shadow-sm'
                                 : isInstagram
                                 ? 'bg-pink-600/25 text-pink-300 border border-pink-500/40 shadow-sm'
@@ -685,7 +916,9 @@ export const DownloadMediaModal = ({
                           onClick={() => setMediaTypeTab('images')}
                           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium text-xs transition-all ${
                             mediaTypeTab === 'images'
-                              ? isX
+                              ? isTelegram
+                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30 shadow-sm'
+                                : isX
                                 ? 'bg-zinc-700/60 text-white border border-zinc-500/50 shadow-sm'
                                 : isInstagram
                                 ? 'bg-pink-600/25 text-pink-300 border border-pink-500/40 shadow-sm'
@@ -764,7 +997,9 @@ export const DownloadMediaModal = ({
                                     onClick={() => setPreviewImageIndex(idx)}
                                     className={`group relative flex-shrink-0 w-[76px] h-[76px] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 select-none [isolation:isolate] [contain:paint] ${
                                       isSelected
-                                        ? isX
+                                        ? isTelegram
+                                          ? 'border-sky-400 shadow-md ring-2 ring-sky-400/40 opacity-100'
+                                          : isX
                                           ? 'border-white shadow-md ring-2 ring-white/40 opacity-100'
                                           : isInstagram
                                           ? 'border-pink-400 shadow-md ring-2 ring-pink-400/40 opacity-100'
@@ -798,7 +1033,9 @@ export const DownloadMediaModal = ({
                                       }}
                                       className={`absolute top-1 right-1 rounded-full p-1 z-10 transition-all ${
                                         isSelected
-                                          ? isX
+                                          ? isTelegram
+                                            ? 'bg-sky-500 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                            : isX
                                             ? 'bg-zinc-800 text-white shadow-sm ring-1 ring-white/60 scale-105'
                                             : isInstagram
                                             ? 'bg-pink-500 text-white shadow-sm ring-1 ring-white/60 scale-105'
@@ -856,7 +1093,7 @@ export const DownloadMediaModal = ({
                               <span className="text-[11px] text-gray-400 font-mono">
                                   {selectedIndices.length === 0
                                     ? 'Chưa chọn ảnh nào'
-                                    : `Lưu ${selectedIndices.length} ảnh (.zip)`}
+                                    : `Lưu ${selectedIndices.length} ảnh (.jpeg)`}
                                 </span>
                               </div>
                             </>
@@ -864,8 +1101,156 @@ export const DownloadMediaModal = ({
                       </div>
                     ) : null}
 
-                    {/* Video quality selector if mediaTypeTab === 'video' */}
+                    {/* Multiple Videos Selector if mediaTypeTab === 'video' and hasMultipleVideos */}
+                    {(mediaTypeTab === 'video' || (!hasImages && hasVideo)) && hasMultipleVideos ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-gray-300 font-semibold text-xs flex items-center gap-1.5">
+                            <Video className="w-3.5 h-3.5 text-sky-400" />
+                            <span>Danh sách video ({targetVideos.length} video):</span>
+                          </label>
+                          <span className="text-[11px] text-gray-400">
+                            Đã chọn:{' '}
+                            <span className="font-bold text-sky-400">
+                              {selectedVideoIndices.length}
+                            </span>
+                            /{targetVideos.length}
+                          </span>
+                        </div>
+
+                        {/* Horizontal scrollable row of square video cards */}
+                        <div className="flex gap-2.5 overflow-x-auto py-2.5 px-2 scrollbar-thin bg-[#18191c] rounded-2xl border border-[#2e3136]">
+                          {targetVideos.map((vid, idx) => {
+                            const isSelected = selectedVideoIndices.includes(idx);
+                            const durationStr = formatDuration(vid.duration);
+
+                            return (
+                              <div
+                                key={vid.id || vid.msg_id || idx}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedVideoIndices(selectedVideoIndices.filter((i) => i !== idx));
+                                  } else {
+                                    setSelectedVideoIndices(
+                                      [...selectedVideoIndices, idx].sort((a, b) => a - b)
+                                    );
+                                  }
+                                }}
+                                className={`group relative flex-shrink-0 w-[76px] h-[76px] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200 select-none [isolation:isolate] [contain:paint] ${
+                                  isSelected
+                                    ? isTelegram
+                                      ? 'border-sky-400 shadow-md ring-2 ring-sky-400/40 opacity-100'
+                                      : isX
+                                      ? 'border-white shadow-md ring-2 ring-white/40 opacity-100'
+                                      : isInstagram
+                                      ? 'border-pink-400 shadow-md ring-2 ring-pink-400/40 opacity-100'
+                                      : isFacebook
+                                      ? 'border-blue-400 shadow-md ring-2 ring-blue-400/40 opacity-100'
+                                      : 'border-cyan-400 shadow-md ring-2 ring-cyan-400/40 opacity-100'
+                                    : 'border-[#383c42] opacity-50 hover:opacity-90'
+                                }`}
+                                style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
+                                title={vid.title || `Video #${idx + 1}`}
+                              >
+                                {vid.thumbnail ? (
+                                  <img
+                                    src={vid.thumbnail}
+                                    alt={vid.title || `Video ${idx + 1}`}
+                                    referrerPolicy="no-referrer"
+                                    className="w-full h-full object-cover rounded-[9px] group-hover:scale-105 transition-transform duration-200 pointer-events-none"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-black/40 flex items-center justify-center text-gray-400">
+                                    <Video className="w-6 h-6" />
+                                  </div>
+                                )}
+
+                                {/* Center subtle play icon */}
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                                  <Play className="w-4 h-4 text-white/90 fill-white/90 drop-shadow" />
+                                </div>
+
+                                {/* Corner checkbox button */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isSelected) {
+                                      setSelectedVideoIndices(selectedVideoIndices.filter((i) => i !== idx));
+                                    } else {
+                                      setSelectedVideoIndices(
+                                        [...selectedVideoIndices, idx].sort((a, b) => a - b)
+                                      );
+                                    }
+                                  }}
+                                  className={`absolute top-1 right-1 rounded-full p-1 z-10 transition-all ${
+                                    isSelected
+                                      ? isTelegram
+                                        ? 'bg-sky-500 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                        : isX
+                                        ? 'bg-zinc-800 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                        : isInstagram
+                                        ? 'bg-pink-500 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                        : isFacebook
+                                        ? 'bg-blue-600 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                        : 'bg-cyan-500 text-white shadow-sm ring-1 ring-white/60 scale-105'
+                                      : 'bg-black/70 text-gray-300 hover:bg-black/90 hover:text-white border border-white/20'
+                                  }`}
+                                  title={isSelected ? 'Bỏ chọn video' : 'Chọn video'}
+                                >
+                                  <Check className="w-3 h-3 stroke-[2.5]" />
+                                </button>
+
+                                {/* Bottom label (Duration or #Index) */}
+                                <div className="absolute bottom-0 inset-x-0 rounded-b-[9px] bg-black/75 backdrop-blur-xs text-[10px] font-mono text-center text-gray-200 py-0.5 truncate pointer-events-none">
+                                  {durationStr || `#${idx + 1}`}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (selectedVideoIndices.length === targetVideos.length) {
+                                setSelectedVideoIndices([]);
+                              } else {
+                                setSelectedVideoIndices(targetVideos.map((_, i) => i));
+                              }
+                            }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                              isTelegram
+                                ? 'text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 active:bg-sky-500/30 border-sky-500/20'
+                                : isX
+                                ? 'text-white bg-white/10 hover:bg-white/20 active:bg-white/30 border-white/20'
+                                : isInstagram
+                                ? 'text-pink-400 bg-pink-500/10 hover:bg-pink-500/20 active:bg-pink-500/30 border-pink-500/20'
+                                : isFacebook
+                                ? 'text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border-blue-500/20'
+                                : 'text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 border-rose-500/20'
+                            }`}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>
+                              {selectedVideoIndices.length === targetVideos.length
+                                ? 'Bỏ chọn tất cả'
+                                : 'Chọn tất cả'}
+                            </span>
+                          </button>
+                          <span className="text-[11px] text-gray-400 font-mono">
+                            {selectedVideoIndices.length === 0
+                              ? 'Chưa chọn video nào'
+                              : `Lưu ${selectedVideoIndices.length} video (.mp4)`}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Video quality selector if mediaTypeTab === 'video' and single video */}
                     {(mediaTypeTab === 'video' || (!hasImages && hasVideo)) &&
+                    !hasMultipleVideos &&
                     preview.qualities &&
                     preview.qualities.length > 0 ? (
                       <div>
@@ -928,33 +1313,68 @@ export const DownloadMediaModal = ({
               </button>
             )}
 
-            <button
-              type="submit"
-              disabled={busy}
-              className="flex items-center gap-2 px-5 py-2 font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
-            >
-              {busy ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{preview ? 'Đang bắt đầu...' : 'Đang xem trước...'}</span>
-                </>
-              ) : preview ? (
-                <>
-                  <Download className="w-4 h-4" />
-                  <span>
-                    {!hasVideo && !hasImages
-                      ? 'Tải bài viết (.txt)'
-                      : mediaTypeTab === 'images' || (!hasVideo && hasImages)
-                      ? targetImages.length > 1
-                        ? `Tải ${selectedIndices.length} ảnh`
-                        : 'Tải ảnh (.jpeg)'
-                      : 'Tải Video (.mp4)'}
-                  </span>
-                </>
-              ) : (
-                <span>Tiếp tục</span>
-              )}
-            </button>
+            {(() => {
+              const isTextOnly = !hasVideo && !hasImages;
+              const isImages = !isTextOnly && (mediaTypeTab === 'images' || (!hasVideo && hasImages));
+              const currentStatus = preview
+                ? isTextOnly
+                  ? textStatus
+                  : isImages
+                  ? imagesStatus
+                  : videoStatus
+                : 'idle';
+
+              if (currentStatus === 'completed') {
+                return (
+                  <button
+                    type="button"
+                    disabled
+                    className="flex items-center gap-2 px-5 py-2 font-bold text-gray-400 bg-[#2a2b2f] border border-[#383c42] rounded-xl cursor-not-allowed select-none shadow-none"
+                  >
+                    <Check className="w-4 h-4 text-gray-400" />
+                    <span>Tải xong</span>
+                  </button>
+                );
+              }
+
+              if (currentStatus === 'downloading' || busy) {
+                return (
+                  <button
+                    type="button"
+                    disabled
+                    className="flex items-center gap-2 px-5 py-2 font-bold text-white bg-blue-600/70 rounded-xl cursor-not-allowed select-none shadow-none"
+                  >
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{preview ? 'Đang tải...' : 'Đang xem trước...'}</span>
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="flex items-center gap-2 px-5 py-2 font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {preview ? (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>
+                        {!hasVideo && !hasImages
+                          ? 'Tải bài viết (.txt)'
+                          : mediaTypeTab === 'images' || (!hasVideo && hasImages)
+                          ? targetImages.length > 1
+                            ? `Tải ${selectedIndices.length} ảnh`
+                            : 'Tải ảnh (.jpeg)'
+                          : 'Tải Video (.mp4)'}
+                      </span>
+                    </>
+                  ) : (
+                    <span>Tiếp tục</span>
+                  )}
+                </button>
+              );
+            })()}
           </div>
         </form>
       </div>

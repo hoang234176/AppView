@@ -24,8 +24,17 @@ import { DownloadSnackbar } from './components/DownloadSnackbar';
 import { BatchActionModal } from './components/BatchActionModal';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
+import {
+  getApiBaseUrl,
+  isServerConfigured,
+  getServerHost,
+  saveServerConfig,
+  validateCoordinatorHost,
+  getCoordinatorEventsWsUrl,
+  getActiveDrive,
+  setActiveDrive,
+} from './api/axiosConfig';
 import { isActiveDownload, needsDownloadAttention } from './utils/downloadPresentation';
-import { getApiBaseUrl, getCoordinatorEventsWsUrl, getServerHost, saveServerConfig, isServerConfigured, validateCoordinatorHost, getActiveDrive, setActiveDrive } from './api/axiosConfig';
 import { FolderX, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import './styles/index.css';
 
@@ -37,6 +46,7 @@ const parentPath = (path) => {
 const replacePathPrefix = (path, oldPrefix, newPrefix) => path === oldPrefix ? newPrefix : `${newPrefix}${path.slice(oldPrefix.length)}`;
 
 function App() {
+
   const getInitialPathFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('path') || '';
@@ -622,9 +632,6 @@ function App() {
             if (downloadRefreshTimerRef.current) window.clearTimeout(downloadRefreshTimerRef.current);
             downloadRefreshTimerRef.current = window.setTimeout(() => {
               refreshCoordinatorDownloadsRef.current?.();
-              if (payload.download?.kind === 'state_changed') {
-                realtimeRefreshRef.current?.();
-              }
             }, 200);
           }
         } catch {
@@ -800,29 +807,67 @@ function App() {
     return res;
   };
 
+  // Filter States: multi-select Sets
+  // fileTypes: Set of ('folder' | 'picture' | 'video') - empty or all 3 selected means show all
+  // mxhs: Set of ('youtube' | 'tiktok' | 'facebook' | 'instagram' | 'telegram' | 'x') - empty means show all
+  const [fileTypeFilters, setFileTypeFilters] = useState(new Set());
+  const [mxhFilters, setMxhFilters] = useState(new Set());
+
+  const matchesMxh = useCallback((name) => {
+    if (!name || mxhFilters.size === 0) return true;
+    const lower = name.toLowerCase();
+    for (const mxh of mxhFilters) {
+      if (mxh === 'youtube' && (lower.startsWith('[youtube]') || lower.includes('[youtube]'))) return true;
+      if (mxh === 'tiktok' && (lower.startsWith('[tiktok]') || lower.includes('[tiktok]'))) return true;
+      if (mxh === 'facebook' && (lower.startsWith('[facebook]') || lower.includes('[facebook]'))) return true;
+      if (mxh === 'instagram' && (lower.startsWith('[instagram]') || lower.includes('[instagram]'))) return true;
+      if (mxh === 'telegram' && (lower.startsWith('[telegram]') || lower.includes('[telegram]'))) return true;
+      if (mxh === 'x' && (lower.startsWith('[x]') || lower.includes('[x]'))) return true;
+    }
+    return false;
+  }, [mxhFilters]);
+
   const filteredFolders = useMemo(() => {
-    if (!searchQuery.trim()) return folders;
-    return folders.filter((f) =>
-      f.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.path?.toLowerCase().includes(searchQuery.toLowerCase())
+    if (fileTypeFilters.size > 0 && !fileTypeFilters.has('folder')) return [];
+    let list = folders;
+    if (mxhFilters.size > 0) {
+      list = list.filter((f) => matchesMxh(f.name));
+    }
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter((f) =>
+      f.name?.toLowerCase().includes(q) ||
+      f.path?.toLowerCase().includes(q)
     );
-  }, [folders, searchQuery]);
+  }, [folders, searchQuery, fileTypeFilters, mxhFilters, matchesMxh]);
 
   const filteredPictures = useMemo(() => {
-    if (!searchQuery.trim()) return pictures;
-    return pictures.filter((p) =>
-      p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.path?.toLowerCase().includes(searchQuery.toLowerCase())
+    if (fileTypeFilters.size > 0 && !fileTypeFilters.has('picture')) return [];
+    let list = pictures;
+    if (mxhFilters.size > 0) {
+      list = list.filter((p) => matchesMxh(p.name));
+    }
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter((p) =>
+      p.name?.toLowerCase().includes(q) ||
+      p.path?.toLowerCase().includes(q)
     );
-  }, [pictures, searchQuery]);
+  }, [pictures, searchQuery, fileTypeFilters, mxhFilters, matchesMxh]);
 
   const filteredVideos = useMemo(() => {
-    if (!searchQuery.trim()) return videos;
-    return videos.filter((v) =>
-      v.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.path?.toLowerCase().includes(searchQuery.toLowerCase())
+    if (fileTypeFilters.size > 0 && !fileTypeFilters.has('video')) return [];
+    let list = videos;
+    if (mxhFilters.size > 0) {
+      list = list.filter((v) => matchesMxh(v.name));
+    }
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter((v) =>
+      v.name?.toLowerCase().includes(q) ||
+      v.path?.toLowerCase().includes(q)
     );
-  }, [videos, searchQuery]);
+  }, [videos, searchQuery, fileTypeFilters, mxhFilters, matchesMxh]);
 
   const visibleFolders = filteredFolders;
   const visiblePictures = filteredPictures;
@@ -1164,6 +1209,10 @@ function App() {
           onBatchCopy={handleBatchCopy}
           onBatchMove={handleBatchMove}
           onBatchDelete={handleBatchDelete}
+          fileTypeFilters={fileTypeFilters}
+          setFileTypeFilters={setFileTypeFilters}
+          mxhFilters={mxhFilters}
+          setMxhFilters={setMxhFilters}
         />
 
         {/* Main Content Canvas */}
@@ -1405,11 +1454,10 @@ function App() {
           currentPath={currentPath}
           treeData={treeData}
           activeDrive={activeDrive}
+          downloadTasks={downloadTasks}
           onClose={() => setShowDownloadMediaModal(false)}
           onSuccess={(job) => {
             handleCoordinatorJobCreated(job);
-            setDownloadPanelTab('active');
-            setShowDownloadPanel(true);
           }}
           onOpenSettings={() => setShowConfigModal(true)}
         />}
