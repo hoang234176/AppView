@@ -272,6 +272,22 @@ func GetImageDimensions(fullPath string, modTime time.Time) (int, int) {
 
 var ffmpegSemaphore = make(chan struct{}, 2)
 
+// AcquireFFmpeg blocks until a slot is available to execute an FFmpeg command,
+// or returns an error if ctx is cancelled. The caller MUST invoke the returned release function.
+func AcquireFFmpeg(ctx context.Context) (func(), error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case ffmpegSemaphore <- struct{}{}:
+		var once sync.Once
+		return func() {
+			once.Do(func() {
+				<-ffmpegSemaphore
+			})
+		}, nil
+	}
+}
+
 func EnsureFaststartMP4(fullPath string) string {
 	ext := strings.ToLower(filepath.Ext(fullPath))
 	if ext != ".mp4" && ext != ".mov" && ext != ".m4v" {

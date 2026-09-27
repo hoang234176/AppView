@@ -25,6 +25,9 @@ const (
 	CookieSave             MessageType = "cookie.save"
 	CookieGet              MessageType = "cookie.get"
 	CookieVerify           MessageType = "cookie.verify"
+	SessionStatus          MessageType = "session.status"
+	SessionSave            MessageType = "session.save"
+	SessionGet             MessageType = "session.get"
 	BatchJobProgressMessage MessageType = "batch_job_progress"
 	Error                  MessageType = "error"
 )
@@ -200,4 +203,26 @@ type CookieGetResult struct {
 type CookieVerifyResult struct {
 	Valid   bool   `json:"valid"`
 	Message string `json:"message"`
+}
+
+type SessionRequestPayload struct {
+	Platform string `json:"platform"`
+	Session  string `json:"session,omitempty"`
+}
+
+type SessionStatusResult struct {
+	Platform  string     `json:"platform"`
+	Exists    bool       `json:"exists"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
+type SessionSaveResult struct {
+	Success   bool      `json:"success"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type SessionGetResult struct {
+	Platform string `json:"platform"`
+	Exists   bool   `json:"exists"`
+	Session  string `json:"session,omitempty"`
 }

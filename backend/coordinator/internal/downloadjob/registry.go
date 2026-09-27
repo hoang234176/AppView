@@ -308,6 +308,34 @@ func (r *Registry) AttachStorage(jobID, taskID string) error {
 	return nil
 }
 
+func (r *Registry) CancelJob(jobID string) (Job, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	job, ok := r.jobs[jobID]
+	if !ok {
+		return Job{}, false
+	}
+	job.State, job.Stage, job.PasswordRequired, job.Error, job.FailureStage, job.storagePending, job.UpdatedAt = State("cancelled"), "cancelled", false, nil, "", false, time.Now().UTC()
+	r.jobs[jobID] = job
+	return job, true
+}
+
+func (r *Registry) ResetForResolve(jobID string) (Job, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	job, ok := r.jobs[jobID]
+	if !ok {
+		return Job{}, false
+	}
+	if job.ResolveTaskID != "" {
+		delete(r.children, job.ResolveTaskID)
+		job.ResolveTaskID = ""
+	}
+	job.State, job.Stage, job.Error, job.FailureStage, job.storagePending, job.UpdatedAt = Resolving, string(Resolving), nil, "", false, time.Now().UTC()
+	r.jobs[jobID] = job
+	return job, true
+}
+
 func (r *Registry) FailJob(jobID string, stage FailureStage, failure *protocol.ErrorPayload) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

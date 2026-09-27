@@ -335,8 +335,8 @@ func TestMultipleDownloadJobsRemainIsolated(t *testing.T) {
 		}
 	}
 	assignments := storage.assignments()
-	if len(assignments) != 1 {
-		t.Fatalf("one Storage worker should receive its first assignment: %#v", assignments)
+	if len(assignments) != len(jobs) {
+		t.Fatalf("Storage worker should receive all concurrent assignments: %#v", assignments)
 	}
 	for _, id := range jobs {
 		job, _ := coordinator.GetDownload(id)
@@ -401,4 +401,50 @@ func TestDownloadForwardsAudioURLAndSafeHeadersToStorage(t *testing.T) {
 	if _, authPresent := storagePayload.Headers["Authorization"]; authPresent {
 		t.Fatalf("authorization token must never be forwarded to storage: %#v", storagePayload.Headers)
 	}
+}
+
+func TestCancelAndRetryResolveStageDownload(t *testing.T) {
+	coordinator, resolver, _ := newDownloadCoordinator(t)
+	job, err := coordinator.CreateDownload(DownloadRequest{
+		URL: "https://www.instagram.com/reel/DdLR1I0I610/", Destination: "albums/insta",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Simulate resolve failure
+	if err := coordinator.TaskFailed("resolver", job.ResolveTaskID, &protocol.ErrorPayload{Code: "RESOLVE_FAILED", Message: "cannot resolve"}); err != nil {
+		t.Fatal(err)
+	}
+	failedJob, ok := coordinator.GetDownload(job.ID)
+	if !ok || failedJob.State != "failed" || failedJob.FailureStage != "resolve" {
+		t.Fatalf("expected job to be in failed resolve state, got: %#v", failedJob)
+	}
+
+	// 2. Retry download should reset state and create a new resolve task without requiring storage worker
+	if err := coordinator.RetryDownload(job.ID, "", false); err != nil {
+		t.Fatalf("expected RetryDownload to succeed for failed resolve job, got error: %v", err)
+	}
+	retriedJob, ok := coordinator.GetDownload(job.ID)
+	if !ok || retriedJob.State != "resolving" || retriedJob.ResolveTaskID == "" {
+		t.Fatalf("expected job to be resolving again, got: %#v", retriedJob)
+	}
+
+	// 3. Cancel download should transition to cancelled directly without requiring storage worker
+	if err := coordinator.CancelDownload(job.ID); err != nil {
+		t.Fatalf("expected CancelDownload to succeed, got error: %v", err)
+	}
+	cancelledJob, ok := coordinator.GetDownload(job.ID)
+	if !ok || cancelledJob.State != "cancelled" {
+		t.Fatalf("expected job to be cancelled, got: %#v", cancelledJob)
+	}
+
+	// 4. Delete download should delete the job
+	if err := coordinator.DeleteDownload(job.ID); err != nil {
+		t.Fatalf("expected DeleteDownload to succeed, got error: %v", err)
+	}
+	if _, exists := coordinator.GetDownload(job.ID); exists {
+		t.Fatalf("expected job to be deleted from coordinator")
+	}
+	_ = resolver
 }

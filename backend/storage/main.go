@@ -11,7 +11,9 @@ import (
 	"backend/configs"
 	"backend/media_download/facebook"
 	"backend/media_download/instagram"
+	"backend/media_download/telegram"
 	"backend/media_download/tiktok"
+	"backend/media_download/x"
 	"backend/media_download/youtube"
 	"backend/routes"
 	"backend/utils"
@@ -28,6 +30,8 @@ func main() {
 	tiktok.LoadPersistentJobs()
 	facebook.LoadPersistentJobs()
 	instagram.LoadPersistentJobs()
+	telegram.LoadPersistentJobs()
+	x.LoadPersistentJobs()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

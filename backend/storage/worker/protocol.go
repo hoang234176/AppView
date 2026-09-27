@@ -25,6 +25,9 @@ const (
 	CookieStatus       = "cookie.status"
 	CookieSave         = "cookie.save"
 	CookieGet          = "cookie.get"
+	SessionStatus      = "session.status"
+	SessionSave        = "session.save"
+	SessionGet         = "session.get"
 	BatchJobProgressMessage = "batch_job_progress"
 
 	CapabilityDownloadFile = "download_file"
@@ -108,4 +111,26 @@ type CookieGetResult struct {
 	Platform string `json:"platform"`
 	Exists   bool   `json:"exists"`
 	Cookies  string `json:"cookies,omitempty"`
+}
+
+type SessionRequestPayload struct {
+	Platform string `json:"platform"`
+	Session  string `json:"session,omitempty"`
+}
+
+type SessionStatusResult struct {
+	Platform  string     `json:"platform"`
+	Exists    bool       `json:"exists"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
+type SessionSaveResult struct {
+	Success   bool      `json:"success"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type SessionGetResult struct {
+	Platform string `json:"platform"`
+	Exists   bool   `json:"exists"`
+	Session  string `json:"session,omitempty"`
 }

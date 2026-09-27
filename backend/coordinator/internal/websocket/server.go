@@ -56,15 +56,19 @@ func (s *Server) Handle(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 }
+
 func (s *Server) handleMessage(connection *Connection, currentWorkerID string, message protocol.Message) (string, error) {
 	if message.Type == protocol.WorkerRegister {
 		if currentWorkerID != "" {
 			return "", fmtError("worker already registered")
 		}
-		if err := s.coordinator.RegisterWorker(message.WorkerID, message.Capabilities, connection); err != nil {
-			return "", err
+		if message.WorkerID == "" || len(message.Capabilities) == 0 {
+			return "", fmtError("worker id and capabilities are required")
 		}
 		if err := connection.Send(protocol.Message{Type: protocol.WorkerRegistered, WorkerID: message.WorkerID}); err != nil {
+			return "", err
+		}
+		if err := s.coordinator.RegisterWorker(message.WorkerID, message.Capabilities, connection); err != nil {
 			return "", err
 		}
 		return message.WorkerID, nil
@@ -110,6 +114,23 @@ func (s *Server) handleMessage(connection *Connection, currentWorkerID string, m
 			return "", nil
 		}
 		go s.handleWorkerCookieGet(currentWorkerID, message)
+		return "", nil
+	case protocol.SessionStatus:
+		if s.coordinator.ResolveRPC(message.TaskID, message) {
+			return "", nil
+		}
+		return "", nil
+	case protocol.SessionSave:
+		if s.coordinator.ResolveRPC(message.TaskID, message) {
+			return "", nil
+		}
+		go s.handleWorkerSessionSave(currentWorkerID, message)
+		return "", nil
+	case protocol.SessionGet:
+		if s.coordinator.ResolveRPC(message.TaskID, message) {
+			return "", nil
+		}
+		go s.handleWorkerSessionGet(currentWorkerID, message)
 		return "", nil
 	default:
 		return "", fmtError("unsupported message type")
@@ -179,6 +200,71 @@ func (s *Server) handleWorkerCookieSave(workerID string, msg protocol.Message) {
 		}
 	}
 }
+
+func (s *Server) handleWorkerSessionGet(workerID string, msg protocol.Message) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var req protocol.SessionRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+	platform := req.Platform
+	if platform == "" {
+		platform = "telegram"
+	}
+
+	result, err := s.coordinator.GetSessionContent(ctx, platform)
+	resp := protocol.Message{
+		Type:   protocol.SessionGet,
+		TaskID: msg.TaskID,
+	}
+	if err != nil {
+		resp.Result, _ = json.Marshal(protocol.SessionGetResult{
+			Platform: platform,
+			Exists:   false,
+		})
+	} else {
+		resp.Result, _ = json.Marshal(result)
+	}
+
+	if registered, ok := s.coordinator.GetWorker(workerID); ok {
+		_ = registered.Sender.Send(resp)
+	}
+}
+
+func (s *Server) handleWorkerSessionSave(workerID string, msg protocol.Message) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var req protocol.SessionRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+	platform := strings.TrimSpace(req.Platform)
+	sessionStr := strings.TrimSpace(req.Session)
+	if platform != "" && sessionStr != "" {
+		res, err := s.coordinator.SaveSession(ctx, platform, sessionStr)
+		if msg.TaskID != "" {
+			resp := protocol.Message{
+				Type:   protocol.SessionSave,
+				TaskID: msg.TaskID,
+			}
+			if err != nil {
+				resp.Error = &protocol.ErrorPayload{
+					Code:    "SESSION_SAVE_FAILED",
+					Message: err.Error(),
+				}
+			} else {
+				resp.Result, _ = json.Marshal(res)
+			}
+			if registered, ok := s.coordinator.GetWorker(workerID); ok {
+				_ = registered.Sender.Send(resp)
+			}
+		}
+	}
+}
+
 
 func (s *Server) RunHeartbeatMonitor(ctx context.Context) {
 	ticker := time.NewTicker(s.config.HeartbeatCheckInterval)

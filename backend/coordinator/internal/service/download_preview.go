@@ -9,6 +9,7 @@ import (
 
 	"appview/coordinator/internal/protocol"
 	"appview/coordinator/internal/task"
+	"appview/coordinator/internal/worker"
 )
 
 type PreviewImageItem struct {
@@ -74,7 +75,7 @@ func (c *Coordinator) PreviewDownload(ctx context.Context, sourceURL string) (Do
 		}
 		if current.State == task.Completed {
 			var preview DownloadPreview
-			if json.Unmarshal(current.Result, &preview) != nil || (preview.Source != "youtube" && preview.Source != "tiktok" && preview.Source != "facebook" && preview.Source != "instagram" && preview.Source != "x" && preview.Source != "twitter") || preview.Title == "" {
+			if json.Unmarshal(current.Result, &preview) != nil || (preview.Source != "youtube" && preview.Source != "tiktok" && preview.Source != "facebook" && preview.Source != "instagram" && preview.Source != "x" && preview.Source != "twitter" && preview.Source != "telegram") || preview.Title == "" {
 				return failure("PREVIEW_FAILED", "Dữ liệu xem trước không hợp lệ.")
 			}
 			if preview.Source == "youtube" && len(preview.Qualities) == 0 {
@@ -85,9 +86,13 @@ func (c *Coordinator) PreviewDownload(ctx context.Context, sourceURL string) (Do
 					return failure("PREVIEW_FAILED", "Dữ liệu chất lượng không hợp lệ.")
 				}
 			}
-			thumbnail, err := url.Parse(preview.Thumbnail)
-			if err != nil || thumbnail.User != nil || thumbnail.Hostname() == "" || (thumbnail.Scheme != "https" && thumbnail.Scheme != "http") {
-				preview.Thumbnail = ""
+			if strings.HasPrefix(preview.Thumbnail, "data:image/") {
+				// Valid data URI
+			} else {
+				thumbnail, err := url.Parse(preview.Thumbnail)
+				if err != nil || thumbnail.User != nil || (thumbnail.Hostname() == "" && !strings.HasPrefix(preview.Thumbnail, "/")) || (thumbnail.Hostname() != "" && thumbnail.Scheme != "https" && thumbnail.Scheme != "http") {
+					preview.Thumbnail = ""
+				}
 			}
 			return preview, nil
 		}
@@ -107,6 +112,7 @@ func (c *Coordinator) PreviewDownload(ctx context.Context, sourceURL string) (Do
 
 func (c *Coordinator) cancelPreviewWorker(workerID, taskID string) {
 	if registered, ok := c.workers.Get(workerID); ok {
+		c.workers.SetStatus(workerID, worker.Busy)
 		if err := registered.Sender.Send(protocol.Message{Type: protocol.TaskCancel, TaskID: taskID}); err != nil {
 			c.WorkerDisconnected(workerID)
 			c.releaseAbandonedPreview(taskID)

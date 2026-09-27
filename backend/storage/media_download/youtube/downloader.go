@@ -75,6 +75,12 @@ func downloadDualStream(ctx context.Context, job *Job, videoURL, videoPart, audi
 func muxVideoAudio(ctx context.Context, videoPart, audioPart, outputPath string) error {
 	_ = os.Remove(outputPath)
 	utils.LogInfo("[YOUTUBE] Đang ghép luồng video và audio (ffmpeg) -> %s...", filepath.Base(outputPath))
+	release, err := utils.AcquireFFmpeg(ctx)
+	if err != nil {
+		return fmt.Errorf("không thể bắt đầu ghép video/audio: %w", err)
+	}
+	defer release()
+
 	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", videoPart, "-i", audioPart, "-c", "copy", "-movflags", "+faststart", outputPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("ghép video/audio thất bại: %s", strings.TrimSpace(string(output)))

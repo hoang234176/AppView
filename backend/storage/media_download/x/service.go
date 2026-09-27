@@ -530,3 +530,56 @@ func SetCanonicalID(id, canonicalID string) bool {
 	persistJob(job)
 	return true
 }
+
+// LoadPersistentJobs loads all persisted X jobs on service startup.
+func LoadPersistentJobs() {
+	snapshots := GetJobSnapshots()
+	for _, s := range snapshots {
+		ctx, cancel := context.WithCancel(context.Background())
+		dl := s.DownloadedBytes
+		tot := s.TotalBytes
+		if tot > 0 && dl > tot {
+			tot = dl
+		}
+		job := &Job{
+			ID:                    s.ID,
+			CanonicalID:           s.CanonicalID,
+			URL:                   s.URL,
+			Filename:              s.Filename,
+			Destination:           s.Destination,
+			State:                 s.State,
+			DownloadedBytes:       dl,
+			TotalBytes:            tot,
+			SpeedBytes:            s.SpeedBytes,
+			ConvertTotal:          s.Conversion.Total,
+			ConvertCurrent:        s.Conversion.Current,
+			ConvertFailed:         s.Conversion.Failed,
+			ErrorCode:             s.ErrorCode,
+			Error:                 s.Error,
+			VideoScanState:        s.VideoScanState,
+			TotalVideoCount:       s.TotalVideoCount,
+			InvalidVideoCount:     s.InvalidVideoCount,
+			OptimizationCancelled: s.OptimizationCancelled,
+			CancelledFromStage:    s.CancelledFromStage,
+			Videos:                append([]pythonapi.VideoOptimization(nil), s.Videos...),
+			CreatedAt:             s.CreatedAt,
+			UpdatedAt:             s.UpdatedAt,
+			ctx:                   ctx,
+			cancel:                cancel,
+		}
+		if job.CanonicalID == "" {
+			job.CanonicalID = job.ID
+		}
+		if job.State == "downloading" || job.State == "scanning" || job.State == "converting" {
+			job.State = "error"
+			job.ErrorCode = "STORAGE_RESTARTED"
+			job.Error = "Máy chủ lưu trữ đã khởi động lại khi đang xử lý media."
+		}
+		activeJobs.Lock()
+		activeJobs.items[job.ID] = job
+		activeJobs.Unlock()
+		if tot != s.TotalBytes || job.State != s.State {
+			persistJob(job)
+		}
+	}
+}

@@ -23,6 +23,8 @@ type Worker struct {
 	ID            string
 	Capabilities  []protocol.Capability
 	Status        Status
+	ActiveTasks   int
+	MaxConcurrent int
 	ConnectedAt   time.Time
 	LastHeartbeat time.Time
 	Sender        Sender
@@ -35,6 +37,20 @@ func (w Worker) Supports(action string) bool {
 		}
 	}
 	return false
+}
+
+func (w Worker) IsAvailable(action string) bool {
+	if !w.Supports(action) {
+		return false
+	}
+	if w.Status == Busy {
+		return false
+	}
+	maxConcurrent := w.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = 50
+	}
+	return w.ActiveTasks < maxConcurrent
 }
 
 func (w Worker) Clone() Worker {

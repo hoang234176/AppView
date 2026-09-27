@@ -12,11 +12,59 @@ import (
 	"backend/cookies"
 	"backend/media_download/facebook"
 	"backend/media_download/instagram"
+	"backend/media_download/telegram"
 	"backend/media_download/tiktok"
 	"backend/media_download/x"
 	"backend/media_download/youtube"
+	"backend/session"
 	"backend/utils"
 )
+
+// TelegramOperations is the Storage-side business boundary for Telegram downloads.
+type TelegramOperations interface {
+	Start(id, sourceURL, filename, destination, audioURL string, items []telegram.DownloadItem, headers map[string]string) error
+	Cancel(id string) bool
+	Delete(id string) bool
+	SetVideoDecision(id, videoID, quality string) error
+	ApplyVideoDecisions(id string, decisions map[string]string) error
+	Snapshot(id string) (telegram.Snapshot, bool)
+	Snapshots() []telegram.Snapshot
+	SetCanonicalID(id, canonicalID string) bool
+}
+
+type telegramOperations struct{}
+
+func (telegramOperations) Start(id, sourceURL, filename, destination, audioURL string, items []telegram.DownloadItem, headers map[string]string) error {
+	return telegram.StartJob(id, sourceURL, filename, destination, audioURL, items, headers)
+}
+
+func (telegramOperations) Cancel(id string) bool {
+	return telegram.CancelJob(id)
+}
+
+func (telegramOperations) Delete(id string) bool {
+	return telegram.DeleteJob(id)
+}
+
+func (telegramOperations) SetVideoDecision(id, videoID, quality string) error {
+	return telegram.SetVideoDecision(id, videoID, quality)
+}
+
+func (telegramOperations) ApplyVideoDecisions(id string, decisions map[string]string) error {
+	return telegram.ApplyVideoDecisions(id, decisions)
+}
+
+func (telegramOperations) Snapshot(id string) (telegram.Snapshot, bool) {
+	return telegram.GetJobSnapshot(id)
+}
+
+func (telegramOperations) Snapshots() []telegram.Snapshot {
+	return telegram.GetJobSnapshots()
+}
+
+func (telegramOperations) SetCanonicalID(id, canonicalID string) bool {
+	return telegram.SetCanonicalID(id, canonicalID)
+}
 
 // ArchiveOperations is the narrow existing-business boundary used by this
 // adapter. The real implementation delegates to pythonapi; tests can provide
@@ -322,6 +370,7 @@ type Handler struct {
 	tiktok       TikTokOperations
 	facebook     FacebookOperations
 	instagram    InstagramOperations
+	telegram     TelegramOperations
 	x            XOperations
 	pollInterval time.Duration
 }
@@ -334,6 +383,7 @@ func NewHandler(archive ArchiveOperations, optionalOps ...any) *Handler {
 	var tt TikTokOperations = tiktokOperations{}
 	var fb FacebookOperations = facebookOperations{}
 	var ig InstagramOperations = instagramOperations{}
+	var tg TelegramOperations = telegramOperations{}
 	var xOps XOperations = xOperations{}
 	for _, op := range optionalOps {
 		switch v := op.(type) {
@@ -353,13 +403,17 @@ func NewHandler(archive ArchiveOperations, optionalOps ...any) *Handler {
 			if v != nil {
 				ig = v
 			}
+		case TelegramOperations:
+			if v != nil {
+				tg = v
+			}
 		case XOperations:
 			if v != nil {
 				xOps = v
 			}
 		}
 	}
-	return &Handler{archive: archive, youtube: yt, tiktok: tt, facebook: fb, instagram: ig, x: xOps, pollInterval: time.Second}
+	return &Handler{archive: archive, youtube: yt, tiktok: tt, facebook: fb, instagram: ig, telegram: tg, x: xOps, pollInterval: time.Second}
 }
 
 func (h *Handler) Capabilities() []string {
@@ -372,8 +426,9 @@ func (h *Handler) History() StorageHistoryPayload {
 	ttSnapshots := h.tiktok.Snapshots()
 	fbSnapshots := h.facebook.Snapshots()
 	igSnapshots := h.instagram.Snapshots()
+	tgSnapshots := h.telegram.Snapshots()
 	xSnapshots := h.x.Snapshots()
-	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots)+len(ttSnapshots)+len(fbSnapshots)+len(igSnapshots)+len(xSnapshots))
+	jobs := make([]StorageJobSnapshot, 0, len(archiveSnapshots)+len(ytSnapshots)+len(ttSnapshots)+len(fbSnapshots)+len(igSnapshots)+len(tgSnapshots)+len(xSnapshots))
 	for _, snapshot := range archiveSnapshots {
 		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
 			jobs = append(jobs, storageSnapshot(snapshot))
@@ -399,12 +454,50 @@ func (h *Handler) History() StorageHistoryPayload {
 			jobs = append(jobs, instagramStorageSnapshot(snapshot))
 		}
 	}
+	for _, snapshot := range tgSnapshots {
+		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
+			jobs = append(jobs, telegramStorageSnapshot(snapshot))
+		}
+	}
 	for _, snapshot := range xSnapshots {
 		if snapshot.ID != "" && snapshot.Filename != "" && snapshot.State != "" {
 			jobs = append(jobs, xStorageSnapshot(snapshot))
 		}
 	}
 	return StorageHistoryPayload{Jobs: jobs}
+}
+
+func telegramStorageSnapshot(snapshot telegram.Snapshot) StorageJobSnapshot {
+	dl, tot := clampProgress(snapshot.DownloadedBytes, snapshot.TotalBytes)
+	return StorageJobSnapshot{
+		ID:                    snapshot.ID,
+		CanonicalID:           snapshot.CanonicalID,
+		Source:                "telegram",
+		SourceURL:             safeHistoryURL(snapshot.URL),
+		Filename:              snapshot.Filename,
+		Destination:           snapshot.Destination,
+		State:                 snapshot.State,
+		DownloadedBytes:       dl,
+		TotalBytes:            tot,
+		SpeedBytes:            snapshot.SpeedBytes,
+		ExtractedPercent:      0,
+		ConversionTotal:       snapshot.Conversion.Total,
+		ConversionCurrent:     snapshot.Conversion.Current,
+		ConversionFailed:      snapshot.Conversion.Failed,
+		ErrorCode:             snapshot.ErrorCode,
+		Error:                 snapshot.Error,
+		PasswordRequired:      false,
+		ArchiveDownloaded:     false,
+		ArchiveExtracted:      false,
+		VideoScanState:        snapshot.VideoScanState,
+		TotalVideoCount:       snapshot.TotalVideoCount,
+		InvalidVideoCount:     snapshot.InvalidVideoCount,
+		OptimizationCancelled: snapshot.OptimizationCancelled,
+		CancelledFromStage:    snapshot.CancelledFromStage,
+		Videos:                snapshot.Videos,
+		CreatedAt:             snapshot.CreatedAt,
+		UpdatedAt:             snapshot.UpdatedAt,
+	}
 }
 
 func xStorageSnapshot(snapshot x.Snapshot) StorageJobSnapshot {
@@ -713,6 +806,21 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 		return
 	}
 
+	if isTelegramRequest(request) {
+		if _, exists := h.telegram.Snapshot(task.TaskID); !exists {
+			utils.LogEvent("INFO", "storage telegram start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
+			if err := h.telegram.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.AudioURL, toTelegramItems(request.Items), request.Headers); err != nil {
+				h.fail(send, task.TaskID, "STORAGE_START_FAILED", "Storage không thể bắt đầu tác vụ tải Telegram.")
+				return
+			}
+		}
+		if request.ParentJobID != "" {
+			h.telegram.SetCanonicalID(task.TaskID, request.ParentJobID)
+		}
+		h.monitor(ctx, task.TaskID, send)
+		return
+	}
+
 	// A requeued Coordinator task keeps its original ID. If local Storage has
 	// already started that archive job, only reconnect monitoring; do not start
 	// a second download or cancel the existing one.
@@ -769,6 +877,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		h.tiktok.Delete(control.ArchiveTaskID)
 		h.facebook.Delete(control.ArchiveTaskID)
 		h.instagram.Delete(control.ArchiveTaskID)
+		h.telegram.Delete(control.ArchiveTaskID)
 		h.x.Delete(control.ArchiveTaskID)
 		h.archive.Delete(control.ArchiveTaskID)
 		_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
@@ -935,6 +1044,46 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 		return
 	}
 
+	if _, isTG := h.telegram.Snapshot(control.ArchiveTaskID); isTG {
+		var err error
+		if control.Operation == "video_decision" {
+			err = h.telegram.SetVideoDecision(control.ArchiveTaskID, control.VideoID, control.Quality)
+		} else if control.Operation == "video_apply" {
+			var decisions map[string]string
+			if len(control.Decisions) > 0 {
+				if unmarshalErr := json.Unmarshal(control.Decisions, &decisions); unmarshalErr != nil {
+					var str string
+					if json.Unmarshal(control.Decisions, &str) == nil {
+						_ = json.Unmarshal([]byte(str), &decisions)
+					}
+				}
+			}
+			err = h.telegram.ApplyVideoDecisions(control.ArchiveTaskID, decisions)
+		} else if control.Operation == "cancel" {
+			if !h.telegram.Cancel(control.ArchiveTaskID) {
+				err = fmt.Errorf("telegram job not found")
+			}
+		} else {
+			err = fmt.Errorf("thao tác %s không được hỗ trợ cho Telegram", control.Operation)
+		}
+
+		if err != nil {
+			h.fail(send, controlTaskID, "STORAGE_CONTROL_FAILED", err.Error())
+			return
+		}
+
+		if control.Operation == "video_decision" || control.Operation == "video_apply" || control.Operation == "cancel" {
+			if snapshot, ok := h.telegram.Snapshot(control.ArchiveTaskID); ok {
+				_ = send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{telegramStorageSnapshot(snapshot)}}})
+			}
+			_ = send(Message{Type: TaskCompleted, TaskID: controlTaskID, Result: map[string]string{"operation": control.Operation}})
+			return
+		}
+
+		h.monitor(ctx, control.ArchiveTaskID, send)
+		return
+	}
+
 	if _, isX := h.x.Snapshot(control.ArchiveTaskID); isX {
 		var err error
 		if control.Operation == "video_decision" {
@@ -1092,6 +1241,21 @@ func toInstagramItems(items []downloadItemPayload) []instagram.DownloadItem {
 	return result
 }
 
+func toTelegramItems(items []downloadItemPayload) []telegram.DownloadItem {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]telegram.DownloadItem, len(items))
+	for i, item := range items {
+		result[i] = telegram.DownloadItem{
+			URL:      item.URL,
+			Filename: item.Filename,
+			Type:     item.Type,
+		}
+	}
+	return result
+}
+
 func toXItems(items []downloadItemPayload) []x.DownloadItem {
 	if len(items) == 0 {
 		return nil
@@ -1123,6 +1287,15 @@ func isTikTokRequest(request downloadRequest) bool {
 	}
 	u := strings.ToLower(request.URL)
 	return strings.Contains(u, "tiktok.com") || strings.Contains(u, "tiktokcdn.com")
+}
+
+func isTelegramRequest(request downloadRequest) bool {
+	src := strings.TrimSpace(request.Source)
+	if src != "" {
+		return strings.EqualFold(src, "telegram")
+	}
+	u := strings.ToLower(request.URL)
+	return strings.Contains(u, "t.me") || strings.Contains(u, "telegram.me")
 }
 
 func isInstagramRequest(request downloadRequest) bool {
@@ -1201,11 +1374,68 @@ func (h *Handler) monitor(ctx context.Context, taskID string, send SendFunc) {
 		h.monitorInstagram(ctx, taskID, send)
 		return
 	}
+	if _, isTG := h.telegram.Snapshot(taskID); isTG {
+		h.monitorTelegram(ctx, taskID, send)
+		return
+	}
 	if _, isX := h.x.Snapshot(taskID); isX {
 		h.monitorX(ctx, taskID, send)
 		return
 	}
 	h.monitorArchive(ctx, taskID, send)
+}
+
+func (h *Handler) monitorTelegram(ctx context.Context, taskID string, send SendFunc) {
+	for {
+		snapshot, exists := h.telegram.Snapshot(taskID)
+		if !exists {
+			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ Telegram được giao.")
+			return
+		}
+		if err := send(Message{Type: StorageHistory, StorageHistory: &StorageHistoryPayload{Jobs: []StorageJobSnapshot{telegramStorageSnapshot(snapshot)}}}); err != nil {
+			return
+		}
+
+		switch snapshot.State {
+		case "completed":
+			utils.LogEvent("INFO", "storage telegram completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
+				"jobId":    snapshot.ID,
+				"filename": snapshot.Filename,
+				"state":    snapshot.State,
+			}})
+			return
+		case "cancelled":
+			utils.LogEvent("WARN", "storage telegram cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ Telegram đã bị hủy cục bộ.")
+			return
+		case "error":
+			utils.LogEvent("ERROR", "storage telegram failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename, "error": snapshot.Error})
+			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải Telegram: "+snapshot.Error)
+			return
+		default:
+			utils.LogEvent("DEBUG", "storage telegram progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
+				"state":           snapshot.State,
+				"filename":        snapshot.Filename,
+				"downloadedBytes": snapshot.DownloadedBytes,
+				"totalBytes":      snapshot.TotalBytes,
+				"speedBytes":      snapshot.SpeedBytes,
+			}}); err != nil {
+				return
+			}
+		}
+
+		interval := h.pollInterval
+		if interval <= 0 {
+			interval = time.Millisecond
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+		}
+	}
 }
 
 func (h *Handler) monitorX(ctx context.Context, taskID string, send SendFunc) {
@@ -1628,6 +1858,79 @@ func (h *Handler) HandleCookieMessage(msg Message, send SendFunc) {
 				Platform: req.Platform,
 				Exists:   exists,
 				Cookies:  content,
+			},
+		})
+	}
+}
+
+func (h *Handler) HandleSessionMessage(msg Message, send SendFunc) {
+	var req SessionRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+	switch msg.Type {
+	case SessionStatus:
+		exists, modTime, err := session.GetStatus(req.Platform)
+		if err != nil {
+			_ = send(Message{
+				Type:   SessionStatus,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "STATUS_FAILED", Message: err.Error()},
+			})
+			return
+		}
+		_ = send(Message{
+			Type:   SessionStatus,
+			TaskID: msg.TaskID,
+			Result: SessionStatusResult{
+				Platform:  req.Platform,
+				Exists:    exists,
+				UpdatedAt: modTime,
+			},
+		})
+	case SessionSave:
+		if strings.TrimSpace(req.Session) == "" {
+			_ = send(Message{
+				Type:   SessionSave,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "EMPTY_SESSION", Message: "Session content cannot be empty"},
+			})
+			return
+		}
+		modTime, err := session.Save(req.Platform, req.Session)
+		if err != nil {
+			_ = send(Message{
+				Type:   SessionSave,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "SAVE_FAILED", Message: err.Error()},
+			})
+			return
+		}
+		_ = send(Message{
+			Type:   SessionSave,
+			TaskID: msg.TaskID,
+			Result: SessionSaveResult{
+				Success:   true,
+				UpdatedAt: modTime,
+			},
+		})
+	case SessionGet:
+		content, exists, err := session.Read(req.Platform)
+		if err != nil {
+			_ = send(Message{
+				Type:   SessionGet,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "READ_FAILED", Message: err.Error()},
+			})
+			return
+		}
+		_ = send(Message{
+			Type:   SessionGet,
+			TaskID: msg.TaskID,
+			Result: SessionGetResult{
+				Platform: req.Platform,
+				Exists:   exists,
+				Session:  content,
 			},
 		})
 	}

@@ -21,7 +21,16 @@ func (r *Registry) Register(id string, capabilities []protocol.Capability, sende
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	_, replaced := r.workers[id]
-	r.workers[id] = Worker{ID: id, Capabilities: append([]protocol.Capability(nil), capabilities...), Status: Idle, ConnectedAt: now, LastHeartbeat: now, Sender: sender}
+	r.workers[id] = Worker{
+		ID:            id,
+		Capabilities:  append([]protocol.Capability(nil), capabilities...),
+		Status:        Idle,
+		ActiveTasks:   0,
+		MaxConcurrent: 50,
+		ConnectedAt:   now,
+		LastHeartbeat: now,
+		Sender:        sender,
+	}
 	return replaced
 }
 
@@ -42,6 +51,46 @@ func (r *Registry) Get(id string) (Worker, bool) {
 	return worker.Clone(), ok
 }
 
+func (r *Registry) IncrementActive(id string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	worker, ok := r.workers[id]
+	if !ok {
+		return false
+	}
+	worker.ActiveTasks++
+	maxConcurrent := worker.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = 50
+	}
+	if worker.ActiveTasks >= maxConcurrent {
+		worker.Status = Busy
+	}
+	r.workers[id] = worker
+	return true
+}
+
+func (r *Registry) DecrementActive(id string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	worker, ok := r.workers[id]
+	if !ok {
+		return false
+	}
+	if worker.ActiveTasks > 0 {
+		worker.ActiveTasks--
+	}
+	maxConcurrent := worker.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = 50
+	}
+	if worker.ActiveTasks < maxConcurrent && worker.Status == Busy {
+		worker.Status = Idle
+	}
+	r.workers[id] = worker
+	return true
+}
+
 func (r *Registry) SetStatus(id string, status Status) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -50,6 +99,9 @@ func (r *Registry) SetStatus(id string, status Status) bool {
 		return false
 	}
 	worker.Status = status
+	if status == Idle {
+		worker.ActiveTasks = 0
+	}
 	r.workers[id] = worker
 	return true
 }
@@ -71,11 +123,16 @@ func (r *Registry) IdleFor(action string) []Worker {
 	defer r.mu.RUnlock()
 	result := make([]Worker, 0)
 	for _, candidate := range r.workers {
-		if candidate.Status == Idle && candidate.Supports(action) {
+		if candidate.IsAvailable(action) {
 			result = append(result, candidate.Clone())
 		}
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].ActiveTasks != result[j].ActiveTasks {
+			return result[i].ActiveTasks < result[j].ActiveTasks
+		}
+		return result[i].ID < result[j].ID
+	})
 	return result
 }
 

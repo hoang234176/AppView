@@ -180,6 +180,30 @@ func (c *Coordinator) GetStorageInfo() (protocol.StorageInfo, bool) {
 // the durable archive. The password only lives in this short-lived task
 // payload and never reaches the canonical job projection.
 func (c *Coordinator) RetryDownload(jobID, password string, extractionOnly bool) error {
+	job, ok := c.downloads.Get(jobID)
+	if !ok {
+		return fmt.Errorf("download job not found")
+	}
+	if job.StorageTaskID == "" {
+		if job.FailureStage == downloadjob.FailureResolve || job.State == downloadjob.Failed || job.State == "error" {
+			if updatedJob, ok := c.downloads.ResetForResolve(jobID); ok {
+				c.notifyDownload(updatedJob, "state_changed")
+				resolvePayload := map[string]any{"url": updatedJob.URL}
+				createdTask, err := c.createTask(string(protocol.ResolveDownload), mustJSON(resolvePayload), true, 0, func(child task.Task) error {
+					return c.downloads.AttachResolve(jobID, child.ID)
+				})
+				if err != nil {
+					c.downloads.FailJob(jobID, downloadjob.FailureResolve, &protocol.ErrorPayload{Code: "RESOLVE_TASK_CREATE_FAILED", Message: "could not create resolve task"})
+					if failedJob, ok := c.downloads.Get(jobID); ok {
+						c.notifyDownload(failedJob, "state_changed")
+					}
+					return err
+				}
+				logging.Event("INFO", fmt.Sprintf("Giao lại việc phân tích link cho Download worker (Task: %s)...", createdTask.ID), map[string]any{"jobId": jobID, "resolveTaskId": createdTask.ID})
+				return nil
+			}
+		}
+	}
 	operation := "retry"
 	if extractionOnly {
 		operation = "extract"
@@ -200,6 +224,24 @@ func (c *Coordinator) CancelDownload(jobID string) error {
 	if job.State == "cancelled" {
 		return nil
 	}
+	if job.StorageTaskID == "" {
+		if job.ResolveTaskID != "" {
+			if child, exists := c.tasks.Get(job.ResolveTaskID); exists {
+				if child.AssignedWorkerID != "" {
+					if w, ok := c.workers.Get(child.AssignedWorkerID); ok {
+						_ = w.Sender.Send(protocol.Message{Type: protocol.TaskCancel, TaskID: child.ID})
+					}
+					_, _ = c.tasks.Fail(child.ID, child.AssignedWorkerID, &protocol.ErrorPayload{Code: "CANCELLED", Message: "task cancelled"})
+				} else {
+					c.tasks.ReleaseTransient(child.ID)
+				}
+			}
+		}
+		if cancelledJob, ok := c.downloads.CancelJob(jobID); ok {
+			c.notifyDownload(cancelledJob, "state_changed")
+		}
+		return nil
+	}
 	return c.controlDownload(jobID, "cancel", "")
 }
 
@@ -214,7 +256,9 @@ func (c *Coordinator) DeleteDownload(jobID string) error {
 	if job.State != downloadjob.Completed && job.State != "cancelled" && job.State != "failed" {
 		_ = c.CancelDownload(jobID)
 	}
-	_ = c.controlDownload(jobID, "delete", "")
+	if job.StorageTaskID != "" {
+		_ = c.controlDownload(jobID, "delete", "")
+	}
 
 	deletedJob, removed := c.downloads.Delete(jobID)
 	if removed {
@@ -372,6 +416,8 @@ func (c *Coordinator) TaskCompleted(workerID, taskID string, result json.RawMess
 		return err
 	}
 	if _, busyControl := c.busyControls.LoadAndDelete(taskID); !busyControl {
+		c.workers.DecrementActive(workerID)
+	} else {
 		c.workers.SetStatus(workerID, worker.Idle)
 	}
 	logging.Event("INFO", "task completed", map[string]any{"taskId": taskID, "workerId": workerID, "action": completed.Action})
@@ -383,6 +429,7 @@ func (c *Coordinator) TaskFailed(workerID, taskID string, failure *protocol.Erro
 	if _, err := c.tasks.Fail(taskID, workerID, failure); err != nil {
 		return err
 	}
+	c.workers.DecrementActive(workerID)
 	c.workers.SetStatus(workerID, worker.Idle)
 	c.downloads.FailChild(taskID, failure)
 	c.releaseAbandonedPreview(taskID)
@@ -634,6 +681,9 @@ func (c *Coordinator) syncFailedDownloadChildren() {
 		child, ok := c.tasks.Get(childID)
 		if ok && child.State == task.Failed {
 			c.downloads.FailChild(childID, child.Error)
+			if job, ok := c.downloads.JobForChild(childID); ok {
+				c.notifyDownload(job, "state_changed")
+			}
 		}
 	}
 }
@@ -660,7 +710,7 @@ func (c *Coordinator) dispatch(taskID string) error {
 	if value, pinned := c.pinnedTasks.Load(taskID); pinned {
 		workerID, _ := value.(string)
 		candidates = nil
-		if candidate, exists := c.workers.Get(workerID); exists && candidate.Status == worker.Idle && candidate.Supports(pending.Action) {
+		if candidate, exists := c.workers.Get(workerID); exists && candidate.IsAvailable(pending.Action) {
 			candidates = []worker.Worker{candidate}
 		}
 	}
@@ -672,7 +722,7 @@ func (c *Coordinator) dispatch(taskID string) error {
 	if err != nil {
 		return err
 	}
-	if !c.workers.SetStatus(candidate.ID, worker.Busy) {
+	if !c.workers.IncrementActive(candidate.ID) {
 		c.tasks.RequeueForWorker(candidate.ID)
 		return nil
 	}
@@ -843,6 +893,90 @@ func (c *Coordinator) VerifyCookies(ctx context.Context, platform, cookies strin
 	var res protocol.CookieVerifyResult
 	if err := json.Unmarshal(resp.Result, &res); err != nil {
 		return protocol.CookieVerifyResult{}, fmt.Errorf("invalid response from download worker: %w", err)
+	}
+	return res, nil
+}
+
+func (c *Coordinator) GetSessionStatus(ctx context.Context, platform string) (protocol.SessionStatusResult, error) {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return protocol.SessionStatusResult{}, fmt.Errorf("platform is required")
+	}
+	storageWorker, ok := c.workers.AnyFor(string(protocol.DownloadFile))
+	if !ok {
+		return protocol.SessionStatusResult{}, fmt.Errorf("storage worker is unavailable")
+	}
+	payload := mustJSON(protocol.SessionRequestPayload{Platform: platform})
+	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
+		Type:    protocol.SessionStatus,
+		Payload: payload,
+	})
+	if err != nil {
+		return protocol.SessionStatusResult{}, err
+	}
+	if resp.Error != nil {
+		return protocol.SessionStatusResult{}, fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message)
+	}
+	var res protocol.SessionStatusResult
+	if err := json.Unmarshal(resp.Result, &res); err != nil {
+		return protocol.SessionStatusResult{}, fmt.Errorf("invalid response from storage worker: %w", err)
+	}
+	return res, nil
+}
+
+func (c *Coordinator) SaveSession(ctx context.Context, platform, sessionStr string) (protocol.SessionSaveResult, error) {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return protocol.SessionSaveResult{}, fmt.Errorf("platform is required")
+	}
+	if strings.TrimSpace(sessionStr) == "" {
+		return protocol.SessionSaveResult{}, fmt.Errorf("session content cannot be empty")
+	}
+	storageWorker, ok := c.workers.AnyFor(string(protocol.DownloadFile))
+	if !ok {
+		return protocol.SessionSaveResult{}, fmt.Errorf("storage worker is unavailable")
+	}
+	payload := mustJSON(protocol.SessionRequestPayload{Platform: platform, Session: sessionStr})
+	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
+		Type:    protocol.SessionSave,
+		Payload: payload,
+	})
+	if err != nil {
+		return protocol.SessionSaveResult{}, err
+	}
+	if resp.Error != nil {
+		return protocol.SessionSaveResult{}, fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message)
+	}
+	var res protocol.SessionSaveResult
+	if err := json.Unmarshal(resp.Result, &res); err != nil {
+		return protocol.SessionSaveResult{}, fmt.Errorf("invalid response from storage worker: %w", err)
+	}
+	return res, nil
+}
+
+func (c *Coordinator) GetSessionContent(ctx context.Context, platform string) (protocol.SessionGetResult, error) {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return protocol.SessionGetResult{}, fmt.Errorf("platform is required")
+	}
+	storageWorker, ok := c.workers.AnyFor(string(protocol.DownloadFile))
+	if !ok {
+		return protocol.SessionGetResult{}, fmt.Errorf("storage worker is unavailable")
+	}
+	payload := mustJSON(protocol.SessionRequestPayload{Platform: platform})
+	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
+		Type:    protocol.SessionGet,
+		Payload: payload,
+	})
+	if err != nil {
+		return protocol.SessionGetResult{}, err
+	}
+	if resp.Error != nil {
+		return protocol.SessionGetResult{}, fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message)
+	}
+	var res protocol.SessionGetResult
+	if err := json.Unmarshal(resp.Result, &res); err != nil {
+		return protocol.SessionGetResult{}, fmt.Errorf("invalid response from storage worker: %w", err)
 	}
 	return res, nil
 }
