@@ -20,6 +20,9 @@ from worker.protocol import (
     COOKIE_VERIFY,
     ERROR,
     RESOLVE_DOWNLOAD,
+    SESSION_GET,
+    SESSION_SAVE,
+    SESSION_STATUS,
     TASK_ASSIGN,
     TASK_CANCEL,
     TASK_FAILED,
@@ -149,7 +152,7 @@ class CoordinatorWorkerClient:
                         asyncio.get_running_loop().call_soon(self._cancel_assignment, envelope.get("taskId"))
                     elif envelope.get("type") == COOKIE_VERIFY:
                         asyncio.create_task(self._handle_cookie_verify(envelope))
-                    elif envelope.get("type") in (COOKIE_GET, COOKIE_SAVE):
+                    elif envelope.get("type") in (COOKIE_GET, COOKIE_SAVE, SESSION_GET, SESSION_SAVE):
                         task_id = envelope.get("taskId")
                         if task_id in self._pending_rpc:
                             future = self._pending_rpc.pop(task_id)
@@ -361,6 +364,88 @@ class CoordinatorWorkerClient:
                 self._pending_rpc.pop(task_id, None)
 
         return await self._save_cookies_via_http(platform, cookies)
+
+    async def _get_session_via_http(self, platform: str) -> Optional[str]:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._get_session_via_http_sync, platform)
+
+    def _get_session_via_http_sync(self, platform: str) -> Optional[str]:
+        import ssl
+        import urllib.parse
+        import urllib.request
+        base = self._get_coordinator_http_base()
+        query = urllib.parse.urlencode({"platform": platform})
+        url = f"{base}/api/v1/session/content?{query}"
+        ctx = ssl._create_unverified_context()
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, context=ctx, timeout=4.0) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if data.get("exists") and isinstance(data.get("session"), str):
+                        return data.get("session")
+        except Exception:
+            pass
+        return None
+
+    async def _save_session_via_http(self, platform: str, session_str: str) -> bool:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._save_session_via_http_sync, platform, session_str)
+
+    def _save_session_via_http_sync(self, platform: str, session_str: str) -> bool:
+        import ssl
+        import urllib.request
+        base = self._get_coordinator_http_base()
+        url = f"{base}/api/v1/session/save"
+        payload = json.dumps({"platform": platform, "session": session_str}).encode("utf-8")
+        ctx = ssl._create_unverified_context()
+        try:
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, context=ctx, timeout=4.0) as resp:
+                return resp.status == 200
+        except Exception:
+            return False
+
+    async def get_session(self, platform: str = "telegram", timeout: float = 5.0) -> Optional[str]:
+        if self._websocket is not None:
+            task_id = f"session-get-{uuid.uuid4().hex[:12]}"
+            loop = asyncio.get_running_loop()
+            future: asyncio.Future[dict[str, Any]] = loop.create_future()
+            self._pending_rpc[task_id] = future
+            try:
+                await self.send(message(SESSION_GET, taskId=task_id, payload={"platform": platform}))
+                result = await asyncio.wait_for(future, timeout=timeout)
+                if result.get("exists") and isinstance(result.get("session"), str):
+                    return result.get("session")
+                return None
+            except Exception:
+                pass
+            finally:
+                self._pending_rpc.pop(task_id, None)
+
+        return await self._get_session_via_http(platform)
+
+    async def save_session(self, platform: str, session_str: str, timeout: float = 5.0) -> bool:
+        if self._websocket is not None:
+            task_id = f"session-save-{uuid.uuid4().hex[:12]}"
+            loop = asyncio.get_running_loop()
+            future: asyncio.Future[dict[str, Any]] = loop.create_future()
+            self._pending_rpc[task_id] = future
+            try:
+                await self.send(message(SESSION_SAVE, taskId=task_id, payload={"platform": platform, "session": session_str}))
+                result = await asyncio.wait_for(future, timeout=timeout)
+                return bool(result.get("success", True))
+            except Exception:
+                pass
+            finally:
+                self._pending_rpc.pop(task_id, None)
+
+        return await self._save_session_via_http(platform, session_str)
+
 
     @staticmethod
     def _decode(raw: str | bytes) -> dict[str, Any]:

@@ -183,13 +183,13 @@ class TestXService(unittest.IsolatedAsyncioTestCase):
 
         resolved = await self.resolver.resolve("https://x.com/photo_tokyo/status/222")
         self.assertEqual(resolved.source, "x")
-        self.assertEqual(resolved.extension, ".zip")
+        self.assertEqual(resolved.extension, ".jpeg")
         self.assertIsNotNone(resolved.items)
         # 2 photos + 1 companion text file
         self.assertEqual(len(resolved.items), 3)
         self.assertEqual(resolved.items[0]["filename"], "[X]_photo_demo_01.jpeg")
         self.assertEqual(resolved.items[1]["filename"], "[X]_photo_demo_02.jpeg")
-        self.assertEqual(resolved.items[2]["filename"], "[X]_photo_demo_post.txt")
+        self.assertEqual(resolved.items[2]["filename"], "[X]_photo_demo.txt")
         self.assertTrue(resolved.items[2]["url"].startswith("data:text/plain"))
 
     @patch("services.x.extractor.XExtractor.inspect")

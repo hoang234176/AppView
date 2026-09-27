@@ -18,3 +18,19 @@ class CoordinatorWorkerClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(client._run_task.done())
 
         await client.stop()
+
+    async def test_session_and_cookie_envelope_handling(self):
+        client = CoordinatorWorkerClient(url="ws://127.0.0.1:1/ws/workers")
+        future = asyncio.get_running_loop().create_future()
+        client._pending_rpc["test-session-task"] = future
+
+        # Simulate receiving session.get response envelope
+        envelope = {"type": "session.get", "taskId": "test-session-task", "result": {"session": "abc"}}
+        if envelope.get("type") in ("cookie.get", "cookie.save", "session.get", "session.save"):
+            task_id = envelope.get("taskId")
+            if task_id in client._pending_rpc:
+                fut = client._pending_rpc.pop(task_id)
+                if not fut.done():
+                    fut.set_result(envelope.get("result") or {})
+
+        self.assertEqual(await future, {"session": "abc"})

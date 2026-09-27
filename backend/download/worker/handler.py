@@ -83,6 +83,12 @@ class DownloadWorkerHandler:
                 info = await extractor.inspect(url.strip())
                 await send(message(TASK_COMPLETED, taskId=task_id, result=info))
                 return
+            if payload.get("operation") == "telegram_inspect":
+                from services.telegram.resolver import TelegramResolver
+                resolver = TelegramResolver()
+                info = await resolver.preview(url.strip())
+                await send(message(TASK_COMPLETED, taskId=task_id, result=info))
+                return
             quality = payload.get("quality")
             if quality is not None and (type(quality) is not int or quality <= 0):
                 await self._fail(send, task_id, "INVALID_QUALITY", "Chất lượng tải xuống không hợp lệ.")
@@ -100,10 +106,14 @@ class DownloadWorkerHandler:
 
             resolved = await self._resolver.resolve(url.strip(), **resolve_kwargs)
         except Exception as error:
-            # Provider errors are logged locally. The coordinator gets a
-            # stable, non-sensitive response with domain-appropriate error codes.
+            log_error("COORDINATOR WORKER", f"Resolve task {task_id} failed: {error}")
             code = getattr(error, "code", "RESOLVE_FAILED")
-            msg = getattr(error, "message", "Không thể phân tích liên kết tải.")
+            msg = getattr(error, "message", None)
+            if not msg:
+                if code == "RESOLVE_FAILED":
+                    msg = "Không thể phân tích liên kết tải."
+                else:
+                    msg = str(error) or "Không thể phân tích liên kết tải."
             await self._fail(send, task_id, code, msg)
             return
 

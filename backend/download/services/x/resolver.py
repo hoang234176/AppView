@@ -9,6 +9,7 @@ import urllib.parse
 from archive.contracts import (
     DownloadResolver,
     ResolvedDownload,
+    assign_unique_item_filenames,
     format_photo_download_filename,
     format_video_download_filename,
 )
@@ -115,15 +116,16 @@ class XResolver(DownloadResolver):
             if filtered:
                 items = filtered
 
-        primary_item = items[0]
-        download_url = primary_item.get("download_url") or ""
-        single_filename = primary_item.get("filename") or "x_media.mp4"
-        if primary_item.get("type") == "photo":
-            single_ext = ".jpeg"
-        elif primary_item.get("type") == "text":
-            single_ext = ".txt"
-        else:
-            single_ext = ".mp4"
+        raw_items = [
+            {
+                "url": it["download_url"],
+                "type": it["type"],
+                "title": it.get("title") or clean_title,
+                "extension": ".jpeg" if it["type"] == "photo" else (".txt" if it["type"] == "text" else ".mp4"),
+            }
+            for it in items
+        ]
+        assigned_items = assign_unique_item_filenames("X", clean_title, str(info.get("id", "post")), raw_items)
 
         # Headers safe for twimg CDN download
         headers = {
@@ -131,32 +133,17 @@ class XResolver(DownloadResolver):
             "Referer": "https://x.com/",
         }
 
-        # Multi-item packaging if more than 1 item
-        multi_items = None
-        if len(items) > 1:
-            multi_items = [
-                {
-                    "url": it["download_url"],
-                    "filename": it["filename"],
-                    "type": it["type"],
-                }
-                for it in items
-            ]
-            clean_base = single_filename.rsplit("_", 1)[0]
-            if not clean_base.startswith("[X]_"):
-                clean_base = f"[X]_{clean_title}"
-            final_filename = f"{clean_base}.zip"
-            final_ext = ".zip"
-        else:
-            final_filename = single_filename
-            final_ext = single_ext
+        primary_item = assigned_items[0]
+        download_url = primary_item.get("url") or ""
+        single_filename = primary_item.get("filename") or "x_media.mp4"
+        single_ext = primary_item.get("extension") or (".jpeg" if primary_item.get("type") == "photo" else ".mp4")
 
         return ResolvedDownload(
             original_url=clean_url,
             download_url=download_url,
-            filename=final_filename,
-            extension=final_ext,
+            filename=single_filename,
+            extension=single_ext,
             headers=headers,
             source="x",
-            items=multi_items,
+            items=assigned_items if len(assigned_items) > 1 else None,
         )

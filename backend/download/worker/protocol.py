@@ -24,6 +24,10 @@ COOKIE_GET = "cookie.get"
 COOKIE_SAVE = "cookie.save"
 COOKIE_VERIFY = "cookie.verify"
 
+SESSION_GET = "session.get"
+SESSION_SAVE = "session.save"
+SESSION_STATUS = "session.status"
+
 RESOLVE_DOWNLOAD = "resolve_download"
 
 

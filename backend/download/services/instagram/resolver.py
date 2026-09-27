@@ -13,6 +13,7 @@ import urllib.parse
 from archive.contracts import (
     DownloadResolver,
     ResolvedDownload,
+    assign_unique_item_filenames,
     format_photo_download_filename,
     format_video_download_filename,
 )
@@ -98,27 +99,17 @@ class InstagramResolver(DownloadResolver):
             if valid_indices:
                 photo_urls = [photo_urls[i] for i in valid_indices]
 
-        items: list[dict[str, Any]] = []
-        for idx, img_url in enumerate(photo_urls):
-            filename = format_photo_download_filename("Instagram", raw_title, post_id, idx + 1, ".jpeg")
-            items.append({
-                "url": img_url,
-                "filename": filename,
-                "type": "image",
-            })
+        raw_items = [{"url": img_url, "type": "image", "title": raw_title} for img_url in photo_urls]
+        items = assign_unique_item_filenames("Instagram", raw_title, post_id, raw_items)
 
         primary_url = items[0]["url"]
         headers = self._get_headers()
 
-        single_filename = items[0]["filename"]
-        clean_base = items[0]["filename"].rsplit("_", 1)[0]
-        bundle_filename = f"{clean_base}.zip"
-
         return ResolvedDownload(
             original_url=clean_url,
             download_url=primary_url,
-            filename=single_filename if len(items) == 1 else bundle_filename,
-            extension=".jpeg" if len(items) == 1 else ".zip",
+            filename=items[0]["filename"],
+            extension=".jpeg",
             audio_url=None,
             headers=headers,
             source="instagram",
@@ -159,21 +150,14 @@ class InstagramResolver(DownloadResolver):
             )
 
         # If multiple videos in carousel
-        items: list[dict[str, Any]] = []
-        for idx, v in enumerate(valid_videos):
-            filename = format_video_download_filename("Instagram", raw_title, post_id, index=idx + 1, ext=".mp4")
-            items.append({
-                "url": v["url"],
-                "filename": filename,
-                "type": "video",
-            })
+        raw_items = [{"url": v["url"], "type": "video", "title": v.get("title") or raw_title} for v in valid_videos]
+        items = assign_unique_item_filenames("Instagram", raw_title, post_id, raw_items)
 
-        bundle_filename = format_video_download_filename("Instagram", raw_title, post_id, ext=".zip")
         return ResolvedDownload(
             original_url=clean_url,
             download_url=items[0]["url"],
-            filename=bundle_filename,
-            extension=".zip",
+            filename=items[0]["filename"],
+            extension=".mp4",
             audio_url=None,
             headers=headers,
             source="instagram",
@@ -207,49 +191,26 @@ class InstagramResolver(DownloadResolver):
         raw_title = info.get("title") or ""
         post_id = str(info.get("id") or "mixed")
 
-        # If after selection only 1 item remains
-        if len(valid_items) == 1:
-            single = valid_items[0]
-            is_vid = single.get("type") == "video"
-            if is_vid:
-                ext = ".mp4"
-                single_fname = format_video_download_filename("Instagram", raw_title, post_id, ext=".mp4")
-            else:
-                ext = ".jpeg"
-                single_fname = format_photo_download_filename("Instagram", raw_title, post_id, 1, ".jpeg")
-            return ResolvedDownload(
-                original_url=clean_url,
-                download_url=single["url"],
-                filename=single_fname,
-                extension=ext,
-                audio_url=None,
-                headers=self._get_headers(),
-                source="instagram",
-            )
-
-        items: list[dict[str, Any]] = []
-        for idx, it in enumerate(valid_items):
-            is_vid = it.get("type") == "video"
-            if is_vid:
-                filename = format_video_download_filename("Instagram", raw_title, post_id, index=idx + 1, ext=".mp4")
-            else:
-                filename = format_photo_download_filename("Instagram", raw_title, post_id, idx + 1, ".jpeg")
-            items.append({
+        raw_items = [
+            {
                 "url": it["url"],
-                "filename": filename,
-                "type": "video" if is_vid else "image",
-            })
+                "type": "video" if it.get("type") == "video" else "image",
+                "title": it.get("title") or raw_title,
+            }
+            for it in valid_items
+        ]
+        items = assign_unique_item_filenames("Instagram", raw_title, post_id, raw_items)
 
-        bundle_filename = format_video_download_filename("Instagram", raw_title, post_id, ext=".zip")
+        first_ext = ".mp4" if items[0].get("type") == "video" else ".jpeg"
         return ResolvedDownload(
             original_url=clean_url,
             download_url=items[0]["url"],
-            filename=bundle_filename,
-            extension=".zip",
+            filename=items[0]["filename"],
+            extension=first_ext,
             audio_url=None,
             headers=self._get_headers(),
             source="instagram",
-            items=items,
+            items=items if len(items) > 1 else None,
         )
 
     async def resolve(

@@ -168,6 +168,50 @@ class TestMediaFilenameContracts(unittest.TestCase):
             "[YouTube]_video_999.mp4",
         )
 
+    def test_assign_unique_item_filenames_deduplication(self):
+        from archive.contracts import (
+            assign_unique_item_filenames,
+            format_photo_download_filename,
+            format_video_download_filename,
+        )
+
+        # Unique titles -> No index numbers appended
+        items = [
+            {"title": "Intro Video", "type": "video", "url": "https://cdn/v1.mp4"},
+            {"title": "Outro Video", "type": "video", "url": "https://cdn/v2.mp4"},
+        ]
+        res = assign_unique_item_filenames("Telegram", "Post Title", "123", items)
+        self.assertEqual(res[0]["filename"], "[Telegram]_Intro Video.mp4")
+        self.assertEqual(res[1]["filename"], "[Telegram]_Outro Video.mp4")
+
+        # Duplicate titles -> Sequential index numbers appended
+        dup_items = [
+            {"title": "", "type": "image", "url": "https://cdn/p1.jpg"},
+            {"title": "", "type": "image", "url": "https://cdn/p2.jpg"},
+        ]
+        dup_res = assign_unique_item_filenames("Facebook", "Album Post", "456", dup_items)
+        self.assertEqual(dup_res[0]["filename"], "[Facebook]_Album Post_01.jpeg")
+        self.assertEqual(dup_res[1]["filename"], "[Facebook]_Album Post_02.jpeg")
+
+        # Placeholder titles (Mục #6, Item #2, etc.) get cleaned and use raw_title
+        placeholder_items = [
+            {"title": "Mục #1", "type": "image", "url": "https://cdn/p1.jpg", "index": 1},
+            {"title": "Mục #6", "type": "image", "url": "https://cdn/p6.jpg", "index": 6},
+        ]
+        ph_res = assign_unique_item_filenames("Telegram", "My Cool Album", "789", placeholder_items)
+        self.assertEqual(ph_res[0]["filename"], "[Telegram]_My Cool Album_01.jpeg")
+        self.assertEqual(ph_res[1]["filename"], "[Telegram]_My Cool Album_06.jpeg")
+
+        # File extensions in raw_title are stripped
+        self.assertEqual(
+            format_video_download_filename("Telegram", "baihemodoufu_06.mp4", "4227", index=2),
+            "[Telegram]_baihemodoufu_06_02.mp4",
+        )
+        self.assertEqual(
+            format_photo_download_filename("Telegram", "Mục #6", "4227", index=6),
+            "[Telegram]_post_4227_06.jpeg",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

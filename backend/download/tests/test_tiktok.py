@@ -362,7 +362,8 @@ class TestTikTokIntegration(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(resolved.items[1]["url"], "https://cdn/img3.jpg")
             self.assertEqual(resolved.items[0]["filename"], "[TikTok]_Cosplay Photos_01.jpeg")
             self.assertEqual(resolved.items[1]["filename"], "[TikTok]_Cosplay Photos_02.jpeg")
-            self.assertEqual(resolved.filename, "[TikTok]_Cosplay Photos.zip")
+            self.assertEqual(resolved.filename, "[TikTok]_Cosplay Photos_01.jpeg")
+            self.assertEqual(resolved.extension, ".jpeg")
             self.assertEqual(resolved.items[0]["type"], "image")
             self.assertIsNone(resolved.audio_url)
 

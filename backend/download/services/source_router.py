@@ -9,6 +9,7 @@ from archive.mediafire import MediaFireResolver
 from logger import log_info, safe_url
 from services.facebook.resolver import FacebookResolver
 from services.instagram.resolver import InstagramResolver
+from services.telegram.resolver import TelegramResolver
 from services.tiktok.resolver import TikTokResolver
 from services.x.resolver import XResolver
 from services.youtube.errors import UnsupportedSourceError
@@ -24,6 +25,7 @@ class SourceRouter(DownloadResolver):
             TikTokResolver(),
             FacebookResolver(),
             InstagramResolver(),
+            TelegramResolver(),
             XResolver(),
             MediaFireResolver(),
         ]

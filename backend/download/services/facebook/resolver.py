@@ -12,6 +12,7 @@ import urllib.parse
 from archive.contracts import (
     DownloadResolver,
     ResolvedDownload,
+    assign_unique_item_filenames,
     format_photo_download_filename,
     format_video_download_filename,
 )
@@ -85,14 +86,8 @@ class FacebookResolver(DownloadResolver):
             if valid_indices:
                 photo_urls = [photo_urls[i] for i in valid_indices]
 
-        items: list[dict[str, Any]] = []
-        for idx, img_url in enumerate(photo_urls):
-            filename = format_photo_download_filename("Facebook", raw_title, post_id, idx + 1, ".jpeg")
-            items.append({
-                "url": img_url,
-                "filename": filename,
-                "type": "image",
-            })
+        raw_items = [{"url": img_url, "type": "image", "title": raw_title} for img_url in photo_urls]
+        items = assign_unique_item_filenames("Facebook", raw_title, post_id, raw_items)
 
         primary_url = items[0]["url"]
         image_headers: dict[str, str] = {
@@ -103,15 +98,11 @@ class FacebookResolver(DownloadResolver):
         if cookie_header:
             image_headers["Cookie"] = cookie_header
 
-        single_filename = items[0]["filename"]
-        clean_base = items[0]["filename"].rsplit("_", 1)[0]
-        bundle_filename = f"{clean_base}.zip"
-
         return ResolvedDownload(
             original_url=clean_url,
             download_url=primary_url,
-            filename=single_filename if len(items) == 1 else bundle_filename,
-            extension=".jpeg" if len(items) == 1 else ".zip",
+            filename=items[0]["filename"],
+            extension=".jpeg",
             audio_url=None,
             headers=image_headers,
             source="facebook",

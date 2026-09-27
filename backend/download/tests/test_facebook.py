@@ -147,10 +147,10 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         preview = await resolver.preview("https://www.facebook.com/post/123")
         self.assertEqual(preview["id"], "123")
 
-        # Resolve images (all -> zip)
-        resolved_zip = await resolver.resolve("https://www.facebook.com/post/123")
-        self.assertEqual(resolved_zip.extension, ".zip")
-        self.assertEqual(len(resolved_zip.items), 2)
+        # Resolve images (all -> jpeg items list)
+        resolved_images = await resolver.resolve("https://www.facebook.com/post/123")
+        self.assertEqual(resolved_images.extension, ".jpeg")
+        self.assertEqual(len(resolved_images.items), 2)
 
         # Resolve single image -> jpeg
         resolved_single = await resolver.resolve("https://www.facebook.com/post/123", selected_indices=[0])
@@ -262,10 +262,10 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         res = resolver.resolve_images("https://www.facebook.com/photo/?fbid=67890", mock_info)
         self.assertEqual(res.source, "facebook")
         self.assertEqual(res.extension, ".jpeg")
-        self.assertEqual(res.filename, "[Facebook]_Single Photo Post_01.jpeg")
+        self.assertEqual(res.filename, "[Facebook]_Single Photo Post.jpeg")
         self.assertEqual(len(res.items), 1)
         self.assertEqual(res.items[0]["url"], "https://fbcdn.net/single.jpg")
-        self.assertEqual(res.items[0]["filename"], "[Facebook]_Single Photo Post_01.jpeg")
+        self.assertEqual(res.items[0]["filename"], "[Facebook]_Single Photo Post.jpeg")
 
     def test_resolver_resolve_album_photos(self):
         resolver = FacebookResolver()
@@ -280,8 +280,8 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         }
         res = resolver.resolve_images("https://www.facebook.com/album/123", mock_info, selected_indices=[0, 2])
         self.assertEqual(res.source, "facebook")
-        self.assertEqual(res.extension, ".zip")
-        self.assertEqual(res.filename, "[Facebook]_Album Post.zip")
+        self.assertEqual(res.extension, ".jpeg")
+        self.assertEqual(res.filename, "[Facebook]_Album Post_01.jpeg")
         self.assertEqual(len(res.items), 2)
         self.assertEqual(res.items[0]["url"], "https://fbcdn.net/img1.jpg")
         self.assertEqual(res.items[0]["filename"], "[Facebook]_Album Post_01.jpeg")

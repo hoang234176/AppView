@@ -20,6 +20,7 @@ from services.progress_manager import ProgressManager
 from services.websocket_manager import websocket_manager
 from archive.service import archive_service
 from worker.client import coordinator_worker_client
+from routes.telegram import router as telegram_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,6 +58,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(telegram_router)
 
 # HTTP Request Logger Middleware
 @app.middleware("http")
