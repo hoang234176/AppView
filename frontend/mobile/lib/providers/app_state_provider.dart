@@ -98,29 +98,107 @@ class AppStateProvider extends ChangeNotifier {
   ApiErrorInfo? get errorInfo => _errorInfo;
   String get searchQuery => _searchQuery;
 
-  // Filtered lists based on search query
+  final Set<String> _fileTypeFilters = <String>{}; // empty = all; 'folder', 'picture', 'video'
+  final Set<String> _mxhFilters = <String>{}; // empty = all; 'youtube', 'tiktok', 'facebook', 'instagram', 'telegram', 'x'
+
+  Set<String> get fileTypeFilters => _fileTypeFilters;
+  Set<String> get mxhFilters => _mxhFilters;
+  bool get isFilterActive => _fileTypeFilters.isNotEmpty || _mxhFilters.isNotEmpty;
+
+  void toggleFileTypeFilter(String filter) {
+    if (filter == 'all') {
+      _fileTypeFilters.clear();
+    } else {
+      if (_fileTypeFilters.contains(filter)) {
+        _fileTypeFilters.remove(filter);
+      } else {
+        _fileTypeFilters.add(filter);
+      }
+    }
+    resetLimits();
+    notifyListeners();
+  }
+
+  void toggleMxhFilter(String filter) {
+    if (filter == 'all') {
+      _mxhFilters.clear();
+    } else {
+      if (_mxhFilters.contains(filter)) {
+        _mxhFilters.remove(filter);
+      } else {
+        _mxhFilters.add(filter);
+      }
+    }
+    resetLimits();
+    notifyListeners();
+  }
+
+  void clearFilters() {
+    if (_fileTypeFilters.isEmpty && _mxhFilters.isEmpty) return;
+    _fileTypeFilters.clear();
+    _mxhFilters.clear();
+    resetLimits();
+    notifyListeners();
+  }
+
+  bool _matchesMxh(String name) {
+    if (_mxhFilters.isEmpty) return true;
+    final lower = name.toLowerCase();
+    for (final mxh in _mxhFilters) {
+      if (mxh == 'youtube' && (lower.startsWith('[youtube]') || lower.contains('[youtube]'))) return true;
+      if (mxh == 'tiktok' && (lower.startsWith('[tiktok]') || lower.contains('[tiktok]'))) return true;
+      if (mxh == 'facebook' && (lower.startsWith('[facebook]') || lower.contains('[facebook]'))) return true;
+      if (mxh == 'instagram' && (lower.startsWith('[instagram]') || lower.contains('[instagram]'))) return true;
+      if (mxh == 'telegram' && (lower.startsWith('[telegram]') || lower.contains('[telegram]'))) return true;
+      if (mxh == 'x' && (lower.startsWith('[x]') || lower.contains('[x]'))) return true;
+    }
+    return false;
+  }
+
+  // Filtered lists based on search query, multi-select file type filter, and MXH filter
   List<FolderItem> get filteredFolders {
-    if (_searchQuery.trim().isEmpty) return _folders;
+    if (_fileTypeFilters.isNotEmpty && !_fileTypeFilters.contains('folder')) {
+      return const [];
+    }
+    var list = _folders;
+    if (_mxhFilters.isNotEmpty) {
+      list = list.where((f) => _matchesMxh(f.name)).toList();
+    }
+    if (_searchQuery.trim().isEmpty) return list;
     final q = _searchQuery.toLowerCase().trim();
-    return _folders.where((f) {
+    return list.where((f) {
       return f.name.toLowerCase().contains(q) ||
           f.path.toLowerCase().contains(q);
     }).toList();
   }
 
   List<PictureItem> get filteredPictures {
-    if (_searchQuery.trim().isEmpty) return _pictures;
+    if (_fileTypeFilters.isNotEmpty && !_fileTypeFilters.contains('picture')) {
+      return const [];
+    }
+    var list = _pictures;
+    if (_mxhFilters.isNotEmpty) {
+      list = list.where((p) => _matchesMxh(p.name)).toList();
+    }
+    if (_searchQuery.trim().isEmpty) return list;
     final q = _searchQuery.toLowerCase().trim();
-    return _pictures.where((p) {
+    return list.where((p) {
       return p.name.toLowerCase().contains(q) ||
           p.path.toLowerCase().contains(q);
     }).toList();
   }
 
   List<VideoItem> get filteredVideos {
-    if (_searchQuery.trim().isEmpty) return _videos;
+    if (_fileTypeFilters.isNotEmpty && !_fileTypeFilters.contains('video')) {
+      return const [];
+    }
+    var list = _videos;
+    if (_mxhFilters.isNotEmpty) {
+      list = list.where((v) => _matchesMxh(v.name)).toList();
+    }
+    if (_searchQuery.trim().isEmpty) return list;
     final q = _searchQuery.toLowerCase().trim();
-    return _videos.where((v) {
+    return list.where((v) {
       return v.name.toLowerCase().contains(q) ||
           v.path.toLowerCase().contains(q);
     }).toList();

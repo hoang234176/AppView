@@ -1,8 +1,11 @@
+import 'dart:async' as java_timer;
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
+import '../api/api_config.dart';
 import '../api/download_api.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/download_provider.dart';
@@ -10,6 +13,51 @@ import '../theme/app_theme.dart';
 import 'app_select_menu.dart';
 import 'config_api_dialog.dart';
 import 'folder_picker_view.dart';
+
+Widget _buildPreviewImage(
+  String url, {
+  double? width,
+  double? height,
+  BoxFit fit = BoxFit.cover,
+  Widget? errorWidget,
+}) {
+  final clean = url.trim();
+  if (clean.isEmpty) {
+    return errorWidget ?? const SizedBox();
+  }
+  if (clean.startsWith('data:image/')) {
+    final commaIndex = clean.indexOf(',');
+    if (commaIndex != -1) {
+      try {
+        final b64 = clean.substring(commaIndex + 1);
+        final bytes = base64Decode(b64);
+        return Image.memory(
+          bytes,
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (_, __, ___) => errorWidget ?? const SizedBox(),
+        );
+      } catch (_) {
+        return errorWidget ?? const SizedBox();
+      }
+    }
+  }
+
+  String finalUrl = clean;
+  if (clean.startsWith('/')) {
+    final host = ApiConfig.serverHost.trim().isNotEmpty ? ApiConfig.serverHost : 'localhost';
+    finalUrl = 'http://$host:${ApiConfig.pythonDownloadPort}$clean';
+  }
+
+  return Image.network(
+    finalUrl,
+    width: width,
+    height: height,
+    fit: fit,
+    errorBuilder: (_, __, ___) => errorWidget ?? const SizedBox(),
+  );
+}
 
 class DownloadMediaDialog extends StatefulWidget {
   final String currentPath;
@@ -32,10 +80,15 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
   int? _quality;
   String _mediaTypeTab = 'video';
   List<int> _selectedIndices = [];
+  List<int> _selectedVideoIndices = [];
   bool _busy = false;
   String? _error;
   late String _destination;
   bool _isPlatformsExpanded = false;
+  final Map<String, String> _activeTaskIds = {};
+  final Set<String> _downloadedTypes = {};
+  final Set<String> _downloadingTypes = {};
+  java_timer.Timer? _closeTimer;
 
   @override
   void initState() {
@@ -48,6 +101,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
 
   @override
   void dispose() {
+    _closeTimer?.cancel();
     _previewCancel?.cancel();
     _url.dispose();
     super.dispose();
@@ -103,28 +157,191 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
         return;
       }
 
-      final activeDrive = context.read<AppStateProvider>().activeDrive;
+      final targetDrive = context.read<AppStateProvider>().activeDrive;
+      final targetMediaType = isTextOnly ? 'text' : (isImages ? 'images' : 'video');
+
+      // 1. Multiple videos: separate download task for each selected video
+      if (targetMediaType == 'video' && _preview!.videos.length > 1) {
+        if (_selectedVideoIndices.isEmpty) {
+          setState(() {
+            _busy = false;
+            _error = 'Vui lòng chọn ít nhất 1 video để tải xuống.';
+          });
+          return;
+        }
+        setState(() {
+          _downloadingTypes.add('video');
+        });
+        String? lastJobId;
+        for (final idx in _selectedVideoIndices) {
+          final res = await context
+              .read<DownloadProvider>()
+              .startCoordinatorDownload(
+                url: url,
+                destination: canonicalDownloadDestination(_destination, targetDrive),
+                drive: targetDrive,
+                quality: _quality,
+                selectedIndices: [idx],
+                mediaType: 'video',
+              );
+          if (res['success'] == true) {
+            lastJobId = res['data'] is Map ? (res['data']['id'] ?? res['data']['task_id'])?.toString() : null;
+          } else {
+            setState(() {
+              _error = res['message'] as String? ?? 'Không thể bắt đầu tải xuống.';
+            });
+          }
+        }
+        if (!mounted) return;
+        setState(() => _busy = false);
+        if (lastJobId != null) {
+          setState(() {
+            _activeTaskIds['video'] = lastJobId ?? 'started';
+          });
+          if (!hasImages) {
+            _closeTimer?.cancel();
+            _closeTimer = java_timer.Timer(const Duration(seconds: 2), () {
+              if (mounted) Navigator.of(context).pop();
+            });
+          } else {
+            setState(() {
+              _downloadedTypes.add('video');
+              _downloadingTypes.remove('video');
+            });
+            if (_downloadedTypes.contains('video') && _downloadedTypes.contains('images')) {
+              _closeTimer?.cancel();
+              _closeTimer = java_timer.Timer(const Duration(seconds: 2), () {
+                if (mounted) Navigator.of(context).pop();
+              });
+            }
+          }
+        }
+        return;
+      }
+
+      // 2. Multiple images: separate download task for each selected image
+      if (targetMediaType == 'images' && targetImages.length > 1) {
+        if (_selectedIndices.isEmpty) {
+          setState(() {
+            _busy = false;
+            _error = 'Vui lòng chọn ít nhất 1 ảnh để tải xuống.';
+          });
+          return;
+        }
+        setState(() {
+          _downloadingTypes.add('images');
+        });
+        String? lastJobId;
+        for (final idx in _selectedIndices) {
+          final res = await context
+              .read<DownloadProvider>()
+              .startCoordinatorDownload(
+                url: url,
+                destination: canonicalDownloadDestination(_destination, targetDrive),
+                drive: targetDrive,
+                quality: null,
+                selectedIndices: [idx],
+                mediaType: 'images',
+              );
+          if (res['success'] == true) {
+            lastJobId = res['data'] is Map ? (res['data']['id'] ?? res['data']['task_id'])?.toString() : null;
+          } else {
+            setState(() {
+              _error = res['message'] as String? ?? 'Không thể bắt đầu tải xuống.';
+            });
+          }
+        }
+        if (!mounted) return;
+        setState(() => _busy = false);
+        if (lastJobId != null) {
+          setState(() {
+            _activeTaskIds['images'] = lastJobId ?? 'started';
+          });
+          if (!hasVideo) {
+            _closeTimer?.cancel();
+            _closeTimer = java_timer.Timer(const Duration(seconds: 2), () {
+              if (mounted) Navigator.of(context).pop();
+            });
+          } else {
+            setState(() {
+              _downloadedTypes.add('images');
+              _downloadingTypes.remove('images');
+            });
+            if (_downloadedTypes.contains('video') && _downloadedTypes.contains('images')) {
+              _closeTimer?.cancel();
+              _closeTimer = java_timer.Timer(const Duration(seconds: 2), () {
+                if (mounted) Navigator.of(context).pop();
+              });
+            }
+          }
+        }
+        return;
+      }
+
+      // 3. Single video / Single image / Text / Fallback
+      if (isImages && _selectedIndices.isEmpty) {
+        setState(() {
+          _busy = false;
+          _error = 'Vui lòng chọn ít nhất 1 ảnh để tải xuống.';
+        });
+        return;
+      }
+
+      setState(() {
+        _downloadingTypes.add(targetMediaType);
+      });
+
       final result = await context
           .read<DownloadProvider>()
           .startCoordinatorDownload(
             url: url,
-            destination: canonicalDownloadDestination(_destination, activeDrive),
-            drive: activeDrive,
+            destination: canonicalDownloadDestination(_destination, targetDrive),
+            drive: targetDrive,
             quality: (isImages || isTextOnly) ? null : _quality,
             selectedIndices: isImages ? _selectedIndices : null,
-            mediaType: isTextOnly ? 'text' : isImages ? 'images' : 'video',
+            mediaType: targetMediaType,
           );
       if (!mounted) return;
       setState(() => _busy = false);
       if (result['success'] == true) {
-        Navigator.of(context).pop();
+        final jobId = result['data'] is Map ? (result['data']['id'] ?? result['data']['task_id'])?.toString() : null;
+        setState(() {
+          _activeTaskIds[targetMediaType] = jobId ?? 'started';
+        });
+
+        final isMixed = hasVideo && hasImages;
+        if (!isMixed) {
+          _closeTimer?.cancel();
+          _closeTimer = java_timer.Timer(const Duration(seconds: 2), () {
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+          });
+        } else {
+          setState(() {
+            _downloadedTypes.add(targetMediaType);
+            _downloadingTypes.remove(targetMediaType);
+          });
+
+          if (_downloadedTypes.contains('video') && _downloadedTypes.contains('images')) {
+            setState(() {
+              _downloadingTypes.add(targetMediaType);
+            });
+            _closeTimer?.cancel();
+            _closeTimer = java_timer.Timer(const Duration(seconds: 2), () {
+              if (mounted) {
+                Navigator.of(context).pop();
+              }
+            });
+          }
+        }
       } else {
-        setState(
-          () =>
-              _error =
-                  result['message'] as String? ??
-                  'Không thể bắt đầu tải xuống.',
-        );
+        setState(() {
+          _downloadingTypes.remove(targetMediaType);
+          _error =
+              result['message'] as String? ??
+              'Không thể bắt đầu tải xuống.';
+        });
       }
       return;
     }
@@ -145,14 +362,19 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
           : preview.images.where((img) => img.type != 'video').toList();
       final hasImages = targetImages.isNotEmpty;
       final hasVideo = preview.hasVideo ||
+          preview.videos.isNotEmpty ||
           preview.source == 'youtube' ||
           preview.qualities.isNotEmpty ||
           preview.type == 'video';
 
       setState(() {
         _preview = preview;
+        _activeTaskIds.clear();
+        _downloadedTypes.clear();
+        _downloadingTypes.clear();
         _quality = preview.qualities.isNotEmpty ? preview.qualities.first : null;
         _selectedIndices = List.generate(targetImages.length, (i) => i);
+        _selectedVideoIndices = List.generate(preview.videos.length, (i) => i);
         if (hasImages && !hasVideo) {
           _mediaTypeTab = 'images';
         } else {
@@ -184,7 +406,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
     final preview = _preview;
 
     return PopScope(
-      canPop: !(_busy && preview != null),
+      canPop: true,
       child: GestureDetector(
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
         behavior: HitTestBehavior.translucent,
@@ -195,30 +417,47 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
             side: const BorderSide(color: AppTheme.borderColor),
           ),
           title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.redAccent.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.redAccent.withValues(alpha: 0.3),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.redAccent.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.perm_media_rounded,
+                      color: Colors.redAccent,
+                      size: 18,
+                    ),
                   ),
-                ),
-                child: const Icon(
-                  Icons.perm_media_rounded,
-                  color: Colors.redAccent,
-                  size: 18,
-                ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Tải ảnh/video',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              const Text(
-                'Tải ảnh/video',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+                onPressed: () {
+                  _closeTimer?.cancel();
+                  _previewCancel?.cancel();
+                  Navigator.of(context).pop();
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                splashRadius: 18,
+                tooltip: 'Đóng',
               ),
             ],
           ),
@@ -444,8 +683,11 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                       final isFacebook = preview.source == 'facebook';
                       final isTikTok = preview.source == 'tiktok';
                       final isInstagram = preview.source == 'instagram';
+                      final isTelegram = preview.source == 'telegram';
                       final isX = preview.source == 'x' || preview.source == 'twitter';
-                      final accentColor = isX
+                      final accentColor = isTelegram
+                          ? const Color(0xFF38BDF8)
+                          : isX
                           ? const Color(0xFFE7E9EA)
                           : (isInstagram
                               ? const Color(0xFFE1306C)
@@ -456,14 +698,18 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Unified Post Card (Instagram / Facebook / TikTok / YouTube / X)
+                          // Unified Post Card (Instagram / Facebook / TikTok / YouTube / Telegram / X)
                           () {
-                            final platformName = isX
+                            final platformName = isTelegram
+                                ? 'Telegram'
+                                : isX
                                 ? 'X (Twitter)'
                                 : (isInstagram
                                     ? 'Instagram'
                                     : (isFacebook ? 'Facebook' : (isTikTok ? 'TikTok' : 'YouTube')));
-                            final platformIconAsset = isX
+                            final platformIconAsset = isTelegram
+                                ? 'assets/icons/telegram.svg'
+                                : isX
                                 ? 'assets/icons/twitter.svg'
                                 : (isInstagram
                                     ? 'assets/icons/instagram.svg'
@@ -474,14 +720,16 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                             final authorName = preview.author?.name.isNotEmpty == true
                                 ? preview.author!.name
                                 : (preview.uploader.isNotEmpty
-                                    ? ((isTikTok || isInstagram || isX) && !preview.uploader.startsWith('@')
+                                    ? ((isTikTok || isInstagram || isX || isTelegram) && !preview.uploader.startsWith('@')
                                         ? '@${preview.uploader}'
                                         : preview.uploader)
                                     : (preview.title.isNotEmpty ? preview.title : '$platformName Post'));
 
                             final subtitle = preview.createdTime.isNotEmpty
                                 ? preview.createdTime
-                                : (isX
+                                : (isTelegram
+                                    ? 'Bài viết Telegram'
+                                    : isX
                                     ? 'Bài viết X (Twitter)'
                                     : (isInstagram
                                         ? 'Bài viết Instagram'
@@ -516,12 +764,12 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                                 if (preview.author?.avatar.isNotEmpty == true)
                                                   ClipRRect(
                                                     borderRadius: BorderRadius.circular(18),
-                                                    child: Image.network(
+                                                    child: _buildPreviewImage(
                                                       preview.author!.avatar,
                                                       width: 36,
                                                       height: 36,
                                                       fit: BoxFit.cover,
-                                                      errorBuilder: (_, __, ___) => _buildAvatarFallback(
+                                                      errorWidget: _buildAvatarFallback(
                                                         preview,
                                                         accentColor,
                                                         platformName[0],
@@ -899,11 +1147,10 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                                         children: [
                                           Opacity(
                                             opacity: isSelected ? 1.0 : 0.45,
-                                            child: Image.network(
+                                            child: _buildPreviewImage(
                                               imageUrl,
                                               fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (_, __, ___) => Container(
+                                              errorWidget: Container(
                                                 color: Colors.black38,
                                                 child: const Icon(
                                                   Icons.broken_image_rounded,
@@ -1062,9 +1309,296 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                             const SizedBox(height: 12),
                           ],
 
-                          // Video quality selector
+                          // Multiple Videos Selector
                           if ((_mediaTypeTab == 'video' ||
                                   (!hasImages && hasVideo)) &&
+                              preview.videos.length > 1) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Danh sách video (${preview.videos.length}):',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'Đã chọn ${_selectedVideoIndices.length}/${preview.videos.length}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 76,
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: AppTheme.bgInput,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: AppTheme.borderColor),
+                              ),
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: preview.videos.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(width: 8),
+                                itemBuilder: (context, idx) {
+                                  final vid = preview.videos[idx];
+                                  final isSelected =
+                                      _selectedVideoIndices.contains(idx);
+                                  final durMin = (vid.duration / 60).floor();
+                                  final durSec = vid.duration % 60;
+                                  final durStr = vid.duration > 0
+                                      ? '${durMin.toString().padLeft(2, '0')}:${durSec.toString().padLeft(2, '0')}'
+                                      : '';
+
+                                  return InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: () {
+                                      setState(() {
+                                        if (isSelected) {
+                                          _selectedVideoIndices.remove(idx);
+                                        } else {
+                                          _selectedVideoIndices.add(idx);
+                                          _selectedVideoIndices.sort();
+                                        }
+                                      });
+                                    },
+                                    child: Container(
+                                      width: 68,
+                                      height: 68,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? accentColor
+                                              : AppTheme.borderColor,
+                                          width: isSelected ? 2 : 1,
+                                        ),
+                                      ),
+                                      padding:
+                                          EdgeInsets.all(isSelected ? 2 : 1),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(
+                                          isSelected ? 8 : 9,
+                                        ),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            Opacity(
+                                              opacity: isSelected ? 1.0 : 0.45,
+                                              child: vid.thumbnail.isNotEmpty
+                                                  ? _buildPreviewImage(
+                                                      vid.thumbnail,
+                                                      fit: BoxFit.cover,
+                                                      errorWidget: Container(
+                                                        color: Colors.black38,
+                                                        child: const Icon(
+                                                          Icons
+                                                              .videocam_rounded,
+                                                          color:
+                                                              Colors.white30,
+                                                          size: 20,
+                                                        ),
+                                                      ),
+                                                    )
+                                                  : Container(
+                                                      color: Colors.black38,
+                                                      child: const Icon(
+                                                        Icons
+                                                            .videocam_rounded,
+                                                        color: Colors.white30,
+                                                        size: 20,
+                                                      ),
+                                                    ),
+                                            ),
+                                            Center(
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.all(3),
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.black45,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
+                                                  Icons.play_arrow_rounded,
+                                                  size: 14,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              top: 0,
+                                              right: 0,
+                                              child: GestureDetector(
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTap: () {
+                                                  setState(() {
+                                                    if (isSelected) {
+                                                      _selectedVideoIndices
+                                                          .remove(idx);
+                                                    } else {
+                                                      _selectedVideoIndices
+                                                          .add(idx);
+                                                      _selectedVideoIndices
+                                                          .sort();
+                                                    }
+                                                  });
+                                                },
+                                                child: Container(
+                                                  width: 30,
+                                                  height: 30,
+                                                  alignment:
+                                                      Alignment.topRight,
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                    top: 2,
+                                                    right: 2,
+                                                  ),
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            2),
+                                                    decoration:
+                                                        BoxDecoration(
+                                                      color: isSelected
+                                                          ? accentColor
+                                                          : Colors.black
+                                                              .withValues(
+                                                                  alpha: 0.65),
+                                                      shape: BoxShape.circle,
+                                                      border: Border.all(
+                                                        color: isSelected
+                                                            ? Colors.white
+                                                            : Colors.white38,
+                                                        width: 1,
+                                                      ),
+                                                    ),
+                                                    child: Icon(
+                                                      Icons.check,
+                                                      size: 10,
+                                                      color: isSelected
+                                                          ? Colors.white
+                                                          : Colors.white70,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              bottom: 0,
+                                              left: 0,
+                                              right: 0,
+                                              child: Container(
+                                                color: Colors.black
+                                                    .withValues(alpha: 0.65),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  vertical: 1,
+                                                ),
+                                                child: Text(
+                                                  durStr.isNotEmpty
+                                                      ? durStr
+                                                      : '#${idx + 1}',
+                                                  textAlign: TextAlign.center,
+                                                  style: const TextStyle(
+                                                    color: Colors.white70,
+                                                    fontSize: 9,
+                                                    fontFamily: 'monospace',
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      if (_selectedVideoIndices.length ==
+                                          preview.videos.length) {
+                                        _selectedVideoIndices.clear();
+                                      } else {
+                                        _selectedVideoIndices = List.generate(
+                                          preview.videos.length,
+                                          (i) => i,
+                                        );
+                                      }
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          accentColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color:
+                                            accentColor.withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.done_all_rounded,
+                                          size: 14,
+                                          color: accentColor,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          _selectedVideoIndices.length ==
+                                                  preview.videos.length
+                                              ? 'Bỏ chọn tất cả'
+                                              : 'Chọn tất cả',
+                                          style: TextStyle(
+                                            color: accentColor,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  _selectedVideoIndices.isEmpty
+                                      ? 'Chưa chọn video nào'
+                                      : 'Sẽ tải ${_selectedVideoIndices.length} video (.mp4)',
+                                  style: const TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+
+                          // Video quality selector (single video only)
+                          if ((_mediaTypeTab == 'video' ||
+                                  (!hasImages && hasVideo)) &&
+                              preview.videos.length <= 1 &&
                               preview.qualities.isNotEmpty) ...[
                             Row(
                               children: [
@@ -1187,44 +1721,154 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
                           },
                 child: const Text('Hủy'),
               ),
-            ElevatedButton(
-              onPressed: _busy ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.googleBlue,
-                foregroundColor: AppTheme.bgBlock,
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              child: Text(
-                preview == null
-                    ? 'Tiếp tục'
-                    : () {
-                        final hasVideo = preview.hasVideo ||
-                            preview.source == 'youtube' ||
-                            preview.qualities.isNotEmpty ||
-                            preview.type == 'video';
-                        final photos = preview.images
-                            .where((img) =>
-                                img.type == 'slideshow_photo' ||
-                                img.type == 'post_photo' ||
-                                img.type == 'photo' ||
-                                img.type.isEmpty)
-                            .toList();
-                        final targetImages = photos.isNotEmpty
-                            ? photos
-                            : preview.images.where((img) => img.type != 'video').toList();
-                        final hasImages = targetImages.isNotEmpty;
-                        final isTextOnly = !hasVideo && !hasImages;
+            () {
+              final tasks = context.watch<DownloadProvider>().tasks;
+              String getStatusForType(String typeKey) {
+                if (_downloadingTypes.contains(typeKey)) return 'downloading';
+                if (_downloadedTypes.contains(typeKey)) return 'completed';
+                final taskId = _activeTaskIds[typeKey];
+                if (taskId == null) return 'idle';
+                if (taskId == 'started') return 'downloading';
+                final found = tasks.where((t) => t.taskId == taskId).firstOrNull;
+                if (found == null) return 'downloading';
+                if (found.stage == 'completed') return 'completed';
+                if (found.stage == 'error' || found.stage == 'failed') return 'error';
+                return 'downloading';
+              }
 
-                        if (isTextOnly) return 'Tải bài viết (.txt)';
-                        if (_mediaTypeTab == 'images' || (!hasVideo && hasImages)) {
-                          return targetImages.length > 1
-                              ? 'Tải ${targetImages.length} ảnh'
-                              : 'Tải ảnh';
-                        }
-                        return 'Tải Video';
-                      }(),
-              ),
-            ),
+              final videoStatus = getStatusForType('video');
+              final imagesStatus = getStatusForType('images');
+              final textStatus = getStatusForType('text');
+
+              if (preview != null) {
+                final hasVideo = preview.hasVideo ||
+                    preview.source == 'youtube' ||
+                    preview.qualities.isNotEmpty ||
+                    preview.type == 'video';
+                final photos = preview.images
+                    .where((img) =>
+                        img.type == 'slideshow_photo' ||
+                        img.type == 'post_photo' ||
+                        img.type == 'photo' ||
+                        img.type.isEmpty)
+                    .toList();
+                final targetImages = photos.isNotEmpty
+                    ? photos
+                    : preview.images.where((img) => img.type != 'video').toList();
+                final hasImages = targetImages.isNotEmpty;
+                final isTextOnly = !hasVideo && !hasImages;
+
+                // Auto close when download jobs are actually completed in background
+                if (isTextOnly && textStatus == 'completed') {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) Navigator.of(context).pop();
+                  });
+                } else if (!hasImages && hasVideo && videoStatus == 'completed') {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) Navigator.of(context).pop();
+                  });
+                } else if (!hasVideo && hasImages && imagesStatus == 'completed') {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) Navigator.of(context).pop();
+                  });
+                } else if (hasVideo && hasImages && videoStatus == 'completed' && imagesStatus == 'completed') {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) Navigator.of(context).pop();
+                  });
+                }
+
+                final currentStatus = isTextOnly
+                    ? textStatus
+                    : (_mediaTypeTab == 'images' || (!hasVideo && hasImages))
+                    ? imagesStatus
+                    : videoStatus;
+
+                if (currentStatus == 'completed') {
+                  return ElevatedButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.check_rounded, size: 16, color: Colors.white54),
+                    label: const Text('Tải xong'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2A2B2F),
+                      foregroundColor: Colors.white54,
+                      disabledBackgroundColor: const Color(0xFF2A2B2F),
+                      disabledForegroundColor: Colors.white54,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      side: const BorderSide(color: Color(0xFF383C42)),
+                    ),
+                  );
+                }
+
+                if (currentStatus == 'downloading' || _busy) {
+                  return ElevatedButton(
+                    onPressed: null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.googleBlue.withValues(alpha: 0.7),
+                      foregroundColor: AppTheme.bgBlock,
+                      disabledBackgroundColor: AppTheme.googleBlue.withValues(alpha: 0.7),
+                      disabledForegroundColor: AppTheme.bgBlock,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.bgBlock,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Text('Đang tải...'),
+                      ],
+                    ),
+                  );
+                }
+              }
+
+              return ElevatedButton(
+                onPressed: _busy ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.googleBlue,
+                  foregroundColor: AppTheme.bgBlock,
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                child: Text(
+                  _busy
+                      ? (preview == null ? 'Đang xem trước...' : 'Đang tải...')
+                      : preview == null
+                      ? 'Tiếp tục'
+                      : () {
+                          final hasVideo = preview.hasVideo ||
+                              preview.source == 'youtube' ||
+                              preview.qualities.isNotEmpty ||
+                              preview.type == 'video';
+                          final photos = preview.images
+                              .where((img) =>
+                                  img.type == 'slideshow_photo' ||
+                                  img.type == 'post_photo' ||
+                                  img.type == 'photo' ||
+                                  img.type.isEmpty)
+                              .toList();
+                          final targetImages = photos.isNotEmpty
+                              ? photos
+                              : preview.images.where((img) => img.type != 'video').toList();
+                          final hasImages = targetImages.isNotEmpty;
+                          final isTextOnly = !hasVideo && !hasImages;
+
+                          if (isTextOnly) return 'Tải bài viết (.txt)';
+                          if (_mediaTypeTab == 'images' || (!hasVideo && hasImages)) {
+                            return targetImages.length > 1
+                                ? 'Tải ${targetImages.length} ảnh'
+                                : 'Tải ảnh';
+                          }
+                          return 'Tải Video';
+                        }(),
+                ),
+              );
+            }(),
           ],
         ),
       ),
@@ -1280,19 +1924,19 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
             if (imageUrl.trim().isNotEmpty)
               Opacity(
                 opacity: 0.35,
-                child: Image.network(
+                child: _buildPreviewImage(
                   imageUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox(),
+                  errorWidget: const SizedBox(),
                 ),
               ),
             // Centered media fit vertically/contained (respecting portrait and landscape)
             if (imageUrl.trim().isNotEmpty)
               Center(
-                child: Image.network(
+                child: _buildPreviewImage(
                   imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Center(
+                  errorWidget: const Center(
                     child: Icon(
                       Icons.broken_image_rounded,
                       color: Colors.white30,
@@ -1444,6 +2088,8 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
         (cleanUrl.contains('youtube.com') || cleanUrl.contains('youtu.be'));
     final isIg = cleanUrl.isNotEmpty &&
         (cleanUrl.contains('instagram.com') || cleanUrl.contains('instagr.am'));
+    final isTg = cleanUrl.isNotEmpty &&
+        (cleanUrl.contains('t.me') || cleanUrl.contains('telegram.me'));
     final isX = cleanUrl.isNotEmpty &&
         (cleanUrl.contains('x.com') ||
             cleanUrl.contains('twitter.com') ||
@@ -1479,6 +2125,13 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
         isActive: isIg,
       ),
       _SupportedPlatform(
+        id: 'telegram',
+        name: 'Telegram',
+        iconAsset: 'assets/icons/telegram.svg',
+        color: const Color(0xFF38BDF8),
+        isActive: isTg,
+      ),
+      _SupportedPlatform(
         id: 'x',
         name: 'X (Twitter)',
         iconAsset: 'assets/icons/twitter.svg',
@@ -1494,7 +2147,7 @@ class _DownloadMediaDialogState extends State<DownloadMediaDialog> {
       return 0;
     });
 
-    const initialVisibleCount = 5;
+    const initialVisibleCount = 6;
     final hasMore = sortedPlatforms.length > initialVisibleCount;
     final displayedPlatforms = (_isPlatformsExpanded || !hasMore)
         ? sortedPlatforms
@@ -1783,10 +2436,10 @@ class _PhotoPreviewDialogState extends State<_PhotoPreviewDialog>
                           minScale: 1.0,
                           maxScale: 4.0,
                           clipBehavior: Clip.none,
-                          child: Image.network(
+                          child: _buildPreviewImage(
                             url,
                             fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Center(
+                            errorWidget: const Center(
                               child: Icon(
                                 Icons.broken_image_rounded,
                                 color: Colors.white30,

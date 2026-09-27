@@ -67,10 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _openDrawer() {
-    _scaffoldKey.currentState?.openDrawer();
-  }
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -80,6 +76,8 @@ class _HomeScreenState extends State<HomeScreen> {
         key: _scaffoldKey,
         backgroundColor: AppTheme.bgApp,
         drawer: const FolderTreeDrawer(),
+        drawerEdgeDragWidth: 48,
+        drawerEnableOpenDragGesture: true,
         floatingActionButton: context.watch<AppStateProvider>().isSelectMode
             ? null
             : FabSpeedDial(
@@ -115,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Column(
                 children: [
                   // Fixed Top App Header Bar
-                  AppHeader(onOpenDrawer: _openDrawer),
+                  const AppHeader(),
 
                   // Fixed Breadcrumbs Bar
                   const BreadcrumbsBar(),
@@ -124,22 +122,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: Consumer<AppStateProvider>(
                       builder: (context, appState, child) {
-                        return GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onHorizontalDragEnd: (details) {
-                            if (details.primaryVelocity != null &&
-                                details.primaryVelocity! > 250) {
-                              if (appState.currentPath.isNotEmpty) {
-                                appState.navigateBack();
-                              }
-                            }
-                          },
-                          child: RefreshIndicator(
-                            color: AppTheme.googleBlue,
-                            backgroundColor: AppTheme.bgBlock,
-                            onRefresh: () => appState.refreshAll(),
-                            child: _buildBodyContent(appState),
-                          ),
+                        return RefreshIndicator(
+                          color: AppTheme.googleBlue,
+                          backgroundColor: AppTheme.bgBlock,
+                          onRefresh: () => appState.refreshAll(),
+                          child: _buildBodyContent(appState),
                         );
                       },
                     ),

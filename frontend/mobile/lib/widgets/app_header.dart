@@ -5,12 +5,12 @@ import '../theme/app_theme.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/download_provider.dart';
 import '../screens/download_screen.dart';
+import 'filter_modal_bottom_sheet.dart';
+import 'batch_action_dialog.dart';
 import 'rolling_number.dart';
 
 class AppHeader extends StatefulWidget {
-  final VoidCallback onOpenDrawer;
-
-  const AppHeader({super.key, required this.onOpenDrawer});
+  const AppHeader({super.key});
 
   @override
   State<AppHeader> createState() => _AppHeaderState();
@@ -92,8 +92,42 @@ class _AppHeaderState extends State<AppHeader>
     );
   }
 
+  List<Map<String, dynamic>> _collectSelectedItems(AppStateProvider appState) {
+    final List<Map<String, dynamic>> list = [];
+
+    for (final folderPath in appState.selectedFolderPaths) {
+      final name = folderPath.split('/').lastWhere((p) => p.isNotEmpty, orElse: () => folderPath);
+      list.add({
+        'type': 'folder',
+        'name': name,
+        'path': folderPath,
+      });
+    }
+
+    for (final picPath in appState.selectedPicturePaths) {
+      final name = picPath.split('/').lastWhere((p) => p.isNotEmpty, orElse: () => picPath);
+      list.add({
+        'type': 'picture',
+        'name': name,
+        'path': picPath,
+      });
+    }
+
+    for (final vidPath in appState.selectedVideoPaths) {
+      final name = vidPath.split('/').lastWhere((p) => p.isNotEmpty, orElse: () => vidPath);
+      list.add({
+        'type': 'video',
+        'name': name,
+        'path': vidPath,
+      });
+    }
+
+    return list;
+  }
+
   Widget _buildSelectHeader(AppStateProvider appState) {
     final count = appState.totalSelectedCount;
+    final hasSelection = count > 0;
 
     return Row(
       children: [
@@ -116,7 +150,7 @@ class _AppHeaderState extends State<AppHeader>
             minimumSize: const Size(40, 40),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
 
         // Selected count with RollingNumber
         Expanded(
@@ -126,7 +160,7 @@ class _AppHeaderState extends State<AppHeader>
               const Text(
                 'Đã chọn ',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: Colors.white70,
                 ),
@@ -134,7 +168,7 @@ class _AppHeaderState extends State<AppHeader>
               RollingNumber(
                 value: count,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.w800,
                   color: AppTheme.googleBlue,
                   fontFamily: 'monospace',
@@ -143,13 +177,108 @@ class _AppHeaderState extends State<AppHeader>
               const Text(
                 ' mục',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: Colors.white70,
                 ),
               ),
             ],
           ),
+        ),
+
+        // 3 Action Buttons: Copy, Move, Delete
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Copy
+            IconButton(
+              onPressed: hasSelection
+                  ? () {
+                      final items = _collectSelectedItems(appState);
+                      BatchActionDialog.show(context, action: 'copy', items: items);
+                    }
+                  : null,
+              icon: Icon(
+                Icons.copy_rounded,
+                color: hasSelection ? const Color(0xFF8AB4F8) : Colors.white24,
+                size: 18,
+              ),
+              tooltip: 'Sao chép',
+              style: IconButton.styleFrom(
+                backgroundColor: AppTheme.bgCard,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                    color: hasSelection
+                        ? const Color(0xFF8AB4F8).withValues(alpha: 0.35)
+                        : AppTheme.borderColor,
+                  ),
+                ),
+                padding: const EdgeInsets.all(8),
+                minimumSize: const Size(36, 36),
+              ),
+            ),
+            const SizedBox(width: 6),
+
+            // Move
+            IconButton(
+              onPressed: hasSelection
+                  ? () {
+                      final items = _collectSelectedItems(appState);
+                      BatchActionDialog.show(context, action: 'move', items: items);
+                    }
+                  : null,
+              icon: Icon(
+                Icons.drive_file_move_rounded,
+                color: hasSelection ? Colors.amberAccent : Colors.white24,
+                size: 18,
+              ),
+              tooltip: 'Di chuyển',
+              style: IconButton.styleFrom(
+                backgroundColor: AppTheme.bgCard,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                    color: hasSelection
+                        ? Colors.amberAccent.withValues(alpha: 0.35)
+                        : AppTheme.borderColor,
+                  ),
+                ),
+                padding: const EdgeInsets.all(8),
+                minimumSize: const Size(36, 36),
+              ),
+            ),
+            const SizedBox(width: 6),
+
+            // Delete
+            IconButton(
+              onPressed: hasSelection
+                  ? () {
+                      final items = _collectSelectedItems(appState);
+                      BatchActionDialog.show(context, action: 'delete', items: items);
+                    }
+                  : null,
+              icon: Icon(
+                Icons.delete_outline_rounded,
+                color: hasSelection ? Colors.redAccent : Colors.white24,
+                size: 18,
+              ),
+              tooltip: 'Xóa',
+              style: IconButton.styleFrom(
+                backgroundColor: AppTheme.bgCard,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                    color: hasSelection
+                        ? Colors.redAccent.withValues(alpha: 0.35)
+                        : AppTheme.borderColor,
+                  ),
+                ),
+                padding: const EdgeInsets.all(8),
+                minimumSize: const Size(36, 36),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -197,27 +326,6 @@ class _AppHeaderState extends State<AppHeader>
 
     return Row(
       children: [
-        // Drawer Menu Hamburger Button
-        IconButton(
-          onPressed: widget.onOpenDrawer,
-          icon: const Icon(
-            Icons.menu_rounded,
-            color: AppTheme.googleBlue,
-            size: 22,
-          ),
-          tooltip: 'Mở danh mục thư mục',
-          style: IconButton.styleFrom(
-            backgroundColor: AppTheme.bgCard,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: AppTheme.borderColor),
-            ),
-            padding: const EdgeInsets.all(8),
-            minimumSize: const Size(40, 40),
-          ),
-        ),
-        const SizedBox(width: 10),
-
         // Brand Logo
         InkWell(
           onTap: () => appState.navigateTo(''),
@@ -273,6 +381,49 @@ class _AppHeaderState extends State<AppHeader>
         ),
 
         const Spacer(),
+
+        // Filter Button (Funnel icon)
+        IconButton(
+          onPressed: () {
+            FilterModalBottomSheet.show(context);
+          },
+          icon: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                Icons.filter_alt_rounded,
+                color: appState.isFilterActive ? AppTheme.googleBlue : Colors.white70,
+                size: 20,
+              ),
+              if (appState.isFilterActive)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.googleBlue,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          tooltip: 'Bộ lọc hiển thị',
+          style: IconButton.styleFrom(
+            backgroundColor: AppTheme.bgCard,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: appState.isFilterActive ? AppTheme.googleBlue.withValues(alpha: 0.6) : AppTheme.borderColor,
+              ),
+            ),
+            padding: const EdgeInsets.all(8),
+            minimumSize: const Size(40, 40),
+          ),
+        ),
+        const SizedBox(width: 8),
 
         // Download Header Action Button — icon + ring đồng bộ màu theo stage
         GestureDetector(

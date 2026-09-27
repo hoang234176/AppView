@@ -95,10 +95,49 @@ class MediaReactionsInfo {
   }
 }
 
+class MediaVideoItem {
+  final String id;
+  final String url;
+  final String title;
+  final String type;
+  final String thumbnail;
+  final int duration;
+  final int fileSize;
+  final int width;
+  final int height;
+
+  MediaVideoItem({
+    this.id = '',
+    required this.url,
+    this.title = '',
+    this.type = 'video',
+    this.thumbnail = '',
+    this.duration = 0,
+    this.fileSize = 0,
+    this.width = 0,
+    this.height = 0,
+  });
+
+  factory MediaVideoItem.fromJson(Map<String, dynamic> json) {
+    return MediaVideoItem(
+      id: json['id']?.toString() ?? json['msg_id']?.toString() ?? '',
+      url: json['url']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      type: json['type']?.toString() ?? 'video',
+      thumbnail: json['thumbnail']?.toString() ?? '',
+      duration: (json['duration'] as num?)?.toInt() ?? 0,
+      fileSize: (json['file_size'] as num?)?.toInt() ?? (json['size'] as num?)?.toInt() ?? 0,
+      width: (json['width'] as num?)?.toInt() ?? 0,
+      height: (json['height'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 class MediaDownloadPreview {
   final String source, title, thumbnail, uploader, type;
   final List<int> qualities;
   final List<MediaImageItem> images;
+  final List<MediaVideoItem> videos;
   final bool hasVideo;
   final bool hasAudio;
   final String content;
@@ -125,9 +164,14 @@ class MediaDownloadPreview {
           .whereType<Map>()
           .map((m) => MediaImageItem.fromJson(Map<String, dynamic>.from(m)))
           .toList()),
+      videos = ((json['videos'] as List? ?? const [])
+          .whereType<Map>()
+          .map((m) => MediaVideoItem.fromJson(Map<String, dynamic>.from(m)))
+          .toList()),
       hasVideo = json['has_video'] == true ||
           json['source'] == 'youtube' ||
           (json['qualities'] as List? ?? const []).isNotEmpty ||
+          (json['videos'] as List? ?? const []).isNotEmpty ||
           json['type'] == 'video',
       hasAudio = json['has_audio'] == true;
 }
