@@ -1,11 +1,54 @@
 package httpapi
 
 import (
+	"bufio"
+	"fmt"
+	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"strings"
+	"time"
+
+	"appview/coordinator/internal/logging"
 )
+
+type responseWriterWithStatus struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriterWithStatus) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriterWithStatus) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement Hijacker")
+}
+
+func (rw *responseWriterWithStatus) Flush() {
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+// WithLogging logs all standard HTTP requests with method, path, status, and latency.
+func WithLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/ws/") || r.URL.Path == "/ws" || r.URL.Path == "/realtime" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		started := time.Now()
+		wrapped := &responseWriterWithStatus{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(wrapped, r)
+		logging.LogHTTP(r.Method, r.URL.Path, wrapped.statusCode, time.Since(started), nil)
+	})
+}
 
 // WithCORS allows browser clients from localhost and private LAN addresses by
 // default. Public or custom origins must be explicitly listed in

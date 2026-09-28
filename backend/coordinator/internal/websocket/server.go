@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -150,6 +151,8 @@ func (s *Server) handleWorkerCookieGet(workerID string, msg protocol.Message) {
 		platform = "youtube"
 	}
 
+	logging.Event("INFO", fmt.Sprintf("[RPC ROUTE] Chuyển tiếp yêu cầu [cookie.get:%s] (Download -> Storage)", platform), map[string]any{"workerId": workerID, "taskId": msg.TaskID})
+
 	result, err := s.coordinator.GetCookieContent(ctx, platform)
 	resp := protocol.Message{
 		Type:   protocol.CookieGet,
@@ -163,6 +166,8 @@ func (s *Server) handleWorkerCookieGet(workerID string, msg protocol.Message) {
 	} else {
 		resp.Result, _ = json.Marshal(result)
 	}
+
+	logging.Event("INFO", fmt.Sprintf("[RPC ROUTE] Trả kết quả [cookie.get:%s] về cho Download Worker", platform), map[string]any{"workerId": workerID, "taskId": msg.TaskID, "exists": err == nil && result.Exists})
 
 	if registered, ok := s.coordinator.GetWorker(workerID); ok {
 		_ = registered.Sender.Send(resp)
@@ -180,6 +185,7 @@ func (s *Server) handleWorkerCookieSave(workerID string, msg protocol.Message) {
 	platform := strings.TrimSpace(req.Platform)
 	cookies := strings.TrimSpace(req.Cookies)
 	if platform != "" && cookies != "" {
+		logging.Event("INFO", fmt.Sprintf("[RPC ROUTE] Chuyển tiếp yêu cầu [cookie.save:%s] (Download -> Storage)", platform), map[string]any{"workerId": workerID, "taskId": msg.TaskID})
 		res, err := s.coordinator.SaveCookies(ctx, platform, cookies)
 		if msg.TaskID != "" {
 			resp := protocol.Message{
@@ -214,6 +220,8 @@ func (s *Server) handleWorkerSessionGet(workerID string, msg protocol.Message) {
 		platform = "telegram"
 	}
 
+	logging.Event("INFO", fmt.Sprintf("[RPC ROUTE] Chuyển tiếp yêu cầu [session.get:%s] (Download -> Storage)", platform), map[string]any{"workerId": workerID, "taskId": msg.TaskID})
+
 	result, err := s.coordinator.GetSessionContent(ctx, platform)
 	resp := protocol.Message{
 		Type:   protocol.SessionGet,
@@ -227,6 +235,8 @@ func (s *Server) handleWorkerSessionGet(workerID string, msg protocol.Message) {
 	} else {
 		resp.Result, _ = json.Marshal(result)
 	}
+
+	logging.Event("INFO", fmt.Sprintf("[RPC ROUTE] Trả kết quả [session.get:%s] về cho Download Worker", platform), map[string]any{"workerId": workerID, "taskId": msg.TaskID, "exists": err == nil && result.Exists})
 
 	if registered, ok := s.coordinator.GetWorker(workerID); ok {
 		_ = registered.Sender.Send(resp)
@@ -244,6 +254,7 @@ func (s *Server) handleWorkerSessionSave(workerID string, msg protocol.Message) 
 	platform := strings.TrimSpace(req.Platform)
 	sessionStr := strings.TrimSpace(req.Session)
 	if platform != "" && sessionStr != "" {
+		logging.Event("INFO", fmt.Sprintf("[RPC ROUTE] Chuyển tiếp yêu cầu [session.save:%s] (Download -> Storage)", platform), map[string]any{"workerId": workerID, "taskId": msg.TaskID})
 		res, err := s.coordinator.SaveSession(ctx, platform, sessionStr)
 		if msg.TaskID != "" {
 			resp := protocol.Message{
@@ -264,7 +275,6 @@ func (s *Server) handleWorkerSessionSave(workerID string, msg protocol.Message) 
 		}
 	}
 }
-
 
 func (s *Server) RunHeartbeatMonitor(ctx context.Context) {
 	ticker := time.NewTicker(s.config.HeartbeatCheckInterval)

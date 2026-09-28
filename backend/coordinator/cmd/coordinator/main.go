@@ -29,7 +29,8 @@ func main() {
 	workerWS.LogStartup()
 	realtime.NewServer(coordinator.RealtimeHub()).Register(mux)
 
-	server := &http.Server{Addr: cfg.HTTPAddress, Handler: httpapi.WithCORS(mux, cfg.CORSAllowedOrigins), ReadHeaderTimeout: 10 * time.Second}
+	handler := httpapi.WithLogging(httpapi.WithCORS(mux, cfg.CORSAllowedOrigins))
+	server := &http.Server{Addr: cfg.HTTPAddress, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go workerWS.RunHeartbeatMonitor(ctx)

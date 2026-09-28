@@ -53,7 +53,7 @@ func main() {
 		// Archive polling is internal and high-frequency; progress is logged by
 		// the Python/Storage job layers instead of repeating HTTP lines.
 		if !(c.Method() == fiber.MethodGet && len(c.Path()) >= len("/api/v1/jobs/archive/") && c.Path()[:len("/api/v1/jobs/archive/")] == "/api/v1/jobs/archive/") {
-			utils.LogEvent("INFO", "http request", map[string]any{"method": c.Method(), "path": c.Path(), "status": c.Response().StatusCode(), "latencyMs": time.Since(started).Milliseconds()})
+			utils.LogHTTP(c.Method(), c.Path(), c.Response().StatusCode(), time.Since(started), map[string]any{"ip": c.IP()})
 		}
 		return err
 	})
