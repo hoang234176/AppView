@@ -198,61 +198,40 @@ export const Header = ({
               </div>
             </div>
 
-            {/* Right: 3-dots Menu Button */}
-            <div className="relative z-50" ref={moreMenuRef}>
+            {/* Right: 3 Round Action Buttons (Sao chép, Di chuyển, Xóa) */}
+            <div className="flex items-center gap-2">
+              {/* Nút Sao chép */}
               <button
                 type="button"
-                onClick={() => setMoreMenuOpen((prev) => !prev)}
-                title="Tùy chọn thao tác"
-                className={`flex h-10 w-10 items-center justify-center rounded-full border border-[#383c42] bg-[#28292d] text-gray-300 hover:text-white hover:border-[#8ab4f8] transition-all duration-200 active:scale-95 shadow-sm ${
-                  moreMenuOpen ? 'border-blue-500 text-white bg-[#383c42]' : ''
-                }`}
+                onClick={onBatchCopy}
+                disabled={selectedCount === 0}
+                title="Sao chép các mục đã chọn"
+                className="group flex h-10 w-10 items-center justify-center rounded-full border border-[#383c42] bg-[#28292d] text-blue-400 hover:text-white hover:bg-blue-500/20 hover:border-blue-500/60 transition-all duration-200 active:scale-95 disabled:opacity-35 disabled:hover:bg-[#28292d] disabled:hover:border-[#383c42] disabled:hover:text-blue-400 shadow-sm"
               >
-                <MoreVertical className="h-5 w-5" />
+                <Copy className="h-4.5 w-4.5" />
               </button>
 
-              {moreMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-[#1c1d21] border border-[#383c42] rounded-[18px] p-1.5 shadow-2xl space-y-1 z-[99999] animate-pop-fast text-xs font-semibold select-none">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      if (onBatchCopy) onBatchCopy();
-                    }}
-                    disabled={selectedCount === 0}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-gray-200 hover:text-white hover:bg-white/10 disabled:opacity-35 disabled:hover:bg-transparent rounded-[12px] transition-colors"
-                  >
-                    <Copy className="w-4 h-4 text-blue-400" />
-                    <span>Sao chép</span>
-                  </button>
+              {/* Nút Di chuyển */}
+              <button
+                type="button"
+                onClick={onBatchMove}
+                disabled={selectedCount === 0}
+                title="Di chuyển các mục đã chọn"
+                className="group flex h-10 w-10 items-center justify-center rounded-full border border-[#383c42] bg-[#28292d] text-amber-400 hover:text-white hover:bg-amber-500/20 hover:border-amber-500/60 transition-all duration-200 active:scale-95 disabled:opacity-35 disabled:hover:bg-[#28292d] disabled:hover:border-[#383c42] disabled:hover:text-amber-400 shadow-sm"
+              >
+                <FolderInput className="h-4.5 w-4.5" />
+              </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      if (onBatchMove) onBatchMove();
-                    }}
-                    disabled={selectedCount === 0}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-gray-200 hover:text-white hover:bg-amber-500/20 disabled:opacity-35 disabled:hover:bg-transparent rounded-[12px] transition-colors"
-                  >
-                    <FolderInput className="w-4 h-4 text-amber-400" />
-                    <span>Di chuyển</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      if (onBatchDelete) onBatchDelete();
-                    }}
-                    disabled={selectedCount === 0}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 disabled:opacity-35 disabled:hover:bg-transparent rounded-[12px] transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-400" />
-                    <span>Xóa</span>
-                  </button>
-                </div>
-              )}
+              {/* Nút Xóa */}
+              <button
+                type="button"
+                onClick={onBatchDelete}
+                disabled={selectedCount === 0}
+                title="Xóa các mục đã chọn"
+                className="group flex h-10 w-10 items-center justify-center rounded-full border border-[#383c42] bg-[#28292d] text-red-400 hover:text-white hover:bg-red-500/20 hover:border-red-500/60 transition-all duration-200 active:scale-95 disabled:opacity-35 disabled:hover:bg-[#28292d] disabled:hover:border-[#383c42] disabled:hover:text-red-400 shadow-sm"
+              >
+                <Trash2 className="h-4.5 w-4.5" />
+              </button>
             </div>
           </div>
         ) : (
