@@ -29,18 +29,27 @@ _COLOR_CYAN = "\033[36m"
 _use_colors = os.getenv("NO_COLOR") is None and os.getenv("TERM") != "dumb"
 _file_lock = threading.Lock()
 _log_file_handle = None
+_current_log_date = None
 
 
-def _get_log_file():
-    global _log_file_handle
-    if _log_file_handle is None:
+def _get_log_file() -> Any:
+    global _log_file_handle, _current_log_date
+    today = datetime.now().strftime("%Y-%m-%d")
+    if _log_file_handle is None or _current_log_date != today:
+        if _log_file_handle is not None:
+            try:
+                _log_file_handle.close()
+            except Exception:
+                pass
+            _log_file_handle = None
         home = Path.home()
-        log_dir = home / ".tmp-appview" / "log"
+        log_dir = home / ".tmp-appview" / "log" / "download"
         try:
             log_dir.mkdir(parents=True, exist_ok=True)
-            _log_file_handle = open(log_dir / "download.log", "a", encoding="utf-8")
+            _log_file_handle = open(log_dir / f"{today}.log", "a", encoding="utf-8")
+            _current_log_date = today
         except Exception:
-            pass
+            _log_file_handle = None
     return _log_file_handle
 
 
@@ -172,7 +181,7 @@ def _format_colored_event(level: str, message: str, module: str = "DOWNLOAD SERV
 
 
 def log_event(level: str, message: str, module: str = "DOWNLOAD SERVICE", **fields: Any) -> None:
-    """Emit one clean human-readable log line to stdout (colored) and download.log (plain)."""
+    """Emit one clean human-readable log line to stdout (colored) and ~/.tmp-appview/log/download/YYYY-MM-DD.log (plain)."""
     if not _enabled(level):
         return
     plain_line = _format_event(level, message, module, **fields)
@@ -186,10 +195,10 @@ def log_event(level: str, message: str, module: str = "DOWNLOAD SERVICE", **fiel
         stream = sys.stderr if level.upper() in {"WARN", "WARNING", "ERROR"} else sys.stdout
         print(plain_line, file=stream, flush=True)
 
-    # 2. Append to ~/.tmp-appview/log/download.log
-    f = _get_log_file()
-    if f:
-        with _file_lock:
+    # 2. Append to ~/.tmp-appview/log/download/YYYY-MM-DD.log
+    with _file_lock:
+        f = _get_log_file()
+        if f:
             try:
                 now_full = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 f.write(f"{now_full} {plain_line[len('15:04:05 '):]}\n")

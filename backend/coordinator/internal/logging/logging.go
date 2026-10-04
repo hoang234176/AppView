@@ -2,7 +2,6 @@ package logging
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/url"
 	"os"
@@ -30,10 +29,10 @@ const (
 )
 
 var (
-	logFile     *os.File
-	logFileOnce sync.Once
-	logFileMu   sync.Mutex
-	useColors   = true
+	logFile        *os.File
+	currentLogDate string
+	logFileMu      sync.Mutex
+	useColors      = true
 )
 
 func init() {
@@ -43,28 +42,45 @@ func init() {
 	}
 }
 
-func getLogFilePath() string {
+func getLogFilePath(dateStr string) string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		home = "/tmp"
 	}
-	return filepath.Join(home, ".tmp-appview", "log", "coordinator.log")
+	return filepath.Join(home, ".tmp-appview", "log", "coordinator", dateStr+".log")
 }
 
-func getLogFileWriter() io.Writer {
-	logFileOnce.Do(func() {
-		p := getLogFilePath()
+func writeToLogFile(plainLine string) {
+	logFileMu.Lock()
+	defer logFileMu.Unlock()
+
+	today := time.Now().Format("2006-01-02")
+	if logFile == nil || currentLogDate != today {
+		if logFile != nil {
+			_ = logFile.Close()
+			logFile = nil
+		}
+		p := getLogFilePath(today)
 		if err := os.MkdirAll(filepath.Dir(p), 0755); err == nil {
 			f, err := os.OpenFile(p, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 			if err == nil {
 				logFile = f
+				currentLogDate = today
 			}
 		}
-	})
-	return logFile
+	}
+
+	if logFile != nil {
+		nowFull := time.Now().Format("2006-01-02 15:04:05")
+		if len(plainLine) >= len("15:04:05 ") {
+			fmt.Fprintf(logFile, "%s %s\n", nowFull, plainLine[len("15:04:05 "):])
+		} else {
+			fmt.Fprintf(logFile, "%s %s\n", nowFull, plainLine)
+		}
+	}
 }
 
-// Event writes a single clean human-readable log line to stdout (colored) and to coordinator.log (plain).
+// Event writes a single clean human-readable log line to stdout (colored) and to ~/.tmp-appview/log/coordinator/YYYY-MM-DD.log (plain).
 func Event(level, message string, fields map[string]any) {
 	if !enabled(level) {
 		return
@@ -79,14 +95,8 @@ func Event(level, message string, fields map[string]any) {
 		log.Print(plainLine)
 	}
 
-	// 2. Append to ~/.tmp-appview/log/coordinator.log
-	w := getLogFileWriter()
-	if w != nil {
-		logFileMu.Lock()
-		nowFull := time.Now().Format("2006-01-02 15:04:05")
-		fmt.Fprintf(w, "%s %s\n", nowFull, plainLine[len("15:04:05 "):])
-		logFileMu.Unlock()
-	}
+	// 2. Append to ~/.tmp-appview/log/coordinator/YYYY-MM-DD.log
+	writeToLogFile(plainLine)
 }
 
 // LogHTTP logs incoming HTTP request with method, path, status and latency

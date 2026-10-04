@@ -70,3 +70,11 @@ func TestLogEventOutput(t *testing.T) {
 		t.Fatalf("unexpected stdout: %q", output)
 	}
 }
+
+func TestGetLogFilePath(t *testing.T) {
+	path := getLogFilePath("2026-10-01")
+	expectedSub := "/.tmp-appview/log/storage/2026-10-01.log"
+	if !strings.HasSuffix(strings.ReplaceAll(path, "\\", "/"), expectedSub) {
+		t.Fatalf("expected path ending with %q, got %q", expectedSub, path)
+	}
+}

@@ -42,5 +42,14 @@ class LoggerTests(unittest.TestCase):
         output = f.getvalue()
         self.assertIn("INFO  [DOWNLOAD] Server ready", output)
 
+    def test_log_file_path(self):
+        from datetime import datetime
+        from logger import _get_log_file
+        f = _get_log_file()
+        if f:
+            today = datetime.now().strftime("%Y-%m-%d")
+            expected_part = f".tmp-appview/log/download/{today}.log"
+            self.assertTrue(f.name.replace("\\", "/").endswith(expected_part))
+
 if __name__ == "__main__":
     unittest.main()
