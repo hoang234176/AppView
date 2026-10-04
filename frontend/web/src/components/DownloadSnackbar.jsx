@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { formatFileSize, formatSpeed, getFileCategory } from '../utils/formatters';
 import { cancelDownloadTask, submitTaskPassword } from '../api/downloadApi';
-import { FileTypeIcon } from './icons/FileTypeIcon';
+import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from './icons/FileTypeIcon';
 import { RollingNumber } from './common/RollingNumber';
 
 // Go báo `current` là số video đã hoàn tất. Khi đang convert, video hiển thị
@@ -283,24 +283,36 @@ export const DownloadSnackbar = ({ tasks = [], transferTasks = [], summary = nul
                   const barPct = hasBarProgress ? (t.download_percent ?? 0) : 0;
                   const isIndeterminate = !isPasswordRequired && !hasBarProgress;
 
+                  const isMultipart = Boolean(t.is_multipart || isMultipartArchive(t));
                   return (
-                    <div key={t.task_id} className={`rounded-xl border flex min-h-[70px] flex-col justify-center px-3 py-2.5 ${colors.bg}`}>
+                    <div key={t.task_id} className={`rounded-xl border flex min-h-[70px] flex-col justify-center px-3 py-2.5 transition-all ${
+                      isMultipart ? 'border-indigo-500/40 bg-gradient-to-b from-[#181a28] to-[#13141f]' : colors.bg
+                    }`}>
                       <div className="flex items-center gap-3">
                         {/* Không dùng vòng quanh icon trong danh sách mở rộng. */}
                         <div className="relative h-10 w-10 flex-shrink-0">
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <FileTypeIcon
-                              filename={fileLabel}
-                              fallback={getFileCategory(fileLabel) === 'video' ? 'MP4' : getFileCategory(fileLabel) === 'picture' ? 'IMG' : 'ZIP'}
-                              className={`h-8 w-8 ${colors.label}`}
-                            />
+                            {isMultipart ? (
+                              <MultipartArchiveIcon className="h-8 w-8 text-indigo-400" />
+                            ) : (
+                              <FileTypeIcon
+                                filename={fileLabel}
+                                fallback={getFileCategory(fileLabel) === 'video' ? 'MP4' : getFileCategory(fileLabel) === 'picture' ? 'IMG' : 'ZIP'}
+                                className={`h-8 w-8 ${colors.label}`}
+                              />
+                            )}
                           </div>
                         </div>
 
                         {/* Info */}
                         <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold text-white truncate mb-0.5" title={fileLabel}>
-                            {fileLabel}
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            {isMultipart && (
+                              <MultipartBadge count={t.total_parts} />
+                            )}
+                            <div className="text-xs font-semibold text-white truncate" title={fileLabel}>
+                              {fileLabel}
+                            </div>
                           </div>
                           {isPasswordRequired ? (
                             <div className={`text-[11px] font-semibold flex items-center gap-1 ${colors.label}`}>
@@ -317,15 +329,17 @@ export const DownloadSnackbar = ({ tasks = [], transferTasks = [], summary = nul
                             </div>
                           ) : isExtractingTask ? (
                             <div className={`text-[11px] font-mono font-semibold animate-pulse ${colors.label}`}>
-                              Giải nén 7-Zip...
+                              {t.stage === 'waiting_extract' ? 'Chờ giải nén...' : 'Đang giải nén...'}
                             </div>
                           ) : (
                             <div className="flex items-center justify-between text-[11px] font-mono">
-                              <span className="text-gray-400">
-                                {t.stage === 'resolving' ? 'Đang phân tích link...' : `${formatFileSize(t.downloaded_bytes)} / ${t.download_total_bytes ? formatFileSize(t.download_total_bytes) : '?'}`}
+                              <span className="text-gray-400 truncate">
+                                {t.stage === 'resolving'
+                                  ? 'Đang phân tích link...'
+                                  : `${formatFileSize(t.downloaded_bytes)} / ${t.download_total_bytes ? formatFileSize(t.download_total_bytes) : '?'}`}
                               </span>
                               {t.download_speed_bytes > 0 && (
-                                <span className="text-emerald-400 font-semibold">{formatSpeed(t.download_speed_bytes)}</span>
+                                <span className="text-emerald-400 font-semibold flex-shrink-0 ml-2">{formatSpeed(t.download_speed_bytes)}</span>
                               )}
                             </div>
                           )}
@@ -334,7 +348,9 @@ export const DownloadSnackbar = ({ tasks = [], transferTasks = [], summary = nul
                           {hasBarProgress && (
                             <div className="mt-1.5 h-[3px] rounded-full bg-[#383c42] overflow-hidden">
                               <div
-                                className={`h-full rounded-full transition-all duration-300 ${colors.bar}`}
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  isMultipart ? 'bg-gradient-to-r from-indigo-500 to-blue-400' : colors.bar
+                                }`}
                                 style={{ width: `${barPct}%` }}
                               />
                             </div>

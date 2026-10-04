@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"backend/configs"
@@ -27,6 +28,13 @@ import (
 // LogInfo is kept local to Python-facing tasks; the common logger remains in
 // utils, which no longer contains API job orchestration.
 func LogInfo(format string, args ...interface{}) { utils.LogInfo(format, args...) }
+
+type ArchivePartItem struct {
+	Filename    string `json:"filename"`
+	DownloadURL string `json:"download_url"`
+	Size        int64  `json:"size,omitempty"`
+	PartIndex   int    `json:"part_index,omitempty"`
+}
 
 type ArchiveJob struct {
 	ID                string
@@ -53,6 +61,11 @@ type ArchiveJob struct {
 	OptimizationCancelled bool
 	CancelledFromStage    string
 	Videos                []VideoOptimization
+	IsMultipart           bool
+	TotalParts            int
+	CurrentPart           int
+	PartName              string
+	Parts                 []ArchivePartItem
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	archivePath           string
@@ -95,6 +108,10 @@ type ArchiveJobSnapshot struct {
 	CancelledFromStage    string              `json:"cancelled_from_stage,omitempty"`
 	Videos                []VideoOptimization `json:"videos,omitempty"`
 	ExtractedName         string              `json:"extracted_name,omitempty"`
+	IsMultipart           bool                `json:"is_multipart,omitempty"`
+	TotalParts            int                 `json:"total_parts,omitempty"`
+	CurrentPart           int                 `json:"current_part,omitempty"`
+	PartName              string              `json:"part_name,omitempty"`
 	CreatedAt             time.Time           `json:"created_at"`
 	UpdatedAt             time.Time           `json:"updated_at"`
 }
@@ -273,6 +290,10 @@ func archiveJobSnapshot(job *ArchiveJob) ArchiveJobSnapshot {
 	}
 	result.UnoptimizedVideoCount = unoptimized
 	result.Videos = append([]VideoOptimization(nil), job.Videos...)
+	result.IsMultipart = job.IsMultipart
+	result.TotalParts = job.TotalParts
+	result.CurrentPart = job.CurrentPart
+	result.PartName = job.PartName
 	result.CreatedAt, result.UpdatedAt = job.CreatedAt, job.UpdatedAt
 	return result
 }
@@ -357,6 +378,8 @@ func LoadPersistentArchiveJobs() {
 			VideoScanState: snapshot.VideoScanState, TotalVideoCount: snapshot.TotalVideoCount,
 			OptimizationCancelled: snapshot.OptimizationCancelled, CancelledFromStage: snapshot.CancelledFromStage,
 			Videos:    append([]VideoOptimization(nil), snapshot.Videos...),
+			IsMultipart: snapshot.IsMultipart, TotalParts: snapshot.TotalParts,
+			CurrentPart: snapshot.CurrentPart, PartName: snapshot.PartName,
 			CreatedAt: snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt, ctx: ctx, cancel: cancel,
 		}
 		if job.CanonicalID == "" {
@@ -469,6 +492,69 @@ func StartArchiveJobWithCanonicalIDAndStreams(id, sourceURL, filename, destinati
 	archiveJobs.Unlock()
 	persistArchiveJob(job)
 	LogInfo("[ARCHIVE] [%s] nhận job tải %s vào thư mục tương đối %s", id, job.Filename, destination)
+	go runArchiveJob(job, password, false)
+	return nil
+}
+
+func StartMultipartArchiveJob(id, sourceURL, filename, destination, password string, parts []ArchivePartItem) error {
+	return StartMultipartArchiveJobWithCanonicalID(id, sourceURL, filename, destination, password, id, parts)
+}
+
+func StartMultipartArchiveJobWithCanonicalID(id, sourceURL, filename, destination, password, canonicalID string, parts []ArchivePartItem) error {
+	if id == "" || len(parts) == 0 {
+		return fmt.Errorf("thiếu task_id hoặc danh sách part tải")
+	}
+	destinationPath, targetDrive, _, err := SafeArchivePathWithDrive("", destination)
+	if err != nil {
+		return err
+	}
+	_ = destinationPath
+	if _, err := archiveWorkspace(id); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	now := time.Now().UTC()
+	if strings.TrimSpace(canonicalID) == "" {
+		canonicalID = id
+	}
+	totalBytes := int64(0)
+	for _, p := range parts {
+		if p.Size > 0 {
+			totalBytes += p.Size
+		}
+	}
+	primaryURL := sourceURL
+	if primaryURL == "" && len(parts) > 0 {
+		primaryURL = parts[0].DownloadURL
+	}
+	job := &ArchiveJob{
+		ID:          id,
+		CanonicalID: canonicalID,
+		URL:         primaryURL,
+		Filename:    archiveSafeName(filename),
+		Destination: destination,
+		Drive:       targetDrive,
+		Stage:       "downloading",
+		IsMultipart: true,
+		TotalParts:  len(parts),
+		CurrentPart: 1,
+		PartName:    parts[0].Filename,
+		Parts:       parts,
+		TotalBytes:  totalBytes,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		ctx:         ctx,
+		cancel:      cancel,
+	}
+	archiveJobs.Lock()
+	if old := archiveJobs.items[id]; old != nil {
+		old.cancel()
+		CancelConvertJob(id)
+	}
+	archiveJobs.items[id] = job
+	archiveJobs.Unlock()
+	persistArchiveJob(job)
+	LogInfo("[ARCHIVE] [%s] nhận multipart job tải %d parts cho '%s' vào %s", id, len(parts), job.Filename, destination)
 	go runArchiveJob(job, password, false)
 	return nil
 }
@@ -744,7 +830,25 @@ func DeleteArchiveJob(id string) {
 	removePersistedArchiveJob(id)
 }
 
-func runArchiveJob(job *ArchiveJob, password string, extractionOnly bool) {
+func findFirstPartFilename(parts []ArchivePartItem) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	for _, p := range parts {
+		if p.PartIndex == 1 {
+			return archiveSafeName(p.Filename)
+		}
+	}
+	for _, p := range parts {
+		lower := strings.ToLower(p.Filename)
+		if strings.Contains(lower, ".part1.") || strings.Contains(lower, ".part01.") || strings.HasSuffix(lower, ".7z.001") || strings.HasSuffix(lower, ".z01") || strings.HasSuffix(lower, ".zip.001") {
+			return archiveSafeName(p.Filename)
+		}
+	}
+	return archiveSafeName(parts[0].Filename)
+}
+
+func processSingleArchive(job *ArchiveJob, password string, extractionOnly bool) {
 	if !extractionOnly {
 		if err := downloadArchive(job); err != nil {
 			if job.ctx.Err() == nil {
@@ -777,6 +881,239 @@ func runArchiveJob(job *ArchiveJob, password string, extractionOnly bool) {
 			setArchiveError(job, "EXTRACT_FAILED", err.Error())
 		}
 	}
+}
+
+func processMultipartArchive(job *ArchiveJob, password string, extractionOnly bool) {
+	workspace, err := archiveWorkspace(job.ID)
+	if err != nil {
+		setArchiveError(job, "WORKSPACE_ERROR", err.Error())
+		return
+	}
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		setArchiveError(job, "WORKSPACE_ERROR", err.Error())
+		return
+	}
+
+	job.mu.RLock()
+	parts := append([]ArchivePartItem(nil), job.Parts...)
+	job.mu.RUnlock()
+
+	if !extractionOnly {
+		// Calculate total expected bytes across all parts
+		var totalExpected int64
+		for _, part := range parts {
+			totalExpected += part.Size
+		}
+
+		job.mu.Lock()
+		if totalExpected > 0 {
+			job.TotalBytes = totalExpected
+		}
+		job.TotalParts = len(parts)
+		job.Stage = "downloading"
+		job.UpdatedAt = time.Now().UTC()
+		job.mu.Unlock()
+		persistArchiveJob(job)
+
+		var initialDownloaded int64
+		partsToDownload := make([]int, 0, len(parts))
+		for i, part := range parts {
+			partFilename := archiveSafeName(part.Filename)
+			partFinalPath := filepath.Join(workspace, partFilename)
+			if fi, statErr := os.Stat(partFinalPath); statErr == nil && fi.Size() > 0 && (part.Size == 0 || fi.Size() >= part.Size) {
+				initialDownloaded += fi.Size()
+			} else {
+				partsToDownload = append(partsToDownload, i)
+			}
+		}
+
+		if len(partsToDownload) > 0 {
+			reporter := multidownload.NewProgressReporter(initialDownloaded, 500*time.Millisecond, func(downloaded, total, speed int64) {
+				job.mu.Lock()
+				job.DownloadedBytes = downloaded
+				if totalExpected > 0 {
+					job.TotalBytes = totalExpected
+				} else if total > 0 {
+					if downloaded > total {
+						total = downloaded
+					}
+					job.TotalBytes = total
+				}
+				job.SpeedBytes = speed
+				job.UpdatedAt = time.Now().UTC()
+				job.mu.Unlock()
+				persistArchiveJob(job)
+			})
+			if totalExpected > 0 {
+				reporter.SetTotalBytes(totalExpected)
+			}
+
+			maxConcurrency := 5
+			if maxConcurrency > len(partsToDownload) {
+				maxConcurrency = len(partsToDownload)
+			}
+			sem := make(chan struct{}, maxConcurrency)
+
+			var (
+				wg               sync.WaitGroup
+				downloadErr      error
+				errOnce          sync.Once
+				activePartsCount int32
+			)
+
+			partCtx, cancelParts := context.WithCancel(job.ctx)
+			defer cancelParts()
+
+			LogInfo("[ARCHIVE] [%s] bắt đầu tải song song %d parts (tối đa %d luồng đồng thời), tổng dung lượng %d bytes",
+				job.ID, len(partsToDownload), maxConcurrency, totalExpected)
+
+			for _, idx := range partsToDownload {
+				part := parts[idx]
+				partIndex := idx + 1
+				partFilename := archiveSafeName(part.Filename)
+				partFinalPath := filepath.Join(workspace, partFilename)
+				partTmpPath := partFinalPath + ".part"
+
+				wg.Add(1)
+				go func(p ArchivePartItem, pIdx int, pFilename, pFinal, pTmp string) {
+					defer wg.Done()
+
+					select {
+					case sem <- struct{}{}:
+						defer func() { <-sem }()
+					case <-partCtx.Done():
+						return
+					}
+
+					curActive := atomic.AddInt32(&activePartsCount, 1)
+					job.mu.Lock()
+					job.CurrentPart = int(curActive)
+					job.PartName = pFilename
+					job.UpdatedAt = time.Now().UTC()
+					job.mu.Unlock()
+					persistArchiveJob(job)
+
+					LogInfo("[ARCHIVE] [%s] luồng tải kích hoạt cho part %d/%d: %s", job.ID, pIdx, len(parts), pFilename)
+
+					_ = os.Remove(pTmp)
+					opts := multidownload.DownloadOptions{
+						Headers:        job.headers,
+						MaxConcurrency: 1, // 1 stream per part to avoid socket exhaustion across parallel files
+						Reporter:       reporter,
+						IsMultiStream:  true,
+						PrepareRequest: func(req *http.Request) {
+							if req.Header.Get("User-Agent") == "" {
+								req.Header.Set("User-Agent", "Mozilla/5.0 AppView/1.0")
+							}
+						},
+					}
+
+					_, dlErr := multidownload.DownloadFile(partCtx, p.DownloadURL, pTmp, opts)
+					atomic.AddInt32(&activePartsCount, -1)
+					if dlErr != nil {
+						if partCtx.Err() == nil {
+							errOnce.Do(func() {
+								downloadErr = fmt.Errorf("lỗi tải part %d (%s): %w", pIdx, pFilename, dlErr)
+								cancelParts()
+							})
+						}
+						_ = os.Remove(pTmp)
+						return
+					}
+
+					if partCtx.Err() != nil {
+						_ = os.Remove(pTmp)
+						return
+					}
+
+					_ = os.Remove(pFinal)
+					if err := os.Rename(pTmp, pFinal); err != nil {
+						errOnce.Do(func() {
+							downloadErr = fmt.Errorf("không thể lưu part %s: %w", pFilename, err)
+							cancelParts()
+						})
+						return
+					}
+					LogInfo("[ARCHIVE] [%s] tải xong part %d/%d: %s", job.ID, pIdx, len(parts), pFilename)
+				}(part, partIndex, partFilename, partFinalPath, partTmpPath)
+			}
+
+			wg.Wait()
+			reporter.Done()
+
+			if downloadErr != nil {
+				setArchiveError(job, "DOWNLOAD_FAILED", downloadErr.Error())
+				return
+			}
+			if job.ctx.Err() != nil {
+				return
+			}
+		}
+
+		// STRICT REQUIREMENT: Tất cả các part phải hoàn tất 100% trước khi chuyển sang giải nén!
+		for i, part := range parts {
+			partFilename := archiveSafeName(part.Filename)
+			p := filepath.Join(workspace, partFilename)
+			fi, statErr := os.Stat(p)
+			if statErr != nil || fi.Size() == 0 {
+				setArchiveError(job, "MISSING_PART", fmt.Sprintf("thiếu hoặc hỏng part %d (%s) trước khi giải nén", i+1, partFilename))
+				return
+			}
+		}
+
+		job.mu.Lock()
+		job.ArchiveDownloaded = true
+		if job.TotalBytes > 0 && job.DownloadedBytes < job.TotalBytes {
+			job.DownloadedBytes = job.TotalBytes
+		}
+		job.Stage = "waiting_extract"
+		job.UpdatedAt = time.Now().UTC()
+		job.mu.Unlock()
+		persistArchiveJob(job)
+		LogInfo("[ARCHIVE] [%s] đã tải xong toàn bộ %d parts song song. Chuẩn bị giải nén...", job.ID, len(parts))
+	}
+
+	if job.ctx.Err() != nil {
+		return
+	}
+
+	part1Filename := findFirstPartFilename(parts)
+	part1Path := filepath.Join(workspace, part1Filename)
+	job.mu.Lock()
+	job.archivePath = part1Path
+	job.mu.Unlock()
+
+	if err := extractArchive(job, password); err != nil {
+		if job.ctx.Err() != nil {
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "password") {
+			job.mu.Lock()
+			job.Stage, job.PasswordNeeded, job.ErrorCode, job.Error = "password_required", true, "PASSWORD_REQUIRED", err.Error()
+			job.mu.Unlock()
+			LogInfo("[ARCHIVE] [%s] yêu cầu mật khẩu giải nén cho multipart", job.ID)
+		} else {
+			setArchiveError(job, "EXTRACT_FAILED", err.Error())
+		}
+		return
+	}
+
+	// Clean up all part files after successful extraction
+	for _, part := range parts {
+		partFilename := archiveSafeName(part.Filename)
+		_ = os.Remove(filepath.Join(workspace, partFilename))
+	}
+}
+
+func runArchiveJob(job *ArchiveJob, password string, extractionOnly bool) {
+	job.mu.RLock()
+	isMultipart := job.IsMultipart
+	job.mu.RUnlock()
+	if isMultipart {
+		processMultipartArchive(job, password, extractionOnly)
+		return
+	}
+	processSingleArchive(job, password, extractionOnly)
 }
 
 func downloadSingleStream(ctx context.Context, job *ArchiveJob, targetURL string, headers map[string]string, partPath string, initialBytes int64) (int64, error) {
@@ -1096,7 +1433,41 @@ func commitArchiveResultWithContext(ctx context.Context, job *ArchiveJob) error 
 		}
 	}
 	LogInfo("[ARCHIVE] [%s] đã chuyển hoàn tất đến %s: %s", job.ID, targetDrive, finalPath)
+	go pregenerateFolderThumbnails(targetDrive, finalPath)
 	return nil
+}
+
+func pregenerateFolderThumbnails(driveID, folderPath string) {
+	driveRoot := configs.ResolveDriveRoot(driveID)
+	if driveRoot == "" {
+		d := configs.FindDriveForPath(folderPath)
+		driveRoot = d.Path
+	}
+	if driveRoot == "" {
+		return
+	}
+
+	_ = filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasPrefix(info.Name(), ".") {
+			return nil
+		}
+
+		if utils.IsImageFile(info.Name()) || utils.IsVideoFile(info.Name()) {
+			relPath, relErr := filepath.Rel(driveRoot, path)
+			if relErr != nil {
+				return nil
+			}
+			thumbDir := filepath.Join(driveRoot, ".thumbnails")
+			thumbPath := filepath.Join(thumbDir, filepath.ToSlash(relPath)+".jpg")
+
+			_ = utils.EnsureThumbnail(path, thumbPath)
+			time.Sleep(30 * time.Millisecond)
+		}
+		return nil
+	})
 }
 
 func copyDirectoryContext(ctx context.Context, source, target string) error {

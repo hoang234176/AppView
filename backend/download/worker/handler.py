@@ -137,6 +137,8 @@ class DownloadWorkerHandler:
             result["source"] = resolved.source
         if getattr(resolved, "items", None):
             result["items"] = resolved.items
+        if getattr(resolved, "archive_type", None):
+            result["archiveType"] = resolved.archive_type
         return result
 
     @staticmethod

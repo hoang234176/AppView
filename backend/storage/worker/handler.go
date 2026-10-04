@@ -362,6 +362,14 @@ func (archiveOperations) StartWithStreams(id, sourceURL, filename, destination, 
 	return pythonapi.StartArchiveJobWithStreams(id, sourceURL, filename, destination, password, audioURL, headers)
 }
 
+type multipartArchiveOperations interface {
+	StartMultipart(id, sourceURL, filename, destination, password string, parts []pythonapi.ArchivePartItem) error
+}
+
+func (archiveOperations) StartMultipart(id, sourceURL, filename, destination, password string, parts []pythonapi.ArchivePartItem) error {
+	return pythonapi.StartMultipartArchiveJob(id, sourceURL, filename, destination, password, parts)
+}
+
 type SendFunc func(Message) error
 
 type Handler struct {
@@ -655,8 +663,10 @@ func storageSnapshot(snapshot pythonapi.ArchiveJobSnapshot) StorageJobSnapshot {
 		PasswordRequired: snapshot.PasswordNeeded, ArchiveDownloaded: snapshot.ArchiveDownloaded, ArchiveExtracted: snapshot.ArchiveExtracted,
 		VideoScanState: snapshot.VideoScanState, TotalVideoCount: snapshot.TotalVideoCount, InvalidVideoCount: snapshot.InvalidVideoCount,
 		OptimizationCancelled: snapshot.OptimizationCancelled, UnoptimizedVideoCount: snapshot.UnoptimizedVideoCount, CancelledFromStage: snapshot.CancelledFromStage,
-		Videos:    snapshot.Videos,
-		CreatedAt: snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt,
+		Videos:      snapshot.Videos,
+		IsMultipart: snapshot.IsMultipart, TotalParts: snapshot.TotalParts,
+		CurrentPart: snapshot.CurrentPart, PartName: snapshot.PartName,
+		CreatedAt:   snapshot.CreatedAt, UpdatedAt: snapshot.UpdatedAt,
 	}
 }
 
@@ -827,7 +837,13 @@ func (h *Handler) Handle(ctx context.Context, task Message, send SendFunc) {
 	if _, exists := h.archive.Snapshot(task.TaskID); !exists {
 		utils.LogEvent("INFO", "storage archive start", map[string]any{"taskId": task.TaskID, "filename": request.Filename, "destination": request.Destination})
 		var startErr error
-		if streamer, ok := h.archive.(streamArchiveOperations); ok && (request.AudioURL != "" || len(request.Headers) > 0) {
+		if request.ArchiveType == "multipart" || len(request.Items) > 1 {
+			if mp, ok := h.archive.(multipartArchiveOperations); ok {
+				startErr = mp.StartMultipart(task.TaskID, request.URL, request.Filename, request.Destination, request.Password, toArchiveParts(request.Items))
+			} else {
+				startErr = h.archive.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.Password)
+			}
+		} else if streamer, ok := h.archive.(streamArchiveOperations); ok && (request.AudioURL != "" || len(request.Headers) > 0) {
 			startErr = streamer.StartWithStreams(task.TaskID, request.URL, request.Filename, request.Destination, request.Password, request.AudioURL, request.Headers)
 		} else {
 			startErr = h.archive.Start(task.TaskID, request.URL, request.Filename, request.Destination, request.Password)
@@ -920,7 +936,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		h.monitor(ctx, control.ArchiveTaskID, send)
+		h.monitorTask(ctx, control.ArchiveTaskID, controlTaskID, send)
 		return
 	}
 
@@ -960,7 +976,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		h.monitor(ctx, control.ArchiveTaskID, send)
+		h.monitorTask(ctx, control.ArchiveTaskID, controlTaskID, send)
 		return
 	}
 
@@ -1000,7 +1016,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		h.monitor(ctx, control.ArchiveTaskID, send)
+		h.monitorTask(ctx, control.ArchiveTaskID, controlTaskID, send)
 		return
 	}
 
@@ -1040,7 +1056,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		h.monitor(ctx, control.ArchiveTaskID, send)
+		h.monitorTask(ctx, control.ArchiveTaskID, controlTaskID, send)
 		return
 	}
 
@@ -1080,7 +1096,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		h.monitor(ctx, control.ArchiveTaskID, send)
+		h.monitorTask(ctx, control.ArchiveTaskID, controlTaskID, send)
 		return
 	}
 
@@ -1120,7 +1136,7 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 			return
 		}
 
-		h.monitor(ctx, control.ArchiveTaskID, send)
+		h.monitorTask(ctx, control.ArchiveTaskID, controlTaskID, send)
 		return
 	}
 
@@ -1174,13 +1190,23 @@ func (h *Handler) handleArchiveControl(ctx context.Context, controlTaskID string
 	}
 	// Storage history updates the canonical parent. This short-lived control
 	// task deliberately has no parent-child relationship of its own.
-	h.monitor(ctx, control.ArchiveTaskID, send)
+	h.monitorTask(ctx, control.ArchiveTaskID, controlTaskID, send)
 }
 
 type downloadItemPayload struct {
-	URL      string `json:"url"`
-	Filename string `json:"filename"`
-	Type     string `json:"type,omitempty"`
+	URL         string `json:"url"`
+	DownloadURL string `json:"download_url,omitempty"`
+	Filename    string `json:"filename"`
+	Type        string `json:"type,omitempty"`
+	Size        int64  `json:"size,omitempty"`
+	PartIndex   int    `json:"part_index,omitempty"`
+}
+
+func (p downloadItemPayload) GetURL() string {
+	if p.DownloadURL != "" {
+		return p.DownloadURL
+	}
+	return p.URL
 }
 
 type downloadRequest struct {
@@ -1193,6 +1219,7 @@ type downloadRequest struct {
 	Password    string                `json:"password"`
 	ParentJobID string                `json:"parentJobId"`
 	Source      string                `json:"source,omitempty"`
+	ArchiveType string                `json:"archiveType,omitempty"`
 	Items       []downloadItemPayload `json:"items,omitempty"`
 }
 
@@ -1251,6 +1278,22 @@ func toTelegramItems(items []downloadItemPayload) []telegram.DownloadItem {
 			URL:      item.URL,
 			Filename: item.Filename,
 			Type:     item.Type,
+		}
+	}
+	return result
+}
+
+func toArchiveParts(items []downloadItemPayload) []pythonapi.ArchivePartItem {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]pythonapi.ArchivePartItem, len(items))
+	for i, item := range items {
+		result[i] = pythonapi.ArchivePartItem{
+			Filename:    item.Filename,
+			DownloadURL: item.GetURL(),
+			Size:        item.Size,
+			PartIndex:   item.PartIndex,
 		}
 	}
 	return result
@@ -1358,36 +1401,40 @@ func decodeDownloadRequest(payload json.RawMessage) (downloadRequest, error) {
 }
 
 func (h *Handler) monitor(ctx context.Context, taskID string, send SendFunc) {
-	if _, isYT := h.youtube.Snapshot(taskID); isYT {
-		h.monitorYouTube(ctx, taskID, send)
-		return
-	}
-	if _, isTT := h.tiktok.Snapshot(taskID); isTT {
-		h.monitorTikTok(ctx, taskID, send)
-		return
-	}
-	if _, isFB := h.facebook.Snapshot(taskID); isFB {
-		h.monitorFacebook(ctx, taskID, send)
-		return
-	}
-	if _, isIG := h.instagram.Snapshot(taskID); isIG {
-		h.monitorInstagram(ctx, taskID, send)
-		return
-	}
-	if _, isTG := h.telegram.Snapshot(taskID); isTG {
-		h.monitorTelegram(ctx, taskID, send)
-		return
-	}
-	if _, isX := h.x.Snapshot(taskID); isX {
-		h.monitorX(ctx, taskID, send)
-		return
-	}
-	h.monitorArchive(ctx, taskID, send)
+	h.monitorTask(ctx, taskID, taskID, send)
 }
 
-func (h *Handler) monitorTelegram(ctx context.Context, taskID string, send SendFunc) {
+func (h *Handler) monitorTask(ctx context.Context, jobID, taskID string, send SendFunc) {
+	if _, isYT := h.youtube.Snapshot(jobID); isYT {
+		h.monitorYouTube(ctx, jobID, taskID, send)
+		return
+	}
+	if _, isTT := h.tiktok.Snapshot(jobID); isTT {
+		h.monitorTikTok(ctx, jobID, taskID, send)
+		return
+	}
+	if _, isFB := h.facebook.Snapshot(jobID); isFB {
+		h.monitorFacebook(ctx, jobID, taskID, send)
+		return
+	}
+	if _, isIG := h.instagram.Snapshot(jobID); isIG {
+		h.monitorInstagram(ctx, jobID, taskID, send)
+		return
+	}
+	if _, isTG := h.telegram.Snapshot(jobID); isTG {
+		h.monitorTelegram(ctx, jobID, taskID, send)
+		return
+	}
+	if _, isX := h.x.Snapshot(jobID); isX {
+		h.monitorX(ctx, jobID, taskID, send)
+		return
+	}
+	h.monitorArchive(ctx, jobID, taskID, send)
+}
+
+func (h *Handler) monitorTelegram(ctx context.Context, jobID, taskID string, send SendFunc) {
 	for {
-		snapshot, exists := h.telegram.Snapshot(taskID)
+		snapshot, exists := h.telegram.Snapshot(jobID)
 		if !exists {
 			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ Telegram được giao.")
 			return
@@ -1398,7 +1445,7 @@ func (h *Handler) monitorTelegram(ctx context.Context, taskID string, send SendF
 
 		switch snapshot.State {
 		case "completed":
-			utils.LogEvent("INFO", "storage telegram completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("INFO", "storage telegram completed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
 				"jobId":    snapshot.ID,
 				"filename": snapshot.Filename,
@@ -1406,15 +1453,15 @@ func (h *Handler) monitorTelegram(ctx context.Context, taskID string, send SendF
 			}})
 			return
 		case "cancelled":
-			utils.LogEvent("WARN", "storage telegram cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("WARN", "storage telegram cancelled", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ Telegram đã bị hủy cục bộ.")
 			return
 		case "error":
-			utils.LogEvent("ERROR", "storage telegram failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename, "error": snapshot.Error})
+			utils.LogEvent("ERROR", "storage telegram failed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename, "error": snapshot.Error})
 			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải Telegram: "+snapshot.Error)
 			return
 		default:
-			utils.LogEvent("DEBUG", "storage telegram progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			utils.LogEvent("DEBUG", "storage telegram progress", map[string]any{"taskId": taskID, "jobId": jobID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
 			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
 				"state":           snapshot.State,
 				"filename":        snapshot.Filename,
@@ -1438,9 +1485,9 @@ func (h *Handler) monitorTelegram(ctx context.Context, taskID string, send SendF
 	}
 }
 
-func (h *Handler) monitorX(ctx context.Context, taskID string, send SendFunc) {
+func (h *Handler) monitorX(ctx context.Context, jobID, taskID string, send SendFunc) {
 	for {
-		snapshot, exists := h.x.Snapshot(taskID)
+		snapshot, exists := h.x.Snapshot(jobID)
 		if !exists {
 			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ X được giao.")
 			return
@@ -1451,7 +1498,7 @@ func (h *Handler) monitorX(ctx context.Context, taskID string, send SendFunc) {
 
 		switch snapshot.State {
 		case "completed":
-			utils.LogEvent("INFO", "storage x completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("INFO", "storage x completed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
 				"jobId":    snapshot.ID,
 				"filename": snapshot.Filename,
@@ -1459,15 +1506,15 @@ func (h *Handler) monitorX(ctx context.Context, taskID string, send SendFunc) {
 			}})
 			return
 		case "cancelled":
-			utils.LogEvent("WARN", "storage x cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("WARN", "storage x cancelled", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ X đã bị hủy cục bộ.")
 			return
 		case "error":
-			utils.LogEvent("ERROR", "storage x failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename, "error": snapshot.Error})
+			utils.LogEvent("ERROR", "storage x failed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename, "error": snapshot.Error})
 			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải X: "+snapshot.Error)
 			return
 		default:
-			utils.LogEvent("DEBUG", "storage x progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			utils.LogEvent("DEBUG", "storage x progress", map[string]any{"taskId": taskID, "jobId": jobID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
 			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
 				"state":           snapshot.State,
 				"filename":        snapshot.Filename,
@@ -1491,9 +1538,9 @@ func (h *Handler) monitorX(ctx context.Context, taskID string, send SendFunc) {
 	}
 }
 
-func (h *Handler) monitorFacebook(ctx context.Context, taskID string, send SendFunc) {
+func (h *Handler) monitorFacebook(ctx context.Context, jobID, taskID string, send SendFunc) {
 	for {
-		snapshot, exists := h.facebook.Snapshot(taskID)
+		snapshot, exists := h.facebook.Snapshot(jobID)
 		if !exists {
 			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ Facebook được giao.")
 			return
@@ -1504,7 +1551,7 @@ func (h *Handler) monitorFacebook(ctx context.Context, taskID string, send SendF
 
 		switch snapshot.State {
 		case "completed":
-			utils.LogEvent("INFO", "storage facebook completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("INFO", "storage facebook completed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
 				"jobId":    snapshot.ID,
 				"filename": snapshot.Filename,
@@ -1512,15 +1559,15 @@ func (h *Handler) monitorFacebook(ctx context.Context, taskID string, send SendF
 			}})
 			return
 		case "cancelled":
-			utils.LogEvent("WARN", "storage facebook cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("WARN", "storage facebook cancelled", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ Facebook đã bị hủy cục bộ.")
 			return
 		case "error":
-			utils.LogEvent("ERROR", "storage facebook failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename, "error": snapshot.Error})
+			utils.LogEvent("ERROR", "storage facebook failed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename, "error": snapshot.Error})
 			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải Facebook: "+snapshot.Error)
 			return
 		default:
-			utils.LogEvent("DEBUG", "storage facebook progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			utils.LogEvent("DEBUG", "storage facebook progress", map[string]any{"taskId": taskID, "jobId": jobID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
 			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
 				"state":           snapshot.State,
 				"filename":        snapshot.Filename,
@@ -1544,9 +1591,9 @@ func (h *Handler) monitorFacebook(ctx context.Context, taskID string, send SendF
 	}
 }
 
-func (h *Handler) monitorInstagram(ctx context.Context, taskID string, send SendFunc) {
+func (h *Handler) monitorInstagram(ctx context.Context, jobID, taskID string, send SendFunc) {
 	for {
-		snapshot, exists := h.instagram.Snapshot(taskID)
+		snapshot, exists := h.instagram.Snapshot(jobID)
 		if !exists {
 			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ Instagram được giao.")
 			return
@@ -1557,7 +1604,7 @@ func (h *Handler) monitorInstagram(ctx context.Context, taskID string, send Send
 
 		switch snapshot.State {
 		case "completed":
-			utils.LogEvent("INFO", "storage instagram completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("INFO", "storage instagram completed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
 				"jobId":    snapshot.ID,
 				"filename": snapshot.Filename,
@@ -1565,15 +1612,15 @@ func (h *Handler) monitorInstagram(ctx context.Context, taskID string, send Send
 			}})
 			return
 		case "cancelled":
-			utils.LogEvent("WARN", "storage instagram cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("WARN", "storage instagram cancelled", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ Instagram đã bị hủy cục bộ.")
 			return
 		case "error":
-			utils.LogEvent("ERROR", "storage instagram failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename, "error": snapshot.Error})
+			utils.LogEvent("ERROR", "storage instagram failed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename, "error": snapshot.Error})
 			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải Instagram: "+snapshot.Error)
 			return
 		default:
-			utils.LogEvent("DEBUG", "storage instagram progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			utils.LogEvent("DEBUG", "storage instagram progress", map[string]any{"taskId": taskID, "jobId": jobID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
 			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
 				"state":           snapshot.State,
 				"filename":        snapshot.Filename,
@@ -1597,9 +1644,9 @@ func (h *Handler) monitorInstagram(ctx context.Context, taskID string, send Send
 	}
 }
 
-func (h *Handler) monitorTikTok(ctx context.Context, taskID string, send SendFunc) {
+func (h *Handler) monitorTikTok(ctx context.Context, jobID, taskID string, send SendFunc) {
 	for {
-		snapshot, exists := h.tiktok.Snapshot(taskID)
+		snapshot, exists := h.tiktok.Snapshot(jobID)
 		if !exists {
 			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ TikTok được giao.")
 			return
@@ -1610,7 +1657,7 @@ func (h *Handler) monitorTikTok(ctx context.Context, taskID string, send SendFun
 
 		switch snapshot.State {
 		case "completed":
-			utils.LogEvent("INFO", "storage tiktok completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("INFO", "storage tiktok completed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
 				"jobId":    snapshot.ID,
 				"filename": snapshot.Filename,
@@ -1618,15 +1665,15 @@ func (h *Handler) monitorTikTok(ctx context.Context, taskID string, send SendFun
 			}})
 			return
 		case "cancelled":
-			utils.LogEvent("WARN", "storage tiktok cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("WARN", "storage tiktok cancelled", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ TikTok đã bị hủy cục bộ.")
 			return
 		case "error":
-			utils.LogEvent("ERROR", "storage tiktok failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename, "error": snapshot.Error})
+			utils.LogEvent("ERROR", "storage tiktok failed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename, "error": snapshot.Error})
 			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải TikTok: "+snapshot.Error)
 			return
 		default:
-			utils.LogEvent("DEBUG", "storage tiktok progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			utils.LogEvent("DEBUG", "storage tiktok progress", map[string]any{"taskId": taskID, "jobId": jobID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
 			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
 				"state":           snapshot.State,
 				"filename":        snapshot.Filename,
@@ -1650,9 +1697,9 @@ func (h *Handler) monitorTikTok(ctx context.Context, taskID string, send SendFun
 	}
 }
 
-func (h *Handler) monitorYouTube(ctx context.Context, taskID string, send SendFunc) {
+func (h *Handler) monitorYouTube(ctx context.Context, jobID, taskID string, send SendFunc) {
 	for {
-		snapshot, exists := h.youtube.Snapshot(taskID)
+		snapshot, exists := h.youtube.Snapshot(jobID)
 		if !exists {
 			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ YouTube được giao.")
 			return
@@ -1663,7 +1710,7 @@ func (h *Handler) monitorYouTube(ctx context.Context, taskID string, send SendFu
 
 		switch snapshot.State {
 		case "completed":
-			utils.LogEvent("INFO", "storage youtube completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("INFO", "storage youtube completed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: map[string]any{
 				"jobId":    snapshot.ID,
 				"filename": snapshot.Filename,
@@ -1674,15 +1721,15 @@ func (h *Handler) monitorYouTube(ctx context.Context, taskID string, send SendFu
 			}})
 			return
 		case "cancelled":
-			utils.LogEvent("WARN", "storage youtube cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("WARN", "storage youtube cancelled", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ YouTube đã bị hủy cục bộ.")
 			return
 		case "error":
-			utils.LogEvent("ERROR", "storage youtube failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("ERROR", "storage youtube failed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải YouTube.")
 			return
 		default:
-			utils.LogEvent("DEBUG", "storage youtube progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			utils.LogEvent("DEBUG", "storage youtube progress", map[string]any{"taskId": taskID, "jobId": jobID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
 			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: map[string]any{
 				"state":           snapshot.State,
 				"filename":        snapshot.Filename,
@@ -1709,9 +1756,9 @@ func (h *Handler) monitorYouTube(ctx context.Context, taskID string, send SendFu
 	}
 }
 
-func (h *Handler) monitorArchive(ctx context.Context, taskID string, send SendFunc) {
+func (h *Handler) monitorArchive(ctx context.Context, jobID, taskID string, send SendFunc) {
 	for {
-		snapshot, exists := h.archive.Snapshot(taskID)
+		snapshot, exists := h.archive.Snapshot(jobID)
 		if !exists {
 			h.fail(send, taskID, "STORAGE_JOB_MISSING", "Storage không còn tác vụ tải được giao.")
 			return
@@ -1724,23 +1771,23 @@ func (h *Handler) monitorArchive(ctx context.Context, taskID string, send SendFu
 
 		switch snapshot.State {
 		case "completed":
-			utils.LogEvent("INFO", "storage archive completed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("INFO", "storage archive completed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			_ = send(Message{Type: TaskCompleted, TaskID: taskID, Result: completedResult(snapshot)})
 			return
 		case "cancelled":
-			utils.LogEvent("WARN", "storage archive cancelled", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("WARN", "storage archive cancelled", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_CANCELLED", "Tác vụ Storage đã bị hủy cục bộ.")
 			return
 		case "password_required":
-			utils.LogEvent("WARN", "storage archive requires password", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("WARN", "storage archive requires password", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "PASSWORD_REQUIRED", "Archive yêu cầu mật khẩu để tiếp tục.")
 			return
 		case "error":
-			utils.LogEvent("ERROR", "storage archive failed", map[string]any{"taskId": taskID, "filename": snapshot.Filename})
+			utils.LogEvent("ERROR", "storage archive failed", map[string]any{"taskId": taskID, "jobId": jobID, "filename": snapshot.Filename})
 			h.fail(send, taskID, "STORAGE_JOB_FAILED", "Storage không thể hoàn tất tác vụ tải.")
 			return
 		default:
-			utils.LogEvent("DEBUG", "storage archive progress", map[string]any{"taskId": taskID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
+			utils.LogEvent("DEBUG", "storage archive progress", map[string]any{"taskId": taskID, "jobId": jobID, "state": snapshot.State, "filename": snapshot.Filename, "downloadedBytes": snapshot.DownloadedBytes, "totalBytes": snapshot.TotalBytes})
 			if err := send(Message{Type: TaskProgress, TaskID: taskID, Progress: progressResult(snapshot)}); err != nil {
 				return
 			}

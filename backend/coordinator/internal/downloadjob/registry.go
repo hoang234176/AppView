@@ -151,6 +151,18 @@ func (r *Registry) MergeStorageHistory(workerID string, snapshots []protocol.Sto
 		next.OptimizationCancelled, next.UnoptimizedVideoCount, next.CancelledFromStage = snapshot.OptimizationCancelled, snapshot.UnoptimizedVideoCount, snapshot.CancelledFromStage
 		next.ConversionTotal, next.ConversionCurrent, next.ConversionFailed = snapshot.ConversionTotal, snapshot.ConversionCurrent, snapshot.ConversionFailed
 		next.Videos = append([]protocol.VideoOptimization(nil), snapshot.Videos...)
+		if snapshot.IsMultipart || isMultipartName(next.Filename) || isMultipartName(snapshot.PartName) || isMultipartName(next.URL) {
+			next.IsMultipart = true
+		}
+		if snapshot.TotalParts > 0 {
+			next.TotalParts = snapshot.TotalParts
+		}
+		if snapshot.CurrentPart > 0 {
+			next.CurrentPart = snapshot.CurrentPart
+		}
+		if snapshot.PartName != "" {
+			next.PartName = snapshot.PartName
+		}
 		next.CreatedAt, next.UpdatedAt, next.storageWorkerID, next.storageSnapshotUpdatedAt = snapshot.CreatedAt, snapshot.UpdatedAt, workerID, snapshot.UpdatedAt
 		next.Progress = storageProgress(snapshot)
 		if snapshot.ErrorCode != "" || snapshot.Error != "" {
@@ -219,6 +231,7 @@ func storageProgress(snapshot protocol.StorageJobSnapshot) json.RawMessage {
 		"speedBytes": snapshot.SpeedBytes, "extractedPercent": snapshot.ExtractedPercent,
 		"optimizationCancelled": snapshot.OptimizationCancelled, "unoptimizedVideoCount": snapshot.UnoptimizedVideoCount,
 		"cancelledFromStage": snapshot.CancelledFromStage,
+		"isMultipart": snapshot.IsMultipart, "totalParts": snapshot.TotalParts, "currentPart": snapshot.CurrentPart, "partName": snapshot.PartName,
 		"conversion": map[string]int{"total": snapshot.ConversionTotal, "current": snapshot.ConversionCurrent, "failed": snapshot.ConversionFailed},
 	})
 	return encoded
@@ -243,7 +256,7 @@ func (r *Registry) AttachResolve(jobID, taskID string) error {
 // PrepareStorage marks the one permitted transition before a storage child is
 // created. This makes duplicate resolve completions harmless even if callers
 // race: only the first one obtains shouldCreate=true.
-func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, audioURL string, headers map[string]string, source string, items ...[]any) (Job, StorageRequest, bool, error) {
+func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, audioURL string, headers map[string]string, source string, items []any, archiveType ...string) (Job, StorageRequest, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	ref, ok := r.children[resolveTaskID]
@@ -276,12 +289,18 @@ func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, 
 			job.Source = "x"
 		}
 	}
+	var at string
+	if len(archiveType) > 0 {
+		at = archiveType[0]
+	}
+	if at == "multipart" || len(items) > 1 {
+		job.IsMultipart = true
+		if len(items) > 0 {
+			job.TotalParts = len(items)
+		}
+	}
 	job.State, job.Stage, job.storagePending, job.UpdatedAt = Downloading, string(Downloading), true, time.Now().UTC()
 	r.jobs[job.ID] = job
-	var itemList []any
-	if len(items) > 0 && items[0] != nil {
-		itemList = items[0]
-	}
 	return job.Clone(), StorageRequest{
 		URL:         resolvedURL,
 		AudioURL:    strings.TrimSpace(audioURL),
@@ -291,7 +310,8 @@ func (r *Registry) PrepareStorage(resolveTaskID, resolvedURL, resolvedFilename, 
 		Drive:       job.Drive,
 		Password:    job.password,
 		Source:      strings.TrimSpace(job.Source),
-		Items:       itemList,
+		Items:       items,
+		ArchiveType: at,
 	}, true, nil
 }
 
@@ -454,4 +474,12 @@ func cloneError(failure *protocol.ErrorPayload) *protocol.ErrorPayload {
 	}
 	copy := *failure
 	return &copy
+}
+
+func isMultipartName(s string) bool {
+	lower := strings.ToLower(s)
+	return strings.Contains(lower, ".part") ||
+		strings.Contains(lower, ".7z.") ||
+		strings.Contains(lower, ".z0") ||
+		strings.Contains(lower, ".r0")
 }

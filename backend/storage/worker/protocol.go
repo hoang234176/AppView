@@ -82,6 +82,10 @@ type StorageJobSnapshot struct {
 	UnoptimizedVideoCount int                           `json:"unoptimizedVideoCount,omitempty"`
 	CancelledFromStage    string                        `json:"cancelledFromStage,omitempty"`
 	Videos                []pythonapi.VideoOptimization `json:"videos,omitempty"`
+	IsMultipart           bool                          `json:"isMultipart,omitempty"`
+	TotalParts            int                           `json:"totalParts,omitempty"`
+	CurrentPart           int                           `json:"currentPart,omitempty"`
+	PartName              string                        `json:"partName,omitempty"`
 	CreatedAt             time.Time                     `json:"createdAt"`
 	UpdatedAt             time.Time                     `json:"updatedAt"`
 }

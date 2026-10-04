@@ -147,6 +147,12 @@ func TestHandlerRetriesExistingArchiveWithoutStartingAnotherDownload(t *testing.
 	if len(sent) != 3 || sent[0].Type != TaskAccepted || sent[1].Type != StorageHistory || sent[2].Type != TaskCompleted {
 		t.Fatalf("messages = %#v, want accepted, history, completed", sent)
 	}
+	if sent[0].TaskID != "control-1" || sent[2].TaskID != "control-1" {
+		t.Fatalf("task IDs in accepted/completed must match control task ID: sent[0]=%s, sent[2]=%s", sent[0].TaskID, sent[2].TaskID)
+	}
+	if len(sent[1].StorageHistory.Jobs) != 1 || sent[1].StorageHistory.Jobs[0].ID != "archive-1" {
+		t.Fatalf("storage history job ID must match target archive job: %#v", sent[1].StorageHistory)
+	}
 }
 
 func TestHandlerMapsStartFailureToTaskFailed(t *testing.T) {

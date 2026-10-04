@@ -35,6 +35,7 @@ import {
   setActiveDrive,
 } from './api/axiosConfig';
 import { isActiveDownload, needsDownloadAttention } from './utils/downloadPresentation';
+import { isMultipartArchive } from './components/icons/FileTypeIcon';
 import { FolderX, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import './styles/index.css';
 
@@ -715,7 +716,18 @@ function App() {
       failure_stage: job.failureStage || null,
       coordinator_job: true,
       password_required: Boolean(job.passwordRequired), archive_downloaded: Boolean(job.archiveDownloaded), archive_extracted: Boolean(job.archiveExtracted), total_video_count: Number(job.totalVideoCount) || 0, invalid_video_count: Number(job.invalidVideoCount) || 0,
-	  videos: Array.isArray(job.videos) ? job.videos : [],
+      videos: Array.isArray(job.videos) ? job.videos : [],
+      is_multipart: Boolean(
+        job.isMultipart ||
+        job.is_multipart ||
+        progress.isMultipart ||
+        progress.is_multipart ||
+        (Number(job.totalParts || job.total_parts || progress.totalParts || progress.total_parts) > 1) ||
+        isMultipartArchive(job.displayName || job.filename || progress.filename || '', job.url || job.sourceUrl || job.partName || progress.partName || '')
+      ),
+      total_parts: Number(job.totalParts || job.total_parts || progress.totalParts || progress.total_parts) || 0,
+      current_part: Number(job.currentPart || job.current_part || progress.currentPart || progress.current_part) || 0,
+      part_name: job.partName || job.part_name || progress.partName || progress.part_name || '',
     };
   }, []);
 

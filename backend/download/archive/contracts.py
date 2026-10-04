@@ -21,6 +21,7 @@ class ResolvedDownload:
     headers: Optional[dict[str, str]] = None
     source: str = "archive"
     items: Optional[list[dict[str, Any]]] = None
+    archive_type: str = "single"
 
 
 class DownloadResolver(Protocol):

@@ -213,6 +213,16 @@ class VideoOptimizationModel {
       );
 }
 
+bool _isMultipartFileName(String? name) {
+  if (name == null || name.isEmpty) return false;
+  final lower = name.toLowerCase();
+  return RegExp(r'\.part\d+(\.rar)?($|\s|[?#])').hasMatch(lower) ||
+      RegExp(r'\.7z\.\d+($|\s|[?#])').hasMatch(lower) ||
+      RegExp(r'\.z\d+($|\s|[?#])').hasMatch(lower) ||
+      RegExp(r'\.r\d+($|\s|[?#])').hasMatch(lower) ||
+      RegExp(r'\.\d{3}($|\s|[?#])').hasMatch(lower);
+}
+
 class DownloadTaskModel {
   final String taskId;
   final String originalUrl;
@@ -239,6 +249,10 @@ class DownloadTaskModel {
   final bool optimizationCancelled;
   final int unoptimizedVideoCount;
   final List<VideoOptimizationModel> videos;
+  final bool isMultipart;
+  final int totalParts;
+  final int currentPart;
+  final String? partName;
 
   DownloadTaskModel({
     required this.taskId,
@@ -268,6 +282,10 @@ class DownloadTaskModel {
     this.optimizationCancelled = false,
     this.unoptimizedVideoCount = 0,
     this.videos = const [],
+    this.isMultipart = false,
+    this.totalParts = 0,
+    this.currentPart = 0,
+    this.partName,
   });
 
   factory DownloadTaskModel.fromJson(Map<String, dynamic> json) {
@@ -307,6 +325,19 @@ class DownloadTaskModel {
       optimizationCancelled: optCancelled,
       unoptimizedVideoCount: unoptimized,
       source: json['source']?.toString() ?? '',
+      isMultipart: json['is_multipart'] == true ||
+          json['isMultipart'] == true ||
+          ((json['total_parts'] as num?)?.toInt() ?? 0) > 1 ||
+          _isMultipartFileName(json['filename']?.toString()) ||
+          _isMultipartFileName(json['original_url']?.toString()) ||
+          _isMultipartFileName(json['part_name']?.toString()),
+      totalParts: (json['total_parts'] as num?)?.toInt() ??
+          (json['totalParts'] as num?)?.toInt() ??
+          0,
+      currentPart: (json['current_part'] as num?)?.toInt() ??
+          (json['currentPart'] as num?)?.toInt() ??
+          0,
+      partName: json['part_name']?.toString() ?? json['partName']?.toString(),
     );
   }
 
@@ -422,6 +453,31 @@ class DownloadTaskModel {
                 ),
               )
               .toList(),
+      isMultipart: json['isMultipart'] == true ||
+          json['is_multipart'] == true ||
+          progress['isMultipart'] == true ||
+          progress['is_multipart'] == true ||
+          ((json['totalParts'] as num?)?.toInt() ?? 0) > 1 ||
+          ((progress['totalParts'] as num?)?.toInt() ?? 0) > 1 ||
+          _isMultipartFileName(json['filename']?.toString()) ||
+          _isMultipartFileName(json['displayName']?.toString()) ||
+          _isMultipartFileName(json['url']?.toString()) ||
+          _isMultipartFileName(json['partName']?.toString()) ||
+          _isMultipartFileName(progress['partName']?.toString()),
+      totalParts: (json['totalParts'] as num?)?.toInt() ??
+          (json['total_parts'] as num?)?.toInt() ??
+          (progress['totalParts'] as num?)?.toInt() ??
+          (progress['total_parts'] as num?)?.toInt() ??
+          0,
+      currentPart: (json['currentPart'] as num?)?.toInt() ??
+          (json['current_part'] as num?)?.toInt() ??
+          (progress['currentPart'] as num?)?.toInt() ??
+          (progress['current_part'] as num?)?.toInt() ??
+          0,
+      partName: json['partName']?.toString() ??
+          json['part_name']?.toString() ??
+          progress['partName']?.toString() ??
+          progress['part_name']?.toString(),
     );
   }
 }

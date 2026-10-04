@@ -737,17 +737,24 @@ class _DownloadScreenState extends State<DownloadScreen> {
                 width: 36,
                 height: 36,
                 child: Center(
-                  child: FileTypeIcon(
-                    filename: task.filename ?? task.originalUrl,
-                    fallback:
-                        category == 'video'
-                            ? 'MP4'
-                            : category == 'picture'
-                            ? 'IMG'
-                            : 'ZIP',
-                    color: iconColor,
-                    size: 24,
-                  ),
+                  child: task.isMultipart
+                      ? MultipartArchiveIcon(
+                          color: task.stage == 'downloading'
+                              ? const Color(0xFF818CF8)
+                              : iconColor,
+                          size: 26,
+                        )
+                      : FileTypeIcon(
+                          filename: task.filename ?? task.originalUrl,
+                          fallback:
+                              category == 'video'
+                                  ? 'MP4'
+                                  : category == 'picture'
+                                  ? 'IMG'
+                                  : 'ZIP',
+                          color: iconColor,
+                          size: 24,
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -757,26 +764,36 @@ class _DownloadScreenState extends State<DownloadScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      task.filename ??
-                          (task.source == 'x' || task.source == 'twitter'
-                              ? 'Bài viết X (Twitter)'
-                              : (task.source == 'instagram'
-                                  ? 'Bài viết Instagram'
-                                  : (task.source == 'facebook'
-                                      ? 'Bài viết Facebook'
-                                      : (task.source == 'tiktok'
-                                          ? 'Video TikTok'
-                                          : (task.source == 'youtube'
-                                              ? 'Video YouTube'
-                                              : 'Tệp nén MediaFire'))))),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            task.filename ??
+                                (task.source == 'x' || task.source == 'twitter'
+                                    ? 'Bài viết X (Twitter)'
+                                    : (task.source == 'instagram'
+                                        ? 'Bài viết Instagram'
+                                        : (task.source == 'facebook'
+                                            ? 'Bài viết Facebook'
+                                            : (task.source == 'tiktok'
+                                                ? 'Video TikTok'
+                                                : (task.source == 'youtube'
+                                                    ? 'Video YouTube'
+                                                    : 'Tệp nén MediaFire'))))),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        if (task.isMultipart) ...[
+                          const SizedBox(width: 6),
+                          MultipartBadge(count: task.totalParts),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Row(
@@ -814,9 +831,11 @@ class _DownloadScreenState extends State<DownloadScreen> {
                             ),
                           ],
                         ] else if (isExtracting) ...[
-                          const Text(
-                            'Đang giải nén tệp nén...',
-                            style: TextStyle(
+                          Text(
+                            task.stage == 'waiting_extract'
+                                ? 'Đang chờ giải nén...'
+                                : 'Đang giải nén tệp nén...',
+                            style: const TextStyle(
                               fontSize: 11,
                               color: Colors.orangeAccent,
                               fontWeight: FontWeight.w500,

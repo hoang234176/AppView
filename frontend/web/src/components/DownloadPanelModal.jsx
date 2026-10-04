@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { X, Download, Video, Image, Trash2, AlertTriangle, RotateCw } from 'lucide-react';
 import { formatFileSize, formatSpeed, getFileCategory } from '../utils/formatters';
 import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask, retryCoordinatorArchive, submitCoordinatorArchivePassword, cancelCoordinatorArchive, applyCoordinatorVideoDecisions } from '../api/downloadApi';
-import { FileTypeIcon } from './icons/FileTypeIcon';
+import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from './icons/FileTypeIcon';
 import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload, isCancelledOptimization } from '../utils/downloadPresentation';
 import { CustomSelect } from './CustomSelect';
 
@@ -57,6 +57,9 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
   if (!isOpen) return null;
 
   const icon = (task, color = 'text-blue-400') => {
+    if (task.is_multipart || isMultipartArchive(task)) {
+      return <MultipartArchiveIcon className={`h-8 w-8 ${task.stage === 'downloading' ? 'text-indigo-400' : color}`} />;
+    }
     const category = getFileCategory(task.filename || task.original_url);
     const fallback = category === 'video' ? 'MP4' : category === 'picture' ? 'IMG' : 'ZIP';
     return <FileTypeIcon filename={task.filename || task.original_url} fallback={fallback} className={`h-7 w-7 ${color}`} />;
@@ -65,7 +68,9 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
   const status = (t) => {
     if (t.stage === 'queued') return 'Đang chờ tải...';
     if (t.stage === 'resolving') return 'Đang lấy liên kết...';
-    if (t.stage === 'downloading') return `${formatFileSize(t.downloaded_bytes)} / ${t.download_total_bytes ? formatFileSize(t.download_total_bytes) : 'Không rõ'} • ${formatSpeed(t.download_speed_bytes)}`;
+    if (t.stage === 'downloading') {
+      return `${formatFileSize(t.downloaded_bytes)} / ${t.download_total_bytes ? formatFileSize(t.download_total_bytes) : 'Không rõ'} • ${formatSpeed(t.download_speed_bytes)}`;
+    }
     if (t.stage === 'waiting_extract') return 'Đang chờ giải nén...';
     if (t.stage === 'extracting') return 'Đang giải nén...';
     if (t.stage === 'scanning') return 'Đang kiểm tra thư mục...';
@@ -153,16 +158,23 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
   };
 
   const activeCard = (t) => {
+    const isMulti = Boolean(t.is_multipart || isMultipartArchive(t));
     const loading = ['queued', 'resolving', 'waiting_extract', 'extracting', 'scanning', 'converting'].includes(t.stage);
     const cancelledOptimization = isCancelledOptimization(t);
     const taskColor = cancelledOptimization || needsDownloadAttention(t) ? 'text-amber-400' : color(t.stage);
     const unoptimizedCount = getUnoptimizedCount(t);
     const isMedia = t.source === 'youtube' || t.source === 'tiktok' || t.source === 'facebook' || t.source === 'instagram' || t.source === 'x' || t.source === 'twitter' || (!t.archive_downloaded && !t.archive_extracted && getFileCategory(t.filename || t.original_url) === 'video');
-    return <div key={t.task_id} className="min-h-[108px] space-y-3 rounded-2xl border border-[#383c42] bg-[#202124] p-4">
+    return <div key={t.task_id} className={`min-h-[108px] space-y-3 rounded-2xl border p-4 transition-all ${
+      isMulti
+        ? 'border-indigo-500/40 bg-gradient-to-b from-[#1c1d2c] to-[#151620] shadow-lg shadow-indigo-950/20'
+        : 'border-[#383c42] bg-[#202124]'
+    }`}>
       <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center">{icon(t, taskColor)}</div>
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center">
+          {icon(t, isMulti ? (t.stage === 'downloading' ? 'text-indigo-400' : 'text-indigo-300') : taskColor)}
+        </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {(t.source === 'x' || t.source === 'twitter') && (
               <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/20 text-white border border-white/30 flex-shrink-0">
                 X
@@ -188,28 +200,60 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
                 YouTube
               </span>
             )}
-            <h5 className="truncate text-xs font-bold text-white">{t.filename || 'Đang phân tích liên kết...'}</h5>
+            {isMulti && (
+              <MultipartBadge count={t.total_parts} />
+            )}
+            <h5 className="truncate text-xs font-bold text-white" title={t.filename}>{t.filename || 'Đang phân tích liên kết...'}</h5>
           </div>
-          {t.stage === 'downloading' ? <p className="mt-1 flex items-center justify-between gap-3 text-[11px] font-medium"><span className="truncate text-gray-400">{formatFileSize(t.downloaded_bytes)} / {t.download_total_bytes ? formatFileSize(t.download_total_bytes) : 'Không rõ'}</span><span className="flex-shrink-0 text-emerald-400">{formatSpeed(t.download_speed_bytes)}</span></p> : cancelledOptimization ? <div className="mt-1 text-[11px] font-medium leading-tight"><span className="text-emerald-400">{isMedia ? 'Đã tải video gốc' : 'Đã tải và giải nén'}</span><br /><span className="text-amber-400">{unoptimizedCount} video chưa được tối ưu hóa</span></div> : <p className={`mt-1 text-[11px] font-medium ${taskColor}`}>{status(t)}</p>}
+          {t.stage === 'downloading' ? (
+            <p className="mt-1 flex items-center justify-between gap-3 text-[11px] font-medium">
+              <span className="truncate text-gray-300">
+                {formatFileSize(t.downloaded_bytes)} / {t.download_total_bytes ? formatFileSize(t.download_total_bytes) : 'Không rõ'}
+              </span>
+              <span className="flex-shrink-0 font-mono font-semibold text-emerald-400">{formatSpeed(t.download_speed_bytes)}</span>
+            </p>
+          ) : cancelledOptimization ? (
+            <div className="mt-1 text-[11px] font-medium leading-tight">
+              <span className="text-emerald-400">{isMedia ? 'Đã tải video gốc' : 'Đã tải và giải nén'}</span>
+              <br />
+              <span className="text-amber-400">{unoptimizedCount} video chưa được tối ưu hóa</span>
+            </div>
+          ) : (
+            <p className={`mt-1 text-[11px] font-medium ${taskColor}`}>{status(t)}</p>
+          )}
         </div>
         <div className="flex items-center gap-1">{isRetryableDownloadError(t) && <button disabled={pendingRetries[t.task_id]} onClick={() => retry(t)} title="Tải tiếp" className="rounded-full p-1 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50"><RotateCw className="h-4 w-4" /></button>}{canCancelDownload(t) && <button disabled={pendingCancels[t.task_id]} onClick={() => cancel(t)} title="Hủy tác vụ" className="rounded-full p-1 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50"><X className="h-4 w-4" /></button>}</div>
       </div>
-      {t.stage === 'downloading' && <div className="h-2 overflow-hidden rounded-full bg-[#18191c]"><div className="h-full rounded-full bg-blue-500" style={{ width: `${t.download_percent || 0}%` }} /></div>}
-      {loading && <div className={`google-linear-progress ${t.stage === 'converting' ? 'google-linear-progress-purple' : t.stage === 'scanning' ? 'google-linear-progress-green' : ''}`}><div className="google-linear-progress-bar" /></div>}
+      {t.stage === 'downloading' && (
+        <div className="h-2 overflow-hidden rounded-full bg-[#18191c]">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${
+              isMulti ? 'bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-400' : 'bg-blue-500'
+            }`}
+            style={{ width: `${t.download_percent || 0}%` }}
+          />
+        </div>
+      )}
+      {loading && <div className={`google-linear-progress ${isMulti ? 'google-linear-progress-indigo' : t.stage === 'converting' ? 'google-linear-progress-purple' : t.stage === 'scanning' ? 'google-linear-progress-green' : ''}`}><div className="google-linear-progress-bar" /></div>}
       {needsPassword(t) && <div className="flex gap-2"><input type="password" value={passwords[t.task_id] || ''} onChange={(e) => setPasswords((old) => ({ ...old, [t.task_id]: e.target.value }))} placeholder="Nhập lại mật khẩu..." className="min-w-0 flex-1 rounded-xl border border-amber-500/50 bg-[#1c1d21] px-3 py-1.5 text-xs text-white outline-none" /><button disabled={pendingPasswords[t.task_id]} onClick={() => submitPassword(t)} className="rounded-xl bg-amber-500 px-3 text-xs font-bold text-[#1c1d21] disabled:opacity-60">{pendingPasswords[t.task_id] ? 'Đang gửi...' : 'Thử giải nén'}</button></div>}
 	  {t.stage === 'video_decision_required' && <div className="space-y-2">{videoChoices(t)}</div>}
     </div>;
   };
 
   const historyCard = (t) => {
+    const isMulti = Boolean(t.is_multipart || isMultipartArchive(t));
     const isOptimizationError = t.error_code === 'VIDEO_CONVERT_UNAVAILABLE';
     const cancelledOptimization = isCancelledOptimization(t);
     const unoptimizedCount = getUnoptimizedCount(t);
     const isMedia = t.source === 'youtube' || t.source === 'tiktok' || t.source === 'facebook' || t.source === 'instagram' || t.source === 'x' || t.source === 'twitter' || (!t.archive_downloaded && !t.archive_extracted && getFileCategory(t.filename || t.original_url) === 'video');
-    return <div key={t.task_id} className="flex items-center gap-3 rounded-2xl border border-[#383c42]/60 bg-[#202124]/60 p-3">
-      {icon(t, cancelledOptimization || isOptimizationError ? 'text-amber-400' : 'text-gray-400')}
+    return <div key={t.task_id} className={`flex items-center gap-3 rounded-2xl border p-3 ${
+      isMulti
+        ? 'border-indigo-500/30 bg-[#191b26]'
+        : 'border-[#383c42]/60 bg-[#202124]/60'
+    }`}>
+      {icon(t, isMulti ? 'text-indigo-400' : (cancelledOptimization || isOptimizationError ? 'text-amber-400' : 'text-gray-400'))}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {(t.source === 'x' || t.source === 'twitter') && (
             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/20 text-white border border-white/30 flex-shrink-0">
               X
@@ -235,6 +279,9 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
               YouTube
             </span>
           )}
+          {isMulti && (
+            <MultipartBadge count={t.total_parts} />
+          )}
           <h5 className="truncate text-xs font-semibold text-gray-200">{t.filename || t.original_url}</h5>
         </div>
         {cancelledOptimization ? (
@@ -250,7 +297,9 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
               : t.stage === 'completed'
                 ? (isMedia
                     ? (t.convert_total > 0 ? '✓ Đã tải và tối ưu video' : '✓ Đã tải hoàn tất')
-                    : (t.convert_total > 0 ? `✓ Đã giải nén - tối ưu ${t.convert_total} video` : '✓ Đã giải nén hoàn tất'))
+                    : (t.convert_total > 0
+                        ? `✓ Đã giải nén - tối ưu ${t.convert_total} video`
+                        : '✓ Đã giải nén hoàn tất'))
                 : t.stage === 'cancelled'
                   ? '⊘ Đã hủy'
                   : `✕ ${t.error || 'Có lỗi xảy ra'}`}

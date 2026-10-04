@@ -60,6 +60,10 @@ type Job struct {
 	ConversionCurrent     int                          `json:"conversionCurrent,omitempty"`
 	ConversionFailed      int                          `json:"conversionFailed,omitempty"`
 	Videos                []protocol.VideoOptimization `json:"videos,omitempty"`
+	IsMultipart           bool                         `json:"isMultipart,omitempty"`
+	TotalParts            int                          `json:"totalParts,omitempty"`
+	CurrentPart           int                          `json:"currentPart,omitempty"`
+	PartName              string                       `json:"partName,omitempty"`
 
 	password                 string
 	storagePending           bool
@@ -122,4 +126,5 @@ type StorageRequest struct {
 	Password    string
 	Source      string
 	Items       []any
+	ArchiveType string
 }
