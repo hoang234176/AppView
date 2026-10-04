@@ -13,6 +13,12 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+# Đặt kích thước cửa sổ Terminal cố định: 190 cột x 30 dòng
+osascript \
+    -e 'tell application "Terminal" to set number of columns of front window to 190' \
+    -e 'tell application "Terminal" to set number of rows of front window to 30' \
+    2>/dev/null
+
 # Nạp biến môi trường nếu có
 if [ -f "$ROOT_DIR/backend/.env" ]; then
     set -a
@@ -87,49 +93,27 @@ cleanup_ports() {
 cleanup_ports
 sleep 1
 
-# Thiết lập vùng cuộn của Terminal (Scroll Margins)
-# Dành riêng dòng cuối cùng làm Snackbar cố định
-ROWS=$(tput lines 2>/dev/null || echo 24)
-SCROLL_MAX=$((ROWS - 1))
+# Dành đúng dòng 30 làm thanh hướng dẫn cố định.
+ROWS=30
+SCROLL_MAX=29
 
-# Hàm in và ghim thanh snackbar cố định ở dòng dưới cùng
 render_snackbar() {
-    local max_row
-    max_row=$(tput lines 2>/dev/null || echo 24)
-    # Lưu vị trí con trỏ
     tput sc 2>/dev/null
-    # Nhảy đến dòng cuối cùng của màn hình
-    tput cup $((max_row - 1)) 0 2>/dev/null
-    # In snackbar chữ xám nền trong suốt, xóa hết phần còn lại của dòng
+    tput cup 29 0 2>/dev/null
     printf "\033[90mCtrl + C: tắt hệ thống\033[0m\033[K"
-    # Khôi phục vị trí con trỏ
     tput rc 2>/dev/null
 }
 
-# Khôi phục vùng cuộn đầy đủ khi thoát
 reset_scroll_region() {
-    # Hủy vùng cuộn giới hạn (trả lại 1 đến dòng cuối)
     printf "\033[r"
-    local max_row
-    max_row=$(tput lines 2>/dev/null || echo 24)
-    tput cup $max_row 0 2>/dev/null
-    echo ""
 }
 
-# Thiết lập vùng cuộn từ dòng 1 đến SCROLL_MAX
-# Tất cả output/log sẽ chỉ cuộn bên trong vùng này, không bao giờ chạm tới dòng cuối
-printf "\033[1;%dr" "$SCROLL_MAX"
-tput cup $((SCROLL_MAX - 1)) 0 2>/dev/null
-render_snackbar
-
-# Bắt tín hiệu thay đổi kích thước cửa sổ Terminal (WINCH) để tính toán lại vùng cuộn
-handle_winch() {
-    ROWS=$(tput lines 2>/dev/null || echo 24)
-    SCROLL_MAX=$((ROWS - 1))
+set_scroll_region() {
     printf "\033[1;%dr" "$SCROLL_MAX"
     render_snackbar
 }
-trap handle_winch WINCH
+
+set_scroll_region
 
 # Mảng lưu PID của các tiến trình con
 PIDS=()
@@ -158,7 +142,9 @@ shutdown_all() {
     exit 0
 }
 
-trap shutdown_all SIGINT SIGTERM EXIT
+# Chỉ dừng dịch vụ khi người dùng chủ động ngắt script.
+# Không bắt EXIT/WINCH để resize hoặc mở tab Terminal không làm backend thoát.
+trap shutdown_all SIGINT SIGTERM
 
 # 1. Khởi chạy Coordinator (:8090)
 echo " [1/3] Đang khởi chạy Coordinator (:8090)..."
@@ -211,7 +197,7 @@ fi
 echo "======================================================================"
 echo ""
 
-# Đảm bảo snackbar vẫn hiển thị chuẩn xác ở đáy
+# Đảm bảo snackbar hiển thị ở dòng cuối sau phần thông báo khởi động.
 render_snackbar
 
 # Chờ các tiến trình chạy ngầm

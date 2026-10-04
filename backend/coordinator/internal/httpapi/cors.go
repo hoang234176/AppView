@@ -87,7 +87,7 @@ func isAllowedOrigin(origin string, allowedOrigins []string) bool {
 		return false
 	}
 	host := strings.ToLower(parsed.Hostname())
-	if host == "localhost" {
+	if host == "localhost" || host == "local" || strings.HasSuffix(host, ".local") {
 		return true
 	}
 	address, err := netip.ParseAddr(host)

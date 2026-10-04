@@ -117,6 +117,7 @@ func TestCoordinatorCORS(t *testing.T) {
 	Register(mux, coordinator)
 	handler := WithCORS(mux, []string{"https://web.appview.test"})
 	allowedOrigin := "http://192.168.1.252:5173"
+	localHostnameOrigin := "http://hoangs-macbook-pro.local:5173"
 
 	t.Run("preflight download", func(t *testing.T) {
 		request := httptest.NewRequest(http.MethodOptions, "/api/v1/download", nil)
@@ -141,6 +142,17 @@ func TestCoordinatorCORS(t *testing.T) {
 			t.Fatalf("status = %d, want %d", response.Code, http.StatusAccepted)
 		}
 		assertCORSHeaders(t, response, allowedOrigin)
+	})
+
+	t.Run("allowed mDNS hostname", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/health", nil)
+		request.Header.Set("Origin", localHostnameOrigin)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+		}
+		assertCORSHeaders(t, response, localHostnameOrigin)
 	})
 
 	t.Run("disallowed origin", func(t *testing.T) {
