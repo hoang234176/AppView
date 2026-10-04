@@ -46,17 +46,12 @@ func ServeThumbnail(c *fiber.Ctx) error {
 	}
 	thumbPath := filepath.Join(thumbDir, resolvedRelPath+".jpg")
 
-	if _, err := os.Stat(thumbPath); err == nil {
+	// EnsureThumbnail handles validation, 0-byte cleanup, in-flight deduplication, and atomic creation
+	if err := utils.EnsureThumbnail(fullPath, thumbPath); err == nil {
 		return utils.ServeFileSafely(c, thumbPath)
 	}
 
-	if err := utils.GenerateThumbnail(fullPath, thumbPath); err == nil {
-		if _, statErr := os.Stat(thumbPath); statErr == nil {
-			return utils.ServeFileSafely(c, thumbPath)
-		}
-	}
-
-	if utils.IsImageFile(resolvedRelPath) || utils.IsVideoFile(resolvedRelPath) {
+	if utils.IsImageFile(resolvedRelPath) {
 		if _, statErr := os.Stat(fullPath); statErr != nil {
 			utils.LogEvent("WARN", "thumbnail source file not found", map[string]any{"action": "thumbnail_open", "decodedRelativePath": resolvedRelPath, "error": statErr.Error()})
 			return c.Status(fiber.StatusNotFound).SendString("No thumbnail")

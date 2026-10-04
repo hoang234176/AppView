@@ -42,16 +42,35 @@ func GetDBPath() string {
 	if err != nil || home == "" {
 		home = "/tmp"
 	}
-	return filepath.Join(home, ".tmp-appview", "thumbnail", "metadata.db")
+	return filepath.Join(home, ".tmp-appview", "metadata", "metadata.db")
 }
 
 // InitDB initializes the SQLite metadata database with WAL mode and high performance pragmas
 func InitDB() error {
 	dbOnce.Do(func() {
+		home, err := os.UserHomeDir()
+		if err != nil || home == "" {
+			home = "/tmp"
+		}
+		// Ensure dedicated thumbnail staging directory exists
+		_ = os.MkdirAll(filepath.Join(home, ".tmp-appview", "thumbnail"), 0755)
+
 		dbPath := GetDBPath()
 		if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 			dbErr = fmt.Errorf("failed to create metadata db directory: %w", err)
 			return
+		}
+
+		// Backward-compatible migration: migrate from ~/.tmp-appview/thumbnail/metadata.db if present
+		if os.Getenv("METADATA_DB_PATH") == "" {
+			oldPath := filepath.Join(home, ".tmp-appview", "thumbnail", "metadata.db")
+			if _, statOld := os.Stat(oldPath); statOld == nil {
+				if _, statNew := os.Stat(dbPath); os.IsNotExist(statNew) {
+					_ = os.Rename(oldPath, dbPath)
+					_ = os.Rename(oldPath+"-wal", dbPath+"-wal")
+					_ = os.Rename(oldPath+"-shm", dbPath+"-shm")
+				}
+			}
 		}
 
 		// Connect using modernc sqlite driver with optimized pragmas

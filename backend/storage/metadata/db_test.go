@@ -82,3 +82,12 @@ func TestMetadataDB(t *testing.T) {
 		t.Fatalf("Expected empty folder map after delete, got %d", len(emptyMap))
 	}
 }
+
+func TestGetDBPath(t *testing.T) {
+	t.Setenv("METADATA_DB_PATH", "")
+	path := GetDBPath()
+	expectedSub := filepath.Join(".tmp-appview", "metadata", "metadata.db")
+	if !filepath.IsAbs(path) || filepath.Base(path) != "metadata.db" || filepath.Base(filepath.Dir(path)) != "metadata" {
+		t.Fatalf("expected db path in .tmp-appview/metadata/metadata.db, got %q (expected suffix %q)", path, expectedSub)
+	}
+}

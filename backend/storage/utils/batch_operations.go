@@ -76,9 +76,15 @@ func copyFileWithProgress(srcFull, destFull string, onProgress ProgressCallback,
 			if nr > 0 {
 				nw, werr := destFile.Write(buf[0:nr])
 				if nw > 0 {
-					*copiedAccumulator += int64(nw)
+					var currentCopied int64
+					if copiedAccumulator != nil {
+						*copiedAccumulator += int64(nw)
+						currentCopied = *copiedAccumulator
+					} else {
+						currentCopied = int64(nw)
+					}
 					if onProgress != nil {
-						onProgress(*copiedAccumulator, fileName)
+						onProgress(currentCopied, fileName)
 					}
 				}
 				if werr != nil {
@@ -119,6 +125,10 @@ func copyFileWithProgress(srcFull, destFull string, onProgress ProgressCallback,
 }
 
 func copyDirWithProgress(srcFull, destFull string, onProgress ProgressCallback, copiedAccumulator *int64) error {
+	if copiedAccumulator == nil {
+		var dummy int64
+		copiedAccumulator = &dummy
+	}
 	if err := os.MkdirAll(destFull, 0755); err != nil {
 		return fmt.Errorf("không thể tạo thư mục đích %s: %w", destFull, err)
 	}
@@ -323,7 +333,8 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 				newThumb := filepath.Join(destRoot, ".thumbnails", filepath.FromSlash(newRelPath))
 				if _, statErr := os.Stat(oldThumb); statErr == nil {
 					_ = os.MkdirAll(filepath.Dir(newThumb), 0755)
-					_ = copyDirWithProgress(oldThumb, newThumb, nil, nil)
+					var dummy int64
+					_ = copyDirWithProgress(oldThumb, newThumb, nil, &dummy)
 					_ = os.RemoveAll(oldThumb)
 				}
 				_ = metadata.DeleteFolderMetadata(srcDrive.ID, item.Path)

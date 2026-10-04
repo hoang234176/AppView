@@ -25,6 +25,7 @@ import (
 
 	"github.com/disintegration/imaging"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 	_ "golang.org/x/image/webp"
 )
@@ -384,13 +385,64 @@ func GetVideoDimensions(fullPath string, modTime time.Time) (int, int) {
 	return 0, 0
 }
 
-var pictureThumbSemaphore = make(chan struct{}, 4)
+var (
+	pictureThumbSemaphore = make(chan struct{}, 4)
+	thumbLocksMu          sync.Mutex
+	thumbLocks            = make(map[string]*thumbLockEntry)
+)
+
+type thumbLockEntry struct {
+	wg  sync.WaitGroup
+	err error
+}
+
+func fileEmpty(p string) bool {
+	fi, err := os.Stat(p)
+	return err != nil || fi.Size() == 0
+}
+
+// EnsureThumbnail verifies if a thumbnail exists and has valid size > 0.
+// If absent or corrupted (size == 0), it generates it atomically with in-flight deduplication.
+func EnsureThumbnail(srcPath string, thumbPath string) error {
+	if fi, statErr := os.Stat(thumbPath); statErr == nil {
+		if fi.Size() > 0 {
+			return nil
+		}
+		// Stale 0-byte file from previous crash/interruption: remove it
+		_ = os.Remove(thumbPath)
+	}
+
+	thumbLocksMu.Lock()
+	if entry, ok := thumbLocks[thumbPath]; ok {
+		thumbLocksMu.Unlock()
+		entry.wg.Wait()
+		if fi, statErr := os.Stat(thumbPath); statErr == nil && fi.Size() > 0 {
+			return nil
+		}
+		return entry.err
+	}
+
+	entry := &thumbLockEntry{}
+	entry.wg.Add(1)
+	thumbLocks[thumbPath] = entry
+	thumbLocksMu.Unlock()
+
+	defer func() {
+		thumbLocksMu.Lock()
+		delete(thumbLocks, thumbPath)
+		thumbLocksMu.Unlock()
+		entry.wg.Done()
+	}()
+
+	entry.err = GenerateThumbnail(srcPath, thumbPath)
+	return entry.err
+}
 
 func GenerateVideoThumbnail(srcPath string, thumbPath string) error {
-	_ = os.MkdirAll(filepath.Dir(thumbPath), 0755)
-
-	ffmpegSemaphore <- struct{}{}
-	defer func() { <-ffmpegSemaphore }()
+	dir := filepath.Dir(thumbPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
 
 	drive := configs.FindDriveForPath(srcPath)
 	relPath, _ := filepath.Rel(drive.Path, srcPath)
@@ -402,26 +454,33 @@ func GenerateVideoThumbnail(srcPath string, thumbPath string) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
+	tmpPath := fmt.Sprintf("%s.tmp-%d-%s.jpg", thumbPath, time.Now().UnixNano(), uuid.NewString()[:8])
+	defer os.Remove(tmpPath)
 
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-ss", "00:00:01", "-i", srcPath, "-vframes", "1", "-q:v", "3", "-vf", "scale='min(400,iw)':-1", thumbPath)
-	if err := cmd.Run(); err == nil {
-		if fi, statErr := os.Stat(thumbPath); statErr == nil && fi.Size() > 0 {
-			LogInfo("[THUMBNAIL] Đã tạo video thumbnail thành công: %s", thumbPath)
-			w, h := GetVideoDimensions(srcPath, fi.ModTime())
-			_ = metadata.UpdateThumbStatus(drive.ID, cleanRel, true, w, h)
-			return nil
+	runFFmpeg := func() error {
+		ffmpegSemaphore <- struct{}{}
+		defer func() { <-ffmpegSemaphore }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-ss", "00:00:01", "-i", srcPath, "-vframes", "1", "-f", "image2", "-update", "1", "-q:v", "3", "-vf", "scale='min(400,iw)':-1", tmpPath)
+		err := cmd.Run()
+		cancel()
+
+		if err != nil || fileEmpty(tmpPath) {
+			_ = os.Remove(tmpPath)
+			ctx0, cancel0 := context.WithTimeout(context.Background(), 8*time.Second)
+			cmd0 := exec.CommandContext(ctx0, "ffmpeg", "-y", "-ss", "00:00:00", "-i", srcPath, "-vframes", "1", "-f", "image2", "-update", "1", "-q:v", "3", "-vf", "scale='min(400,iw)':-1", tmpPath)
+			err = cmd0.Run()
+			cancel0()
 		}
+		return err
 	}
 
-	ctx0, cancel0 := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel0()
+	_ = runFFmpeg()
 
-	cmd0 := exec.CommandContext(ctx0, "ffmpeg", "-y", "-ss", "00:00:00", "-i", srcPath, "-vframes", "1", "-q:v", "3", "-vf", "scale='min(400,iw)':-1", thumbPath)
-	if err := cmd0.Run(); err == nil {
-		if fi, statErr := os.Stat(thumbPath); statErr == nil && fi.Size() > 0 {
-			LogInfo("[THUMBNAIL] Đã tạo video thumbnail tại frame 0 thành công: %s", thumbPath)
+	if fi, statErr := os.Stat(tmpPath); statErr == nil && fi.Size() > 0 {
+		if renameErr := os.Rename(tmpPath, thumbPath); renameErr == nil {
+			LogInfo("[THUMBNAIL] Đã tạo video thumbnail thành công: %s", thumbPath)
 			w, h := GetVideoDimensions(srcPath, fi.ModTime())
 			_ = metadata.UpdateThumbStatus(drive.ID, cleanRel, true, w, h)
 			return nil
@@ -433,7 +492,10 @@ func GenerateVideoThumbnail(srcPath string, thumbPath string) error {
 }
 
 func GenerateThumbnail(srcPath string, thumbPath string) error {
-	_ = os.MkdirAll(filepath.Dir(thumbPath), 0755)
+	dir := filepath.Dir(thumbPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
 
 	if IsVideoFile(srcPath) {
 		return GenerateVideoThumbnail(srcPath, thumbPath)
@@ -453,15 +515,32 @@ func GenerateThumbnail(srcPath string, thumbPath string) error {
 
 	thumbImg := imaging.Fit(srcImg, 400, 400, imaging.Lanczos)
 
-	out, err := os.Create(thumbPath)
+	// Atomic write: write to temp file on same folder, then rename
+	tmpPath := fmt.Sprintf("%s.tmp-%d-%s.jpg", thumbPath, time.Now().UnixNano(), uuid.NewString()[:8])
+	defer os.Remove(tmpPath)
+
+	out, err := os.Create(tmpPath)
 	if err != nil {
-		LogError("[THUMBNAIL] Không thể tạo tệp thumbnail: %s (%v)", thumbPath, err)
+		LogError("[THUMBNAIL] Không thể tạo tệp thumbnail tạm: %s (%v)", tmpPath, err)
 		return err
 	}
-	defer out.Close()
 
-	if err := jpeg.Encode(out, thumbImg, &jpeg.Options{Quality: 75}); err != nil {
-		LogError("[THUMBNAIL] Lỗi encode JPEG: %s (%v)", thumbPath, err)
+	encodeErr := jpeg.Encode(out, thumbImg, &jpeg.Options{Quality: 75})
+	closeErr := out.Close()
+	if encodeErr != nil {
+		LogError("[THUMBNAIL] Lỗi encode JPEG: %s (%v)", tmpPath, encodeErr)
+		return encodeErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+
+	if fi, statErr := os.Stat(tmpPath); statErr != nil || fi.Size() == 0 {
+		return fmt.Errorf("tệp thumbnail tạm rỗng hoặc không hợp lệ")
+	}
+
+	if err := os.Rename(tmpPath, thumbPath); err != nil {
+		LogError("[THUMBNAIL] Không thể hoàn tất đổi tên thumbnail: %s (%v)", thumbPath, err)
 		return err
 	}
 

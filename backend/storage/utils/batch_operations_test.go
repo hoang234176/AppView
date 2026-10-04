@@ -112,3 +112,51 @@ func TestExecuteBatchCrossDrive(t *testing.T) {
 		t.Fatalf("source file was not deleted after cross-drive move")
 	}
 }
+
+func TestExecuteBatchCrossDrive_FolderWithThumbnails(t *testing.T) {
+	driveA := t.TempDir()
+	driveB := t.TempDir()
+
+	// Create folder with file in Drive A
+	folderA := filepath.Join(driveA, "photos")
+	_ = os.MkdirAll(folderA, 0755)
+	fileA := filepath.Join(folderA, "sample.jpg")
+	_ = os.WriteFile(fileA, []byte("photo-content"), 0644)
+
+	// Create thumbnail directory and thumbnail file for this folder in Drive A
+	thumbDirA := filepath.Join(driveA, ".thumbnails", "photos")
+	_ = os.MkdirAll(thumbDirA, 0755)
+	thumbFileA := filepath.Join(thumbDirA, "sample.jpg")
+	_ = os.WriteFile(thumbFileA, []byte("thumb-content"), 0644)
+
+	items := []BatchItem{
+		{Type: "folder", Path: "photos"},
+	}
+
+	// Move folder across drives (previously panicked with nil pointer dereference on copiedAccumulator)
+	err := ExecuteBatchCrossDrive(driveA, driveB, items, "album", "move", nil)
+	if err != nil {
+		t.Fatalf("ExecuteBatchCrossDrive folder move failed: %v", err)
+	}
+
+	// Verify target folder exists in Drive B
+	destFolderB := filepath.Join(driveB, "album", "photos")
+	destFileB := filepath.Join(destFolderB, "sample.jpg")
+	if _, err := os.Stat(destFileB); os.IsNotExist(err) {
+		t.Fatalf("destination file %s does not exist", destFileB)
+	}
+
+	// Verify thumbnail was moved to Drive B
+	destThumbB := filepath.Join(driveB, ".thumbnails", "album", "photos", "sample.jpg")
+	if _, err := os.Stat(destThumbB); os.IsNotExist(err) {
+		t.Fatalf("destination thumbnail %s does not exist", destThumbB)
+	}
+
+	// Verify source folder and source thumbnail were removed
+	if _, err := os.Stat(folderA); !os.IsNotExist(err) {
+		t.Fatalf("source folder still exists after move")
+	}
+	if _, err := os.Stat(thumbDirA); !os.IsNotExist(err) {
+		t.Fatalf("source thumbnail dir still exists after move")
+	}
+}

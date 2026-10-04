@@ -7,6 +7,7 @@ import '../models/video_item.dart';
 import '../utils/formatters.dart';
 import '../screens/video_player_screen.dart';
 import '../providers/app_state_provider.dart';
+import '../api/api_config.dart';
 import 'media_info_dialog.dart';
 import 'batch_action_dialog.dart';
 import 'rolling_number.dart';
@@ -229,6 +230,9 @@ class VideoGrid extends StatelessWidget {
   }
 
   Widget _buildVideoCard(BuildContext context, VideoItem video, int index, AppStateProvider appState) {
+    final thumbUrl = (video.thumbnailUrl != null && video.thumbnailUrl!.isNotEmpty)
+        ? video.thumbnailUrl!
+        : Formatters.getVideoThumbnailUrl(ApiConfig.baseUrl, video);
     final isSelectMode = appState.isSelectMode;
     final isSelected = appState.isVideoSelected(video.path);
 
@@ -279,9 +283,9 @@ class VideoGrid extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   Container(color: const Color(0xFF121316)),
-                  if ((video.thumbnailUrl ?? '').isNotEmpty)
+                  if (thumbUrl.isNotEmpty)
                     CachedNetworkImage(
-                      imageUrl: video.thumbnailUrl!,
+                      imageUrl: thumbUrl,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Shimmer.fromColors(
                         baseColor: const Color(0xFF202124),
