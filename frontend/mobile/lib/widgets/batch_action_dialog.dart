@@ -6,6 +6,7 @@ import '../api/folder_api.dart';
 import '../providers/app_state_provider.dart';
 import 'app_toast.dart';
 import 'rolling_number.dart';
+import 'conflict_resolution_dialog.dart';
 
 class BatchActionDialog extends StatefulWidget {
   final String action; // 'copy', 'move', 'delete'
@@ -149,7 +150,40 @@ class _BatchActionDialogState extends State<BatchActionDialog> {
         });
       }
     } else {
-      // Copy or Move
+      // Copy or Move: check conflicts first
+      final chk = await FolderApi.checkBatchConflicts(
+        action: widget.action,
+        items: widget.items,
+        destFolder: _selectedFolderPath,
+        srcDrive: appState.activeDrive,
+        destDrive: _destDrive,
+      );
+
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      Map<String, String>? resolutions;
+      if (chk.success && chk.data?['has_conflicts'] == true) {
+        final conflictListRaw = chk.data?['conflicts'] as List? ?? [];
+        final conflictModels = conflictListRaw
+            .whereType<Map<String, dynamic>>()
+            .map((c) => ConflictItemModel.fromJson(c))
+            .toList();
+
+        if (conflictModels.isNotEmpty) {
+          resolutions = await ConflictResolutionDialog.show(
+            context,
+            conflicts: conflictModels,
+            action: widget.action,
+          );
+          if (resolutions == null) {
+            // User cancelled conflict dialog
+            return;
+          }
+        }
+      }
+
+      if (!mounted) return;
       Navigator.of(context).pop();
       appState.exitSelectMode();
       appState.startTransfer(
@@ -157,6 +191,7 @@ class _BatchActionDialogState extends State<BatchActionDialog> {
         destFolder: _selectedFolderPath,
         destDrive: _destDrive,
         items: widget.items,
+        resolutions: resolutions,
       );
     }
   }

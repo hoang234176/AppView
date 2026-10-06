@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -37,11 +38,12 @@ var (
 )
 
 type BatchRequest struct {
-	Action     string            `json:"action"` // "copy", "move", "delete"
-	Items      []utils.BatchItem `json:"items"`
-	DestFolder string            `json:"dest_folder"`
-	SrcDrive   string            `json:"src_drive"`
-	DestDrive  string            `json:"dest_drive"`
+	Action      string            `json:"action"` // "copy", "move", "delete"
+	Items       []utils.BatchItem `json:"items"`
+	DestFolder  string            `json:"dest_folder"`
+	SrcDrive    string            `json:"src_drive"`
+	DestDrive   string            `json:"dest_drive"`
+	Resolutions map[string]string `json:"resolutions,omitempty"` // item.Path -> "keep_both" | "overwrite" | "skip"
 }
 
 // HandleBatchItems handles batch copy, move, and delete.
@@ -59,6 +61,21 @@ func HandleBatchItems(c *fiber.Ctx) error {
 
 	if len(req.Items) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Danh sách phần tử cần xử lý trống"})
+	}
+
+	// Apply resolutions map if provided
+	if req.Resolutions != nil {
+		for i := range req.Items {
+			if req.Items[i].Resolution == "" {
+				cleanP := filepath.ToSlash(filepath.Clean(req.Items[i].Path))
+				baseN := filepath.Base(cleanP)
+				if r, ok := req.Resolutions[cleanP]; ok {
+					req.Items[i].Resolution = r
+				} else if r, ok := req.Resolutions[baseN]; ok {
+					req.Items[i].Resolution = r
+				}
+			}
+		}
 	}
 
 	// Resolve srcRoot and destRoot
@@ -326,5 +343,143 @@ func GetBatchJobStatus(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"job":     job,
+	})
+}
+
+type ConflictSide struct {
+	Drive        string `json:"drive"`
+	Path         string `json:"path"`
+	Name         string `json:"name"`
+	Size         int64  `json:"size"`
+	ModTime      string `json:"mod_time"`
+	IsDir        bool   `json:"is_dir"`
+	ThumbnailURL string `json:"thumbnail_url,omitempty"`
+}
+
+type ConflictItem struct {
+	FileName string       `json:"file_name"`
+	Type     string       `json:"type"` // "video", "picture", "folder", "archive", "file"
+	Src      ConflictSide `json:"src"`
+	Dest     ConflictSide `json:"dest"`
+}
+
+// HandleCheckBatchConflicts checks which items collide in destination folder.
+// POST /api/v1/items/batch/check-conflicts
+func HandleCheckBatchConflicts(c *fiber.Ctx) error {
+	var req BatchRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Dữ liệu yêu cầu không hợp lệ"})
+	}
+
+	req.Action = strings.ToLower(strings.TrimSpace(req.Action))
+	if req.Action == "" {
+		req.Action = "copy"
+	}
+	if req.Action != "copy" && req.Action != "move" {
+		return c.JSON(fiber.Map{"has_conflicts": false, "conflicts": []ConflictItem{}})
+	}
+
+	if len(req.Items) == 0 {
+		return c.JSON(fiber.Map{"has_conflicts": false, "conflicts": []ConflictItem{}})
+	}
+
+	srcDrive := req.SrcDrive
+	if srcDrive == "" {
+		srcDrive = c.Query("drive", c.Get("X-Drive", ""))
+	}
+	srcRoot := configs.ResolveDriveRoot(srcDrive)
+
+	destDrive := req.DestDrive
+	if destDrive == "" {
+		destDrive = srcDrive
+	}
+	destRoot := configs.ResolveDriveRoot(destDrive)
+	isSameDrive := (filepath.Clean(srcRoot) == filepath.Clean(destRoot))
+
+	cleanDest := filepath.Clean(req.DestFolder)
+	if cleanDest == "." || cleanDest == "/" {
+		cleanDest = ""
+	}
+	destFolderPath := filepath.Join(destRoot, cleanDest)
+
+	conflicts := make([]ConflictItem, 0)
+
+	for _, item := range req.Items {
+		cleanSrc := filepath.Clean(item.Path)
+		if cleanSrc == "." || cleanSrc == "/" || cleanSrc == "" {
+			continue
+		}
+		srcFull := filepath.Join(srcRoot, cleanSrc)
+		fileName := filepath.Base(srcFull)
+		destFull := filepath.Join(destFolderPath, fileName)
+		destRelPath := filepath.ToSlash(filepath.Join(cleanDest, fileName))
+
+		destStat, err := os.Stat(destFull)
+		if err != nil {
+			// Không tồn tại ở thư mục đích -> không xung đột
+			continue
+		}
+
+		// Nếu cùng ổ đĩa, di chuyển lên chính nó -> bỏ qua
+		if isSameDrive && req.Action == "move" && filepath.Clean(srcFull) == filepath.Clean(destFull) {
+			continue
+		}
+
+		srcStat, srcErr := os.Stat(srcFull)
+		srcSize := int64(0)
+		srcModTime := ""
+		srcIsDir := false
+		if srcErr == nil {
+			srcSize = srcStat.Size()
+			srcModTime = srcStat.ModTime().Format("2006-01-02 15:04:05")
+			srcIsDir = srcStat.IsDir()
+		}
+
+		itemType := "file"
+		lowerName := strings.ToLower(fileName)
+		if destStat.IsDir() || srcIsDir {
+			itemType = "folder"
+		} else if utils.IsVideoFile(fileName) {
+			itemType = "video"
+		} else if utils.IsImageFile(fileName) {
+			itemType = "picture"
+		} else if strings.HasSuffix(lowerName, ".zip") || strings.HasSuffix(lowerName, ".rar") || strings.HasSuffix(lowerName, ".7z") || strings.HasSuffix(lowerName, ".tar") || strings.HasSuffix(lowerName, ".gz") {
+			itemType = "archive"
+		}
+
+		srcThumbUrl := ""
+		destThumbUrl := ""
+		if itemType == "video" || itemType == "picture" {
+			srcThumbUrl = fmt.Sprintf("/api/v1/thumbnails/%s/%s", srcDrive, filepath.ToSlash(cleanSrc))
+			destThumbUrl = fmt.Sprintf("/api/v1/thumbnails/%s/%s", destDrive, destRelPath)
+		}
+
+		conflicts = append(conflicts, ConflictItem{
+			FileName: fileName,
+			Type:     itemType,
+			Src: ConflictSide{
+				Drive:        srcDrive,
+				Path:         filepath.ToSlash(cleanSrc),
+				Name:         fileName,
+				Size:         srcSize,
+				ModTime:      srcModTime,
+				IsDir:        srcIsDir,
+				ThumbnailURL: srcThumbUrl,
+			},
+			Dest: ConflictSide{
+				Drive:        destDrive,
+				Path:         destRelPath,
+				Name:         fileName,
+				Size:         destStat.Size(),
+				ModTime:      destStat.ModTime().Format("2006-01-02 15:04:05"),
+				IsDir:        destStat.IsDir(),
+				ThumbnailURL: destThumbUrl,
+			},
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"has_conflicts": len(conflicts) > 0,
+		"conflicts":     conflicts,
 	})
 }

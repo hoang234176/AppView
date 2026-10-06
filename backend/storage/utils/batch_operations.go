@@ -13,8 +13,9 @@ import (
 )
 
 type BatchItem struct {
-	Type string `json:"type"` // "folder", "picture", "video", "file"
-	Path string `json:"path"` // relative path within source root
+	Type       string `json:"type"`                 // "folder", "picture", "video", "file"
+	Path       string `json:"path"`                 // relative path within source root
+	Resolution string `json:"resolution,omitempty"` // "overwrite", "keep_both", "skip"
 }
 
 type ProgressCallback func(copiedBytes int64, currentFile string)
@@ -171,6 +172,23 @@ func getAvailableCopyPath(destFolder, fileName string) string {
 	return target
 }
 
+func GetAvailableKeepBothPath(destFolder, fileName string) string {
+	ext := filepath.Ext(fileName)
+	nameWithoutExt := strings.TrimSuffix(fileName, ext)
+	for i := 1; i <= 1000; i++ {
+		var candidate string
+		if ext != "" {
+			candidate = filepath.Join(destFolder, fmt.Sprintf("%s (%d)%s", nameWithoutExt, i, ext))
+		} else {
+			candidate = filepath.Join(destFolder, fmt.Sprintf("%s (%d)", fileName, i))
+		}
+		if _, err := os.Stat(candidate); os.IsNotExist(err) {
+			return candidate
+		}
+	}
+	return filepath.Join(destFolder, fmt.Sprintf("%s (copy)%s", nameWithoutExt, ext))
+}
+
 // ---------------------------------------------------------------------------
 // HÀM 1: ExecuteBatchSameDrive — Xử lý các tác vụ TRONG CÙNG MỘT Ổ CỨNG
 // ---------------------------------------------------------------------------
@@ -203,6 +221,25 @@ func ExecuteBatchSameDrive(rootPath string, items []BatchItem, destRelFolder str
 			if srcFull == destFull {
 				continue
 			}
+			if item.Resolution == "skip" {
+				if _, statErr := os.Stat(destFull); statErr == nil {
+					LogInfo("[BATCH SAME-DRIVE] Bỏ qua phần tử trùng lặp: %s", cleanSrc)
+					continue
+				}
+			} else if item.Resolution == "keep_both" {
+				if _, statErr := os.Stat(destFull); statErr == nil {
+					destFull = GetAvailableKeepBothPath(destFolder, fileName)
+					fileName = filepath.Base(destFull)
+				}
+			} else if item.Resolution == "overwrite" {
+				if _, statErr := os.Stat(destFull); statErr == nil {
+					_ = os.RemoveAll(destFull)
+					drive := configs.FindDriveForPath(rootPath)
+					_ = metadata.DeleteItemMetadata(drive.ID, filepath.ToSlash(filepath.Join(cleanDest, fileName)))
+					_ = os.Remove(filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(filepath.Join(cleanDest, fileName))+".jpg"))
+				}
+			}
+
 			if err := os.MkdirAll(destFolder, 0755); err != nil {
 				return fmt.Errorf("không thể tạo thư mục đích: %w", err)
 			}
@@ -243,7 +280,26 @@ func ExecuteBatchSameDrive(rootPath string, items []BatchItem, destRelFolder str
 		case "copy":
 			if srcFull == destFull {
 				destFull = getAvailableCopyPath(destFolder, fileName)
+				fileName = filepath.Base(destFull)
+			} else if item.Resolution == "skip" {
+				if _, statErr := os.Stat(destFull); statErr == nil {
+					LogInfo("[BATCH SAME-DRIVE] Bỏ qua phần tử trùng lặp: %s", cleanSrc)
+					continue
+				}
+			} else if item.Resolution == "keep_both" {
+				if _, statErr := os.Stat(destFull); statErr == nil {
+					destFull = GetAvailableKeepBothPath(destFolder, fileName)
+					fileName = filepath.Base(destFull)
+				}
+			} else if item.Resolution == "overwrite" {
+				if _, statErr := os.Stat(destFull); statErr == nil {
+					_ = os.RemoveAll(destFull)
+					drive := configs.FindDriveForPath(rootPath)
+					_ = metadata.DeleteItemMetadata(drive.ID, filepath.ToSlash(filepath.Join(cleanDest, fileName)))
+					_ = os.Remove(filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(filepath.Join(cleanDest, fileName))+".jpg"))
+				}
 			}
+
 			if info.IsDir() {
 				if err := copyDirWithProgress(srcFull, destFull, onProgress, &copiedBytes); err != nil {
 					return err
@@ -301,6 +357,27 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 		if err != nil {
 			LogError("[BATCH CROSS-DRIVE] Không tìm thấy phần tử nguồn: %s (%v)", srcFull, err)
 			continue
+		}
+
+		if action == "copy" || action == "move" {
+			if item.Resolution == "skip" {
+				if _, statErr := os.Stat(destFull); statErr == nil {
+					LogInfo("[BATCH CROSS-DRIVE] Bỏ qua phần tử trùng lặp: %s", cleanSrc)
+					continue
+				}
+			} else if item.Resolution == "keep_both" {
+				if _, statErr := os.Stat(destFull); statErr == nil {
+					destFull = GetAvailableKeepBothPath(destFolder, fileName)
+					fileName = filepath.Base(destFull)
+				}
+			} else if item.Resolution == "overwrite" {
+				if _, statErr := os.Stat(destFull); statErr == nil {
+					_ = os.RemoveAll(destFull)
+					destDrive := configs.FindDriveForPath(destRoot)
+					_ = metadata.DeleteItemMetadata(destDrive.ID, filepath.ToSlash(filepath.Join(cleanDest, fileName)))
+					_ = os.Remove(filepath.Join(destRoot, ".thumbnails", filepath.FromSlash(filepath.Join(cleanDest, fileName))+".jpg"))
+				}
+			}
 		}
 
 		switch action {

@@ -331,10 +331,39 @@ export const deleteFile = async (filePath) => {
 };
 
 /**
+ * Check conflicts for batch copy/move before executing
+ * Endpoint: POST /items/batch/check-conflicts
+ */
+export const checkBatchConflicts = async ({ action, items, destFolder, srcDrive, destDrive }) => {
+  const client = createApiClient();
+  try {
+    const response = await client.post('/items/batch/check-conflicts', {
+      action,
+      items,
+      dest_folder: destFolder,
+      src_drive: srcDrive,
+      dest_drive: destDrive,
+    });
+    return {
+      success: true,
+      has_conflicts: !!response.data?.has_conflicts,
+      conflicts: response.data?.conflicts || [],
+    };
+  } catch (error) {
+    console.error('Lỗi khi kiểm tra xung đột tệp:', error);
+    return {
+      success: false,
+      has_conflicts: false,
+      conflicts: [],
+    };
+  }
+};
+
+/**
  * Execute batch items action (copy, move, delete)
  * Endpoint: POST /items/batch
  */
-export const executeBatchItems = async ({ action, items, destFolder, srcDrive, destDrive }) => {
+export const executeBatchItems = async ({ action, items, destFolder, srcDrive, destDrive, resolutions }) => {
   const client = createApiClient();
   try {
     const response = await client.post('/items/batch', {
@@ -343,6 +372,7 @@ export const executeBatchItems = async ({ action, items, destFolder, srcDrive, d
       dest_folder: destFolder,
       src_drive: srcDrive,
       dest_drive: destDrive,
+      resolutions,
     });
     return {
       success: true,

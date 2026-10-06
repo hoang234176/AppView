@@ -462,6 +462,40 @@ class FolderApi {
     }
   }
 
+  /// Check conflicts for batch copy/move before executing
+  /// Endpoint: POST /items/batch/check-conflicts
+  static Future<ApiResult<Map<String, dynamic>>> checkBatchConflicts({
+    required String action,
+    required List<Map<String, dynamic>> items,
+    required String destFolder,
+    String? srcDrive,
+    String? destDrive,
+  }) async {
+    final dio = _createDio();
+    try {
+      final response = await dio.post(
+        '/items/batch/check-conflicts',
+        data: {
+          'action': action,
+          'items': items,
+          'dest_folder': destFolder,
+          'src_drive': srcDrive ?? ApiConfig.activeDrive,
+          'dest_drive': destDrive ?? srcDrive ?? ApiConfig.activeDrive,
+        },
+      );
+
+      final resData = response.data;
+      if (resData is Map<String, dynamic>) {
+        return ApiResult.success(resData);
+      }
+      return ApiResult.success({'has_conflicts': false, 'conflicts': []});
+    } on DioException catch (e) {
+      return ApiResult.failure(ApiErrorInfo(message: e.message ?? 'Lỗi kiểm tra xung đột'));
+    } catch (e) {
+      return ApiResult.failure(ApiErrorInfo(message: 'Lỗi kiểm tra xung đột: $e'));
+    }
+  }
+
   /// Execute batch items operation (copy, move, delete)
   /// Endpoint: POST /items/batch
   static Future<ApiResult<Map<String, dynamic>>> executeBatchItems({
@@ -470,6 +504,7 @@ class FolderApi {
     required String destFolder,
     String? srcDrive,
     String? destDrive,
+    Map<String, String>? resolutions,
   }) async {
     final dio = _createDio();
     try {
@@ -481,6 +516,7 @@ class FolderApi {
           'dest_folder': destFolder,
           'src_drive': srcDrive ?? ApiConfig.activeDrive,
           'dest_drive': destDrive ?? srcDrive ?? ApiConfig.activeDrive,
+          if (resolutions != null) 'resolutions': resolutions,
         },
       );
 

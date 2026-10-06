@@ -24,6 +24,7 @@ func SetupRoutes(app *fiber.App) {
 		v1.Post("/file/delete", controllers.DeleteFile)
 		v1.Post("/item/move", controllers.HandleMoveItem)
 		v1.Post("/items/batch", controllers.HandleBatchItems)
+		v1.Post("/items/batch/check-conflicts", controllers.HandleCheckBatchConflicts)
 		v1.Get("/jobs/batch/:job_id", controllers.GetBatchJobStatus)
 
 		// Primary requested drive routes: e.g. /api/v1/pictures/SSD/*, /api/v1/thumbnails/SSD/*, /api/v1/thumbnail/SSD/*

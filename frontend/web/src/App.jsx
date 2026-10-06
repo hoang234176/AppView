@@ -22,7 +22,8 @@ import { DownloadMediaModal } from './components/DownloadMediaModal';
 import { DownloadPanelModal } from './components/DownloadPanelModal';
 import { DownloadSnackbar } from './components/DownloadSnackbar';
 import { BatchActionModal } from './components/BatchActionModal';
-import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
+import { ConflictResolutionModal } from './components/ConflictResolutionModal';
+import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, checkBatchConflicts, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
 import {
   getApiBaseUrl,
@@ -141,6 +142,12 @@ function App() {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState(new Map());
   const [batchModalState, setBatchModalState] = useState({ isOpen: false, action: null });
+  const [conflictModalData, setConflictModalData] = useState({
+    isOpen: false,
+    conflicts: [],
+    action: 'copy',
+    pendingBatch: null,
+  });
   const [transferTasks, setTransferTasks] = useState([]);
   const transferTasksRef = useRef(transferTasks);
   transferTasksRef.current = transferTasks;
@@ -1040,12 +1047,7 @@ function App() {
     });
   }, []);
 
-  const handleExecuteBatch = useCallback(async ({ action, selectedFolder, destDrive, items }) => {
-    setBatchModalState({ isOpen: false, action: null, items: [] });
-    if (isSelectMode) {
-      handleExitSelectMode();
-    }
-
+  const runBatchExecution = useCallback(async ({ action, selectedFolder, destDrive, items, resolutions }) => {
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const destDisplayName = selectedFolder ? `/${selectedFolder}` : '/ (Thư mục gốc)';
 
@@ -1072,6 +1074,7 @@ function App() {
       destFolder: selectedFolder,
       srcDrive: activeDrive,
       destDrive: destDrive || activeDrive,
+      resolutions,
     });
 
     if (!res.success) {
@@ -1133,7 +1136,47 @@ function App() {
         )
       );
     }
-  }, [activeDrive, handleExitSelectMode, handleRefreshAll]);
+  }, [activeDrive, handleRefreshAll]);
+
+  const handleExecuteBatch = useCallback(async ({ action, selectedFolder, destDrive, items }) => {
+    setBatchModalState({ isOpen: false, action: null, items: [] });
+    if (isSelectMode) {
+      handleExitSelectMode();
+    }
+
+    if (action === 'copy' || action === 'move') {
+      try {
+        const chk = await checkBatchConflicts({
+          action,
+          items,
+          destFolder: selectedFolder,
+          srcDrive: activeDrive,
+          destDrive: destDrive || activeDrive,
+        });
+        if (chk.success && chk.has_conflicts && chk.conflicts.length > 0) {
+          setConflictModalData({
+            isOpen: true,
+            conflicts: chk.conflicts,
+            action,
+            pendingBatch: { action, selectedFolder, destDrive, items },
+          });
+          return;
+        }
+      } catch (err) {
+        console.error('Lỗi kiểm tra xung đột:', err);
+      }
+    }
+
+    runBatchExecution({ action, selectedFolder, destDrive, items });
+  }, [activeDrive, isSelectMode, handleExitSelectMode, runBatchExecution]);
+
+  const handleResolveConflicts = useCallback(({ resolutions }) => {
+    const pending = conflictModalData.pendingBatch;
+    setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null });
+    if (pending) {
+      runBatchExecution({ ...pending, resolutions });
+    }
+  }, [conflictModalData, runBatchExecution]);
 
   const hasMore = (totalFolders > folders.length) || (totalPictures > pictures.length) || (totalVideos > videos.length);
 
@@ -1553,6 +1596,15 @@ function App() {
           drives={drives}
           activeDrive={activeDrive}
           onConfirm={handleExecuteBatch}
+        />
+
+        {/* Conflict Resolution Modal with Side-by-Side Thumbnail Comparison */}
+        <ConflictResolutionModal
+          isOpen={conflictModalData.isOpen}
+          conflicts={conflictModalData.conflicts}
+          action={conflictModalData.action}
+          onResolve={handleResolveConflicts}
+          onClose={() => setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null })}
         />
 
         {/* Floating Toast Notification */}

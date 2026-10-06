@@ -528,6 +528,7 @@ class AppStateProvider extends ChangeNotifier {
     required String destFolder,
     required String destDrive,
     required List<Map<String, dynamic>> items,
+    Map<String, String>? resolutions,
   }) async {
     _transferPollTimer?.cancel();
     _transferPollTimer = null;
@@ -549,6 +550,7 @@ class AppStateProvider extends ChangeNotifier {
       destFolder: destFolder,
       srcDrive: _activeDrive,
       destDrive: destDrive,
+      resolutions: resolutions,
     );
 
     if (!result.success) {
