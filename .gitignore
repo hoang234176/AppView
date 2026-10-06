@@ -9,3 +9,6 @@ __pycache__/
 
 # Go
 /backend/storage/backend
+
+# AppView local state & temporary build artifacts
+.tmp-appview/
