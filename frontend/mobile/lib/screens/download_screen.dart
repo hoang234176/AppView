@@ -282,16 +282,6 @@ class _AddMediaFireArchiveDialogState
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                FolderPickerView(
-                  destination: _selectedDest,
-                  onChanged: (newDest) => setState(() => _selectedDest = newDest),
-                  disabled: _isSubmitting,
-                  accentColor: AppTheme.googleBlue,
-                  height: 180,
-                ),
-
-                const SizedBox(height: 12),
                 const Text(
                   'Mật khẩu giải nén (nếu có):',
                   style: TextStyle(
@@ -350,6 +340,15 @@ class _AddMediaFireArchiveDialogState
                           ),
                     ),
                   ),
+                ),
+                const SizedBox(height: 12),
+
+                FolderPickerView(
+                  destination: _selectedDest,
+                  onChanged: (newDest) => setState(() => _selectedDest = newDest),
+                  disabled: _isSubmitting,
+                  accentColor: AppTheme.googleBlue,
+                  height: 180,
                 ),
               ],
             ),

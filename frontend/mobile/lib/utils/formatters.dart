@@ -54,6 +54,8 @@ class Formatters {
   }
 
   /// Resolve relative URL to absolute URL using baseUrl origin
+  static String toAbsoluteUrl(String? url, String baseUrl) => _resolveAbsoluteUrl(baseUrl, url);
+
   static String _resolveAbsoluteUrl(String baseUrl, String? url) {
     if (url == null || url.isEmpty) return '';
     if (url.contains('://')) return url;

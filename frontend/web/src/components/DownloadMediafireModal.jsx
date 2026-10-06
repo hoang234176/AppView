@@ -180,15 +180,6 @@ export const DownloadMediafireModal = ({
             </div>
           </div>
 
-          {/* Interactive Folder Tree Selector */}
-          <FolderPicker
-            destination={destination}
-            onChangeDestination={setDestination}
-            treeData={treeData}
-            onError={setErrorMsg}
-            disabled={isSubmitting}
-          />
-
           {/* Password Input with type="password" & Toggle */}
           <div>
             <label className="block text-gray-300 font-semibold mb-1 flex items-center gap-1">
@@ -213,6 +204,15 @@ export const DownloadMediafireModal = ({
               </button>
             </div>
           </div>
+
+          {/* Interactive Folder Tree Selector */}
+          <FolderPicker
+            destination={destination}
+            onChangeDestination={setDestination}
+            treeData={treeData}
+            onError={setErrorMsg}
+            disabled={isSubmitting}
+          />
 
           {/* Action Buttons */}
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#383c42]">
