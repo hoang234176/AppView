@@ -296,12 +296,13 @@ func EnsureFaststartMP4(fullPath string) string {
 		return fullPath
 	}
 
+	drive := configs.FindDriveForPath(fullPath)
 	dir := filepath.Dir(fullPath)
-	relDir, err := filepath.Rel(configs.DEFAULT_ROOT_PATH, dir)
-	if err != nil {
+	relDir, err := filepath.Rel(drive.Path, dir)
+	if err != nil || strings.HasPrefix(relDir, "..") {
 		relDir = ""
 	}
-	cacheDir := filepath.Join(configs.DEFAULT_ROOT_PATH, ".thumbnails", relDir)
+	cacheDir := filepath.Join(drive.Path, ".thumbnails", relDir)
 	base := filepath.Base(fullPath)
 	faststartPath := filepath.Join(cacheDir, base+".faststart.mp4")
 
@@ -327,7 +328,7 @@ func EnsureFaststartMP4(fullPath string) string {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
-		cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", fullPath, "-c", "copy", "-movflags", "+faststart", tempPath)
+		cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", fullPath, "-c", "copy", "-movflags", "+faststart", "-f", "mp4", tempPath)
 		if err := cmd.Run(); err == nil {
 			if fi, statErr := os.Stat(tempPath); statErr == nil && fi.Size() > 0 {
 				_ = os.Rename(tempPath, faststartPath)

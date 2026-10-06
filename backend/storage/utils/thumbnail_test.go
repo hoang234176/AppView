@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"backend/configs"
 )
 
 func createTestImage(t *testing.T, path string) {
@@ -174,5 +176,58 @@ func TestEnsureMultipleVideoThumbnailsConcurrent(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("DEADLOCK DETECTED: concurrent EnsureThumbnail for multiple videos timed out")
+	}
+}
+
+func TestEnsureFaststartMP4MultiDriveIsolation(t *testing.T) {
+	tempBase := t.TempDir()
+	hddDir := filepath.Join(tempBase, "HDD")
+	ssdDir := filepath.Join(tempBase, "SSD")
+	_ = os.MkdirAll(hddDir, 0755)
+	_ = os.MkdirAll(filepath.Join(ssdDir, "subfolder"), 0755)
+
+	oldDrives := configs.STORAGE_DRIVES
+	oldDefault := configs.DEFAULT_ROOT_PATH
+	configs.DEFAULT_ROOT_PATH = hddDir
+	configs.STORAGE_DRIVES = []configs.StorageDrive{
+		{ID: "HDD", Name: "HDD", Path: hddDir},
+		{ID: "SSD", Name: "SSD", Path: ssdDir},
+	}
+	defer func() {
+		configs.STORAGE_DRIVES = oldDrives
+		configs.DEFAULT_ROOT_PATH = oldDefault
+	}()
+
+	srcVidPath := filepath.Join(ssdDir, "subfolder", "video.mp4")
+	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=blue:s=320x240:d=1", "-vcodec", "libx264", srcVidPath)
+	if err := cmd.Run(); err != nil {
+		t.Skip("ffmpeg not available or failed to create test video")
+	}
+
+	res := EnsureFaststartMP4(srcVidPath)
+	if res != srcVidPath {
+		t.Fatalf("expected EnsureFaststartMP4 to return srcVidPath on cold run, got %s", res)
+	}
+
+	expectedSSDThumbDir := filepath.Join(ssdDir, ".thumbnails", "subfolder")
+	expectedFaststartFile := filepath.Join(expectedSSDThumbDir, "video.mp4.faststart.mp4")
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if fi, err := os.Stat(expectedFaststartFile); err == nil && fi.Size() > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Verify that HDD root was NOT polluted with any "SSD" directory!
+	pollutedHDDDir := filepath.Join(hddDir, "SSD")
+	if _, err := os.Stat(pollutedHDDDir); !os.IsNotExist(err) {
+		t.Fatalf("BUG REPRODUCED: HDD was polluted with directory: %s", pollutedHDDDir)
+	}
+
+	// Verify faststart file was created under SSD's .thumbnails
+	if fi, err := os.Stat(expectedFaststartFile); err != nil || fi.Size() == 0 {
+		t.Fatalf("expected faststart file at %s, err: %v", expectedFaststartFile, err)
 	}
 }
