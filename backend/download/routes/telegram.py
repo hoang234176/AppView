@@ -68,8 +68,9 @@ async def inspect_telegram_url(url: str = Query(..., description="Link tin nhắ
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.get("/download")
 @router.get("/stream")
-async def stream_telegram_media(
+async def download_telegram_media(
     request: Request,
     url: str = Query(..., description="Link tin nhắn Telegram"),
 ):
@@ -79,12 +80,10 @@ async def stream_telegram_media(
     try:
         info = await telegram_service.get_media_info(url)
         file_size = info.get("file_size", 0)
-        mime_type = info.get("mime_type", "video/mp4")
-        raw_file_name = info.get("file_name", "video.mp4")
+        mime_type = info.get("mime_type", "application/octet-stream")
+        raw_file_name = info.get("file_name", "download.bin")
         ascii_file_name = re.sub(r"[^\x20-\x7E]", "_", raw_file_name)
-        safe_disposition = f"inline; filename=\"{ascii_file_name}\"; filename*=UTF-8''{urllib.parse.quote(raw_file_name)}"
-
-        MAX_SERVE_CHUNK = 2 * 1024 * 1024  # 2MB per HTTP slice for fast TTFB
+        safe_disposition = f"attachment; filename=\"{ascii_file_name}\"; filename*=UTF-8''{urllib.parse.quote(raw_file_name)}"
 
         range_header = request.headers.get("range")
         if range_header and file_size > 0:
@@ -97,11 +96,7 @@ async def stream_telegram_media(
                         status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
                         headers={"Content-Range": f"bytes */{file_size}"},
                     )
-                if requested_end is not None:
-                    end = min(requested_end, file_size - 1)
-                else:
-                    end = min(start + MAX_SERVE_CHUNK - 1, file_size - 1)
-
+                end = min(requested_end, file_size - 1) if requested_end is not None else file_size - 1
                 content_length = end - start + 1
 
                 headers = {
@@ -112,7 +107,7 @@ async def stream_telegram_media(
                     "Content-Disposition": safe_disposition,
                 }
 
-                log_info("TELEGRAM_STREAM", f"Stream Range: {start}-{end}/{file_size} ({content_length} bytes) - {raw_file_name}")
+                log_info("TELEGRAM_DOWNLOAD", f"Download Range: {start}-{end}/{file_size} ({content_length} bytes) - {raw_file_name}")
                 chunk_generator = telegram_service.stream_media_chunks(
                     url=url,
                     offset=start,
@@ -134,7 +129,7 @@ async def stream_telegram_media(
         if file_size > 0:
             headers["Content-Length"] = str(file_size)
 
-        log_info("TELEGRAM_STREAM", f"Stream Full File: {file_size} bytes - {raw_file_name}")
+        log_info("TELEGRAM_DOWNLOAD", f"Download Full File: {file_size} bytes - {raw_file_name}")
         chunk_generator = telegram_service.stream_media_chunks(url=url, chunk_size=512 * 1024)
         return StreamingResponse(
             chunk_generator,
@@ -143,7 +138,7 @@ async def stream_telegram_media(
             media_type=mime_type,
         )
     except Exception as e:
-        log_error("TELEGRAM_STREAM", f"Lỗi stream media Telegram: {e}")
+        log_error("TELEGRAM_DOWNLOAD", f"Lỗi tải media Telegram: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 

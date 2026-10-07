@@ -27,12 +27,13 @@ TELEGRAM_HOST_PATTERN = re.compile(
 )
 
 
-def get_internal_stream_url(telegram_url: str) -> str:
-    """Generate internal stream URL pointing to Python Download's /api/v1/telegram/stream endpoint."""
+def get_internal_download_url(telegram_url: str) -> str:
+    """Generate internal download URL pointing to Python Download's /api/v1/telegram/download endpoint."""
     encoded_url = urllib.parse.quote(telegram_url.strip(), safe="")
     # Use 127.0.0.1 and Python Download's configured port
     base_url = f"http://127.0.0.1:{Config.PORT}"
-    return f"{base_url}/api/v1/telegram/stream?url={encoded_url}"
+    return f"{base_url}/api/v1/telegram/download?url={encoded_url}"
+
 
 
 class TelegramResolver(DownloadResolver):
@@ -98,7 +99,6 @@ class TelegramResolver(DownloadResolver):
             else:
                 item_filename = format_video_download_filename("Telegram", item_title, str(msg_id), use_index, ext)
 
-            item_stream_url = get_internal_stream_url(item_url)
             item_thumb = ""
             try:
                 tbytes = await self._service.get_thumbnail_bytes(item_url)
@@ -117,7 +117,7 @@ class TelegramResolver(DownloadResolver):
                 "index": it_idx,
                 "msg_id": item.get("msg_id"),
                 "type": item_type,
-                "url": item_thumb if item_type == "photo" else item_stream_url,
+                "url": item_thumb,
                 "thumbnail": item_thumb,
                 "title": display_title,
                 "filename": item_filename,
@@ -247,10 +247,10 @@ class TelegramResolver(DownloadResolver):
             if not it_title or it_title.startswith("Mục #") or it_title.lower() in ("post", "photo", "image", "media", "video", "telegram media"):
                 it_title = clean_raw_title
 
-            stream_url = get_internal_stream_url(it_url)
+            download_url = get_internal_download_url(it_url)
             it_idx = it.get("index") if (is_album or len(items) > 1) else None
             raw_items.append({
-                "url": stream_url,
+                "url": download_url,
                 "type": "image" if it_type == "photo" else "video",
                 "title": it_title,
                 "extension": ext,
@@ -259,13 +259,13 @@ class TelegramResolver(DownloadResolver):
             })
 
         assigned_items = assign_unique_item_filenames("Telegram", clean_raw_title, str(msg_id), raw_items)
-        primary_stream = assigned_items[0]["url"]
+        primary_download = assigned_items[0]["url"]
         single_filename = assigned_items[0]["filename"]
         first_ext = ".mp4" if assigned_items[0]["type"] == "video" else ".jpeg"
 
         return ResolvedDownload(
             original_url=clean_url,
-            download_url=primary_stream,
+            download_url=primary_download,
             filename=single_filename,
             extension=first_ext,
             source="telegram",

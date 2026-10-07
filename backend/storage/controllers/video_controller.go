@@ -78,9 +78,13 @@ func StreamVideo(c *fiber.Ctx) error {
 
 // StreamMP4Video handles standard MP4 / MOV / M4V container files
 func StreamMP4Video(c *fiber.Ctx, fullPath string) error {
-	c.Set("Content-Type", "video/mp4")
-	streamPath := utils.EnsureFaststartMP4(fullPath)
-	return utils.ServeFileSafely(c, streamPath)
+	ext := strings.ToLower(filepath.Ext(fullPath))
+	if ext == ".mov" {
+		c.Set("Content-Type", "video/quicktime")
+	} else {
+		c.Set("Content-Type", "video/mp4")
+	}
+	return utils.ServeFileSafely(c, fullPath)
 }
 
 // StreamMKVVideo handles Matroska MKV container files

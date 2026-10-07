@@ -290,56 +290,6 @@ func AcquireFFmpeg(ctx context.Context) (func(), error) {
 	}
 }
 
-func EnsureFaststartMP4(fullPath string) string {
-	ext := strings.ToLower(filepath.Ext(fullPath))
-	if ext != ".mp4" && ext != ".mov" && ext != ".m4v" {
-		return fullPath
-	}
-
-	drive := configs.FindDriveForPath(fullPath)
-	dir := filepath.Dir(fullPath)
-	relDir, err := filepath.Rel(drive.Path, dir)
-	if err != nil || strings.HasPrefix(relDir, "..") {
-		relDir = ""
-	}
-	cacheDir := filepath.Join(drive.Path, ".thumbnails", relDir)
-	base := filepath.Base(fullPath)
-	faststartPath := filepath.Join(cacheDir, base+".faststart.mp4")
-
-	if fi, err := os.Stat(faststartPath); err == nil && fi.Size() > 0 {
-		return faststartPath
-	}
-
-	go func() {
-		select {
-		case ffmpegSemaphore <- struct{}{}:
-			defer func() { <-ffmpegSemaphore }()
-		default:
-			return
-		}
-
-		if fi, err := os.Stat(faststartPath); err == nil && fi.Size() > 0 {
-			return
-		}
-
-		_ = os.MkdirAll(cacheDir, 0755)
-		tempPath := faststartPath + ".tmp"
-
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
-		cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", fullPath, "-c", "copy", "-movflags", "+faststart", "-f", "mp4", tempPath)
-		if err := cmd.Run(); err == nil {
-			if fi, statErr := os.Stat(tempPath); statErr == nil && fi.Size() > 0 {
-				_ = os.Rename(tempPath, faststartPath)
-				LogInfo("[FASTSTART] Đã tối ưu MP4 Faststart ở nền thành công: %s", faststartPath)
-			}
-		}
-		_ = os.Remove(tempPath)
-	}()
-
-	return fullPath
-}
 
 func GetVideoDimensions(fullPath string, modTime time.Time) (int, int) {
 	if modTime.IsZero() {
