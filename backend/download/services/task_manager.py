@@ -299,7 +299,7 @@ class TaskManager:
 
         if task:
             try:
-                from archive.go_archive_client import go_archive_client
+                from archive.mediafire import go_archive_client
                 await go_archive_client.delete(task_id)
             except Exception as e:
                 log_warning("DOWNLOAD SERVICE", f"Không thể yêu cầu Go dọn task [{task_id}]: {e}")

@@ -91,3 +91,71 @@ func TestGetDBPath(t *testing.T) {
 		t.Fatalf("expected db path in .tmp-appview/metadata/metadata.db, got %q (expected suffix %q)", path, expectedSub)
 	}
 }
+
+func TestFolderMeta(t *testing.T) {
+	tempDir := t.TempDir()
+	dbFile := filepath.Join(tempDir, "metadata.db")
+	t.Setenv("METADATA_DB_PATH", dbFile)
+
+	// 1. Insert folder meta
+	fm1 := &FolderMeta{
+		Drive:     "HDD",
+		Folder:    "Albums/Cosplay",
+		HasImages: true,
+		Previews:  []string{"Albums/Cosplay/001.jpg", "Albums/Cosplay/002.jpg"},
+		UpdatedAt: time.Now(),
+	}
+	fm2 := &FolderMeta{
+		Drive:     "HDD",
+		Folder:    "Albums/EmptyDoc",
+		HasImages: false,
+		Previews:  []string{},
+		UpdatedAt: time.Now(),
+	}
+
+	if err := UpsertFolderMeta(fm1); err != nil {
+		t.Fatalf("UpsertFolderMeta fm1 failed: %v", err)
+	}
+	if err := UpsertFolderMeta(fm2); err != nil {
+		t.Fatalf("UpsertFolderMeta fm2 failed: %v", err)
+	}
+
+	// 2. Batch get
+	batch, err := GetFoldersMetadataBatch("HDD", []string{"Albums/Cosplay", "Albums/EmptyDoc", "Albums/NonExistent"})
+	if err != nil {
+		t.Fatalf("GetFoldersMetadataBatch failed: %v", err)
+	}
+	if len(batch) != 2 {
+		t.Fatalf("Expected 2 records, got %d", len(batch))
+	}
+	if !batch["Albums/Cosplay"].HasImages || len(batch["Albums/Cosplay"].Previews) != 2 {
+		t.Fatalf("Unexpected fm1 data: %+v", batch["Albums/Cosplay"])
+	}
+	if batch["Albums/EmptyDoc"].HasImages || len(batch["Albums/EmptyDoc"].Previews) != 0 {
+		t.Fatalf("Unexpected fm2 data: %+v", batch["Albums/EmptyDoc"])
+	}
+
+	// 3. Rename
+	if err := RenameFolderMetadata("HDD", "Albums", "Collections"); err != nil {
+		t.Fatalf("RenameFolderMetadata failed: %v", err)
+	}
+	batchRenamed, err := GetFoldersMetadataBatch("HDD", []string{"Collections/Cosplay", "Collections/EmptyDoc", "Albums/Cosplay"})
+	if err != nil {
+		t.Fatalf("GetFoldersMetadataBatch after rename failed: %v", err)
+	}
+	if len(batchRenamed) != 2 || batchRenamed["Collections/Cosplay"] == nil {
+		t.Fatalf("RenameFolderMetadata didn't update folder_meta: %+v", batchRenamed)
+	}
+
+	// 4. Delete
+	if err := DeleteFolderMetadata("HDD", "Collections/Cosplay"); err != nil {
+		t.Fatalf("DeleteFolderMetadata failed: %v", err)
+	}
+	batchAfterDelete, err := GetFoldersMetadataBatch("HDD", []string{"Collections/Cosplay"})
+	if err != nil {
+		t.Fatalf("GetFoldersMetadataBatch after delete failed: %v", err)
+	}
+	if len(batchAfterDelete) != 0 {
+		t.Fatalf("Expected 0 records after delete, got %d", len(batchAfterDelete))
+	}
+}

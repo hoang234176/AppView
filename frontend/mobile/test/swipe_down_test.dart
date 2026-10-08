@@ -47,7 +47,7 @@ void main() {
     expect(popped, isTrue);
   });
 
-  testWidgets('VideoPlayerScreen pops on vertical swipe down', (WidgetTester tester) async {
+  testWidgets('VideoPlayerScreen pops on horizontal swipe right', (WidgetTester tester) async {
     final videos = [
       VideoItem(
         name: 'Test Video',
@@ -81,7 +81,7 @@ void main() {
 
     expect(find.byType(VideoPlayerScreen), findsOneWidget);
 
-    await tester.drag(find.byType(VideoPlayerScreen), const Offset(0, 300));
+    await tester.drag(find.byType(VideoPlayerScreen), const Offset(300, 0));
     await tester.pumpAndSettle();
 
     expect(find.byType(VideoPlayerScreen), findsNothing);

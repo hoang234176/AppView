@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/settings_provider.dart';
@@ -122,11 +123,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: Consumer<AppStateProvider>(
                       builder: (context, appState, child) {
-                        return RefreshIndicator(
-                          color: AppTheme.googleBlue,
-                          backgroundColor: AppTheme.bgBlock,
-                          onRefresh: () => appState.refreshAll(),
-                          child: _buildBodyContent(appState),
+                        return RawGestureDetector(
+                          gestures: {
+                            _ContentHorizontalDragGestureRecognizer:
+                                GestureRecognizerFactoryWithHandlers<
+                                  _ContentHorizontalDragGestureRecognizer
+                                >(
+                                  () =>
+                                      _ContentHorizontalDragGestureRecognizer(
+                                        edgeExclusionWidth: 48,
+                                      ),
+                                  (recognizer) {
+                                    recognizer.onEnd = (details) {
+                                      if ((details.primaryVelocity ?? 0) > 0) {
+                                        appState.navigateBack();
+                                      }
+                                    };
+                                  },
+                                ),
+                          },
+                          child: RefreshIndicator(
+                            color: AppTheme.googleBlue,
+                            backgroundColor: AppTheme.bgBlock,
+                            onRefresh: () => appState.refreshAll(),
+                            child: _buildBodyContent(appState),
+                          ),
                         );
                       },
                     ),
@@ -260,5 +281,20 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+}
+
+class _ContentHorizontalDragGestureRecognizer
+    extends HorizontalDragGestureRecognizer {
+  _ContentHorizontalDragGestureRecognizer({
+    required this.edgeExclusionWidth,
+  });
+
+  final double edgeExclusionWidth;
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    if (event.position.dx <= edgeExclusionWidth) return;
+    super.addAllowedPointer(event);
   }
 }

@@ -2,9 +2,10 @@ package models
 
 // FolderItem đại diện cho 1 thư mục con cấp 1
 type FolderItem struct {
-	Name string `json:"name"` // Tên thư mục (vd: "school", "travel")
-	Path string `json:"path"` // Đường dẫn tương đối (vd: "school")
-	Type string `json:"type"` // Luôn là "folder"
+	Name     string   `json:"name"`               // Tên thư mục (vd: "school", "travel")
+	Path     string   `json:"path"`               // Đường dẫn tương đối (vd: "school")
+	Type     string   `json:"type"`               // Luôn là "folder"
+	Previews []string `json:"previews,omitempty"` // 1-2 ảnh preview (thumbnail URLs)
 }
 
 // FolderNode dùng cho cây danh mục đệ quy (Sidebar)

@@ -18,7 +18,7 @@ from models.download_task import (
 from services.task_manager import task_manager
 from services.progress_manager import ProgressManager
 from services.websocket_manager import websocket_manager
-from archive.service import archive_service
+from archive.mediafire import archive_service
 from worker.client import coordinator_worker_client
 from routes.telegram import router as telegram_router
 

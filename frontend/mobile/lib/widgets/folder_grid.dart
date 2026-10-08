@@ -6,6 +6,7 @@ import '../providers/app_state_provider.dart';
 import 'folder_action_dialogs.dart';
 import 'batch_action_dialog.dart';
 import 'rolling_number.dart';
+import 'windows_folder_icon.dart';
 
 class FolderGrid extends StatelessWidget {
   final List<FolderItem> folders;
@@ -240,7 +241,6 @@ class FolderGrid extends StatelessWidget {
     final isSelectMode = appState.isSelectMode;
     final isSelected = appState.isFolderSelected(folder.path);
 
-    final Color iconColor = isSelected ? AppTheme.googleBlue : AppTheme.folderYellow;
     final Color bgTint = isSelected
         ? AppTheme.googleBlue.withValues(alpha: 0.08)
         : AppTheme.folderYellow.withValues(alpha: 0.06);
@@ -304,7 +304,10 @@ class FolderGrid extends StatelessWidget {
                           const SizedBox(height: 10), // hard top spacer ≥5%
                           Expanded(
                             child: Center(
-                              child: Icon(Icons.folder_rounded, size: 82, color: iconColor),
+                              child: WindowsFolderIcon(
+                                previews: folder.previews,
+                                size: 84,
+                              ),
                             ),
                           ),
                         ],

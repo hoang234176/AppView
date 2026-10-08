@@ -530,6 +530,82 @@ func GetSubFolders(baseDir string, targetRelPath string) ([]*models.FolderItem, 
 	return folders, nil
 }
 
+// ScanFolderPreviewImages scans the immediate folder directory for up to maxCount media files (images or videos)
+func ScanFolderPreviewImages(fullDir string, relPrefix string, maxCount int) []string {
+	entries, err := os.ReadDir(fullDir)
+	if err != nil {
+		return nil
+	}
+
+	var results []string
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || strings.HasPrefix(entry.Name(), "$") {
+			continue
+		}
+		if IsImageFile(entry.Name()) || IsVideoFile(entry.Name()) {
+			itemRelPath := filepath.ToSlash(filepath.Join(relPrefix, entry.Name()))
+			results = append(results, itemRelPath)
+			if len(results) >= maxCount {
+				break
+			}
+		}
+	}
+
+	return results
+}
+
+// PopulateFolderPreviews enriches FolderItem list with preview thumbnail URLs using SQLite cache
+func PopulateFolderPreviews(drive, baseDir string, folders []*models.FolderItem, baseURL string) {
+	if len(folders) == 0 {
+		return
+	}
+
+	paths := make([]string, len(folders))
+	for i, f := range folders {
+		paths[i] = f.Path
+	}
+
+	metaMap, err := metadata.GetFoldersMetadataBatch(drive, paths)
+	if err != nil {
+		LogWarning("[METADATA] Lỗi truy vấn folder metadata batch: %v", err)
+		metaMap = make(map[string]*metadata.FolderMeta)
+	}
+
+	for _, f := range folders {
+		var previewPaths []string
+		cleanPath := filepath.ToSlash(filepath.Clean(f.Path))
+		if cleanPath == "." {
+			cleanPath = ""
+		}
+
+		if meta, found := metaMap[cleanPath]; found && meta.HasImages && len(meta.Previews) > 0 {
+			previewPaths = meta.Previews
+		} else {
+			// Not cached or previously empty: scan to find previews
+			previewPaths = ScanFolderPreviewImages(filepath.Join(baseDir, f.Path), f.Path, 2)
+			hasImages := len(previewPaths) > 0
+			_ = metadata.UpsertFolderMeta(&metadata.FolderMeta{
+				Drive:     drive,
+				Folder:    cleanPath,
+				HasImages: hasImages,
+				Previews:  previewPaths,
+				UpdatedAt: time.Now(),
+			})
+		}
+
+		if len(previewPaths) > 0 {
+			f.Previews = make([]string, len(previewPaths))
+			for i, p := range previewPaths {
+				encodedPath := EncodePathSegments(p)
+				f.Previews[i] = fmt.Sprintf("%s/api/v1/thumbnails/%s/%s", baseURL, drive, encodedPath)
+			}
+		} else {
+			f.Previews = []string{}
+		}
+	}
+}
+
+
 func CreateSubFolder(baseDir string, targetRelPath string, newFolderName string) (*models.FolderItem, error) {
 	parentPath := filepath.Join(baseDir, targetRelPath)
 	fullPath := filepath.Join(parentPath, newFolderName)

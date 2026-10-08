@@ -908,10 +908,17 @@ class AppStateProvider extends ChangeNotifier {
     if (type == 'folder_created') {
       loadTreeData();
       if (normCurrent == normNewParent) {
+        final baseUrl = ApiConfig.baseUrl;
+        final origin = baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
         final rawItem = event['item'];
         if (rawItem is Map) {
           final f = FolderItem.fromJson(Map<String, dynamic>.from(rawItem));
-          _folders = [f, ..._folders.where((x) => normalize(x.path) != normNew)];
+          final formattedPreviews = f.previews.map((p) {
+            if (p.startsWith('http://') || p.startsWith('https://')) return p;
+            return '$origin${p.startsWith('/') ? '' : '/'}$p';
+          }).toList();
+          final formattedF = FolderItem(name: f.name, path: f.path, type: f.type, previews: formattedPreviews);
+          _folders = [formattedF, ..._folders.where((x) => normalize(x.path) != normNew)];
         } else {
           final folderName = newPath.split('/').last;
           final f = FolderItem(name: folderName, path: newPath);
@@ -920,6 +927,38 @@ class AppStateProvider extends ChangeNotifier {
         _totalFolders++;
         notifyListeners();
         return;
+      }
+      return;
+    }
+
+    // 5b. Folder Updated - Reactively update preview thumbnails
+    if (type == 'folder_updated') {
+      final targetPath = normalize(event['path']?.toString() ?? event['newPath']?.toString() ?? '');
+      dynamic rawPreviews = event['previews'];
+      if (rawPreviews == null && event['item'] is Map) {
+        rawPreviews = event['item']['previews'];
+      }
+      if (targetPath.isNotEmpty && rawPreviews is List) {
+        final baseUrl = ApiConfig.baseUrl;
+        final origin = baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+        final previews = rawPreviews.map((p) {
+          final str = p.toString();
+          if (str.isEmpty) return '';
+          if (str.startsWith('http://') || str.startsWith('https://')) return str;
+          return '$origin${str.startsWith('/') ? '' : '/'}$str';
+        }).where((p) => p.isNotEmpty).toList();
+
+        final idx = _folders.indexWhere((f) => normalize(f.path) == targetPath);
+        if (idx != -1) {
+          final old = _folders[idx];
+          _folders[idx] = FolderItem(
+            name: old.name,
+            path: old.path,
+            type: old.type,
+            previews: previews,
+          );
+          notifyListeners();
+        }
       }
       return;
     }

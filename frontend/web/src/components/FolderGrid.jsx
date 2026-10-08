@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Folder, ArrowRight, Check } from 'lucide-react';
+import { WindowsFolderIcon } from './icons/WindowsFolderIcon';
 import { RollingNumber } from './common/RollingNumber';
 
 const FolderCard = React.memo(({
@@ -10,8 +11,12 @@ const FolderCard = React.memo(({
   onNavigate,
   onFolderContextMenu,
 }) => {
+  const [isCardHovered, setIsCardHovered] = useState(false);
+
   return (
     <div
+      onMouseEnter={() => setIsCardHovered(true)}
+      onMouseLeave={() => setIsCardHovered(false)}
       onClick={() => {
         if (isSelectMode) {
           if (onToggleSelect) onToggleSelect(folder, 'folder');
@@ -58,7 +63,12 @@ const FolderCard = React.memo(({
         <div className="h-3 w-full flex-shrink-0" />
         {/* Remaining space: icon centered inside */}
         <div className="flex-1 flex items-center justify-center">
-          <Folder className="w-[104px] h-[104px] text-yellow-400 fill-yellow-400/20 group-hover:scale-110 transition-transform duration-300 drop-shadow-sm" />
+          <WindowsFolderIcon
+            previews={folder.previews || []}
+            size={102}
+            mode="adaptive"
+            isHovered={isCardHovered}
+          />
         </div>
       </div>
 

@@ -21,6 +21,7 @@ import (
 
 	"backend/configs"
 	"backend/events"
+	"backend/metadata"
 	"backend/multidownload"
 	"backend/utils"
 )
@@ -28,6 +29,7 @@ import (
 // LogInfo is kept local to Python-facing tasks; the common logger remains in
 // utils, which no longer contains API job orchestration.
 func LogInfo(format string, args ...interface{}) { utils.LogInfo(format, args...) }
+func LogWarning(format string, args ...interface{}) { utils.LogWarning(format, args...) }
 
 type ArchivePartItem struct {
 	Filename    string `json:"filename"`
@@ -1250,6 +1252,29 @@ func find7z() (string, error) {
 	return "", fmt.Errorf("không tìm thấy 7zz hoặc 7z")
 }
 
+func run7zExtract(ctx context.Context, sevenZip, archivePath, staging, pwd string) error {
+	_ = os.RemoveAll(staging)
+	if err := os.MkdirAll(staging, 0755); err != nil {
+		return err
+	}
+	args := []string{"x", archivePath, "-o" + staging, "-y", "-bsp1"}
+	if pwd == "" {
+		args = append(args, "-p-")
+	} else {
+		args = append(args, "-p"+pwd)
+	}
+	output, runErr := exec.CommandContext(ctx, sevenZip, args...).CombinedOutput()
+	if runErr != nil {
+		_ = os.RemoveAll(staging)
+		message := string(output)
+		if strings.Contains(strings.ToLower(message), "wrong password") || strings.Contains(strings.ToLower(message), "encrypted") {
+			return fmt.Errorf("password không chính xác hoặc archive cần mật khẩu")
+		}
+		return fmt.Errorf("7-Zip thất bại: %s", strings.TrimSpace(message))
+	}
+	return nil
+}
+
 func extractArchive(job *ArchiveJob, password string) error {
 	job.mu.RLock()
 	archivePath, ctx := job.archivePath, job.ctx
@@ -1266,25 +1291,48 @@ func extractArchive(job *ArchiveJob, password string) error {
 		return err
 	}
 	staging := filepath.Join(workspace, "extracted")
-	_ = os.RemoveAll(staging)
-	if err := os.MkdirAll(staging, 0755); err != nil {
-		return err
-	}
 	setArchiveStage(job, "extracting")
-	args := []string{"x", archivePath, "-o" + staging, "-y", "-bsp1"}
-	if password == "" {
-		args = append(args, "-p-")
+
+	var extractErr error
+	if strings.TrimSpace(password) != "" {
+		extractErr = run7zExtract(ctx, sevenZip, archivePath, staging, strings.TrimSpace(password))
 	} else {
-		args = append(args, "-p"+password)
-	}
-	output, runErr := exec.CommandContext(ctx, sevenZip, args...).CombinedOutput()
-	if runErr != nil {
-		_ = os.RemoveAll(staging)
-		message := string(output)
-		if strings.Contains(strings.ToLower(message), "wrong password") || strings.Contains(strings.ToLower(message), "encrypted") {
-			return fmt.Errorf("password không chính xác hoặc archive cần mật khẩu")
+		// 1. Try extracting without password first
+		extractErr = run7zExtract(ctx, sevenZip, archivePath, staging, "")
+		if extractErr != nil && strings.Contains(strings.ToLower(extractErr.Error()), "password") {
+			p1 := strings.TrimSpace(os.Getenv("PASSWORD_ARCHIVER_1"))
+			p2 := strings.TrimSpace(os.Getenv("PASSWORD_ARCHIVER_2"))
+
+			if p1 != "" || p2 != "" {
+				LogInfo("[ARCHIVE] [%s] tệp yêu cầu mật khẩu, bắt đầu kiểm tra mật khẩu tự động từ .env...", job.ID)
+			}
+
+			// 2. Try PASSWORD_ARCHIVER_1
+			if p1 != "" {
+				LogInfo("[ARCHIVE] [%s] thử giải nén bằng mật khẩu cấu hình sẵn (PASSWORD_ARCHIVER_1)...", job.ID)
+				extractErr = run7zExtract(ctx, sevenZip, archivePath, staging, p1)
+				if extractErr == nil {
+					LogInfo("[ARCHIVE] [%s] giải nén thành công bằng PASSWORD_ARCHIVER_1", job.ID)
+				} else if strings.Contains(strings.ToLower(extractErr.Error()), "password") {
+					LogWarning("[ARCHIVE] [%s] PASSWORD_ARCHIVER_1 không chính xác, chuyển sang PASSWORD_ARCHIVER_2...", job.ID)
+				}
+			}
+
+			// 3. Try PASSWORD_ARCHIVER_2 if still failing with password error
+			if extractErr != nil && strings.Contains(strings.ToLower(extractErr.Error()), "password") && p2 != "" {
+				LogInfo("[ARCHIVE] [%s] thử giải nén bằng mật khẩu cấu hình sẵn (PASSWORD_ARCHIVER_2)...", job.ID)
+				extractErr = run7zExtract(ctx, sevenZip, archivePath, staging, p2)
+				if extractErr == nil {
+					LogInfo("[ARCHIVE] [%s] giải nén thành công bằng PASSWORD_ARCHIVER_2", job.ID)
+				} else if strings.Contains(strings.ToLower(extractErr.Error()), "password") {
+					LogWarning("[ARCHIVE] [%s] cả 2 mật khẩu cấu hình sẵn đều không chính xác, chuyển sang yêu cầu mật khẩu thủ công", job.ID)
+				}
+			}
 		}
-		return fmt.Errorf("7-Zip thất bại: %s", strings.TrimSpace(message))
+	}
+
+	if extractErr != nil {
+		return extractErr
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -1424,7 +1472,46 @@ func commitArchiveResultWithContext(ctx context.Context, job *ArchiveJob) error 
 	if parentPath != "" {
 		publicPath = parentPath + "/" + filepath.Base(finalPath)
 	}
-	if err := events.Publish(events.FilesystemEvent{Type: "folder_created", Drive: targetDrive, Path: publicPath, NewPath: publicPath, ParentPath: parentPath}); err != nil {
+	// 1. Immediately scan and generate 1-2 thumbnails for the new folder
+	initialPreviews := utils.ScanFolderPreviewImages(finalPath, publicPath, 2)
+	previewURLs := make([]string, 0, len(initialPreviews))
+	if len(initialPreviews) > 0 {
+		driveRoot := configs.ResolveDriveRoot(targetDrive)
+		if driveRoot == "" {
+			d := configs.FindDriveForPath(finalPath)
+			driveRoot = d.Path
+		}
+		thumbDir := filepath.Join(driveRoot, ".thumbnails")
+		for _, p := range initialPreviews {
+			fullItemPath := filepath.Join(driveRoot, filepath.FromSlash(p))
+			thumbPath := filepath.Join(thumbDir, filepath.ToSlash(p)+".jpg")
+			_ = utils.EnsureThumbnail(fullItemPath, thumbPath)
+			previewURLs = append(previewURLs, fmt.Sprintf("/api/v1/thumbnails/%s/%s", targetDrive, utils.EncodePathSegments(p)))
+		}
+		_ = metadata.UpsertFolderMeta(&metadata.FolderMeta{
+			Drive:     targetDrive,
+			Folder:    publicPath,
+			HasImages: true,
+			Previews:  initialPreviews,
+			UpdatedAt: time.Now(),
+		})
+	}
+
+	folderItem := map[string]any{
+		"name":     filepath.Base(finalPath),
+		"path":     publicPath,
+		"type":     "folder",
+		"previews": previewURLs,
+	}
+	if err := events.Publish(events.FilesystemEvent{
+		Type:       "folder_created",
+		Drive:      targetDrive,
+		Path:       publicPath,
+		NewPath:    publicPath,
+		ParentPath: parentPath,
+		Previews:   previewURLs,
+		Item:       folderItem,
+	}); err != nil {
 		LogInfo("[ARCHIVE] [%s] không phát được filesystem event sau commit: %v", job.ID, err)
 	}
 	if workspace, err := archiveWorkspace(job.ID); err == nil {
@@ -1433,25 +1520,28 @@ func commitArchiveResultWithContext(ctx context.Context, job *ArchiveJob) error 
 		}
 	}
 	LogInfo("[ARCHIVE] [%s] đã chuyển hoàn tất đến %s: %s", job.ID, targetDrive, finalPath)
-	go pregenerateFolderThumbnails(targetDrive, finalPath)
+	go pregenerateFolderThumbnails(targetDrive, finalPath, publicPath)
 	return nil
 }
 
-func pregenerateFolderThumbnails(driveID, folderPath string) {
+func pregenerateFolderThumbnails(driveID, rootFolder, rootPublicPath string) {
 	driveRoot := configs.ResolveDriveRoot(driveID)
 	if driveRoot == "" {
-		d := configs.FindDriveForPath(folderPath)
+		d := configs.FindDriveForPath(rootFolder)
 		driveRoot = d.Path
 	}
 	if driveRoot == "" {
 		return
 	}
 
-	_ = filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
+	folderPreviewsMap := make(map[string][]string)
+	previewEmitted := make(map[string]int)
+
+	_ = filepath.Walk(rootFolder, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info == nil || info.IsDir() {
 			return nil
 		}
-		if strings.HasPrefix(info.Name(), ".") {
+		if strings.HasPrefix(info.Name(), ".") || strings.HasPrefix(info.Name(), "$") {
 			return nil
 		}
 
@@ -1464,7 +1554,57 @@ func pregenerateFolderThumbnails(driveID, folderPath string) {
 			thumbPath := filepath.Join(thumbDir, filepath.ToSlash(relPath)+".jpg")
 
 			_ = utils.EnsureThumbnail(path, thumbPath)
-			time.Sleep(30 * time.Millisecond)
+
+			// Determine which folder this media file directly belongs to
+			itemDir := filepath.Dir(path)
+			var folderPublic string
+			if filepath.Clean(itemDir) == filepath.Clean(rootFolder) {
+				folderPublic = rootPublicPath
+			} else {
+				subRel, _ := filepath.Rel(rootFolder, itemDir)
+				if rootPublicPath != "" {
+					folderPublic = filepath.ToSlash(filepath.Join(rootPublicPath, subRel))
+				} else {
+					folderPublic = filepath.ToSlash(subRel)
+				}
+			}
+
+			if folderPublic != "" && len(folderPreviewsMap[folderPublic]) < 2 {
+				folderPreviewsMap[folderPublic] = append(folderPreviewsMap[folderPublic], filepath.ToSlash(relPath))
+				count := len(folderPreviewsMap[folderPublic])
+				if count > previewEmitted[folderPublic] {
+					previewEmitted[folderPublic] = count
+					previews := folderPreviewsMap[folderPublic]
+
+					_ = metadata.UpsertFolderMeta(&metadata.FolderMeta{
+						Drive:     driveID,
+						Folder:    folderPublic,
+						HasImages: true,
+						Previews:  previews,
+						UpdatedAt: time.Now(),
+					})
+
+					previewURLs := make([]string, len(previews))
+					for i, p := range previews {
+						previewURLs[i] = fmt.Sprintf("/api/v1/thumbnails/%s/%s", driveID, utils.EncodePathSegments(p))
+					}
+
+					_ = events.Publish(events.FilesystemEvent{
+						Type:     "folder_updated",
+						Drive:    driveID,
+						Path:     folderPublic,
+						Previews: previewURLs,
+						Item: map[string]any{
+							"name":     filepath.Base(folderPublic),
+							"path":     folderPublic,
+							"type":     "folder",
+							"previews": previewURLs,
+						},
+					})
+				}
+			}
+
+			time.Sleep(20 * time.Millisecond)
 		}
 		return nil
 	})

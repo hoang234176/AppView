@@ -146,9 +146,13 @@ func TestHandleCheckBatchConflictsAPI(t *testing.T) {
 		t.Fatalf("expected 200/202, got %d", copyResp.StatusCode)
 	}
 
-	time.Sleep(100 * time.Millisecond)
-
 	expectedNewFile := filepath.Join(destDir, "video (1).mp4")
+	for i := 0; i < 30; i++ {
+		if _, err := os.Stat(expectedNewFile); err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if _, err := os.Stat(expectedNewFile); os.IsNotExist(err) {
 		t.Fatalf("expected %s to be created by keep_both resolution", expectedNewFile)
 	}

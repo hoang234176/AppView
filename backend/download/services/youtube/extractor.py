@@ -15,7 +15,7 @@ from typing import Any, Optional
 
 import yt_dlp
 
-from archive.contracts import format_video_download_filename
+from contracts import format_video_download_filename
 from logger import log_error, log_info, log_warning
 from services.resolution import extract_format_quality, format_matches_quality
 from services.youtube.auth import classify_extraction_error, get_youtube_ydl_auth_opts

@@ -7,13 +7,13 @@ owns download, extraction, cleanup, scanning and conversion.
 import asyncio
 from typing import Optional
 
-from archive.contracts import DownloadResolver
-from archive.go_archive_client import (
+from contracts import DownloadResolver
+from archive.mediafire.go_archive_client import (
     GoArchiveJobMissingError,
     GoStorageUnavailableError,
     go_archive_client,
 )
-from archive.mediafire import MediaFireResolver
+from archive.mediafire.mediafire import MediaFireResolver
 from services.source_router import source_router
 from logger import log_error, log_info, log_warning
 from models.download_task import TaskStage

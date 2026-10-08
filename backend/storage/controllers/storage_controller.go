@@ -130,6 +130,8 @@ func GetFolders(c *fiber.Ctx) error {
 		videos[i].ThumbnailURL = fmt.Sprintf("%s/api/v1/thumbnails/%s/%s", c.BaseURL(), driveParam, encodedPath)
 	}
 
+	utils.PopulateFolderPreviews(driveParam, rootPath, folders, c.BaseURL())
+
 	return c.JSON(fiber.Map{
 		"message": "Success",
 		"data": fiber.Map{

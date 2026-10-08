@@ -9,9 +9,10 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
 ## Key files
 
 - `main.py` — lifespan (worker start/stop), REST task API, `/api/v1/download/ws` WebSocket
-- `archive/mediafire.py` — MediaFire page resolver
-- `archive/service.py` — resolves URL then drives Go archive job monitoring/recovery
-- `archive/go_archive_client.py` — sole HTTP boundary from Python to Go Storage archive API
+- `contracts.py` — universal download models, interfaces (`DownloadResolver`, `ResolvedDownload`), and filename formatters
+- `archive/mediafire/mediafire.py` — MediaFire page resolver
+- `archive/mediafire/service.py` — resolves URL then drives Go archive job monitoring/recovery
+- `archive/mediafire/go_archive_client.py` — sole HTTP boundary from Python to Go Storage archive API
 - `services/task_manager.py`, `progress_manager.py`, `websocket_manager.py` — in-memory task lifecycle and broadcasts
 - `models/download_task.py` — Download task and stage contract (shared with Web/Mobile)
 - `worker/client.py`, `worker/handler.py`, `worker/protocol.py` — outbound Coordinator WebSocket adapter
@@ -68,7 +69,7 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
     - Single photo: Always padded with `01` (e.g., `[Facebook]_Single Photo_01.jpeg`).
     - Multi-photo / Album / Carousel: Items are sequentially indexed (`01`, `02`, `03`...), and the bundle archive is `[<Tên mxh>]_<Tên ảnh>.zip`.
     - Extension: Standardized `.jpeg`.
-    - Helper: `archive.contracts.format_photo_download_filename`.
+    - Helper: `contracts.format_photo_download_filename`.
 
 - **Universal Filename Format for Videos**:
   All social media platforms (YouTube, Facebook, TikTok, Instagram, and any future platform expansion) MUST format video filenames with the platform prefix in square brackets:
@@ -87,7 +88,7 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
     - Single video: Formatted as `[<Platform>]_<Title>.<ext>` without index number.
     - Multi-video (album/carousel): Items are indexed (`_01.mp4`, `_02.mp4`...), and root bundle archive is `[<Platform>]_<Title>.zip`.
     - Extension: Standardized `.mp4`.
-    - Helper: `archive.contracts.format_video_download_filename`.
+    - Helper: `contracts.format_video_download_filename`.
 
 - **Common Components**:
   - `[<Tên mxh>]`: Platform tag in square brackets (`[YouTube]`, `[Facebook]`, `[TikTok]`, `[Instagram]`, etc.).

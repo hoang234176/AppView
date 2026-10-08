@@ -15,7 +15,7 @@ from typing import Any, Optional
 import urllib.parse
 import urllib.request
 
-from archive.contracts import format_photo_download_filename, format_video_download_filename
+from contracts import format_photo_download_filename, format_video_download_filename
 from logger import log_error, log_info, log_warning
 from services.x.errors import (
     XAuthRequiredError,

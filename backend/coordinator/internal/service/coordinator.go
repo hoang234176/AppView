@@ -564,7 +564,7 @@ func validFilesystemEvent(event protocol.FilesystemEvent) bool {
 		}
 	}
 	switch event.Type {
-	case "folder_created":
+	case "folder_created", "folder_updated":
 		return event.NewPath != "" || event.Path != ""
 	case "folder_deleted":
 		return event.OldPath != "" || event.Path != ""

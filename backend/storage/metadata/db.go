@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +26,15 @@ type MediaMeta struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+type FolderMeta struct {
+	Drive     string    `json:"drive"`
+	Folder    string    `json:"folder"`
+	HasImages bool      `json:"has_images"`
+	Previews  []string  `json:"previews"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 
 var (
 	db     *sql.DB
@@ -101,6 +111,16 @@ func InitDB() error {
 			PRIMARY KEY (drive, path)
 		);
 		CREATE INDEX IF NOT EXISTS idx_media_lookup ON media_meta(drive, folder);
+
+		CREATE TABLE IF NOT EXISTS folder_meta (
+			drive TEXT NOT NULL,
+			folder TEXT NOT NULL,
+			has_images INTEGER DEFAULT 0,
+			previews TEXT DEFAULT '[]',
+			updated_at INTEGER DEFAULT 0,
+			PRIMARY KEY (drive, folder)
+		);
+		CREATE INDEX IF NOT EXISTS idx_folder_meta_lookup ON folder_meta(drive, folder);
 		`
 
 		if _, err := conn.Exec(schema); err != nil {
@@ -271,7 +291,7 @@ func DeleteItemMetadata(drive, path string) error {
 	return err
 }
 
-// DeleteFolderMetadata removes all metadata inside a folder
+// DeleteFolderMetadata removes all metadata inside a folder (media_meta and folder_meta)
 func DeleteFolderMetadata(drive, folder string) error {
 	if err := InitDB(); err != nil {
 		return err
@@ -282,6 +302,12 @@ func DeleteFolderMetadata(drive, folder string) error {
 	}
 
 	_, err := db.Exec(`DELETE FROM media_meta WHERE drive = ? AND (folder = ? OR folder LIKE ?)`,
+		drive, cleanFolder, cleanFolder+"/%")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`DELETE FROM folder_meta WHERE drive = ? AND (folder = ? OR folder LIKE ?)`,
 		drive, cleanFolder, cleanFolder+"/%")
 	return err
 }
@@ -324,8 +350,128 @@ func RenameFolderMetadata(drive, oldFolder, newFolder string) error {
 		    updated_at = ?
 		WHERE drive = ? AND folder LIKE ?`,
 		newPrefix, len(oldPrefix)+1, newPrefix, len(oldPrefix)+1, now, drive, oldClean+"/%")
+	if err != nil {
+		return err
+	}
+
+	// 3. Update folder_meta for direct folder
+	_, err = db.Exec(`
+		UPDATE folder_meta
+		SET folder = ?,
+		    updated_at = ?
+		WHERE drive = ? AND folder = ?`,
+		newClean, now, drive, oldClean)
+	if err != nil {
+		return err
+	}
+
+	// 4. Update folder_meta for subfolders
+	_, err = db.Exec(`
+		UPDATE folder_meta
+		SET folder = ? || substr(folder, ?),
+		    updated_at = ?
+		WHERE drive = ? AND folder LIKE ?`,
+		newPrefix, len(oldPrefix)+1, now, drive, oldClean+"/%")
 	return err
 }
+
+// GetFoldersMetadataBatch retrieves cached folder metadata for a list of folders on a drive
+func GetFoldersMetadataBatch(drive string, folders []string) (map[string]*FolderMeta, error) {
+	if err := InitDB(); err != nil {
+		return nil, err
+	}
+	result := make(map[string]*FolderMeta)
+	if len(folders) == 0 {
+		return result, nil
+	}
+
+	cleanedPaths := make([]string, 0, len(folders))
+	seen := make(map[string]bool)
+	for _, f := range folders {
+		clean := filepath.ToSlash(filepath.Clean(f))
+		if clean == "." {
+			clean = ""
+		}
+		if !seen[clean] {
+			seen[clean] = true
+			cleanedPaths = append(cleanedPaths, clean)
+		}
+	}
+
+	if len(cleanedPaths) == 0 {
+		return result, nil
+	}
+
+	placeholders := make([]string, len(cleanedPaths))
+	args := make([]any, len(cleanedPaths)+1)
+	args[0] = drive
+	for i, p := range cleanedPaths {
+		placeholders[i] = "?"
+		args[i+1] = p
+	}
+
+	query := fmt.Sprintf(`SELECT drive, folder, has_images, previews, updated_at
+	                      FROM folder_meta WHERE drive = ? AND folder IN (%s)`, strings.Join(placeholders, ","))
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var fm FolderMeta
+		var hasImgInt int
+		var prevJSON string
+		var updatedUnix int64
+
+		if err := rows.Scan(&fm.Drive, &fm.Folder, &hasImgInt, &prevJSON, &updatedUnix); err != nil {
+			continue
+		}
+		fm.HasImages = (hasImgInt == 1)
+		fm.UpdatedAt = time.Unix(updatedUnix, 0)
+		_ = json.Unmarshal([]byte(prevJSON), &fm.Previews)
+		result[fm.Folder] = &fm
+	}
+	return result, rows.Err()
+}
+
+// UpsertFolderMeta inserts or updates a folder's metadata
+func UpsertFolderMeta(meta *FolderMeta) error {
+	if err := InitDB(); err != nil {
+		return err
+	}
+	clean := filepath.ToSlash(filepath.Clean(meta.Folder))
+	if clean == "." {
+		clean = ""
+	}
+
+	prevBytes, err := json.Marshal(meta.Previews)
+	if err != nil {
+		prevBytes = []byte("[]")
+	}
+
+	hasImgInt := 0
+	if meta.HasImages {
+		hasImgInt = 1
+	}
+
+	updatedUnix := meta.UpdatedAt.Unix()
+	if updatedUnix <= 0 {
+		updatedUnix = time.Now().Unix()
+	}
+
+	query := `INSERT INTO folder_meta(drive, folder, has_images, previews, updated_at)
+	          VALUES(?, ?, ?, ?, ?)
+	          ON CONFLICT(drive, folder) DO UPDATE SET
+	              has_images = excluded.has_images,
+	              previews = excluded.previews,
+	              updated_at = excluded.updated_at`
+
+	_, execErr := db.Exec(query, meta.Drive, clean, hasImgInt, string(prevBytes), updatedUnix)
+	return execErr
+}
+
 
 // MoveItemMetadata updates the path and folder when an item is moved
 func MoveItemMetadata(drive, oldPath, newPath, newFolder string) error {

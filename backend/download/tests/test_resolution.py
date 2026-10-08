@@ -101,7 +101,7 @@ class TestResolutionNormalization(unittest.TestCase):
 
 class TestMediaFilenameContracts(unittest.TestCase):
     def test_photo_filename_formatting(self):
-        from archive.contracts import format_photo_download_filename
+        from contracts import format_photo_download_filename
 
         self.assertEqual(
             format_photo_download_filename("Facebook", "Ảnh demo", "123", 1),
@@ -122,7 +122,7 @@ class TestMediaFilenameContracts(unittest.TestCase):
         )
 
     def test_video_filename_formatting(self):
-        from archive.contracts import format_video_download_filename
+        from contracts import format_video_download_filename
 
         # Single video across all platforms
         self.assertEqual(
@@ -169,7 +169,7 @@ class TestMediaFilenameContracts(unittest.TestCase):
         )
 
     def test_assign_unique_item_filenames_deduplication(self):
-        from archive.contracts import (
+        from contracts import (
             assign_unique_item_filenames,
             format_photo_download_filename,
             format_video_download_filename,

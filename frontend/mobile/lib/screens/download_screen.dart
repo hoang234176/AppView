@@ -58,24 +58,20 @@ class _AddMediaFireArchiveDialog extends StatefulWidget {
 class _AddMediaFireArchiveDialogState
     extends State<_AddMediaFireArchiveDialog> {
   late TextEditingController _urlController;
-  late TextEditingController _pwdController;
   String _selectedDest = '';
   bool _isSubmitting = false;
-  bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _urlController = TextEditingController();
-    _pwdController = TextEditingController();
     _selectedDest = widget.currentPath;
   }
 
   @override
   void dispose() {
     _urlController.dispose();
-    _pwdController.dispose();
     super.dispose();
   }
 
@@ -102,10 +98,7 @@ class _AddMediaFireArchiveDialogState
       url: url,
       destination: canonicalDownloadDestination(_selectedDest, activeDrive),
       drive: activeDrive,
-      password:
-          _pwdController.text.trim().isEmpty
-              ? null
-              : _pwdController.text.trim(),
+      password: null,
     );
 
     if (!mounted) return;
@@ -278,66 +271,6 @@ class _AddMediaFireArchiveDialogState
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Mật khẩu giải nén (nếu có):',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: _pwdController,
-                  obscureText: _obscurePassword,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted:
-                      (_) => FocusManager.instance.primaryFocus?.unfocus(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Nhập password nếu tệp bị khóa',
-                    hintStyle: const TextStyle(
-                      color: Colors.white38,
-                      fontSize: 12,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.bgInput,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppTheme.borderColor),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppTheme.borderColor),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppTheme.googleBlue, width: 1.5),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded,
-                        color: Colors.white54,
-                        size: 18,
-                      ),
-                      onPressed:
-                          () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
                     ),
                   ),
                 ),

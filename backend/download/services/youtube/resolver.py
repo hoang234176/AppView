@@ -6,7 +6,7 @@ import re
 import urllib.parse
 from typing import Optional
 
-from archive.contracts import DownloadResolver, ResolvedDownload, format_video_download_filename
+from contracts import DownloadResolver, ResolvedDownload, format_video_download_filename
 from services.youtube.errors import NoDownloadableMediaError, UnsupportedSourceError
 from services.youtube.extractor import YouTubeExtractor
 

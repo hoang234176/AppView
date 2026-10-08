@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
-from archive.contracts import ResolvedDownload
+from contracts import ResolvedDownload
 from services.source_router import SourceRouter
 from services.youtube.auth import (
     classify_extraction_error,

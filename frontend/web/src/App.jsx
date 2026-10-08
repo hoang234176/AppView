@@ -487,16 +487,49 @@ function App() {
     if (type === 'folder_created') {
       loadTreeData();
       if (normCurrent === normNewParent) {
+        const baseUrl = getApiBaseUrl();
+        const origin = baseUrl.replace(/\/api\/v1\/?$/, '');
         if (event.item) {
-          setFolders((prev) => [event.item, ...prev.filter((f) => normalize(f.path) !== normNew)]);
+          const item = event.item;
+          const formattedItem = {
+            ...item,
+            previews: Array.isArray(item.previews)
+              ? item.previews.map((p) => (/^https?:\/\//i.test(p) ? p : `${origin}${p.startsWith('/') ? '' : '/'}${p}`))
+              : [],
+          };
+          setFolders((prev) => [formattedItem, ...prev.filter((f) => normalize(f.path) !== normNew)]);
           setTotalFolders((c) => c + 1);
           return;
         }
         const folderName = newPath.split('/').pop();
-        const newFolder = { name: folderName, path: newPath };
+        const newFolder = { name: folderName, path: newPath, previews: [] };
         setFolders((prev) => [newFolder, ...prev.filter((f) => normalize(f.path) !== normNew)]);
         setTotalFolders((c) => c + 1);
         return;
+      }
+      return;
+    }
+
+    // 5b. Folder Updated (e.g. preview thumbnails became ready reactively)
+    if (type === 'folder_updated') {
+      const targetPath = normalize(event.path || event.newPath || '');
+      const rawPreviews = event.previews || event.item?.previews;
+      if (targetPath && Array.isArray(rawPreviews)) {
+        const baseUrl = getApiBaseUrl();
+        const origin = baseUrl.replace(/\/api\/v1\/?$/, '');
+        const previews = rawPreviews.map((p) => {
+          if (!p) return '';
+          if (/^https?:\/\//i.test(p)) return p;
+          return `${origin}${p.startsWith('/') ? '' : '/'}${p}`;
+        });
+        setFolders((prev) =>
+          prev.map((f) => {
+            if (normalize(f.path) === targetPath) {
+              return { ...f, previews };
+            }
+            return f;
+          })
+        );
       }
       return;
     }

@@ -15,6 +15,7 @@ type FilesystemEvent struct {
 	OldParentPath string   `json:"oldParentPath,omitempty"`
 	NewParentPath string   `json:"newParentPath,omitempty"`
 	Paths         []string `json:"paths,omitempty"`
+	Previews      []string `json:"previews,omitempty"`
 	Item          any      `json:"item,omitempty"`
 	Items         any      `json:"items,omitempty"`
 }

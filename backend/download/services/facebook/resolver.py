@@ -9,7 +9,7 @@ import re
 from typing import Any, Optional
 import urllib.parse
 
-from archive.contracts import (
+from contracts import (
     DownloadResolver,
     ResolvedDownload,
     assign_unique_item_filenames,

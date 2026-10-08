@@ -6,7 +6,7 @@ import httpx
 from bs4 import BeautifulSoup
 from config import Config
 from logger import log_info, log_error, log_warning
-from archive.contracts import ResolvedDownload
+from contracts import ResolvedDownload
 
 
 def extract_part_index(name: str) -> int:

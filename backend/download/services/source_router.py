@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from archive.contracts import DownloadResolver, ResolvedDownload
+from contracts import DownloadResolver, ResolvedDownload
 from archive.mediafire import MediaFireResolver
 from logger import log_info, safe_url
 from services.facebook.resolver import FacebookResolver

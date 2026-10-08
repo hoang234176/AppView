@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any, Optional
 
-from archive.contracts import DownloadResolver, ResolvedDownload
-from archive.service import archive_service
+from contracts import DownloadResolver, ResolvedDownload
+from archive.mediafire import archive_service
 from services.youtube.errors import YouTubeError
 from logger import log_error, log_event, log_info, log_warning, safe_url
 from worker.protocol import (

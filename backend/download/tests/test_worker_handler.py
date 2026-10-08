@@ -1,6 +1,6 @@
 import unittest
 
-from archive.contracts import ResolvedDownload
+from contracts import ResolvedDownload
 from worker.handler import DownloadWorkerHandler
 
 
