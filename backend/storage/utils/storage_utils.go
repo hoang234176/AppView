@@ -579,9 +579,21 @@ func PopulateFolderPreviews(drive, baseDir string, folders []*models.FolderItem,
 		}
 
 		if meta, found := metaMap[cleanPath]; found && meta.HasImages && len(meta.Previews) > 0 {
-			previewPaths = meta.Previews
-		} else {
-			// Not cached or previously empty: scan to find previews
+			allExist := true
+			for _, p := range meta.Previews {
+				fullFilePath := filepath.Join(baseDir, filepath.FromSlash(p))
+				if fi, err := os.Stat(fullFilePath); err != nil || fi.IsDir() {
+					allExist = false
+					break
+				}
+			}
+			if allExist {
+				previewPaths = meta.Previews
+			}
+		}
+
+		if len(previewPaths) == 0 {
+			// Not cached, empty, or cached files were deleted: rescan to find valid previews
 			previewPaths = ScanFolderPreviewImages(filepath.Join(baseDir, f.Path), f.Path, 2)
 			hasImages := len(previewPaths) > 0
 			_ = metadata.UpsertFolderMeta(&metadata.FolderMeta{
@@ -706,6 +718,13 @@ func DeleteFile(baseDir string, targetRelPath string) error {
 
 	drive := configs.FindDriveForPath(baseDir)
 	_ = metadata.DeleteItemMetadata(drive.ID, targetRelPath)
+
+	// Invalidate parent folder preview cache so deleted image won't linger in folder icon
+	parentFolder := filepath.ToSlash(filepath.Dir(targetRelPath))
+	if parentFolder == "." {
+		parentFolder = ""
+	}
+	_ = metadata.InvalidateFolderMeta(drive.ID, parentFolder)
 
 	// Also delete cached thumbnails from all possible thumbnail cache locations
 	_ = os.Remove(filepath.Join(baseDir, ".thumbnails", targetRelPath+".jpg"))

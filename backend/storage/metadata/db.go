@@ -312,6 +312,19 @@ func DeleteFolderMetadata(drive, folder string) error {
 	return err
 }
 
+// InvalidateFolderMeta removes folder_meta cache for a specific folder so it will be rescanned
+func InvalidateFolderMeta(drive, folder string) error {
+	if err := InitDB(); err != nil {
+		return err
+	}
+	cleanFolder := filepath.ToSlash(filepath.Clean(folder))
+	if cleanFolder == "." {
+		cleanFolder = ""
+	}
+	_, err := db.Exec(`DELETE FROM folder_meta WHERE drive = ? AND folder = ?`, drive, cleanFolder)
+	return err
+}
+
 // RenameFolderMetadata updates folder prefixes when a folder is renamed
 func RenameFolderMetadata(drive, oldFolder, newFolder string) error {
 	if err := InitDB(); err != nil {

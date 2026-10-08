@@ -324,6 +324,11 @@ func ExecuteBatchSameDrive(rootPath string, items []BatchItem, destRelFolder str
 			} else {
 				_ = metadata.DeleteItemMetadata(drive.ID, item.Path)
 				_ = os.Remove(filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(item.Path)+".jpg"))
+				parentFolder := filepath.ToSlash(filepath.Dir(item.Path))
+				if parentFolder == "." {
+					parentFolder = ""
+				}
+				_ = metadata.InvalidateFolderMeta(drive.ID, parentFolder)
 			}
 			LogInfo("[BATCH SAME-DRIVE] Đã xóa: %s", cleanSrc)
 		}
