@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import urllib.parse
-from typing import Optional
+from typing import Any, Optional
 
 from contracts import DownloadResolver, ResolvedDownload, format_video_download_filename
 from services.youtube.errors import NoDownloadableMediaError, UnsupportedSourceError
@@ -46,7 +46,15 @@ class YouTubeResolver(DownloadResolver):
             "has_audio": True,
         }
 
-    async def resolve(self, url: str, *, quality: Optional[int] = None) -> ResolvedDownload:
+    async def resolve(
+        self,
+        url: str,
+        *,
+        quality: Optional[int] = None,
+        selected_indices: Optional[list[int]] = None,
+        media_type: Optional[str] = None,
+        **kwargs: Any,
+    ) -> ResolvedDownload:
         """Resolve YouTube URL to normalized media descriptor."""
         clean_url = url.strip()
         if not self.supports(clean_url):

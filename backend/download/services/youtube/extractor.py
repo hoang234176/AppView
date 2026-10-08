@@ -128,20 +128,32 @@ class YouTubeExtractor:
             else:
                 raise
 
-        # Step 2: Chỉ khi video yêu cầu đăng nhập hoặc giới hạn tuổi mới nạp cookie
+        # Step 2: Khi gặp lỗi 403 / yêu cầu đăng nhập, lấy cookies từ Storage và chạy verify để tự động làm mới token phiên nếu cần
         cookiejar = None
+        raw_cookies = None
         try:
             from worker.client import coordinator_worker_client
             raw_cookies = await coordinator_worker_client.get_cookies("youtube")
             if raw_cookies:
-                from services.youtube.auth import create_cookiejar_from_netscape
-                cookiejar = create_cookiejar_from_netscape(raw_cookies)
-        except Exception:
+                from services.youtube.auth import create_cookiejar_from_netscape, verify_youtube_cookies
+                # Tự động gửi request kiểm tra & cập nhật các thuộc tính/token phiên mới nhất từ YouTube
+                log_info("YOUTUBE_EXTRACTOR", "Tiến hành xác thực và tự động làm mới session token cho cookies YouTube...")
+                valid, msg = await verify_youtube_cookies(raw_cookies)
+                if valid:
+                    # Đọc lại nội dung cookie mới nhất nếu vừa được verify cập nhật
+                    latest_cookies = await coordinator_worker_client.get_cookies("youtube") or raw_cookies
+                    cookiejar = create_cookiejar_from_netscape(latest_cookies)
+                else:
+                    log_warning("YOUTUBE_EXTRACTOR", f"Cookies YouTube không còn hợp lệ sau khi kiểm tra: {msg}")
+                    # Thử fallback với cookiejar hiện tại phòng trường hợp chỉ là cảnh báo nhẹ
+                    cookiejar = create_cookiejar_from_netscape(raw_cookies)
+        except Exception as e:
+            log_warning("YOUTUBE_EXTRACTOR", f"Không thể lấy hoặc xác thực cookies YouTube: {e}")
             cookiejar = None
 
         if not cookiejar:
             raise SourceAuthRequiredError(
-                "Video yêu cầu đăng nhập hoặc giới hạn độ tuổi. Vui lòng cấu hình cookies YouTube để tải."
+                "Video yêu cầu đăng nhập hoặc giới hạn độ tuổi. Vui lòng cấu hình cookies YouTube hợp lệ để tải."
             )
 
         cancel_event = threading.Event()

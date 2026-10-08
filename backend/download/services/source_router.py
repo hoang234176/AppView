@@ -85,7 +85,13 @@ class SourceRouter(DownloadResolver):
                     try:
                         resolved = await resolver.resolve(clean_url, **kwargs)
                     except TypeError:
-                        resolved = await resolver.resolve(clean_url)
+                        if "quality" in kwargs:
+                            try:
+                                resolved = await resolver.resolve(clean_url, quality=kwargs["quality"])
+                            except TypeError:
+                                resolved = await resolver.resolve(clean_url)
+                        else:
+                            resolved = await resolver.resolve(clean_url)
                 else:
                     resolved = await resolver.resolve(clean_url)
 

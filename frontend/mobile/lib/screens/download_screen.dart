@@ -489,46 +489,19 @@ class _DownloadScreenState extends State<DownloadScreen> {
     List<DownloadTaskModel> tasks,
   ) {
     if (tasks.isEmpty) return _buildEmptyState(context);
-    const groups = [
-      ('File nén', 'archive'),
-      ('Video', 'video'),
-      ('Ảnh', 'picture'),
-      ('Lỗi tối ưu', 'optimization_error'),
-    ];
-    final widgets = <Widget>[];
-    for (final group in groups) {
-      final grouped =
-          tasks.where((task) {
-            if (group.$2 == 'optimization_error') {
-              return task.errorCode == 'VIDEO_CONVERT_UNAVAILABLE';
-            }
-            return task.errorCode != 'VIDEO_CONVERT_UNAVAILABLE' &&
-                Formatters.getFileCategory(task.filename ?? task.originalUrl) ==
-                    group.$2;
-          }).toList();
-      if (grouped.isEmpty) continue;
-      widgets.add(
-        Padding(
-          padding: const EdgeInsets.only(top: 10, bottom: 8),
-          child: Text(
-            '${group.$1} (${grouped.length})',
-            style: TextStyle(
-              color:
-                  group.$2 == 'optimization_error'
-                      ? Colors.amberAccent
-                      : Colors.white54,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      );
-      for (final task in grouped) {
-        widgets.add(_buildTaskCard(context, provider, task));
-        widgets.add(const SizedBox(height: 12));
-      }
-    }
-    return ListView(padding: const EdgeInsets.all(16), children: widgets);
+    final sortedTasks = List<DownloadTaskModel>.from(tasks)
+      ..sort((a, b) {
+        final aTime = a.updatedAt ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = b.updatedAt ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+    return ListView.separated(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.all(16),
+      itemCount: sortedTasks.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, index) => _buildTaskCard(context, provider, sortedTasks[index]),
+    );
   }
 
   Widget _buildEmptyState(BuildContext context) {
@@ -632,12 +605,13 @@ class _DownloadScreenState extends State<DownloadScreen> {
                 : task.convertCurrent + 1)
             : 0;
 
-    Color iconColor = AppTheme.googleBlue;
-
+    Color iconColor;
     if (category == 'video') {
-      iconColor = AppTheme.videoPurple;
+      iconColor = AppTheme.videoPurple; // Tím cho Video
     } else if (category == 'picture') {
-      iconColor = AppTheme.googleBlue;
+      iconColor = AppTheme.googleBlue;  // Xanh dương cho Ảnh
+    } else {
+      iconColor = Colors.amber;         // Cam vàng cho Tệp nén / Archive
     }
 
     if (isCancelledOptimization || isOptimizationError) {

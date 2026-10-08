@@ -206,8 +206,11 @@ def classify_extraction_error(error_str: str) -> YouTubeError:
         "this video is private",
         "access denied",
         "permission to access",
+        "http error 403",
+        "403: forbidden",
+        "forbidden",
     ]):
-        return SourceAccessDeniedError("Video này là riêng tư hoặc bị từ chối truy cập.")
+        return SourceAccessDeniedError("Video này là riêng tư, bị từ chối truy cập hoặc yêu cầu xác thực (HTTP 403).")
 
     if any(phrase in lower for phrase in [
         "video unavailable",

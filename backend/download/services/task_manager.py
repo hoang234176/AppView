@@ -108,7 +108,6 @@ class TaskManager:
         )
         async with self._lock:
             self._tasks[task_id] = task
-        log_info("DOWNLOAD SERVICE", f"Đã khôi phục task [{task_id}] từ Go ({stage.value})")
         return task
 
     async def update_stage(self, task_id: str, stage: TaskStage, filename: Optional[str] = None, error: Optional[str] = None, error_code: Optional[str] = None):

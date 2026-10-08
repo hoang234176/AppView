@@ -533,7 +533,6 @@ func (c *Coordinator) StorageHistory(workerID string, history *protocol.StorageH
 	for _, job := range changed {
 		c.notifyDownload(job, "updated")
 	}
-	logging.Event("INFO", "storage history synchronized", map[string]any{"workerId": workerID, "jobCount": len(history.Jobs), "changedCount": len(changed)})
 	return nil
 }
 

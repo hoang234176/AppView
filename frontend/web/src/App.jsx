@@ -757,6 +757,10 @@ function App() {
       coordinator_job: true,
       password_required: Boolean(job.passwordRequired), archive_downloaded: Boolean(job.archiveDownloaded), archive_extracted: Boolean(job.archiveExtracted), total_video_count: Number(job.totalVideoCount) || 0, invalid_video_count: Number(job.invalidVideoCount) || 0,
       videos: Array.isArray(job.videos) ? job.videos : [],
+      optimization_cancelled: Boolean(job.optimizationCancelled || progress.optimizationCancelled),
+      cancelled_from_stage: job.cancelledFromStage || progress.cancelledFromStage || null,
+      created_at: job.createdAt || null,
+      updated_at: job.updatedAt || null,
       is_multipart: Boolean(
         job.isMultipart ||
         job.is_multipart ||

@@ -22,12 +22,6 @@ const getUnoptimizedCount = (t) => {
   return Math.max(0, total - current);
 };
 
-const COMPLETED_GROUPS = [
-  ['File nén', 'archive', ({ className }) => <FileTypeIcon fallback="ZIP" className={className} />],
-  ['Video', 'video', Video],
-  ['Ảnh', 'picture', Image],
-  ['Lỗi tối ưu', 'optimization_error', AlertTriangle],
-];
 const displayConvertIndex = (task) => {
   const total = Number(task.convert_total) || 0;
   return total ? Math.min((Number(task.convert_current) || 0) + 1, total) : 0;
@@ -44,25 +38,27 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
   const selectedTab = controlledTab ?? localTab;
   const setSelectedTab = onSelectedTabChange ?? setLocalTab;
   const active = useMemo(() => tasks.filter((t) => isActiveDownload(t) || isRetryableDownloadError(t)), [tasks]);
-  const cancelled = useMemo(() => tasks.filter((t) => t.stage === 'cancelled' && !isCancelledOptimization(t)), [tasks]);
-  const completed = useMemo(() => tasks.filter((t) => !isActiveDownload(t) && !isRetryableDownloadError(t) && (t.stage === 'completed' || isCancelledOptimization(t))), [tasks]);
-  const completedByGroup = useMemo(() => Object.fromEntries(
-    COMPLETED_GROUPS.map(([, category]) => [
-      category,
-      completed.filter((t) => category === 'optimization_error'
-        ? t.error_code === 'VIDEO_CONVERT_UNAVAILABLE'
-        : t.error_code !== 'VIDEO_CONVERT_UNAVAILABLE' && getFileCategory(t.filename || t.original_url) === category),
-    ]),
-  ), [completed]);
+  const cancelled = useMemo(() => {
+    return tasks
+      .filter((t) => t.stage === 'cancelled' && !isCancelledOptimization(t))
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+  }, [tasks]);
+  const completed = useMemo(() => {
+    return tasks
+      .filter((t) => !isActiveDownload(t) && !isRetryableDownloadError(t) && (t.stage === 'completed' || isCancelledOptimization(t)))
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+  }, [tasks]);
   if (!isOpen) return null;
 
-  const icon = (task, color = 'text-blue-400') => {
+  const icon = (task, overrideColor) => {
     if (task.is_multipart || isMultipartArchive(task)) {
-      return <MultipartArchiveIcon className={`h-8 w-8 ${task.stage === 'downloading' ? 'text-indigo-400' : color}`} />;
+      return <MultipartArchiveIcon className={`h-8 w-8 ${task.stage === 'downloading' ? 'text-indigo-400' : (overrideColor || 'text-indigo-400')}`} />;
     }
     const category = getFileCategory(task.filename || task.original_url);
     const fallback = category === 'video' ? 'MP4' : category === 'picture' ? 'IMG' : 'ZIP';
-    return <FileTypeIcon filename={task.filename || task.original_url} fallback={fallback} className={`h-7 w-7 ${color}`} />;
+    const categoryColor = category === 'video' ? 'text-purple-400' : category === 'picture' ? 'text-blue-400' : 'text-amber-400';
+    const finalColor = overrideColor || categoryColor;
+    return <FileTypeIcon filename={task.filename || task.original_url} fallback={fallback} className={`h-7 w-7 ${finalColor}`} />;
   };
   const color = (stage) => ['error', 'failed', 'password_required', 'interrupted'].includes(stage) ? 'text-amber-400' : stage === 'scanning' ? 'text-emerald-400' : stage === 'converting' ? 'text-purple-400' : ['extracting', 'waiting_extract'].includes(stage) ? 'text-orange-400' : 'text-blue-400';
   const status = (t) => {
@@ -251,7 +247,7 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
         ? 'border-indigo-500/30 bg-[#191b26]'
         : 'border-[#383c42]/60 bg-[#202124]/60'
     }`}>
-      {icon(t, isMulti ? 'text-indigo-400' : (cancelledOptimization || isOptimizationError ? 'text-amber-400' : 'text-gray-400'))}
+      {icon(t, isMulti ? 'text-indigo-400' : (cancelledOptimization || isOptimizationError ? 'text-amber-400' : undefined))}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 flex-wrap">
           {(t.source === 'x' || t.source === 'twitter') && (
@@ -320,7 +316,7 @@ export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, 
     {/* Vùng danh sách cuộn độc lập; header và tab luôn đứng yên. */}
     <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-[#383c42] bg-[#202124] p-3 custom-scrollbar">
       {selectedTab === 'active' && <section className="space-y-3">{active.length ? <>{active.filter((t) => !isRetryableDownloadError(t)).map(activeCard)}{active.some(isRetryableDownloadError) && <div className="space-y-2"><h5 className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-red-400"><AlertTriangle className="h-3.5 w-3.5" />Lỗi tải xuống</h5>{active.filter(isRetryableDownloadError).map(activeCard)}</div>}</> : <p className="py-10 text-center text-xs text-gray-500">Không có tác vụ đang xử lý.</p>}</section>}
-      {selectedTab === 'completed' && <section className="space-y-4">{COMPLETED_GROUPS.map(([label, category, GroupIcon]) => { const list = completedByGroup[category]; return list.length ? <div key={category} className="space-y-2"><h5 className={`flex items-center gap-1.5 text-[11px] font-bold uppercase ${category === 'optimization_error' ? 'text-amber-400' : 'text-gray-400'}`}><GroupIcon className="h-3.5 w-3.5" />{label} ({list.length})</h5>{list.map(historyCard)}</div> : null; })}{!completed.length && <p className="py-10 text-center text-xs text-gray-500">Chưa có tệp đã tải.</p>}</section>}
+      {selectedTab === 'completed' && <section className="space-y-3">{completed.length ? completed.map(historyCard) : <p className="py-10 text-center text-xs text-gray-500">Chưa có tệp đã tải.</p>}</section>}
       {selectedTab === 'cancelled' && <section className="space-y-3">{cancelled.length ? cancelled.map(historyCard) : <p className="py-10 text-center text-xs text-gray-500">Chưa có tác vụ đã hủy.</p>}</section>}
     </div>
   </div></div>;

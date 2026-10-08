@@ -253,6 +253,8 @@ class DownloadTaskModel {
   final int totalParts;
   final int currentPart;
   final String? partName;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   DownloadTaskModel({
     required this.taskId,
@@ -286,6 +288,8 @@ class DownloadTaskModel {
     this.totalParts = 0,
     this.currentPart = 0,
     this.partName,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory DownloadTaskModel.fromJson(Map<String, dynamic> json) {
@@ -338,6 +342,12 @@ class DownloadTaskModel {
           (json['currentPart'] as num?)?.toInt() ??
           0,
       partName: json['part_name']?.toString() ?? json['partName']?.toString(),
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())
+          : (json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'].toString())
+          : (json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'].toString()) : null),
     );
   }
 
@@ -478,6 +488,12 @@ class DownloadTaskModel {
           json['part_name']?.toString() ??
           progress['partName']?.toString() ??
           progress['part_name']?.toString(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : (json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'].toString())
+          : (json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null),
     );
   }
 }

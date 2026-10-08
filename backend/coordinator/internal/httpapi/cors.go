@@ -46,6 +46,9 @@ func WithLogging(next http.Handler) http.Handler {
 		started := time.Now()
 		wrapped := &responseWriterWithStatus{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(wrapped, r)
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/download" && wrapped.statusCode < 400 {
+			return
+		}
 		logging.LogHTTP(r.Method, r.URL.Path, wrapped.statusCode, time.Since(started), nil)
 	})
 }
