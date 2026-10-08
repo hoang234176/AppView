@@ -650,27 +650,35 @@ class FacebookExtractor:
         pos_photo = html_text.find("StoryAttachmentPhotoStyleRenderer")
         pos_album = html_text.find("StoryAttachmentAlbumStyleRenderer")
 
-        # 1. Single Photo Post: Prioritize StoryAttachmentPhotoStyleRenderer when it appears first
-        if pos_photo != -1 and (pos_album == -1 or pos_photo < pos_album):
-            chunk = html_text[pos_photo:pos_photo + 30000]
-            best_photo = self._extract_best_photo_from_block(chunk)
-            if best_photo:
-                photos.append({
-                    "id": "fb_photo_1",
-                    "url": best_photo["url"],
-                    "thumbnail": best_photo["thumbnail"],
-                    "width": best_photo["width"],
-                    "height": best_photo["height"],
-                })
+        # 1. Check for Album Post or Subattachments first (Album / Multi-photo / Group post with multiple photos)
+        m_sub = re.search(r'"all_subattachments"\s*:\s*\{\s*"count"\s*:\s*(\d+)\s*,\s*"nodes"\s*:\s*\[(.*?)(?:\]\s*\}|$)', html_text, re.DOTALL)
+        if m_sub and int(m_sub.group(1)) > 1:
+            nodes_str = m_sub.group(2)
+            for item in re.split(r'\}\s*,\s*\{[^{}]*(?:deduplication_key|__typename)', nodes_str):
+                best_item_photo = self._extract_best_photo_from_block(item)
+                if not best_item_photo:
+                    continue
+                clean = best_item_photo["url"]
+                norm_key = self._normalize_fb_cdn(clean)
+                if norm_key not in seen_urls:
+                    seen_urls.add(norm_key)
+                    photos.append({
+                        "id": f"fb_photo_{len(photos) + 1}",
+                        "url": clean,
+                        "thumbnail": best_item_photo["thumbnail"],
+                        "width": best_item_photo["width"],
+                        "height": best_item_photo["height"],
+                    })
+            if photos:
                 return photos
 
-        # 2. Album Post: StoryAttachmentAlbumStyleRenderer when it appears first
-        if pos_album != -1 and (pos_photo == -1 or pos_album < pos_photo):
+        # 2. Album Post via StoryAttachmentAlbumStyleRenderer chunk
+        if pos_album != -1:
             chunk = html_text[pos_album:pos_album + 150000]
-            m_sub = re.search(r'"all_subattachments"\s*:\s*\{\s*"count"\s*:\s*(\d+)\s*,\s*"nodes"\s*:\s*\[(.*?)\]\}', chunk)
-            if m_sub:
-                nodes_str = m_sub.group(2)
-                for item in re.split(r'\}\s*,\s*\{"deduplication_key"', nodes_str):
+            m_album_sub = re.search(r'"all_subattachments"\s*:\s*\{\s*"count"\s*:\s*(\d+)\s*,\s*"nodes"\s*:\s*\[(.*?)(?:\]\s*\}|$)', chunk, re.DOTALL)
+            if m_album_sub:
+                nodes_str = m_album_sub.group(2)
+                for item in re.split(r'\}\s*,\s*\{[^{}]*(?:deduplication_key|__typename)', nodes_str):
                     best_item_photo = self._extract_best_photo_from_block(item)
                     if not best_item_photo:
                         continue
@@ -687,6 +695,20 @@ class FacebookExtractor:
                         })
                 if photos:
                     return photos
+
+        # 3. Single Photo Post: Prioritize StoryAttachmentPhotoStyleRenderer when only 1 photo exists
+        if pos_photo != -1:
+            chunk = html_text[pos_photo:pos_photo + 30000]
+            best_photo = self._extract_best_photo_from_block(chunk)
+            if best_photo:
+                photos.append({
+                    "id": "fb_photo_1",
+                    "url": best_photo["url"],
+                    "thumbnail": best_photo["thumbnail"],
+                    "width": best_photo["width"],
+                    "height": best_photo["height"],
+                })
+                return photos
 
         # 3. Fallback: Extract from all_subattachments if present
         m_sub = re.search(r'"all_subattachments":\{"count":(\d+),"nodes":\[(.*?)\]\}', html_text)

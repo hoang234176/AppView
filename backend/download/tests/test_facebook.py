@@ -289,5 +289,145 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res.items[1]["filename"], "[Facebook]_Album Post_02.jpeg")
 
 
+    def test_case_1_photo_only_post(self):
+        """Test Case 1: Link bài viết chỉ có hình ảnh (Photo / Album)."""
+        extractor = FacebookExtractor()
+        photo_only_html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Trần Thị B - Bộ ảnh mùa thu | Facebook</title>
+            <meta property="og:title" content="Trần Thị B - Bộ ảnh mùa thu">
+        </head>
+        <body>
+            <script type="application/json" data-sjs>
+            {"require":[["ScheduledServerJS","handleServerJS",null,[{"story":{"creation_time":1728000000,"actors":[{"name":"Trần Thị B","id":"1000999888"}],"message":{"text":"Bộ ảnh mùa thu tuyệt đẹp."},"attachments":[{"all_subattachments":{"count":3,"nodes":[{"deduplication_key":"k1","image":{"uri":"https://scontent.fhan1-1.fna.fbcdn.net/autumn1.jpg","width":1080,"height":1350}},{"deduplication_key":"k2","image":{"uri":"https://scontent.fhan1-1.fna.fbcdn.net/autumn2.jpg","width":1080,"height":1080}},{"deduplication_key":"k3","image":{"uri":"https://scontent.fhan1-1.fna.fbcdn.net/autumn3.jpg","width":1080,"height":1350}}]}}]}}]]}
+            </script>
+        </body>
+        </html>
+        """
+        data = extractor._parse_html(
+            "https://www.facebook.com/tranthib/posts/777888999",
+            photo_only_html,
+            "https://www.facebook.com/tranthib/posts/777888999",
+        )
+        self.assertEqual(data["source"], "facebook")
+        self.assertEqual(data["type"], "slideshow")
+        self.assertEqual(len(data["photos"]), 3)
+        self.assertEqual(len(data["videos"]), 0)
+        self.assertEqual(data["photos"][0]["url"], "https://scontent.fhan1-1.fna.fbcdn.net/autumn1.jpg")
+        self.assertEqual(data["photos"][1]["url"], "https://scontent.fhan1-1.fna.fbcdn.net/autumn2.jpg")
+        self.assertEqual(data["photos"][2]["url"], "https://scontent.fhan1-1.fna.fbcdn.net/autumn3.jpg")
+
+    def test_case_2_reel_post(self):
+        """Test Case 2: Link bài viết Reel (Video ngắn Reels)."""
+        extractor = FacebookExtractor()
+        reel_html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Facebook Reel - Fancam Dance</title>
+        </head>
+        <body>
+            <script>
+            {
+                "dash_manifest_urls": [
+                    {
+                        "manifest_url": "https://www.facebook.com/dash_mpd.mpd?v=555666777",
+                        "progressive_urls": [
+                            {
+                                "progressive_url": "https://fbcdn.net/reel_hd.mp4?tag=dash_h264_1080p\\u003C/BaseURL>",
+                                "metadata": {"quality": "HD"}
+                            },
+                            {
+                                "progressive_url": "https://fbcdn.net/reel_sd.mp4?tag=sd\\u003C/BaseURL>",
+                                "metadata": {"quality": "SD"}
+                            }
+                        ]
+                    }
+                ],
+                "preferred_thumbnail": {"image": {"uri": "https://fbcdn.net/reel_thumb.jpg"}},
+                "actors": [{"name": "Fancam Creator", "id": "2000123"}]
+            }
+            </script>
+        </body>
+        </html>
+        """
+        data = extractor._parse_html(
+            "https://www.facebook.com/reel/555666777",
+            reel_html,
+            "https://www.facebook.com/reel/555666777",
+        )
+        self.assertEqual(data["source"], "facebook")
+        self.assertEqual(data["id"], "555666777")
+        self.assertEqual(data["type"], "video")
+        self.assertEqual(len(data["photos"]), 0)
+        self.assertEqual(len(data["videos"]), 2)
+        self.assertIn("reel_hd.mp4", data["videos"][0]["url"])
+        self.assertNotIn("BaseURL", data["videos"][0]["url"])
+
+    def test_case_3_mixed_photo_and_video_post(self):
+        """Test Case 3: Link bài viết hỗn hợp có cả Ảnh và Video."""
+        extractor = FacebookExtractor()
+        data = extractor._parse_html(
+            "https://www.facebook.com/nguyenvana/posts/123456789",
+            SAMPLE_FACEBOOK_HTML,
+            "https://www.facebook.com/nguyenvana/posts/123456789",
+        )
+        self.assertEqual(data["source"], "facebook")
+        self.assertEqual(data["type"], "mixed")
+        self.assertTrue(len(data["photos"]) >= 1)
+        self.assertTrue(len(data["videos"]) >= 1)
+        self.assertEqual(data["photos"][0]["width"], 1080)
+        self.assertEqual(data["videos"][0]["quality"], 1080)
+
+    def test_case_4_group_multi_photo_post(self):
+        """Test Case 4: Link bài viết trong Nhóm (Group) có nhiều ảnh, không bị cắt chỉ lấy 1 ảnh."""
+        extractor = FacebookExtractor()
+        group_html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Cộng đồng Cosplay Việt Nam | Facebook</title>
+        </head>
+        <body>
+            <!-- Layout nhóm thường có StoryAttachmentPhotoStyleRenderer cho ảnh đầu tiên -->
+            <div data-style="StoryAttachmentPhotoStyleRenderer">
+                <script>
+                {"image":{"uri":"https://scontent.fhan1-1.fna.fbcdn.net/group_img1.jpg","width":1080,"height":1350}}
+                </script>
+            </div>
+            <!-- Và kèm theo all_subattachments chứa toàn bộ các ảnh trong bài đăng nhóm -->
+            <script type="application/json">
+            {
+                "story": {
+                    "all_subattachments": {
+                        "count": 4,
+                        "nodes": [
+                            {"deduplication_key":"g1","image":{"uri":"https://scontent.fhan1-1.fna.fbcdn.net/group_img1.jpg","width":1080,"height":1350}},
+                            {"deduplication_key":"g2","image":{"uri":"https://scontent.fhan1-1.fna.fbcdn.net/group_img2.jpg","width":1080,"height":1080}},
+                            {"deduplication_key":"g3","image":{"uri":"https://scontent.fhan1-1.fna.fbcdn.net/group_img3.jpg","width":1200,"height":1600}},
+                            {"deduplication_key":"g4","image":{"uri":"https://scontent.fhan1-1.fna.fbcdn.net/group_img4.jpg","width":1080,"height":1080}}
+                        ]
+                    }
+                }
+            }
+            </script>
+        </body>
+        </html>
+        """
+        data = extractor._parse_html(
+            "https://www.facebook.com/groups/cosplayvn/posts/888999111/",
+            group_html,
+            "https://www.facebook.com/groups/cosplayvn/posts/888999111/",
+        )
+        self.assertEqual(data["source"], "facebook")
+        # Phải lấy đủ 4 ảnh thay vì bị kẹt 1 ảnh đơn
+        self.assertEqual(len(data["photos"]), 4, "Bài đăng trong nhóm có nhiều ảnh phải lấy đủ 4 ảnh, không chỉ lấy 1 ảnh")
+        self.assertEqual(data["photos"][0]["url"], "https://scontent.fhan1-1.fna.fbcdn.net/group_img1.jpg")
+        self.assertEqual(data["photos"][1]["url"], "https://scontent.fhan1-1.fna.fbcdn.net/group_img2.jpg")
+        self.assertEqual(data["photos"][2]["url"], "https://scontent.fhan1-1.fna.fbcdn.net/group_img3.jpg")
+        self.assertEqual(data["photos"][3]["url"], "https://scontent.fhan1-1.fna.fbcdn.net/group_img4.jpg")
+
 if __name__ == "__main__":
     unittest.main()
