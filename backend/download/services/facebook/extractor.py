@@ -330,6 +330,34 @@ class FacebookExtractor:
             for idx, p in enumerate(photos)
         ]
 
+        # Chuẩn hóa video: Nếu là 1 video có nhiều chất lượng (HD/SD/1080p/720p/...)
+        # thì đại diện bằng 1 video duy nhất trong mảng `videos` kèm `thumbnail: primary_thumbnail`.
+        # Mảng `qualities` chứa các độ phân giải [1080, 480,...] để người dùng chọn qua dropdown.
+        # Đồng thời lưu `video_streams` để resolver chọn luồng tải theo chất lượng.
+        video_streams = list(videos)
+        if len(videos) > 0:
+            # Gán thumbnail cho mọi luồng video
+            for v in videos:
+                if not v.get("thumbnail"):
+                    v["thumbnail"] = primary_thumbnail
+
+            # Kiểm tra xem có phải tất cả các luồng thuộc cùng 1 video không
+            # (1 video có nhiều chất lượng: có cùng post_id / hoặc bài viết đơn lẻ)
+            # Đại diện bằng 1 video duy nhất với chất lượng cao nhất
+            best_video_stream = max(videos, key=lambda v: ((v.get("quality") or 0), (v.get("bitrate") or 0)))
+            normalized_videos = [{
+                "id": best_video_stream.get("id") or "fb_video_1",
+                "label": f"Video ({qualities[0]}p)" if qualities else best_video_stream.get("label", "Video"),
+                "quality_label": best_video_stream.get("quality_label", "HD"),
+                "quality": best_video_stream.get("quality") or (qualities[0] if qualities else 720),
+                "url": best_video_stream.get("url"),
+                "thumbnail": primary_thumbnail,
+                "type": "video",
+                "title": title,
+            }]
+        else:
+            normalized_videos = []
+
         result: dict[str, Any] = {
             "source": "facebook",
             "id": post_id,
@@ -344,7 +372,8 @@ class FacebookExtractor:
             "timestamp": timestamp,
             "reactions": reactions,
             "photos": photos,
-            "videos": videos,
+            "videos": normalized_videos,
+            "video_streams": video_streams,
             "images": all_images,
             "all_images": all_images,
             "qualities": qualities,
@@ -354,7 +383,7 @@ class FacebookExtractor:
             "raw_info": {
                 "post_id": post_id,
                 "photos_count": len(photos),
-                "videos_count": len(videos),
+                "videos_count": len(normalized_videos),
                 "has_content": bool(content),
             },
         }

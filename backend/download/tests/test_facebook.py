@@ -112,8 +112,9 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["photos"][0]["width"], 1080)
         self.assertEqual(data["photos"][0]["height"], 1350)
 
-        # Videos
-        self.assertEqual(len(data["videos"]), 2)
+        # Videos: 1 video duy nhất với 2 luồng chất lượng
+        self.assertEqual(len(data["videos"]), 1)
+        self.assertEqual(len(data["video_streams"]), 2)
         self.assertIn("video_hd.mp4", data["videos"][0]["url"])
         self.assertIn(1080, data["qualities"])
 
@@ -216,15 +217,16 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["author"]["name"], "Cosplay Channel")
         self.assertEqual(data["photos"], [])
         self.assertEqual(data["images"], [])
-        self.assertEqual(len(data["videos"]), 2)
+        self.assertEqual(len(data["videos"]), 1)
+        self.assertEqual(len(data["video_streams"]), 2)
 
         # Video streams must be sanitized of closing tags
-        for v in data["videos"]:
+        for v in data["video_streams"]:
             self.assertNotIn("BaseURL", v["url"])
             self.assertNotIn("SegmentBase", v["url"])
 
         # Must not contain feed trailer video (111222333)
-        urls = [v["url"] for v in data["videos"]]
+        urls = [v["url"] for v in data["video_streams"]]
         self.assertFalse(any("feed_trailer" in u for u in urls))
 
     def test_source_router_supports_facebook(self):
@@ -362,7 +364,8 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["id"], "555666777")
         self.assertEqual(data["type"], "video")
         self.assertEqual(len(data["photos"]), 0)
-        self.assertEqual(len(data["videos"]), 2)
+        self.assertEqual(len(data["videos"]), 1)
+        self.assertEqual(len(data["video_streams"]), 2)
         self.assertIn("reel_hd.mp4", data["videos"][0]["url"])
         self.assertNotIn("BaseURL", data["videos"][0]["url"])
 

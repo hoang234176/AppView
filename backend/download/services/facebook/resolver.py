@@ -118,7 +118,7 @@ class FacebookResolver(DownloadResolver):
         raw_title = info.get("title") or ""
         post_id = str(info.get("id") or "post")
         title = sanitize_filename(raw_title or f"facebook_{post_id}")
-        videos = info.get("videos") or []
+        videos = info.get("video_streams") or info.get("videos") or []
 
         if not videos:
             raise FacebookNotFoundError("Không tìm thấy luồng video để tải xuống từ bài viết Facebook này.")
