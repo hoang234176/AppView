@@ -40,41 +40,43 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   bool _isCheckingConnection = false;
   bool _isConnected = false;
 
+  static bool _hasAutoCheckedCookiesOnMobile = false;
+
   // Collapsible Accordion States
   bool _openSection1 = false;
   bool _openSection2 = false;
   bool _openSection3 = false;
 
   // Social Cookies State (YouTube)
-  String _cookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
+  String _cookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isYoutubeCardOpen = false;
   bool _isVerifyingCookie = false;
   String? _cookieVerifyMsg;
   bool _cookieVerifySuccess = false;
 
   // Social Cookies State (TikTok)
-  String _tiktokCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
+  String _tiktokCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isTiktokCardOpen = false;
   bool _isVerifyingTiktokCookie = false;
   String? _tiktokCookieVerifyMsg;
   bool _tiktokCookieVerifySuccess = false;
 
   // Social Cookies State (Facebook)
-  String _fbCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
+  String _fbCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isFbCardOpen = false;
   bool _isVerifyingFbCookie = false;
   String? _fbCookieVerifyMsg;
   bool _fbCookieVerifySuccess = false;
 
   // Social Cookies State (Instagram)
-  String _igCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
+  String _igCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isIgCardOpen = false;
   bool _isVerifyingIgCookie = false;
   String? _igCookieVerifyMsg;
   bool _igCookieVerifySuccess = false;
 
   // Social Cookies State (X / Twitter)
-  String _xCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
+  String _xCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isXCardOpen = false;
   bool _isVerifyingXCookie = false;
   String? _xCookieVerifyMsg;
@@ -96,11 +98,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       }
     });
     _loadCacheInfo();
-    _fetchCookieStatus();
-    _fetchTiktokCookieStatus();
-    _fetchFbCookieStatus();
-    _fetchIgCookieStatus();
-    _fetchXCookieStatus();
     _checkCurrentConnectionAndLoadStorage();
   }
 
@@ -111,23 +108,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     super.dispose();
   }
 
-  Future<void> _fetchCookieStatus() async {
-    setState(() {
-      _cookieStatus = 'loading';
-    });
-    final res = await DownloadApi.getCookieStatus('youtube');
-    if (!mounted) return;
-    if (res['success'] == true && res['data'] is Map) {
-      final data = res['data'] as Map;
-      if (data['exists'] == true) {
-        setState(() => _cookieStatus = 'valid');
-      } else {
-        setState(() => _cookieStatus = 'none');
-      }
-    } else {
-      setState(() => _cookieStatus = 'none');
-    }
-  }
 
   Future<void> _handleVerifyCookie() async {
     setState(() {
@@ -160,23 +140,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     });
   }
 
-  Future<void> _fetchTiktokCookieStatus() async {
-    setState(() {
-      _tiktokCookieStatus = 'loading';
-    });
-    final res = await DownloadApi.getCookieStatus('tiktok');
-    if (!mounted) return;
-    if (res['success'] == true && res['data'] is Map) {
-      final data = res['data'] as Map;
-      if (data['exists'] == true) {
-        setState(() => _tiktokCookieStatus = 'valid');
-      } else {
-        setState(() => _tiktokCookieStatus = 'none');
-      }
-    } else {
-      setState(() => _tiktokCookieStatus = 'none');
-    }
-  }
 
   Future<void> _handleVerifyTiktokCookie() async {
     setState(() {
@@ -209,23 +172,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     });
   }
 
-  Future<void> _fetchFbCookieStatus() async {
-    setState(() {
-      _fbCookieStatus = 'loading';
-    });
-    final res = await DownloadApi.getCookieStatus('facebook');
-    if (!mounted) return;
-    if (res['success'] == true && res['data'] is Map) {
-      final data = res['data'] as Map;
-      if (data['exists'] == true) {
-        setState(() => _fbCookieStatus = 'valid');
-      } else {
-        setState(() => _fbCookieStatus = 'none');
-      }
-    } else {
-      setState(() => _fbCookieStatus = 'none');
-    }
-  }
 
   Future<void> _handleVerifyFbCookie() async {
     setState(() {
@@ -258,24 +204,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     });
   }
 
-  Future<void> _fetchIgCookieStatus() async {
-    setState(() {
-      _igCookieStatus = 'loading';
-    });
-    final res = await DownloadApi.getCookieStatus('instagram');
-    if (!mounted) return;
-    if (res['success'] == true && res['data'] is Map) {
-      final data = res['data'] as Map;
-      if (data['exists'] == true) {
-        setState(() => _igCookieStatus = 'valid');
-      } else {
-        setState(() => _igCookieStatus = 'none');
-      }
-    } else {
-      setState(() => _igCookieStatus = 'none');
-    }
-  }
-
   Future<void> _handleVerifyIgCookie() async {
     setState(() {
       _isVerifyingIgCookie = true;
@@ -305,24 +233,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             'Cookie không hợp lệ hoặc đã hết hạn.';
       }
     });
-  }
-
-  Future<void> _fetchXCookieStatus() async {
-    setState(() {
-      _xCookieStatus = 'loading';
-    });
-    final res = await DownloadApi.getCookieStatus('x');
-    if (!mounted) return;
-    if (res['success'] == true && res['data'] is Map) {
-      final data = res['data'] as Map;
-      if (data['exists'] == true) {
-        setState(() => _xCookieStatus = 'valid');
-      } else {
-        setState(() => _xCookieStatus = 'none');
-      }
-    } else {
-      setState(() => _xCookieStatus = 'none');
-    }
   }
 
   Future<void> _handleVerifyXCookie() async {
@@ -373,9 +283,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
         _isConnected = true;
         _isLoadingStorage = true;
       });
-      _fetchCookieStatus();
-      _fetchTiktokCookieStatus();
-      _fetchFbCookieStatus();
       final storageData = await DownloadApi.fetchCoordinatorStorageInfo();
       if (!mounted) return;
       setState(() {
@@ -464,7 +371,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           _storageInfo = storageData;
           _isLoadingStorage = false;
         });
-        _fetchCookieStatus();
         AppToast.showSuccess(context, 'Đã lưu & kết nối máy chủ: $host');
       }
     } else {
@@ -1058,9 +964,19 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                       // ================= 2. COOKIE MXH (COLLAPSIBLE) =================
                       _buildAccordionSection(
                         isOpen: _openSection2,
-                        onToggle:
-                            () =>
-                                setState(() => _openSection2 = !_openSection2),
+                        onToggle: () {
+                          final nextState = !_openSection2;
+                          setState(() => _openSection2 = nextState);
+                          if (nextState && !_hasAutoCheckedCookiesOnMobile) {
+                            _hasAutoCheckedCookiesOnMobile = true;
+                            // Independently verify each platform without waiting or blocking
+                            _handleVerifyCookie();
+                            _handleVerifyTiktokCookie();
+                            _handleVerifyFbCookie();
+                            _handleVerifyIgCookie();
+                            _handleVerifyXCookie();
+                          }
+                        },
                         icon: Icons.cookie_rounded,
                         iconColor: Colors.amberAccent,
                         title: '2. Cookie MXH',
@@ -1118,20 +1034,52 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                                 ),
                                               ),
                                               const SizedBox(width: 10),
-                                              const Text(
-                                                'YouTube',
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white,
-                                                ),
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Text(
+                                                    'YouTube',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                  if (_isVerifyingCookie) ...[
+                                                    const SizedBox(height: 2),
+                                                    Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        const SizedBox(
+                                                          width: 9,
+                                                          height: 9,
+                                                          child: CircularProgressIndicator(
+                                                            strokeWidth: 1.5,
+                                                            color: Colors.blueAccent,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 4),
+                                                        Text(
+                                                          'Đang kiểm tra...',
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            color: Colors.blueAccent.withValues(alpha: 0.9),
+                                                            fontWeight: FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ],
                                               ),
                                             ],
                                           ),
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              _buildCookieStatusBadge(),
+                                              if (!_isVerifyingCookie)
+                                                _buildCookieStatusBadge(),
                                               const SizedBox(width: 6),
                                               Icon(
                                                 _isYoutubeCardOpen
@@ -1220,59 +1168,45 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                                   ),
                                                 ],
 
-                                                const SizedBox(height: 10),
-                                                const Divider(
-                                                  height: 1,
-                                                  color: AppTheme.borderColor,
-                                                ),
-                                                const SizedBox(height: 10),
-
-                                                // Action Buttons
-                                                Row(
-                                                  mainAxisAlignment: MainAxisAlignment.end,
-                                                  children: [
-                                                    ElevatedButton.icon(
-                                                      onPressed:
-                                                          _isVerifyingCookie
-                                                              ? null
-                                                              : _handleVerifyCookie,
-                                                      icon:
-                                                          _isVerifyingCookie
-                                                              ? const SizedBox(
-                                                                width: 12,
-                                                                height: 12,
-                                                                child: CircularProgressIndicator(
-                                                                  strokeWidth: 2,
-                                                                  color: Colors.white,
-                                                                ),
-                                                              )
-                                                              : const Icon(
-                                                                Icons.refresh_rounded,
-                                                                size: 13,
+                                                // Action Buttons - hidden while verifying
+                                                if (!_isVerifyingCookie) ...[
+                                                  const SizedBox(height: 10),
+                                                  const Divider(
+                                                    height: 1,
+                                                    color: AppTheme.borderColor,
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  Row(
+                                                    mainAxisAlignment: MainAxisAlignment.end,
+                                                    children: [
+                                                      ElevatedButton.icon(
+                                                        onPressed: _handleVerifyCookie,
+                                                        icon: const Icon(
+                                                          Icons.refresh_rounded,
+                                                          size: 13,
+                                                        ),
+                                                        label: const Text(
+                                                          'Kiểm tra youtube.txt',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: Colors.white
+                                                              .withValues(alpha: 0.1),
+                                                          foregroundColor: Colors.white,
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 10,
+                                                                vertical: 7,
                                                               ),
-                                                      label: Text(
-                                                        _isVerifyingCookie
-                                                            ? 'Đang kiểm tra...'
-                                                            : 'Kiểm tra youtube.txt',
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          fontWeight: FontWeight.bold,
+                                                          minimumSize: Size.zero,
                                                         ),
                                                       ),
-                                                      style: ElevatedButton.styleFrom(
-                                                        backgroundColor: Colors.white
-                                                            .withValues(alpha: 0.1),
-                                                        foregroundColor: Colors.white,
-                                                        padding:
-                                                            const EdgeInsets.symmetric(
-                                                              horizontal: 10,
-                                                              vertical: 7,
-                                                            ),
-                                                        minimumSize: Size.zero,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
+                                                    ],
+                                                  ),
+                                                ],
                                               ],
                                             ),
                                           )
@@ -1574,20 +1508,52 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Text(
-                        'TikTok',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'TikTok',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          if (_isVerifyingTiktokCookie) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 9,
+                                  height: 9,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: Colors.blueAccent,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Đang kiểm tra...',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.blueAccent.withValues(alpha: 0.9),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildCookieStatusBadge(_tiktokCookieStatus),
+                      if (!_isVerifyingTiktokCookie)
+                        _buildCookieStatusBadge(_tiktokCookieStatus),
                       const SizedBox(width: 6),
                       Icon(
                         _isTiktokCardOpen
@@ -1664,56 +1630,44 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           ),
                         ],
 
-                        const SizedBox(height: 10),
-                        const Divider(
-                          height: 1,
-                          color: AppTheme.borderColor,
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Action Buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: _isVerifyingTiktokCookie
-                                  ? null
-                                  : _handleVerifyTiktokCookie,
-                              icon: _isVerifyingTiktokCookie
-                                  ? const SizedBox(
-                                      width: 12,
-                                      height: 12,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.refresh_rounded,
-                                      size: 13,
-                                    ),
-                              label: Text(
-                                _isVerifyingTiktokCookie
-                                    ? 'Đang kiểm tra...'
-                                    : 'Kiểm tra tiktok.txt',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                        // Action Buttons - hidden while verifying
+                        if (!_isVerifyingTiktokCookie) ...[
+                          const SizedBox(height: 10),
+                          const Divider(
+                            height: 1,
+                            color: AppTheme.borderColor,
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _handleVerifyTiktokCookie,
+                                icon: const Icon(
+                                  Icons.refresh_rounded,
+                                  size: 13,
+                                ),
+                                label: const Text(
+                                  'Kiểm tra tiktok.txt',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white
+                                      .withValues(alpha: 0.1),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                  minimumSize: Size.zero,
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white
-                                    .withValues(alpha: 0.1),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 7,
-                                ),
-                                minimumSize: Size.zero,
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   )
@@ -1773,20 +1727,52 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Text(
-                        'Facebook',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Facebook',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          if (_isVerifyingFbCookie) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 9,
+                                  height: 9,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: Colors.blueAccent,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Đang kiểm tra...',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.blueAccent.withValues(alpha: 0.9),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildCookieStatusBadge(_fbCookieStatus),
+                      if (!_isVerifyingFbCookie)
+                        _buildCookieStatusBadge(_fbCookieStatus),
                       const SizedBox(width: 6),
                       Icon(
                         _isFbCardOpen
@@ -1863,56 +1849,44 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           ),
                         ],
 
-                        const SizedBox(height: 10),
-                        const Divider(
-                          height: 1,
-                          color: AppTheme.borderColor,
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Action Buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: _isVerifyingFbCookie
-                                  ? null
-                                  : _handleVerifyFbCookie,
-                              icon: _isVerifyingFbCookie
-                                  ? const SizedBox(
-                                      width: 12,
-                                      height: 12,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.refresh_rounded,
-                                      size: 13,
-                                    ),
-                              label: Text(
-                                _isVerifyingFbCookie
-                                    ? 'Đang kiểm tra...'
-                                    : 'Kiểm tra facebook.txt',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                        // Action Buttons - hidden while verifying
+                        if (!_isVerifyingFbCookie) ...[
+                          const SizedBox(height: 10),
+                          const Divider(
+                            height: 1,
+                            color: AppTheme.borderColor,
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _handleVerifyFbCookie,
+                                icon: const Icon(
+                                  Icons.refresh_rounded,
+                                  size: 13,
+                                ),
+                                label: const Text(
+                                  'Kiểm tra facebook.txt',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white
+                                      .withValues(alpha: 0.1),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                  minimumSize: Size.zero,
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white
-                                    .withValues(alpha: 0.1),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 7,
-                                ),
-                                minimumSize: Size.zero,
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   )
@@ -1972,20 +1946,52 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Text(
-                        'Instagram',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Instagram',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          if (_isVerifyingIgCookie) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 9,
+                                  height: 9,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: Colors.blueAccent,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Đang kiểm tra...',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.blueAccent.withValues(alpha: 0.9),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildCookieStatusBadge(_igCookieStatus),
+                      if (!_isVerifyingIgCookie)
+                        _buildCookieStatusBadge(_igCookieStatus),
                       const SizedBox(width: 6),
                       Icon(
                         _isIgCardOpen
@@ -2062,56 +2068,44 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           ),
                         ],
 
-                        const SizedBox(height: 10),
-                        const Divider(
-                          height: 1,
-                          color: AppTheme.borderColor,
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Action Buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: _isVerifyingIgCookie
-                                  ? null
-                                  : _handleVerifyIgCookie,
-                              icon: _isVerifyingIgCookie
-                                  ? const SizedBox(
-                                      width: 12,
-                                      height: 12,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.refresh_rounded,
-                                      size: 13,
-                                    ),
-                              label: Text(
-                                _isVerifyingIgCookie
-                                    ? 'Đang kiểm tra...'
-                                    : 'Kiểm tra instagram.txt',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                        // Action Buttons - hidden while verifying
+                        if (!_isVerifyingIgCookie) ...[
+                          const SizedBox(height: 10),
+                          const Divider(
+                            height: 1,
+                            color: AppTheme.borderColor,
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _handleVerifyIgCookie,
+                                icon: const Icon(
+                                  Icons.refresh_rounded,
+                                  size: 13,
+                                ),
+                                label: const Text(
+                                  'Kiểm tra instagram.txt',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white
+                                      .withValues(alpha: 0.1),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                  minimumSize: Size.zero,
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white
-                                    .withValues(alpha: 0.1),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 7,
-                                ),
-                                minimumSize: Size.zero,
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   )
@@ -2171,20 +2165,52 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Text(
-                        'X (Twitter)',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'X (Twitter)',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          if (_isVerifyingXCookie) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 9,
+                                  height: 9,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: Colors.blueAccent,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Đang kiểm tra...',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.blueAccent.withValues(alpha: 0.9),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildCookieStatusBadge(_xCookieStatus),
+                      if (!_isVerifyingXCookie)
+                        _buildCookieStatusBadge(_xCookieStatus),
                       const SizedBox(width: 6),
                       Icon(
                         _isXCardOpen
@@ -2261,56 +2287,44 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           ),
                         ],
 
-                        const SizedBox(height: 10),
-                        const Divider(
-                          height: 1,
-                          color: AppTheme.borderColor,
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Action Buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: _isVerifyingXCookie
-                                  ? null
-                                  : _handleVerifyXCookie,
-                              icon: _isVerifyingXCookie
-                                  ? const SizedBox(
-                                      width: 12,
-                                      height: 12,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.refresh_rounded,
-                                      size: 13,
-                                    ),
-                              label: Text(
-                                _isVerifyingXCookie
-                                    ? 'Đang kiểm tra...'
-                                    : 'Kiểm tra x.txt',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                        // Action Buttons - hidden while verifying
+                        if (!_isVerifyingXCookie) ...[
+                          const SizedBox(height: 10),
+                          const Divider(
+                            height: 1,
+                            color: AppTheme.borderColor,
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _handleVerifyXCookie,
+                                icon: const Icon(
+                                  Icons.refresh_rounded,
+                                  size: 13,
+                                ),
+                                label: const Text(
+                                  'Kiểm tra x.txt',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white
+                                      .withValues(alpha: 0.1),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                  minimumSize: Size.zero,
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white
-                                    .withValues(alpha: 0.1),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 7,
-                                ),
-                                minimumSize: Size.zero,
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   )
