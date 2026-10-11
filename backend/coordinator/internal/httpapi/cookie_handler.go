@@ -21,118 +21,6 @@ func NewCookieHandler(coordinator *service.Coordinator) *CookieHandler {
 	return &CookieHandler{coordinator: coordinator}
 }
 
-func assembleNetscapeCookies(platform string, fields map[string]string) string {
-	if len(fields) == 0 {
-		return ""
-	}
-	var sb strings.Builder
-	sb.WriteString("# Netscape HTTP Cookie File\n")
-	domain := ".youtube.com"
-	if platform != "" && platform != "youtube" {
-		domain = "." + platform + ".com"
-	}
-	orderedKeys := []string{
-		"LOGIN_INFO",
-		"SID",
-		"HSID",
-		"SSID",
-		"SAPISID",
-		"APISID",
-		"__Secure-1PSID",
-		"__Secure-3PSID",
-		"__Secure-1PSIDTS",
-		"__Secure-3PSIDTS",
-		"__Secure-1PAPISID",
-		"__Secure-3PAPISID",
-	}
-	if platform == "facebook" {
-		orderedKeys = []string{
-			"c_user",
-			"xs",
-			"datr",
-			"fr",
-			"sb",
-			"presence",
-			"spin",
-			"wd",
-		}
-	} else if platform == "tiktok" {
-		orderedKeys = []string{
-			"sessionid",
-			"sessionid_ss",
-			"sid_guard",
-			"tt_chain_token",
-		}
-	} else if platform == "instagram" {
-		domain = ".instagram.com"
-		orderedKeys = []string{
-			"sessionid",
-			"ds_user_id",
-			"csrftoken",
-			"mid",
-			"ig_did",
-			"rur",
-			"datr",
-		}
-	} else if platform == "x" || platform == "twitter" {
-		domain = ".x.com"
-		orderedKeys = []string{
-			"auth_token",
-			"ct0",
-			"twid",
-			"kdt",
-			"guest_id",
-			"personalization_id",
-		}
-	}
-	used := make(map[string]bool)
-	cleanValue := func(v string) string {
-		v = strings.ReplaceAll(v, "\r", "")
-		v = strings.ReplaceAll(v, "\n", "")
-		v = strings.ReplaceAll(v, "\t", "")
-		return strings.TrimSpace(v)
-	}
-	hasAny := false
-	for _, key := range orderedKeys {
-		if val, ok := fields[key]; ok {
-			cleaned := cleanValue(val)
-			if cleaned != "" {
-				sb.WriteString(fmt.Sprintf("%s\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", domain, key, cleaned))
-				if platform == "youtube" && key != "LOGIN_INFO" {
-					sb.WriteString(fmt.Sprintf(".google.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", key, cleaned))
-				}
-				if platform == "x" || platform == "twitter" {
-					sb.WriteString(fmt.Sprintf(".twitter.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", key, cleaned))
-				}
-				used[key] = true
-				hasAny = true
-			}
-		}
-	}
-	for key, val := range fields {
-		if !used[key] {
-			cleaned := cleanValue(val)
-			if cleaned != "" {
-				cleanKey := cleanValue(key)
-				if cleanKey != "" {
-					sb.WriteString(fmt.Sprintf("%s\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", domain, cleanKey, cleaned))
-					if platform == "youtube" && cleanKey != "LOGIN_INFO" {
-						sb.WriteString(fmt.Sprintf(".google.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", cleanKey, cleaned))
-					}
-					if platform == "x" || platform == "twitter" {
-						sb.WriteString(fmt.Sprintf(".twitter.com\tTRUE\t/\tTRUE\t2147483647\t%s\t%s\n", cleanKey, cleaned))
-					}
-					hasAny = true
-				}
-			}
-		}
-	}
-	if !hasAny {
-		return ""
-	}
-	return sb.String()
-}
-
 func (h *CookieHandler) Status(writer http.ResponseWriter, request *http.Request) {
 	platform := strings.TrimSpace(request.URL.Query().Get("platform"))
 	if platform == "" {
@@ -188,15 +76,8 @@ func (h *CookieHandler) Verify(writer http.ResponseWriter, request *http.Request
 		return
 	}
 	cookies := strings.TrimSpace(body.Cookies)
-	if cookies == "" && len(body.Fields) > 0 {
-		cookies = assembleNetscapeCookies(platform, body.Fields)
-		if cookies == "" {
-			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "all fields are empty"})
-			return
-		}
-	}
 	if cookies == "" {
-		// Attempt to verify currently saved cookies from Storage
+		// Verify currently saved cookies from Storage
 		saved, err := h.coordinator.GetCookieContent(ctx, platform)
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
@@ -232,50 +113,6 @@ func (h *CookieHandler) Verify(writer http.ResponseWriter, request *http.Request
 		"platform": platform,
 		"valid":    res.Valid,
 		"message":  res.Message,
-	})
-	writeJSON(writer, http.StatusOK, res)
-}
-
-func (h *CookieHandler) Save(writer http.ResponseWriter, request *http.Request) {
-	defer request.Body.Close()
-	ctx, cancel := context.WithTimeout(request.Context(), 60*time.Second)
-	defer cancel()
-
-	var body protocol.CookieRequestPayload
-	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
-		return
-	}
-	platform := strings.TrimSpace(body.Platform)
-	if platform == "" {
-		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "platform is required"})
-		return
-	}
-	cookies := strings.TrimSpace(body.Cookies)
-	if cookies == "" && len(body.Fields) > 0 {
-		cookies = assembleNetscapeCookies(platform, body.Fields)
-	}
-	if cookies == "" {
-		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "cookies or fields cannot be empty"})
-		return
-	}
-	res, err := h.coordinator.SaveCookies(ctx, platform, cookies)
-	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
-			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
-			return
-		}
-		writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	saveLevel := "INFO"
-	if !res.Success {
-		saveLevel = "WARN"
-	}
-	logging.Event(saveLevel, "cookie save completed", map[string]any{
-		"platform":  platform,
-		"success":   res.Success,
-		"updatedAt": res.UpdatedAt,
 	})
 	writeJSON(writer, http.StatusOK, res)
 }

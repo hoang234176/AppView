@@ -249,7 +249,6 @@ const OpenAPISpecJSON = `{
                 "required": ["platform"],
                 "properties": {
                   "platform": { "type": "string", "example": "tiktok" },
-                  "fields": { "type": "object" },
                   "cookies": { "type": "string" }
                 }
               }
@@ -261,31 +260,7 @@ const OpenAPISpecJSON = `{
         }
       }
     },
-    "/api/v1/cookies/save": {
-      "post": {
-        "tags": ["Coordinator • Cookies"],
-        "summary": "[Coordinator] Save/Merge Cookies",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["platform"],
-                "properties": {
-                  "platform": { "type": "string", "example": "facebook" },
-                  "fields": { "type": "object" },
-                  "cookies": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Saved successfully" }
-        }
-      }
-    },
+
     "/api/v1/storage": {
       "get": {
         "tags": ["Coordinator • System"],

@@ -701,43 +701,6 @@ class DownloadApi {
     }
   }
 
-  // [COOKIE_IMPORT_FLOW_API] API backend dùng để nhập/lưu cookie vào hệ thống: POST /cookies/save
-  static Future<Map<String, dynamic>> saveCookies({
-    String platform = 'youtube',
-    Map<String, String>? fields,
-    String? cookies,
-  }) async {
-    try {
-      final payload = <String, dynamic>{'platform': platform};
-      if (fields != null) payload['fields'] = fields;
-      if (cookies != null) payload['cookies'] = cookies;
-      final response = await _createCoordinatorDio().post(
-        '/cookies/save',
-        data: payload,
-        options: Options(receiveTimeout: const Duration(seconds: 60)),
-      );
-      return {
-        'success': true,
-        'data':
-            response.data is Map
-                ? Map<String, dynamic>.from(response.data as Map)
-                : <String, dynamic>{},
-      };
-    } on DioException catch (e) {
-      final data = e.response?.data;
-      String message = 'Không thể lưu cookie.';
-      if (data is Map) {
-        if (data['message'] is String) {
-          message = data['message'] as String;
-        } else if (data['error'] is String) {
-          message = data['error'] as String;
-        }
-      }
-      return {'success': false, 'message': message};
-    } catch (e) {
-      return {'success': false, 'message': e.toString()};
-    }
-  }
 
   static Future<Map<String, dynamic>> startCoordinatorDownload({
     required String url,

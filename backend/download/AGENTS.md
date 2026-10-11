@@ -52,7 +52,7 @@ It MUST NOT own filesystem paths, archive/file mutations, or local storage. It d
   - Python Download worker **MUST NOT read or write cookie text files (e.g. `~/.tmp-appview/cookies/*.txt`) directly on the filesystem**.
   - All cookie files on disk are owned strictly by the **Go Storage worker**.
   - When Python Download requires cookies for authentication fallback, it **MUST query Go Storage via Coordinator RPC** (`coordinator_worker_client.get_cookies("<platform>")`).
-  - When updating or saving cookies, Python Download **MUST route the save request to Go Storage via Coordinator RPC** (`coordinator_worker_client.save_cookies("<platform>", cookies)`) or Coordinator HTTP endpoint (`POST /api/v1/cookies/save`).
+  - When updating or saving cookies, Python Download **MUST route the save request to Go Storage via Coordinator RPC** (`coordinator_worker_client.save_cookies("<platform>", cookies)`).
   - Cookies in Python Download must remain **in-memory only** (e.g. in-memory `CookieJar` or header string).
   - Never pass direct filesystem cookie file paths to third-party engines like `yt-dlp` (e.g. `ydl_opts["cookiefile"] = file_path`), as `yt-dlp` will overwrite the persistent cookie file and strip credentials. Use in-memory cookie jars instead.
 - **Rationale**: Sending authenticated cookies unconditionally to public endpoints triggers anti-bot checkpoints, rate limits, account flagging, and can alter SSR responses. Direct filesystem access violates the core architecture boundary where Go Storage exclusively owns all filesystem/media operations.

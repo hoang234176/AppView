@@ -36,7 +36,6 @@
 | `POST` | `/api/v1/download/{id}/retry` | Retry a failed download job |
 | `POST` | `/api/v1/download/{id}/cancel` | Cooperatively cancel an active download job |
 | `POST` | `/api/v1/cookies/verify` | Verify social platform cookies |
-| `POST` | `/api/v1/cookies/save` | Save platform cookies |
 | `WS` | `/ws/workers` | Worker registration and RPC protocol WebSocket |
 | `WS` | `/ws/events` | Frontend real-time invalidation WebSocket |
 

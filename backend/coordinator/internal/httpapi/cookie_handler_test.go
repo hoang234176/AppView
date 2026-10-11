@@ -62,22 +62,6 @@ func TestCookieEndpointsValidationAndNoWorker(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d: %s", rec.Code, rec.Body.String())
 	}
-
-	// 5. Save missing cookies -> 400
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/save", bytes.NewBufferString(`{"platform":"youtube","cookies":""}`))
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	// 6. Save no worker -> 503
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/save", bytes.NewBufferString(`{"platform":"youtube","cookies":"sample"}`))
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503, got %d: %s", rec.Code, rec.Body.String())
-	}
 }
 
 func TestCookieEndpointsSuccessWithWorkers(t *testing.T) {
@@ -159,21 +143,6 @@ func TestCookieEndpointsSuccessWithWorkers(t *testing.T) {
 		t.Fatalf("unexpected status result: %+v", statusRes)
 	}
 
-	// Test Save success
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/save", bytes.NewBufferString(`{"platform":"youtube","cookies":"# sample"}`))
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var saveRes protocol.CookieSaveResult
-	if err := json.Unmarshal(rec.Body.Bytes(), &saveRes); err != nil {
-		t.Fatal(err)
-	}
-	if !saveRes.Success {
-		t.Fatalf("unexpected save result: %+v", saveRes)
-	}
-
 	// Test Verify success
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"youtube","cookies":"# sample"}`))
 	rec = httptest.NewRecorder()
@@ -187,29 +156,5 @@ func TestCookieEndpointsSuccessWithWorkers(t *testing.T) {
 	}
 	if !verifyRes.Valid || verifyRes.Message != "Verification succeeded" {
 		t.Fatalf("unexpected verify result: %+v", verifyRes)
-	}
-
-	// Test Verify with fields
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"youtube","fields":{"LOGIN_INFO":"val1","SID":"val2"}}`))
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	// Test Save with fields
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/save", bytes.NewBufferString(`{"platform":"youtube","fields":{"LOGIN_INFO":"val1","SID":"val2"}}`))
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	// Test Save with instagram fields
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/save", bytes.NewBufferString(`{"platform":"instagram","fields":{"sessionid":"test_session","ds_user_id":"12345"}}`))
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

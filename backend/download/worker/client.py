@@ -289,30 +289,8 @@ class CoordinatorWorkerClient:
             pass
         return None
 
-    async def _save_cookies_via_http(self, platform: str, cookies: str) -> bool:
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._save_cookies_via_http_sync, platform, cookies)
-
-    def _save_cookies_via_http_sync(self, platform: str, cookies: str) -> bool:
-        import ssl
-        import urllib.request
-        base = self._get_coordinator_http_base()
-        url = f"{base}/api/v1/cookies/save"
-        payload = json.dumps({"platform": platform, "cookies": cookies}).encode("utf-8")
-        ctx = ssl._create_unverified_context()
-        try:
-            req = urllib.request.Request(
-                url,
-                data=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            with urllib.request.urlopen(req, context=ctx, timeout=4.0) as resp:
-                return resp.status == 200
-        except Exception:
-            return False
-
     def dispatch_save_cookies(self, platform: str, cookies: str) -> None:
-        """Schedule cookie save asynchronously via WebSocket or fall back to HTTP."""
+        """Schedule cookie save asynchronously via WebSocket."""
         if not cookies or not cookies.strip():
             return
         if self._loop is not None and self._loop.is_running():
@@ -327,7 +305,6 @@ class CoordinatorWorkerClient:
             return
         except RuntimeError:
             pass
-        self._save_cookies_via_http_sync(platform, cookies)
 
     async def get_cookies(self, platform: str = "youtube", timeout: float = 5.0) -> Optional[str]:
         if self._websocket is not None:
@@ -363,7 +340,7 @@ class CoordinatorWorkerClient:
             finally:
                 self._pending_rpc.pop(task_id, None)
 
-        return await self._save_cookies_via_http(platform, cookies)
+        return False
 
     async def _get_session_via_http(self, platform: str) -> Optional[str]:
         loop = asyncio.get_running_loop()
