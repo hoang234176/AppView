@@ -380,6 +380,7 @@ export const verifyCookies = async (platform = 'youtube', fields = null, cookies
   }
 };
 
+// [COOKIE_IMPORT_FLOW_API] API backend dùng để nhập/lưu cookie vào hệ thống: POST /cookies/save
 export const saveCookies = async (platform = 'youtube', fields = null, cookies = null) => {
   try {
     const payload = { platform };

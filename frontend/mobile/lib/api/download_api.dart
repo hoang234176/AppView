@@ -701,6 +701,7 @@ class DownloadApi {
     }
   }
 
+  // [COOKIE_IMPORT_FLOW_API] API backend dùng để nhập/lưu cookie vào hệ thống: POST /cookies/save
   static Future<Map<String, dynamic>> saveCookies({
     String platform = 'youtube',
     Map<String, String>? fields,

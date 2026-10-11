@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
@@ -49,102 +48,35 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   // Social Cookies State (YouTube)
   String _cookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
   bool _isYoutubeCardOpen = false;
-  bool _isCookieInputOpen = false;
-  static const List<String> _cookieFieldKeys = [
-    'LOGIN_INFO',
-    'SID',
-    'HSID',
-    'SSID',
-    'SAPISID',
-    '__Secure-1PSID',
-    '__Secure-3PSID',
-    '__Secure-1PSIDTS',
-    '__Secure-3PSIDTS',
-  ];
-  final Map<String, TextEditingController> _cookieControllers = {
-    for (final key in _cookieFieldKeys) key: TextEditingController(),
-  };
   bool _isVerifyingCookie = false;
-  bool _isSavingCookie = false;
-  bool _isCookieVerified = false;
   String? _cookieVerifyMsg;
   bool _cookieVerifySuccess = false;
 
   // Social Cookies State (TikTok)
   String _tiktokCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
   bool _isTiktokCardOpen = false;
-  bool _isTiktokCookieInputOpen = false;
-  static const List<String> _tiktokCookieFieldKeys = [
-    'sessionid',
-    'sessionid_ss',
-    'sid_guard',
-    'tt_chain_token',
-  ];
-  final Map<String, TextEditingController> _tiktokCookieControllers = {
-    for (final key in _tiktokCookieFieldKeys) key: TextEditingController(),
-  };
   bool _isVerifyingTiktokCookie = false;
-  bool _isSavingTiktokCookie = false;
-  bool _isTiktokCookieVerified = false;
   String? _tiktokCookieVerifyMsg;
   bool _tiktokCookieVerifySuccess = false;
 
   // Social Cookies State (Facebook)
   String _fbCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
   bool _isFbCardOpen = false;
-  bool _isFbCookieInputOpen = false;
-  static const List<String> _fbCookieFieldKeys = [
-    'c_user',
-    'xs',
-    'datr',
-    'fr',
-    'sb',
-    'presence',
-  ];
-  final Map<String, TextEditingController> _fbCookieControllers = {
-    for (final key in _fbCookieFieldKeys) key: TextEditingController(),
-  };
   bool _isVerifyingFbCookie = false;
-  bool _isSavingFbCookie = false;
-  bool _isFbCookieVerified = false;
   String? _fbCookieVerifyMsg;
   bool _fbCookieVerifySuccess = false;
 
   // Social Cookies State (Instagram)
   String _igCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
   bool _isIgCardOpen = false;
-  bool _isIgCookieInputOpen = false;
-  static const List<String> _igCookieFieldKeys = [
-    'sessionid',
-    'ds_user_id',
-    'csrftoken',
-    'mid',
-    'ig_did',
-    'datr',
-  ];
-  final Map<String, TextEditingController> _igCookieControllers = {
-    for (final key in _igCookieFieldKeys) key: TextEditingController(),
-  };
   bool _isVerifyingIgCookie = false;
-  bool _isSavingIgCookie = false;
-  bool _isIgCookieVerified = false;
   String? _igCookieVerifyMsg;
   bool _igCookieVerifySuccess = false;
 
   // Social Cookies State (X / Twitter)
   String _xCookieStatus = 'loading'; // 'loading', 'none', 'valid', 'expired'
   bool _isXCardOpen = false;
-  bool _isXCookieInputOpen = false;
-  static const List<String> _xCookieFieldKeys = [
-    'auth_token',
-    'ct0',
-  ];
-  final Map<String, TextEditingController> _xCookieControllers = {
-    for (final key in _xCookieFieldKeys) key: TextEditingController(),
-  };
   bool _isVerifyingXCookie = false;
-  bool _isSavingXCookie = false;
-  bool _isXCookieVerified = false;
   String? _xCookieVerifyMsg;
   bool _xCookieVerifySuccess = false;
 
@@ -176,21 +108,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   void dispose() {
     _storageSubscription?.cancel();
     _hostController.dispose();
-    for (final c in _cookieControllers.values) {
-      c.dispose();
-    }
-    for (final c in _tiktokCookieControllers.values) {
-      c.dispose();
-    }
-    for (final c in _fbCookieControllers.values) {
-      c.dispose();
-    }
-    for (final c in _igCookieControllers.values) {
-      c.dispose();
-    }
-    for (final c in _xCookieControllers.values) {
-      c.dispose();
-    }
     super.dispose();
   }
 
@@ -218,26 +135,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       _cookieVerifyMsg = null;
     });
 
-    Map<String, String>? fields;
-    if (_isCookieInputOpen) {
-      final hasAny = _cookieControllers.values.any(
-        (c) => c.text.trim().isNotEmpty,
-      );
-      if (!hasAny) {
-        setState(() {
-          _isVerifyingCookie = false;
-          _cookieVerifySuccess = false;
-          _cookieVerifyMsg = 'Vui lòng nhập ít nhất một token cookie.';
-        });
-        return;
-      }
-      fields = _cookieControllers.map((k, v) => MapEntry(k, v.text.trim()));
-    }
-
-    final res = await DownloadApi.verifyCookies(
-      platform: 'youtube',
-      fields: fields,
-    );
+    final res = await DownloadApi.verifyCookies(platform: 'youtube');
     if (!mounted) return;
 
     setState(() {
@@ -245,18 +143,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       if (res['success'] == true &&
           res['data'] is Map &&
           res['data']['valid'] == true) {
-        _isCookieVerified = true;
-        if (!_isCookieInputOpen) {
-          _cookieStatus = 'valid';
-        }
+        _cookieStatus = 'valid';
         _cookieVerifySuccess = true;
         _cookieVerifyMsg =
             res['data']['message']?.toString() ?? '✓ Cookie hợp lệ!';
       } else {
-        _isCookieVerified = false;
-        if (!_isCookieInputOpen) {
-          _cookieStatus = 'expired';
-        }
+        _cookieStatus = 'expired';
         _cookieVerifySuccess = false;
         final msg =
             res['data'] is Map ? res['data']['message']?.toString() : null;
@@ -264,40 +156,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             msg ??
             res['message']?.toString() ??
             'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-  }
-
-  Future<void> _handleSaveCookie() async {
-    if (!_isCookieVerified || _isSavingCookie) return;
-    setState(() {
-      _isSavingCookie = true;
-      _cookieVerifyMsg = null;
-    });
-
-    final fields = _cookieControllers.map(
-      (k, v) => MapEntry(k, v.text.trim()),
-    );
-    final res = await DownloadApi.saveCookies(
-      platform: 'youtube',
-      fields: fields,
-    );
-    if (!mounted) return;
-
-    setState(() {
-      _isSavingCookie = false;
-      if (res['success'] == true) {
-        _isCookieInputOpen = false;
-        _isCookieVerified = false;
-        _cookieStatus = 'valid';
-        _cookieVerifySuccess = true;
-        _cookieVerifyMsg = 'Đã lưu cookie thành công!';
-        AppToast.showSuccess(context, 'Đã lưu cookie YouTube thành công!');
-      } else {
-        _cookieVerifySuccess = false;
-        _cookieVerifyMsg =
-            res['message']?.toString() ?? 'Không thể lưu cookie.';
-        AppToast.showError(context, _cookieVerifyMsg!);
       }
     });
   }
@@ -326,30 +184,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       _tiktokCookieVerifyMsg = null;
     });
 
-    Map<String, String>? fields;
-
-    if (_isTiktokCookieInputOpen) {
-      final hasAny = _tiktokCookieControllers.values.any(
-        (c) => c.text.trim().isNotEmpty,
-      );
-      if (!hasAny) {
-        setState(() {
-          _isVerifyingTiktokCookie = false;
-          _tiktokCookieVerifySuccess = false;
-          _tiktokCookieVerifyMsg =
-              'Vui lòng nhập ít nhất một token cookie (khuyên dùng sessionid).';
-        });
-        return;
-      }
-      fields = _tiktokCookieControllers.map(
-        (k, v) => MapEntry(k, v.text.trim()),
-      );
-    }
-
-    final res = await DownloadApi.verifyCookies(
-      platform: 'tiktok',
-      fields: fields,
-    );
+    final res = await DownloadApi.verifyCookies(platform: 'tiktok');
     if (!mounted) return;
 
     setState(() {
@@ -357,18 +192,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       if (res['success'] == true &&
           res['data'] is Map &&
           res['data']['valid'] == true) {
-        _isTiktokCookieVerified = true;
-        if (!_isTiktokCookieInputOpen) {
-          _tiktokCookieStatus = 'valid';
-        }
+        _tiktokCookieStatus = 'valid';
         _tiktokCookieVerifySuccess = true;
         _tiktokCookieVerifyMsg =
             res['data']['message']?.toString() ?? '✓ Cookie hợp lệ!';
       } else {
-        _isTiktokCookieVerified = false;
-        if (!_isTiktokCookieInputOpen) {
-          _tiktokCookieStatus = 'expired';
-        }
+        _tiktokCookieStatus = 'expired';
         _tiktokCookieVerifySuccess = false;
         final msg =
             res['data'] is Map ? res['data']['message']?.toString() : null;
@@ -376,41 +205,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             msg ??
             res['message']?.toString() ??
             'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-  }
-
-  Future<void> _handleSaveTiktokCookie() async {
-    if (!_isTiktokCookieVerified || _isSavingTiktokCookie) return;
-    setState(() {
-      _isSavingTiktokCookie = true;
-      _tiktokCookieVerifyMsg = null;
-    });
-
-    final fields = _tiktokCookieControllers.map(
-      (k, v) => MapEntry(k, v.text.trim()),
-    );
-
-    final res = await DownloadApi.saveCookies(
-      platform: 'tiktok',
-      fields: fields,
-    );
-    if (!mounted) return;
-
-    setState(() {
-      _isSavingTiktokCookie = false;
-      if (res['success'] == true) {
-        _isTiktokCookieInputOpen = false;
-        _isTiktokCookieVerified = false;
-        _tiktokCookieStatus = 'valid';
-        _tiktokCookieVerifySuccess = true;
-        _tiktokCookieVerifyMsg = 'Đã lưu cookie thành công!';
-        AppToast.showSuccess(context, 'Đã lưu cookie TikTok thành công!');
-      } else {
-        _tiktokCookieVerifySuccess = false;
-        _tiktokCookieVerifyMsg =
-            res['message']?.toString() ?? 'Không thể lưu cookie.';
-        AppToast.showError(context, _tiktokCookieVerifyMsg!);
       }
     });
   }
@@ -439,30 +233,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       _fbCookieVerifyMsg = null;
     });
 
-    Map<String, String>? fields;
-
-    if (_isFbCookieInputOpen) {
-      final hasAny = _fbCookieControllers.values.any(
-        (c) => c.text.trim().isNotEmpty,
-      );
-      if (!hasAny) {
-        setState(() {
-          _isVerifyingFbCookie = false;
-          _fbCookieVerifySuccess = false;
-          _fbCookieVerifyMsg =
-              'Vui lòng nhập ít nhất c_user và xs từ cookie Facebook.';
-        });
-        return;
-      }
-      fields = _fbCookieControllers.map(
-        (k, v) => MapEntry(k, v.text.trim()),
-      );
-    }
-
-    final res = await DownloadApi.verifyCookies(
-      platform: 'facebook',
-      fields: fields,
-    );
+    final res = await DownloadApi.verifyCookies(platform: 'facebook');
     if (!mounted) return;
 
     setState(() {
@@ -470,18 +241,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       if (res['success'] == true &&
           res['data'] is Map &&
           res['data']['valid'] == true) {
-        _isFbCookieVerified = true;
-        if (!_isFbCookieInputOpen) {
-          _fbCookieStatus = 'valid';
-        }
+        _fbCookieStatus = 'valid';
         _fbCookieVerifySuccess = true;
         _fbCookieVerifyMsg =
             res['data']['message']?.toString() ?? '✓ Cookie Facebook hợp lệ!';
       } else {
-        _isFbCookieVerified = false;
-        if (!_isFbCookieInputOpen) {
-          _fbCookieStatus = 'expired';
-        }
+        _fbCookieStatus = 'expired';
         _fbCookieVerifySuccess = false;
         final msg =
             res['data'] is Map ? res['data']['message']?.toString() : null;
@@ -489,41 +254,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             msg ??
             res['message']?.toString() ??
             'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-  }
-
-  Future<void> _handleSaveFbCookie() async {
-    if (!_isFbCookieVerified || _isSavingFbCookie) return;
-    setState(() {
-      _isSavingFbCookie = true;
-      _fbCookieVerifyMsg = null;
-    });
-
-    final fields = _fbCookieControllers.map(
-      (k, v) => MapEntry(k, v.text.trim()),
-    );
-
-    final res = await DownloadApi.saveCookies(
-      platform: 'facebook',
-      fields: fields,
-    );
-    if (!mounted) return;
-
-    setState(() {
-      _isSavingFbCookie = false;
-      if (res['success'] == true) {
-        _isFbCookieInputOpen = false;
-        _isFbCookieVerified = false;
-        _fbCookieStatus = 'valid';
-        _fbCookieVerifySuccess = true;
-        _fbCookieVerifyMsg = 'Đã lưu cookie thành công!';
-        AppToast.showSuccess(context, 'Đã lưu cookie Facebook thành công!');
-      } else {
-        _fbCookieVerifySuccess = false;
-        _fbCookieVerifyMsg =
-            res['message']?.toString() ?? 'Không thể lưu cookie.';
-        AppToast.showError(context, _fbCookieVerifyMsg!);
       }
     });
   }
@@ -552,30 +282,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       _igCookieVerifyMsg = null;
     });
 
-    Map<String, String>? fields;
-
-    if (_isIgCookieInputOpen) {
-      final hasAny = _igCookieControllers.values.any(
-        (c) => c.text.trim().isNotEmpty,
-      );
-      if (!hasAny) {
-        setState(() {
-          _isVerifyingIgCookie = false;
-          _igCookieVerifySuccess = false;
-          _igCookieVerifyMsg =
-              'Vui lòng nhập ít nhất sessionid và ds_user_id từ cookie Instagram.';
-        });
-        return;
-      }
-      fields = _igCookieControllers.map(
-        (k, v) => MapEntry(k, v.text.trim()),
-      );
-    }
-
-    final res = await DownloadApi.verifyCookies(
-      platform: 'instagram',
-      fields: fields,
-    );
+    final res = await DownloadApi.verifyCookies(platform: 'instagram');
     if (!mounted) return;
 
     setState(() {
@@ -583,18 +290,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       if (res['success'] == true &&
           res['data'] is Map &&
           res['data']['valid'] == true) {
-        _isIgCookieVerified = true;
-        if (!_isIgCookieInputOpen) {
-          _igCookieStatus = 'valid';
-        }
+        _igCookieStatus = 'valid';
         _igCookieVerifySuccess = true;
         _igCookieVerifyMsg =
             res['data']['message']?.toString() ?? '✓ Cookie Instagram hợp lệ!';
       } else {
-        _isIgCookieVerified = false;
-        if (!_isIgCookieInputOpen) {
-          _igCookieStatus = 'expired';
-        }
+        _igCookieStatus = 'expired';
         _igCookieVerifySuccess = false;
         final msg =
             res['data'] is Map ? res['data']['message']?.toString() : null;
@@ -602,41 +303,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             msg ??
             res['message']?.toString() ??
             'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-  }
-
-  Future<void> _handleSaveIgCookie() async {
-    if (!_isIgCookieVerified || _isSavingIgCookie) return;
-    setState(() {
-      _isSavingIgCookie = true;
-      _igCookieVerifyMsg = null;
-    });
-
-    final fields = _igCookieControllers.map(
-      (k, v) => MapEntry(k, v.text.trim()),
-    );
-
-    final res = await DownloadApi.saveCookies(
-      platform: 'instagram',
-      fields: fields,
-    );
-    if (!mounted) return;
-
-    setState(() {
-      _isSavingIgCookie = false;
-      if (res['success'] == true) {
-        _isIgCookieInputOpen = false;
-        _isIgCookieVerified = false;
-        _igCookieStatus = 'valid';
-        _igCookieVerifySuccess = true;
-        _igCookieVerifyMsg = 'Đã lưu cookie thành công!';
-        AppToast.showSuccess(context, 'Đã lưu cookie Instagram thành công!');
-      } else {
-        _igCookieVerifySuccess = false;
-        _igCookieVerifyMsg =
-            res['message']?.toString() ?? 'Không thể lưu cookie.';
-        AppToast.showError(context, _igCookieVerifyMsg!);
       }
     });
   }
@@ -665,30 +331,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       _xCookieVerifyMsg = null;
     });
 
-    Map<String, String>? fields;
-
-    if (_isXCookieInputOpen) {
-      final hasAny = _xCookieControllers.values.any(
-        (c) => c.text.trim().isNotEmpty,
-      );
-      if (!hasAny) {
-        setState(() {
-          _isVerifyingXCookie = false;
-          _xCookieVerifySuccess = false;
-          _xCookieVerifyMsg =
-              'Vui lòng nhập ít nhất auth_token từ cookie X (Twitter).';
-        });
-        return;
-      }
-      fields = _xCookieControllers.map(
-        (k, v) => MapEntry(k, v.text.trim()),
-      );
-    }
-
-    final res = await DownloadApi.verifyCookies(
-      platform: 'x',
-      fields: fields,
-    );
+    final res = await DownloadApi.verifyCookies(platform: 'x');
     if (!mounted) return;
 
     setState(() {
@@ -696,18 +339,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
       if (res['success'] == true &&
           res['data'] is Map &&
           res['data']['valid'] == true) {
-        _isXCookieVerified = true;
-        if (!_isXCookieInputOpen) {
-          _xCookieStatus = 'valid';
-        }
+        _xCookieStatus = 'valid';
         _xCookieVerifySuccess = true;
         _xCookieVerifyMsg =
             res['data']['message']?.toString() ?? '✓ Cookie X (Twitter) hợp lệ!';
       } else {
-        _isXCookieVerified = false;
-        if (!_isXCookieInputOpen) {
-          _xCookieStatus = 'expired';
-        }
+        _xCookieStatus = 'expired';
         _xCookieVerifySuccess = false;
         final msg =
             res['data'] is Map ? res['data']['message']?.toString() : null;
@@ -715,41 +352,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             msg ??
             res['message']?.toString() ??
             'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-  }
-
-  Future<void> _handleSaveXCookie() async {
-    if (!_isXCookieVerified || _isSavingXCookie) return;
-    setState(() {
-      _isSavingXCookie = true;
-      _xCookieVerifyMsg = null;
-    });
-
-    final fields = _xCookieControllers.map(
-      (k, v) => MapEntry(k, v.text.trim()),
-    );
-
-    final res = await DownloadApi.saveCookies(
-      platform: 'x',
-      fields: fields,
-    );
-    if (!mounted) return;
-
-    setState(() {
-      _isSavingXCookie = false;
-      if (res['success'] == true) {
-        _isXCookieInputOpen = false;
-        _isXCookieVerified = false;
-        _xCookieStatus = 'valid';
-        _xCookieVerifySuccess = true;
-        _xCookieVerifyMsg = 'Đã lưu cookie thành công!';
-        AppToast.showSuccess(context, 'Đã lưu cookie X (Twitter) thành công!');
-      } else {
-        _xCookieVerifySuccess = false;
-        _xCookieVerifyMsg =
-            res['message']?.toString() ?? 'Không thể lưu cookie.';
-        AppToast.showError(context, _xCookieVerifyMsg!);
       }
     });
   }
@@ -1561,228 +1163,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                                   color: AppTheme.borderColor,
                                                 ),
 
-                                                // Layer 2: Sliding Input Container
-                                                AnimatedSize(
-                                                  duration: const Duration(milliseconds: 200),
-                                                  curve: Curves.easeInOut,
-                                                  alignment: Alignment.topCenter,
-                                                  child:
-                                                      _isCookieInputOpen
-                                                          ? Padding(
-                                                            padding: const EdgeInsets.only(
-                                                              top: 12,
-                                                            ),
-                                                            child: Column(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment.start,
-                                                              children: [
-                                                                const Text(
-                                                                  'Nhập các giá trị cookie từ tài khoản YouTube của bạn:',
-                                                                  style: TextStyle(
-                                                                    fontSize: 11,
-                                                                    color: Colors.white70,
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(height: 10),
-                                                                ..._cookieFieldKeys.map((
-                                                                  key,
-                                                                ) {
-                                                                  return Padding(
-                                                                    padding:
-                                                                        const EdgeInsets.only(
-                                                                          bottom: 8,
-                                                                        ),
-                                                                    child: Column(
-                                                                      crossAxisAlignment:
-                                                                          CrossAxisAlignment
-                                                                              .start,
-                                                                      children: [
-                                                                        Text(
-                                                                          key,
-                                                                          style:
-                                                                              const TextStyle(
-                                                                                fontSize: 10,
-                                                                                fontFamily:
-                                                                                    'monospace',
-                                                                                color:
-                                                                                    Colors
-                                                                                        .white60,
-                                                                                fontWeight:
-                                                                                    FontWeight
-                                                                                        .w600,
-                                                                              ),
-                                                                        ),
-                                                                        const SizedBox(
-                                                                          height: 4,
-                                                                        ),
-                                                                        TextField(
-                                                                          controller:
-                                                                              _cookieControllers[key],
-                                                                          onChanged: (_) {
-                                                                            if (_isCookieVerified ||
-                                                                                _cookieVerifyMsg !=
-                                                                                    null) {
-                                                                              setState(() {
-                                                                                _isCookieVerified =
-                                                                                    false;
-                                                                                _cookieVerifyMsg =
-                                                                                    null;
-                                                                              });
-                                                                            }
-                                                                          },
-                                                                          style:
-                                                                              const TextStyle(
-                                                                                fontSize: 11,
-                                                                                color:
-                                                                                    Colors
-                                                                                        .white,
-                                                                                fontFamily:
-                                                                                    'monospace',
-                                                                              ),
-                                                                          decoration:
-                                                                              InputDecoration(
-                                                                                hintText:
-                                                                                    'Nhập $key',
-                                                                                hintStyle:
-                                                                                    TextStyle(
-                                                                                      fontSize:
-                                                                                          10,
-                                                                                      color: Colors
-                                                                                          .white
-                                                                                          .withValues(
-                                                                                            alpha:
-                                                                                                0.2,
-                                                                                          ),
-                                                                                    ),
-                                                                                contentPadding:
-                                                                                    const EdgeInsets
-                                                                                        .symmetric(
-                                                                                      horizontal:
-                                                                                          12,
-                                                                                      vertical:
-                                                                                          10,
-                                                                                    ),
-                                                                                isDense: true,
-                                                                                filled: true,
-                                                                                fillColor:
-                                                                                    AppTheme
-                                                                                        .bgInput,
-                                                                                border: OutlineInputBorder(
-                                                                                  borderRadius:
-                                                                                      BorderRadius.circular(
-                                                                                        14,
-                                                                                      ),
-                                                                                  borderSide: const BorderSide(
-                                                                                    color:
-                                                                                        AppTheme
-                                                                                            .borderColor,
-                                                                                  ),
-                                                                                ),
-                                                                                enabledBorder: OutlineInputBorder(
-                                                                                  borderRadius:
-                                                                                      BorderRadius.circular(
-                                                                                        14,
-                                                                                      ),
-                                                                                  borderSide: const BorderSide(
-                                                                                    color:
-                                                                                        AppTheme
-                                                                                            .borderColor,
-                                                                                  ),
-                                                                                ),
-                                                                                focusedBorder: OutlineInputBorder(
-                                                                                  borderRadius:
-                                                                                      BorderRadius.circular(
-                                                                                        14,
-                                                                                      ),
-                                                                                  borderSide: const BorderSide(
-                                                                                    color:
-                                                                                        Colors
-                                                                                            .redAccent,
-                                                                                    width: 1.5,
-                                                                                  ),
-                                                                                ),
-                                                                                suffixIconConstraints:
-                                                                                    const BoxConstraints(
-                                                                                  minWidth: 0,
-                                                                                  minHeight: 0,
-                                                                                ),
-                                                                                suffixIcon:
-                                                                                    Padding(
-                                                                                  padding:
-                                                                                      const EdgeInsets.only(right: 6),
-                                                                                  child: Row(
-                                                                                    mainAxisSize:
-                                                                                        MainAxisSize
-                                                                                            .min,
-                                                                                    children: [
-                                                                                      if ((_cookieControllers[key]?.text.isNotEmpty ?? false))
-                                                                                        IconButton(
-                                                                                          icon: const Icon(
-                                                                                            Icons.clear_rounded,
-                                                                                            size: 15,
-                                                                                          ),
-                                                                                          color: Colors.white54,
-                                                                                          splashRadius: 14,
-                                                                                          padding: EdgeInsets.zero,
-                                                                                          constraints: const BoxConstraints(
-                                                                                            minWidth: 26,
-                                                                                            minHeight: 26,
-                                                                                          ),
-                                                                                          tooltip: 'Xóa',
-                                                                                          onPressed: () {
-                                                                                            setState(() {
-                                                                                              _cookieControllers[key]?.clear();
-                                                                                              _isCookieVerified = false;
-                                                                                              _cookieVerifyMsg = null;
-                                                                                            });
-                                                                                          },
-                                                                                        ),
-                                                                                      Material(
-                                                                                        color: Colors.redAccent.withValues(alpha: 0.10),
-                                                                                        borderRadius: BorderRadius.circular(6),
-                                                                                        child: InkWell(
-                                                                                          onTap: () async {
-                                                                                            final data = await Clipboard.getData(Clipboard.kTextPlain);
-                                                                                            if (data?.text != null && data!.text!.trim().isNotEmpty) {
-                                                                                              setState(() {
-                                                                                                _cookieControllers[key]?.text = data.text!.trim();
-                                                                                                _isCookieVerified = false;
-                                                                                                _cookieVerifyMsg = null;
-                                                                                              });
-                                                                                            }
-                                                                                          },
-                                                                                          borderRadius: BorderRadius.circular(6),
-                                                                                          child: Container(
-                                                                                            padding: const EdgeInsets.all(5),
-                                                                                            decoration: BoxDecoration(
-                                                                                              borderRadius: BorderRadius.circular(6),
-                                                                                              border: Border.all(
-                                                                                                color: Colors.redAccent.withValues(alpha: 0.30),
-                                                                                              ),
-                                                                                            ),
-                                                                                            child: const Icon(
-                                                                                              Icons.content_paste_rounded,
-                                                                                              size: 13,
-                                                                                              color: Colors.redAccent,
-                                                                                            ),
-                                                                                          ),
-                                                                                        ),
-                                                                                      ),
-                                                                                    ],
-                                                                                  ),
-                                                                                ),
-                                                                              ),
-                                                                        ),
-                                                                      ],
-                                                                    ),
-                                                                  );
-                                                                }),
-                                                              ],
-                                                            ),
-                                                          )
-                                                          : const SizedBox.shrink(),
-                                                ),
-
                                                 // Feedback message
                                                 if (_cookieVerifyMsg != null) ...[
                                                   const SizedBox(height: 10),
@@ -1848,212 +1228,48 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                                 const SizedBox(height: 10),
 
                                                 // Action Buttons
-                                                Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.stretch,
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.end,
                                                   children: [
-                                                    if (_isCookieInputOpen)
-                                                      ElevatedButton.icon(
-                                                        onPressed:
-                                                            _isVerifyingCookie
-                                                                ? null
-                                                                : _handleVerifyCookie,
-                                                        icon:
-                                                            _isVerifyingCookie
-                                                                ? const SizedBox(
-                                                                  width: 12,
-                                                                  height: 12,
-                                                                  child: CircularProgressIndicator(
-                                                                    strokeWidth: 2,
-                                                                    color: Colors.white,
-                                                                  ),
-                                                                )
-                                                                : const Icon(
-                                                                  Icons.refresh_rounded,
-                                                                  size: 13,
+                                                    ElevatedButton.icon(
+                                                      onPressed:
+                                                          _isVerifyingCookie
+                                                              ? null
+                                                              : _handleVerifyCookie,
+                                                      icon:
+                                                          _isVerifyingCookie
+                                                              ? const SizedBox(
+                                                                width: 12,
+                                                                height: 12,
+                                                                child: CircularProgressIndicator(
+                                                                  strokeWidth: 2,
+                                                                  color: Colors.white,
                                                                 ),
-                                                        label: Text(
-                                                            _isVerifyingCookie
-                                                                ? 'Đang kiểm tra...'
-                                                                : 'Kiểm tra',
-                                                            style: const TextStyle(
-                                                              fontSize: 11,
-                                                              fontWeight: FontWeight.bold,
-                                                            ),
-                                                        ),
-                                                        style: ElevatedButton.styleFrom(
-                                                          backgroundColor: Colors.white
-                                                              .withValues(alpha: 0.1),
-                                                          foregroundColor: Colors.white,
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 10,
-                                                                vertical: 7,
+                                                              )
+                                                              : const Icon(
+                                                                Icons.refresh_rounded,
+                                                                size: 13,
                                                               ),
-                                                          minimumSize: Size.zero,
+                                                      label: Text(
+                                                        _isVerifyingCookie
+                                                            ? 'Đang kiểm tra...'
+                                                            : 'Kiểm tra youtube.txt',
+                                                        style: const TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.bold,
                                                         ),
                                                       ),
-                                                    if (_isCookieInputOpen)
-                                                      const SizedBox(height: 8),
-                                                    Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment.spaceBetween,
-                                                      children: [
-                                                        if (_isCookieInputOpen)
-                                                          TextButton(
-                                                            onPressed: () {
-                                                              setState(() {
-                                                                _isCookieInputOpen = false;
-                                                                _isCookieVerified = false;
-                                                                _cookieVerifyMsg = null;
-                                                              });
-                                                            },
-                                                            style: TextButton.styleFrom(
-                                                              padding: const EdgeInsets.symmetric(
-                                                                horizontal: 10,
-                                                                vertical: 6,
-                                                              ),
-                                                              minimumSize: Size.zero,
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: Colors.white
+                                                            .withValues(alpha: 0.1),
+                                                        foregroundColor: Colors.white,
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 10,
+                                                              vertical: 7,
                                                             ),
-                                                            child: const Text(
-                                                              'Hủy',
-                                                              style: TextStyle(
-                                                                fontSize: 11,
-                                                                fontWeight: FontWeight.w600,
-                                                                color: Colors.white60,
-                                                              ),
-                                                            ),
-                                                          )
-                                                        else
-                                                          Row(
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              ElevatedButton.icon(
-                                                                onPressed:
-                                                                    _isVerifyingCookie
-                                                                        ? null
-                                                                        : _handleVerifyCookie,
-                                                                icon:
-                                                                    _isVerifyingCookie
-                                                                        ? const SizedBox(
-                                                                          width: 12,
-                                                                          height: 12,
-                                                                          child: CircularProgressIndicator(
-                                                                            strokeWidth: 2,
-                                                                            color: Colors.white,
-                                                                          ),
-                                                                        )
-                                                                        : const Icon(
-                                                                          Icons.refresh_rounded,
-                                                                          size: 13,
-                                                                        ),
-                                                                label: Text(
-                                                                    _isVerifyingCookie
-                                                                        ? 'Đang kiểm tra...'
-                                                                        : 'Kiểm tra youtube.txt',
-                                                                    style: const TextStyle(
-                                                                      fontSize: 11,
-                                                                      fontWeight: FontWeight.bold,
-                                                                    ),
-                                                                ),
-                                                                style: ElevatedButton.styleFrom(
-                                                                  backgroundColor: Colors.white
-                                                                      .withValues(alpha: 0.1),
-                                                                  foregroundColor: Colors.white,
-                                                                  padding:
-                                                                      const EdgeInsets.symmetric(
-                                                                        horizontal: 10,
-                                                                        vertical: 7,
-                                                                      ),
-                                                                  minimumSize: Size.zero,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        if (_isCookieInputOpen)
-                                                          ElevatedButton.icon(
-                                                            onPressed:
-                                                                (!_isCookieVerified ||
-                                                                        _isSavingCookie)
-                                                                    ? null
-                                                                    : _handleSaveCookie,
-                                                            icon:
-                                                                _isSavingCookie
-                                                                    ? const SizedBox(
-                                                                      width: 12,
-                                                                      height: 12,
-                                                                      child: CircularProgressIndicator(
-                                                                        strokeWidth: 2,
-                                                                        color: Colors.white,
-                                                                      ),
-                                                                    )
-                                                                    : const Icon(
-                                                                      Icons.check_rounded,
-                                                                      size: 13,
-                                                                    ),
-                                                            label: Text(
-                                                              _isSavingCookie
-                                                                  ? 'Đang lưu...'
-                                                                  : 'Lưu cookie',
-                                                              style: const TextStyle(
-                                                                fontSize: 11,
-                                                                fontWeight: FontWeight.bold,
-                                                              ),
-                                                            ),
-                                                            style: ElevatedButton.styleFrom(
-                                                              backgroundColor:
-                                                                  _isCookieVerified
-                                                                      ? Colors.redAccent
-                                                                      : Colors.white12,
-                                                              foregroundColor:
-                                                                  _isCookieVerified
-                                                                      ? Colors.white
-                                                                      : Colors.white38,
-                                                              disabledBackgroundColor:
-                                                                  Colors.white10,
-                                                              disabledForegroundColor:
-                                                                  Colors.white24,
-                                                              padding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    horizontal: 12,
-                                                                    vertical: 7,
-                                                                  ),
-                                                              minimumSize: Size.zero,
-                                                            ),
-                                                          )
-                                                        else
-                                                          ElevatedButton.icon(
-                                                            onPressed: () {
-                                                              setState(() {
-                                                                _isCookieInputOpen = true;
-                                                                _isCookieVerified = false;
-                                                                _cookieVerifyMsg = null;
-                                                              });
-                                                            },
-                                                            icon: const Icon(
-                                                              Icons.cookie_rounded,
-                                                              size: 14,
-                                                            ),
-                                                            label: const Text(
-                                                              'Nhập cookie',
-                                                              style: TextStyle(
-                                                                fontSize: 11,
-                                                                fontWeight: FontWeight.bold,
-                                                              ),
-                                                            ),
-                                                            style: ElevatedButton.styleFrom(
-                                                              backgroundColor:
-                                                                  Colors.redAccent,
-                                                              foregroundColor: Colors.white,
-                                                              padding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    horizontal: 12,
-                                                                    vertical: 7,
-                                                                  ),
-                                                              minimumSize: Size.zero,
-                                                            ),
-                                                          ),
-                                                      ],
+                                                        minimumSize: Size.zero,
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
@@ -2403,257 +1619,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           color: AppTheme.borderColor,
                         ),
 
-                        // Sliding Input Container
-                        AnimatedSize(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          alignment: Alignment.topCenter,
-                          child: _isTiktokCookieInputOpen
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Nhập các giá trị cookie từ tài khoản TikTok của bạn:',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      ..._tiktokCookieFieldKeys.map((key) {
-                                        return Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 8),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                key,
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  fontFamily: 'monospace',
-                                                  color: Colors.white70,
-                                                  fontWeight:
-                                                      FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              TextField(
-                                                controller:
-                                                    _tiktokCookieControllers[
-                                                      key
-                                                    ],
-                                                onChanged: (_) {
-                                                  if (_isTiktokCookieVerified ||
-                                                      _tiktokCookieVerifyMsg !=
-                                                          null) {
-                                                    setState(() {
-                                                      _isTiktokCookieVerified =
-                                                          false;
-                                                      _tiktokCookieVerifyMsg =
-                                                          null;
-                                                    });
-                                                  }
-                                                },
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.white,
-                                                  fontFamily: 'monospace',
-                                                ),
-                                                decoration: InputDecoration(
-                                                  hintText: 'Nhập $key',
-                                                  hintStyle: TextStyle(
-                                                    fontSize: 10,
-                                                    color: Colors.white
-                                                        .withValues(
-                                                          alpha: 0.2,
-                                                        ),
-                                                  ),
-                                                  contentPadding:
-                                                      const EdgeInsets
-                                                          .symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 10,
-                                                  ),
-                                                  isDense: true,
-                                                  filled: true,
-                                                  fillColor:
-                                                      AppTheme.bgInput,
-                                                  border: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                      14,
-                                                    ),
-                                                    borderSide:
-                                                        const BorderSide(
-                                                      color:
-                                                          AppTheme.borderColor,
-                                                    ),
-                                                  ),
-                                                  enabledBorder:
-                                                      OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                      14,
-                                                    ),
-                                                    borderSide:
-                                                        const BorderSide(
-                                                      color:
-                                                          AppTheme.borderColor,
-                                                    ),
-                                                  ),
-                                                  focusedBorder:
-                                                      OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                      14,
-                                                    ),
-                                                    borderSide:
-                                                        const BorderSide(
-                                                      color:
-                                                          Colors.cyanAccent,
-                                                      width: 1.5,
-                                                    ),
-                                                  ),
-                                                  suffixIconConstraints:
-                                                      const BoxConstraints(
-                                                    minWidth: 0,
-                                                    minHeight: 0,
-                                                  ),
-                                                  suffixIcon: Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                      right: 6,
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        if ((_tiktokCookieControllers[key]
-                                                                ?.text
-                                                                .isNotEmpty ??
-                                                            false))
-                                                          IconButton(
-                                                            icon: const Icon(
-                                                              Icons
-                                                                  .clear_rounded,
-                                                              size: 15,
-                                                            ),
-                                                            color:
-                                                                Colors.white54,
-                                                            splashRadius: 14,
-                                                            padding:
-                                                                EdgeInsets
-                                                                    .zero,
-                                                            constraints:
-                                                                const BoxConstraints(
-                                                              minWidth: 26,
-                                                              minHeight: 26,
-                                                            ),
-                                                            tooltip: 'Xóa',
-                                                            onPressed: () {
-                                                              setState(() {
-                                                                _tiktokCookieControllers[key]
-                                                                    ?.clear();
-                                                                _isTiktokCookieVerified =
-                                                                    false;
-                                                                _tiktokCookieVerifyMsg =
-                                                                    null;
-                                                              });
-                                                            },
-                                                          ),
-                                                        Material(
-                                                          color: Colors
-                                                              .cyanAccent
-                                                              .withValues(
-                                                                alpha: 0.10,
-                                                              ),
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(
-                                                                    6,
-                                                                  ),
-                                                          child: InkWell(
-                                                            onTap: () async {
-                                                              final data =
-                                                                  await Clipboard.getData(
-                                                                Clipboard
-                                                                    .kTextPlain,
-                                                              );
-                                                              if (data
-                                                                          ?.text !=
-                                                                      null &&
-                                                                  data!
-                                                                      .text!
-                                                                      .trim()
-                                                                      .isNotEmpty) {
-                                                                setState(() {
-                                                                  _tiktokCookieControllers[key]
-                                                                          ?.text =
-                                                                      data.text!
-                                                                          .trim();
-                                                                  _isTiktokCookieVerified =
-                                                                      false;
-                                                                  _tiktokCookieVerifyMsg =
-                                                                      null;
-                                                                });
-                                                              }
-                                                            },
-                                                            borderRadius:
-                                                              BorderRadius
-                                                                  .circular(
-                                                                    6,
-                                                                  ),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets
-                                                                      .all(5),
-                                                              decoration:
-                                                                  BoxDecoration(
-                                                                borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                          6,
-                                                                        ),
-                                                                border:
-                                                                    Border.all(
-                                                                  color: Colors
-                                                                      .cyanAccent
-                                                                      .withValues(
-                                                                        alpha:
-                                                                            0.30,
-                                                                      ),
-                                                                ),
-                                                              ),
-                                                              child: const Icon(
-                                                                Icons
-                                                                    .content_paste_rounded,
-                                                                size: 13,
-                                                                color: Colors
-                                                                    .cyanAccent,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                  ),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-
                         // Feedback message
                         if (_tiktokCookieVerifyMsg != null) ...[
                           const SizedBox(height: 10),
@@ -2707,194 +1672,45 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                         const SizedBox(height: 10),
 
                         // Action Buttons
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            if (_isTiktokCookieInputOpen)
-                              ElevatedButton.icon(
-                                onPressed: _isVerifyingTiktokCookie
-                                    ? null
-                                    : _handleVerifyTiktokCookie,
-                                icon: _isVerifyingTiktokCookie
-                                    ? const SizedBox(
-                                        width: 12,
-                                        height: 12,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.refresh_rounded,
-                                        size: 13,
+                            ElevatedButton.icon(
+                              onPressed: _isVerifyingTiktokCookie
+                                  ? null
+                                  : _handleVerifyTiktokCookie,
+                              icon: _isVerifyingTiktokCookie
+                                  ? const SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
                                       ),
-                                label: Text(
-                                  _isVerifyingTiktokCookie
-                                      ? 'Đang kiểm tra...'
-                                      : 'Kiểm tra',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white
-                                      .withValues(alpha: 0.1),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 7,
-                                  ),
-                                  minimumSize: Size.zero,
+                                    )
+                                  : const Icon(
+                                      Icons.refresh_rounded,
+                                      size: 13,
+                                    ),
+                              label: Text(
+                                _isVerifyingTiktokCookie
+                                    ? 'Đang kiểm tra...'
+                                    : 'Kiểm tra tiktok.txt',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            if (_isTiktokCookieInputOpen)
-                              const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                if (_isTiktokCookieInputOpen)
-                                  TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _isTiktokCookieInputOpen = false;
-                                        _isTiktokCookieVerified = false;
-                                        _tiktokCookieVerifyMsg = null;
-                                      });
-                                    },
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                    child: const Text(
-                                      'Hủy',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white60,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  ElevatedButton.icon(
-                                    onPressed: _isVerifyingTiktokCookie
-                                        ? null
-                                        : _handleVerifyTiktokCookie,
-                                    icon: _isVerifyingTiktokCookie
-                                        ? const SizedBox(
-                                            width: 12,
-                                            height: 12,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.refresh_rounded,
-                                            size: 13,
-                                          ),
-                                    label: Text(
-                                      _isVerifyingTiktokCookie
-                                          ? 'Đang kiểm tra...'
-                                          : 'Kiểm tra tiktok.txt',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white
-                                          .withValues(alpha: 0.1),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  ),
-                                if (_isTiktokCookieInputOpen)
-                                  ElevatedButton.icon(
-                                    onPressed: (!_isTiktokCookieVerified ||
-                                            _isSavingTiktokCookie)
-                                        ? null
-                                        : _handleSaveTiktokCookie,
-                                    icon: _isSavingTiktokCookie
-                                        ? const SizedBox(
-                                            width: 12,
-                                            height: 12,
-                                            child:
-                                                CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.check_rounded,
-                                            size: 13,
-                                          ),
-                                    label: Text(
-                                      _isSavingTiktokCookie
-                                          ? 'Đang lưu...'
-                                          : 'Lưu cookie',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _isTiktokCookieVerified
-                                          ? Colors.cyanAccent.shade700
-                                          : Colors.white12,
-                                      foregroundColor: _isTiktokCookieVerified
-                                          ? Colors.white
-                                          : Colors.white38,
-                                      disabledBackgroundColor:
-                                          Colors.white10,
-                                      disabledForegroundColor:
-                                          Colors.white24,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  )
-                                else
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        _isTiktokCookieInputOpen = true;
-                                        _isTiktokCookieVerified = false;
-                                        _tiktokCookieVerifyMsg = null;
-                                      });
-                                    },
-                                    icon: const Icon(
-                                      Icons.cookie_rounded,
-                                      size: 14,
-                                    ),
-                                    label: const Text(
-                                      'Nhập cookie',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor:
-                                          Colors.cyanAccent.shade700,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  ),
-                              ],
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white
+                                    .withValues(alpha: 0.1),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                minimumSize: Size.zero,
+                              ),
                             ),
                           ],
                         ),
@@ -3002,212 +1818,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           color: AppTheme.borderColor,
                         ),
 
-                        // Sliding Input Container
-                        AnimatedSize(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          alignment: Alignment.topCenter,
-                          child: _isFbCookieInputOpen
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Nhập các giá trị cookie từ tài khoản Facebook của bạn:',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      ..._fbCookieFieldKeys.map((key) {
-                                        return Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 8),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                key,
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  fontFamily: 'monospace',
-                                                  color: Colors.white70,
-                                                  fontWeight:
-                                                      FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              TextField(
-                                                controller:
-                                                    _fbCookieControllers[key],
-                                                onChanged: (_) {
-                                                  if (_isFbCookieVerified ||
-                                                      _fbCookieVerifyMsg !=
-                                                          null) {
-                                                    setState(() {
-                                                      _isFbCookieVerified =
-                                                          false;
-                                                      _fbCookieVerifyMsg =
-                                                          null;
-                                                    });
-                                                  }
-                                                },
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.white,
-                                                  fontFamily: 'monospace',
-                                                ),
-                                                decoration: InputDecoration(
-                                                  hintText: 'Nhập $key',
-                                                  hintStyle: TextStyle(
-                                                    fontSize: 10,
-                                                    color: Colors.white
-                                                        .withValues(
-                                                          alpha: 0.2,
-                                                        ),
-                                                  ),
-                                                  contentPadding:
-                                                      const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 10,
-                                                  ),
-                                                  isDense: true,
-                                                  filled: true,
-                                                  fillColor: AppTheme.bgInput,
-                                                  border: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(14),
-                                                    borderSide: const BorderSide(
-                                                      color: AppTheme.borderColor,
-                                                    ),
-                                                  ),
-                                                  enabledBorder: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(14),
-                                                    borderSide: const BorderSide(
-                                                      color: AppTheme.borderColor,
-                                                    ),
-                                                  ),
-                                                  focusedBorder: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(14),
-                                                    borderSide: const BorderSide(
-                                                      color: Color(0xFF1877F2),
-                                                      width: 1.5,
-                                                    ),
-                                                  ),
-                                                  suffixIconConstraints:
-                                                      const BoxConstraints(
-                                                    minWidth: 0,
-                                                    minHeight: 0,
-                                                  ),
-                                                  suffixIcon: Padding(
-                                                    padding: const EdgeInsets.only(
-                                                      right: 6,
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        if ((_fbCookieControllers[key]
-                                                                ?.text
-                                                                .isNotEmpty ??
-                                                            false))
-                                                          IconButton(
-                                                            icon: const Icon(
-                                                              Icons.clear_rounded,
-                                                              size: 15,
-                                                            ),
-                                                            color: Colors.white54,
-                                                            splashRadius: 14,
-                                                            padding: EdgeInsets.zero,
-                                                            constraints:
-                                                                const BoxConstraints(
-                                                              minWidth: 26,
-                                                              minHeight: 26,
-                                                            ),
-                                                            tooltip: 'Xóa',
-                                                            onPressed: () {
-                                                              setState(() {
-                                                                _fbCookieControllers[key]
-                                                                    ?.clear();
-                                                                _isFbCookieVerified =
-                                                                    false;
-                                                                _fbCookieVerifyMsg =
-                                                                    null;
-                                                              });
-                                                            },
-                                                          ),
-                                                        Material(
-                                                          color: const Color(0xFF1877F2)
-                                                              .withValues(
-                                                            alpha: 0.10,
-                                                          ),
-                                                          borderRadius:
-                                                              BorderRadius.circular(6),
-                                                          child: InkWell(
-                                                            onTap: () async {
-                                                              final data =
-                                                                  await Clipboard.getData(
-                                                                Clipboard.kTextPlain,
-                                                              );
-                                                              if (data?.text != null &&
-                                                                  data!.text!
-                                                                      .trim()
-                                                                      .isNotEmpty) {
-                                                                setState(() {
-                                                                  _fbCookieControllers[key]
-                                                                          ?.text =
-                                                                      data.text!.trim();
-                                                                  _isFbCookieVerified =
-                                                                      false;
-                                                                  _fbCookieVerifyMsg =
-                                                                      null;
-                                                                });
-                                                              }
-                                                            },
-                                                            borderRadius:
-                                                                BorderRadius.circular(6),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets.all(5),
-                                                              decoration: BoxDecoration(
-                                                                borderRadius:
-                                                                    BorderRadius.circular(6),
-                                                                border: Border.all(
-                                                                  color: const Color(0xFF1877F2)
-                                                                      .withValues(
-                                                                    alpha: 0.30,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                              child: const Icon(
-                                                                Icons.content_paste_rounded,
-                                                                size: 13,
-                                                                color: Color(0xFF1877F2),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                  ),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-
                         // Feedback message
                         if (_fbCookieVerifyMsg != null) ...[
                           const SizedBox(height: 10),
@@ -3261,191 +1871,45 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                         const SizedBox(height: 10),
 
                         // Action Buttons
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            if (_isFbCookieInputOpen)
-                              ElevatedButton.icon(
-                                onPressed: _isVerifyingFbCookie
-                                    ? null
-                                    : _handleVerifyFbCookie,
-                                icon: _isVerifyingFbCookie
-                                    ? const SizedBox(
-                                        width: 12,
-                                        height: 12,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.refresh_rounded,
-                                        size: 13,
+                            ElevatedButton.icon(
+                              onPressed: _isVerifyingFbCookie
+                                  ? null
+                                  : _handleVerifyFbCookie,
+                              icon: _isVerifyingFbCookie
+                                  ? const SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
                                       ),
-                                label: Text(
-                                  _isVerifyingFbCookie
-                                      ? 'Đang kiểm tra...'
-                                      : 'Kiểm tra',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white
-                                      .withValues(alpha: 0.1),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 7,
-                                  ),
-                                  minimumSize: Size.zero,
+                                    )
+                                  : const Icon(
+                                      Icons.refresh_rounded,
+                                      size: 13,
+                                    ),
+                              label: Text(
+                                _isVerifyingFbCookie
+                                    ? 'Đang kiểm tra...'
+                                    : 'Kiểm tra facebook.txt',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            if (_isFbCookieInputOpen)
-                              const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                if (_isFbCookieInputOpen)
-                                  TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _isFbCookieInputOpen = false;
-                                        _isFbCookieVerified = false;
-                                        _fbCookieVerifyMsg = null;
-                                      });
-                                    },
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                    child: const Text(
-                                      'Hủy',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white60,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  ElevatedButton.icon(
-                                    onPressed: _isVerifyingFbCookie
-                                        ? null
-                                        : _handleVerifyFbCookie,
-                                    icon: _isVerifyingFbCookie
-                                        ? const SizedBox(
-                                            width: 12,
-                                            height: 12,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.refresh_rounded,
-                                            size: 13,
-                                          ),
-                                    label: Text(
-                                      _isVerifyingFbCookie
-                                          ? 'Đang kiểm tra...'
-                                          : 'Kiểm tra facebook.txt',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white
-                                          .withValues(alpha: 0.1),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  ),
-                                if (_isFbCookieInputOpen)
-                                  ElevatedButton.icon(
-                                    onPressed: (!_isFbCookieVerified ||
-                                            _isSavingFbCookie)
-                                        ? null
-                                        : _handleSaveFbCookie,
-                                    icon: _isSavingFbCookie
-                                        ? const SizedBox(
-                                            width: 12,
-                                            height: 12,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.check_rounded,
-                                            size: 13,
-                                          ),
-                                    label: Text(
-                                      _isSavingFbCookie
-                                          ? 'Đang lưu...'
-                                          : 'Lưu cookie',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _isFbCookieVerified
-                                          ? const Color(0xFF1877F2)
-                                          : Colors.white12,
-                                      foregroundColor: _isFbCookieVerified
-                                          ? Colors.white
-                                          : Colors.white38,
-                                      disabledBackgroundColor: Colors.white10,
-                                      disabledForegroundColor: Colors.white24,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  )
-                                else
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        _isFbCookieInputOpen = true;
-                                        _isFbCookieVerified = false;
-                                        _fbCookieVerifyMsg = null;
-                                      });
-                                    },
-                                    icon: const Icon(
-                                      Icons.cookie_rounded,
-                                      size: 14,
-                                    ),
-                                    label: const Text(
-                                      'Nhập cookie',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF1877F2)
-                                          .withValues(alpha: 0.2),
-                                      foregroundColor: const Color(0xFF1877F2),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  ),
-                              ],
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white
+                                    .withValues(alpha: 0.1),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                minimumSize: Size.zero,
+                              ),
                             ),
                           ],
                         ),
@@ -3553,212 +2017,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           color: AppTheme.borderColor,
                         ),
 
-                        // Sliding Input Container
-                        AnimatedSize(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          alignment: Alignment.topCenter,
-                          child: _isIgCookieInputOpen
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Nhập các giá trị cookie từ tài khoản Instagram của bạn:',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      ..._igCookieFieldKeys.map((key) {
-                                        return Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 8),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                key,
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  fontFamily: 'monospace',
-                                                  color: Colors.white70,
-                                                  fontWeight:
-                                                      FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              TextField(
-                                                controller:
-                                                    _igCookieControllers[key],
-                                                onChanged: (_) {
-                                                  if (_isIgCookieVerified ||
-                                                      _igCookieVerifyMsg !=
-                                                          null) {
-                                                    setState(() {
-                                                      _isIgCookieVerified =
-                                                          false;
-                                                      _igCookieVerifyMsg =
-                                                          null;
-                                                    });
-                                                  }
-                                                },
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.white,
-                                                  fontFamily: 'monospace',
-                                                ),
-                                                decoration: InputDecoration(
-                                                  hintText: 'Nhập $key',
-                                                  hintStyle: TextStyle(
-                                                    fontSize: 10,
-                                                    color: Colors.white
-                                                        .withValues(
-                                                          alpha: 0.2,
-                                                        ),
-                                                  ),
-                                                  contentPadding:
-                                                      const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 10,
-                                                  ),
-                                                  isDense: true,
-                                                  filled: true,
-                                                  fillColor: AppTheme.bgInput,
-                                                  border: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(14),
-                                                    borderSide: const BorderSide(
-                                                      color: AppTheme.borderColor,
-                                                    ),
-                                                  ),
-                                                  enabledBorder: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(14),
-                                                    borderSide: const BorderSide(
-                                                      color: AppTheme.borderColor,
-                                                    ),
-                                                  ),
-                                                  focusedBorder: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(14),
-                                                    borderSide: const BorderSide(
-                                                      color: Color(0xFFE1306C),
-                                                      width: 1.5,
-                                                    ),
-                                                  ),
-                                                  suffixIconConstraints:
-                                                      const BoxConstraints(
-                                                    minWidth: 0,
-                                                    minHeight: 0,
-                                                  ),
-                                                  suffixIcon: Padding(
-                                                    padding: const EdgeInsets.only(
-                                                      right: 6,
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        if ((_igCookieControllers[key]
-                                                                ?.text
-                                                                .isNotEmpty ??
-                                                            false))
-                                                          IconButton(
-                                                            icon: const Icon(
-                                                              Icons.clear_rounded,
-                                                              size: 15,
-                                                            ),
-                                                            color: Colors.white54,
-                                                            splashRadius: 14,
-                                                            padding: EdgeInsets.zero,
-                                                            constraints:
-                                                                const BoxConstraints(
-                                                              minWidth: 26,
-                                                              minHeight: 26,
-                                                            ),
-                                                            tooltip: 'Xóa',
-                                                            onPressed: () {
-                                                              setState(() {
-                                                                _igCookieControllers[key]
-                                                                    ?.clear();
-                                                                _isIgCookieVerified =
-                                                                    false;
-                                                                _igCookieVerifyMsg =
-                                                                    null;
-                                                              });
-                                                            },
-                                                          ),
-                                                        Material(
-                                                          color: const Color(0xFFE1306C)
-                                                              .withValues(
-                                                            alpha: 0.10,
-                                                          ),
-                                                          borderRadius:
-                                                              BorderRadius.circular(6),
-                                                          child: InkWell(
-                                                            onTap: () async {
-                                                              final data =
-                                                                  await Clipboard.getData(
-                                                                Clipboard.kTextPlain,
-                                                              );
-                                                              if (data?.text != null &&
-                                                                  data!.text!
-                                                                      .trim()
-                                                                      .isNotEmpty) {
-                                                                setState(() {
-                                                                  _igCookieControllers[key]
-                                                                          ?.text =
-                                                                      data.text!.trim();
-                                                                  _isIgCookieVerified =
-                                                                      false;
-                                                                  _igCookieVerifyMsg =
-                                                                      null;
-                                                                });
-                                                              }
-                                                            },
-                                                            borderRadius:
-                                                                BorderRadius.circular(6),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets.all(5),
-                                                              decoration: BoxDecoration(
-                                                                borderRadius:
-                                                                    BorderRadius.circular(6),
-                                                                border: Border.all(
-                                                                  color: const Color(0xFFE1306C)
-                                                                      .withValues(
-                                                                    alpha: 0.30,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                              child: const Icon(
-                                                                Icons.content_paste_rounded,
-                                                                size: 13,
-                                                                color: Color(0xFFE1306C),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                  ),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-
                         // Feedback message
                         if (_igCookieVerifyMsg != null) ...[
                           const SizedBox(height: 10),
@@ -3812,191 +2070,45 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                         const SizedBox(height: 10),
 
                         // Action Buttons
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            if (_isIgCookieInputOpen)
-                              ElevatedButton.icon(
-                                onPressed: _isVerifyingIgCookie
-                                    ? null
-                                    : _handleVerifyIgCookie,
-                                icon: _isVerifyingIgCookie
-                                    ? const SizedBox(
-                                        width: 12,
-                                        height: 12,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.refresh_rounded,
-                                        size: 13,
+                            ElevatedButton.icon(
+                              onPressed: _isVerifyingIgCookie
+                                  ? null
+                                  : _handleVerifyIgCookie,
+                              icon: _isVerifyingIgCookie
+                                  ? const SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
                                       ),
-                                label: Text(
-                                  _isVerifyingIgCookie
-                                      ? 'Đang kiểm tra...'
-                                      : 'Kiểm tra',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white
-                                      .withValues(alpha: 0.1),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 7,
-                                  ),
-                                  minimumSize: Size.zero,
+                                    )
+                                  : const Icon(
+                                      Icons.refresh_rounded,
+                                      size: 13,
+                                    ),
+                              label: Text(
+                                _isVerifyingIgCookie
+                                    ? 'Đang kiểm tra...'
+                                    : 'Kiểm tra instagram.txt',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            if (_isIgCookieInputOpen)
-                              const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                if (_isIgCookieInputOpen)
-                                  TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _isIgCookieInputOpen = false;
-                                        _isIgCookieVerified = false;
-                                        _igCookieVerifyMsg = null;
-                                      });
-                                    },
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                    child: const Text(
-                                      'Hủy',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white60,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  ElevatedButton.icon(
-                                    onPressed: _isVerifyingIgCookie
-                                        ? null
-                                        : _handleVerifyIgCookie,
-                                    icon: _isVerifyingIgCookie
-                                        ? const SizedBox(
-                                            width: 12,
-                                            height: 12,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.refresh_rounded,
-                                            size: 13,
-                                          ),
-                                    label: Text(
-                                      _isVerifyingIgCookie
-                                          ? 'Đang kiểm tra...'
-                                          : 'Kiểm tra instagram.txt',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white
-                                          .withValues(alpha: 0.1),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  ),
-                                if (_isIgCookieInputOpen)
-                                  ElevatedButton.icon(
-                                    onPressed: (!_isIgCookieVerified ||
-                                            _isSavingIgCookie)
-                                        ? null
-                                        : _handleSaveIgCookie,
-                                    icon: _isSavingIgCookie
-                                        ? const SizedBox(
-                                            width: 12,
-                                            height: 12,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.check_rounded,
-                                            size: 13,
-                                          ),
-                                    label: Text(
-                                      _isSavingIgCookie
-                                          ? 'Đang lưu...'
-                                          : 'Lưu cookie',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _isIgCookieVerified
-                                          ? const Color(0xFFE1306C)
-                                          : Colors.white12,
-                                      foregroundColor: _isIgCookieVerified
-                                          ? Colors.white
-                                          : Colors.white38,
-                                      disabledBackgroundColor: Colors.white10,
-                                      disabledForegroundColor: Colors.white24,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  )
-                                else
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        _isIgCookieInputOpen = true;
-                                        _isIgCookieVerified = false;
-                                        _igCookieVerifyMsg = null;
-                                      });
-                                    },
-                                    icon: const Icon(
-                                      Icons.cookie_rounded,
-                                      size: 14,
-                                    ),
-                                    label: const Text(
-                                      'Nhập cookie',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFE1306C)
-                                          .withValues(alpha: 0.2),
-                                      foregroundColor: const Color(0xFFE1306C),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  ),
-                              ],
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white
+                                    .withValues(alpha: 0.1),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                minimumSize: Size.zero,
+                              ),
                             ),
                           ],
                         ),
@@ -4104,244 +2216,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           color: AppTheme.borderColor,
                         ),
 
-                        // Sliding Input Container
-                        AnimatedSize(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          alignment: Alignment.topCenter,
-                          child: _isXCookieInputOpen
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Nhập các giá trị cookie từ tài khoản X (Twitter) của bạn:',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      ..._xCookieFieldKeys.map((key) {
-                                        return Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 8),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                key,
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  fontFamily: 'monospace',
-                                                  color: Colors.white70,
-                                                  fontWeight:
-                                                      FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              SizedBox(
-                                                height: 34,
-                                                child: TextField(
-                                                  controller:
-                                                      _xCookieControllers[key],
-                                                  onChanged: (_) {
-                                                    if (_isXCookieVerified) {
-                                                      setState(() {
-                                                        _isXCookieVerified =
-                                                            false;
-                                                        _xCookieVerifyMsg =
-                                                            null;
-                                                      });
-                                                    }
-                                                  },
-                                                  style: const TextStyle(
-                                                    fontSize: 11,
-                                                    fontFamily: 'monospace',
-                                                    color: Colors.white,
-                                                  ),
-                                                  decoration: InputDecoration(
-                                                    hintText: 'Nhập $key...',
-                                                    hintStyle: TextStyle(
-                                                      fontSize: 11,
-                                                      fontFamily: 'monospace',
-                                                      color: Colors.white
-                                                          .withValues(
-                                                        alpha: 0.25,
-                                                      ),
-                                                    ),
-                                                    contentPadding:
-                                                        const EdgeInsets
-                                                            .symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 0,
-                                                    ),
-                                                    filled: true,
-                                                    fillColor:
-                                                        AppTheme.bgInput,
-                                                    border: OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                        8,
-                                                      ),
-                                                      borderSide: BorderSide(
-                                                        color: AppTheme
-                                                            .borderColor
-                                                            .withValues(
-                                                          alpha: 0.4,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    enabledBorder:
-                                                        OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                        8,
-                                                      ),
-                                                      borderSide: BorderSide(
-                                                        color: AppTheme
-                                                            .borderColor
-                                                            .withValues(
-                                                          alpha: 0.4,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    focusedBorder:
-                                                        OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                        8,
-                                                      ),
-                                                      borderSide:
-                                                          const BorderSide(
-                                                        color:
-                                                            Color(0xFFE7E9EA),
-                                                        width: 1.2,
-                                                      ),
-                                                    ),
-                                                    suffixIcon: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        if (_xCookieControllers[
-                                                                    key]
-                                                                ?.text
-                                                                .isNotEmpty ==
-                                                            true)
-                                                          IconButton(
-                                                            icon: const Icon(
-                                                              Icons.clear,
-                                                              size: 14,
-                                                              color:
-                                                                  Colors.white38,
-                                                            ),
-                                                            padding:
-                                                                EdgeInsets.zero,
-                                                            constraints:
-                                                                const BoxConstraints(
-                                                              minWidth: 26,
-                                                              minHeight: 26,
-                                                            ),
-                                                            tooltip: 'Xóa',
-                                                            onPressed: () {
-                                                              setState(() {
-                                                                _xCookieControllers[
-                                                                        key]
-                                                                    ?.clear();
-                                                                _isXCookieVerified =
-                                                                    false;
-                                                                _xCookieVerifyMsg =
-                                                                    null;
-                                                              });
-                                                            },
-                                                          ),
-                                                        Material(
-                                                          color: const Color(
-                                                                  0xFFE7E9EA)
-                                                              .withValues(
-                                                            alpha: 0.10,
-                                                          ),
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(6),
-                                                          child: InkWell(
-                                                            onTap: () async {
-                                                              final data =
-                                                                  await Clipboard
-                                                                      .getData(
-                                                                Clipboard
-                                                                    .kTextPlain,
-                                                              );
-                                                              if (data?.text !=
-                                                                      null &&
-                                                                  data!.text!
-                                                                      .trim()
-                                                                      .isNotEmpty) {
-                                                                setState(() {
-                                                                  _xCookieControllers[
-                                                                              key]
-                                                                          ?.text =
-                                                                      data.text!
-                                                                          .trim();
-                                                                  _isXCookieVerified =
-                                                                      false;
-                                                                  _xCookieVerifyMsg =
-                                                                      null;
-                                                                });
-                                                              }
-                                                            },
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(6),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets
-                                                                      .all(5),
-                                                              decoration:
-                                                                  BoxDecoration(
-                                                                borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                            6),
-                                                                border:
-                                                                    Border.all(
-                                                                  color:
-                                                                      const Color(
-                                                                    0xFFE7E9EA,
-                                                                  ).withValues(
-                                                                    alpha: 0.30,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                              child: const Icon(
-                                                                Icons
-                                                                    .content_paste_rounded,
-                                                                size: 13,
-                                                                color: Color(
-                                                                  0xFFE7E9EA,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                  ),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-
                         // Feedback message
                         if (_xCookieVerifyMsg != null) ...[
                           const SizedBox(height: 10),
@@ -4395,191 +2269,45 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                         const SizedBox(height: 10),
 
                         // Action Buttons
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            if (_isXCookieInputOpen)
-                              ElevatedButton.icon(
-                                onPressed: _isVerifyingXCookie
-                                    ? null
-                                    : _handleVerifyXCookie,
-                                icon: _isVerifyingXCookie
-                                    ? const SizedBox(
-                                        width: 12,
-                                        height: 12,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.refresh_rounded,
-                                        size: 13,
+                            ElevatedButton.icon(
+                              onPressed: _isVerifyingXCookie
+                                  ? null
+                                  : _handleVerifyXCookie,
+                              icon: _isVerifyingXCookie
+                                  ? const SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
                                       ),
-                                label: Text(
-                                  _isVerifyingXCookie
-                                      ? 'Đang kiểm tra...'
-                                      : 'Kiểm tra',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white
-                                      .withValues(alpha: 0.1),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 7,
-                                  ),
-                                  minimumSize: Size.zero,
+                                    )
+                                  : const Icon(
+                                      Icons.refresh_rounded,
+                                      size: 13,
+                                    ),
+                              label: Text(
+                                _isVerifyingXCookie
+                                    ? 'Đang kiểm tra...'
+                                    : 'Kiểm tra x.txt',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            if (_isXCookieInputOpen)
-                              const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                if (_isXCookieInputOpen)
-                                  TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _isXCookieInputOpen = false;
-                                        _isXCookieVerified = false;
-                                        _xCookieVerifyMsg = null;
-                                      });
-                                    },
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                    child: const Text(
-                                      'Hủy',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white60,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  ElevatedButton.icon(
-                                    onPressed: _isVerifyingXCookie
-                                        ? null
-                                        : _handleVerifyXCookie,
-                                    icon: _isVerifyingXCookie
-                                        ? const SizedBox(
-                                            width: 12,
-                                            height: 12,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.refresh_rounded,
-                                            size: 13,
-                                          ),
-                                    label: Text(
-                                      _isVerifyingXCookie
-                                          ? 'Đang kiểm tra...'
-                                          : 'Kiểm tra x.txt',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white
-                                          .withValues(alpha: 0.1),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  ),
-                                if (_isXCookieInputOpen)
-                                  ElevatedButton.icon(
-                                    onPressed: (!_isXCookieVerified ||
-                                            _isSavingXCookie)
-                                        ? null
-                                        : _handleSaveXCookie,
-                                    icon: _isSavingXCookie
-                                        ? const SizedBox(
-                                            width: 12,
-                                            height: 12,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.check_rounded,
-                                            size: 13,
-                                          ),
-                                    label: Text(
-                                      _isSavingXCookie
-                                          ? 'Đang lưu...'
-                                          : 'Lưu cookie',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _isXCookieVerified
-                                          ? Colors.white
-                                          : Colors.white12,
-                                      foregroundColor: _isXCookieVerified
-                                          ? Colors.black
-                                          : Colors.white38,
-                                      disabledBackgroundColor: Colors.white10,
-                                      disabledForegroundColor: Colors.white24,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  )
-                                else
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        _isXCookieInputOpen = true;
-                                        _isXCookieVerified = false;
-                                        _xCookieVerifyMsg = null;
-                                      });
-                                    },
-                                    icon: const Icon(
-                                      Icons.cookie_rounded,
-                                      size: 14,
-                                    ),
-                                    label: const Text(
-                                      'Nhập cookie',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFE7E9EA)
-                                          .withValues(alpha: 0.15),
-                                      foregroundColor: const Color(0xFFE7E9EA),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 7,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                  ),
-                              ],
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white
+                                    .withValues(alpha: 0.1),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                minimumSize: Size.zero,
+                              ),
                             ),
                           ],
                         ),
