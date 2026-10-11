@@ -80,6 +80,16 @@ class TestFacebookService(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(valid)
             self.assertIn("1000123456", msg)
 
+            # Test Netscape HttpOnly format where xs starts with #HttpOnly_
+            netscape_cookies = (
+                "# Netscape HTTP Cookie File\n"
+                "#HttpOnly_.facebook.com\tTRUE\t/\tTRUE\t1823279294\txs\tabcdef123456\n"
+                ".facebook.com\tTRUE\t/\tTRUE\t1823279294\tc_user\t1000123456\n"
+            )
+            valid, msg = await verify_facebook_cookies(netscape_cookies)
+            self.assertTrue(valid)
+            self.assertIn("1000123456", msg)
+
     def test_extractor_parse_html(self):
         extractor = FacebookExtractor()
         data = extractor._parse_html(

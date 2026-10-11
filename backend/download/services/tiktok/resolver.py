@@ -92,6 +92,8 @@ class TikTokResolver(DownloadResolver):
             if raw_saved:
                 for line in raw_saved.splitlines():
                     line = line.strip()
+                    if line.startswith("#HttpOnly_"):
+                        line = line[len("#HttpOnly_"):]
                     if line and not line.startswith("#"):
                         parts = line.split("\t")
                         if len(parts) >= 7:

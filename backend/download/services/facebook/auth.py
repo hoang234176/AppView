@@ -40,7 +40,10 @@ def parse_cookies_to_dict(raw_cookies: str) -> dict[str, str]:
         line = line.strip()
         if not line:
             continue
-        # Netscape format tab-separated line
+        # Netscape format tab-separated line (may start with #HttpOnly_)
+        if line.startswith("#HttpOnly_"):
+            line = line[len("#HttpOnly_"):]
+
         if "\t" in line and not line.startswith("#"):
             parts = line.split("\t")
             if len(parts) >= 7:
