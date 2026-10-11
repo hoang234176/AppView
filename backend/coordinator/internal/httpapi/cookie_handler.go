@@ -209,7 +209,7 @@ func (h *CookieHandler) Verify(writer http.ResponseWriter, request *http.Request
 		if !saved.Exists || strings.TrimSpace(saved.Cookies) == "" {
 			writeJSON(writer, http.StatusOK, protocol.CookieVerifyResult{
 				Valid:   false,
-				Message: "Chưa có cookie nào được lưu.",
+				Message: fmt.Sprintf("File %s.txt hiện đang trống. Vui lòng dán cookie vào file để tiếp tục.", platform),
 			})
 			return
 		}

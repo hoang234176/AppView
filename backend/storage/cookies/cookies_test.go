@@ -40,13 +40,13 @@ func TestSaveAndReadStatus(t *testing.T) {
 		t.Fatalf("expected exists=false, got exists=%v", exists)
 	}
 
-	// Read initially empty
+	// Read initially empty, auto-creates empty file
 	content, readExists, err := Read("youtube")
 	if err != nil {
 		t.Fatalf("Read error: %v", err)
 	}
-	if readExists || content != "" {
-		t.Fatalf("expected readExists=false, got %v", readExists)
+	if !readExists || content != "" {
+		t.Fatalf("expected readExists=true and empty content, got exists=%v, content=%q", readExists, content)
 	}
 
 	// Save

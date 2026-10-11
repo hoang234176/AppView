@@ -534,6 +534,7 @@ func Save(platform string, content string) (time.Time, error) {
 }
 
 // Read returns the raw cookie content from ~/.tmp-appview/cookies/<platform>.txt.
+// If the cookie file does not exist, it automatically creates an empty file with 0600 permissions.
 func Read(platform string) (string, bool, error) {
 	path, err := GetCookieFilePath(platform)
 	if err != nil {
@@ -542,7 +543,12 @@ func Read(platform string) (string, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", false, nil
+			// Ensure empty file is created with 0600 permissions so user can manually copy cookies into it
+			if err := os.WriteFile(path, []byte{}, 0600); err != nil {
+				return "", false, fmt.Errorf("failed to create cookie file: %w", err)
+			}
+			_ = os.Chmod(path, 0600)
+			return "", true, nil
 		}
 		return "", false, err
 	}
