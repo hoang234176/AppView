@@ -1843,25 +1843,6 @@ func (h *Handler) HandleCookieMessage(msg Message, send SendFunc) {
 		_ = json.Unmarshal(msg.Payload, &req)
 	}
 	switch msg.Type {
-	case CookieStatus:
-		exists, modTime, err := cookies.GetStatus(req.Platform)
-		if err != nil {
-			_ = send(Message{
-				Type:   CookieStatus,
-				TaskID: msg.TaskID,
-				Error:  &ErrorPayload{Code: "STATUS_FAILED", Message: err.Error()},
-			})
-			return
-		}
-		_ = send(Message{
-			Type:   CookieStatus,
-			TaskID: msg.TaskID,
-			Result: CookieStatusResult{
-				Platform:  req.Platform,
-				Exists:    exists,
-				UpdatedAt: modTime,
-			},
-		})
 	case CookieSave:
 		if strings.TrimSpace(req.Cookies) == "" {
 			_ = send(Message{

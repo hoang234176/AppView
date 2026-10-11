@@ -21,24 +21,6 @@ func NewCookieHandler(coordinator *service.Coordinator) *CookieHandler {
 	return &CookieHandler{coordinator: coordinator}
 }
 
-func (h *CookieHandler) Status(writer http.ResponseWriter, request *http.Request) {
-	platform := strings.TrimSpace(request.URL.Query().Get("platform"))
-	if platform == "" {
-		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "platform query parameter is required"})
-		return
-	}
-	res, err := h.coordinator.GetCookieStatus(request.Context(), platform)
-	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
-			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
-			return
-		}
-		writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(writer, http.StatusOK, res)
-}
-
 func (h *CookieHandler) Content(writer http.ResponseWriter, request *http.Request) {
 	platform := strings.TrimSpace(request.URL.Query().Get("platform"))
 	if platform == "" {

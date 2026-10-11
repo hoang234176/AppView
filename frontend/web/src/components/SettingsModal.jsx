@@ -12,7 +12,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { saveServerConfig, getServerHost, validateCoordinatorHost } from '../api/axiosConfig';
-import { fetchCoordinatorStorageInfo, getCookieStatus, verifyCookies } from '../api/downloadApi';
+import { fetchCoordinatorStorageInfo, verifyCookies } from '../api/downloadApi';
 
 const formatStorage = (value) => {
   const bytes = Number(value) || 0;
@@ -39,20 +39,6 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isVerifyingCookie, setIsVerifyingCookie] = useState(false);
   const [cookieVerifyMsg, setCookieVerifyMsg] = useState(null);
 
-  const fetchYoutubeCookieStatus = async () => {
-    setCookieStatus("loading");
-    const res = await getCookieStatus("youtube");
-    if (res.success && res.data) {
-      if (res.data.exists) {
-        setCookieStatus("valid");
-      } else {
-        setCookieStatus("none");
-      }
-    } else {
-      setCookieStatus("none");
-    }
-  };
-
   const handleVerifyYoutubeCookie = async () => {
     setIsVerifyingCookie(true);
     setCookieVerifyMsg(null);
@@ -73,20 +59,6 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isTiktokOpen, setIsTiktokOpen] = useState(false);
   const [isVerifyingTiktokCookie, setIsVerifyingTiktokCookie] = useState(false);
   const [tiktokCookieVerifyMsg, setTiktokCookieVerifyMsg] = useState(null);
-
-  const fetchTiktokCookieStatus = async () => {
-    setTiktokCookieStatus("loading");
-    const res = await getCookieStatus("tiktok");
-    if (res.success && res.data) {
-      if (res.data.exists) {
-        setTiktokCookieStatus("valid");
-      } else {
-        setTiktokCookieStatus("none");
-      }
-    } else {
-      setTiktokCookieStatus("none");
-    }
-  };
 
   const handleVerifyTiktokCookie = async () => {
     setIsVerifyingTiktokCookie(true);
@@ -109,20 +81,6 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isVerifyingFbCookie, setIsVerifyingFbCookie] = useState(false);
   const [fbCookieVerifyMsg, setFbCookieVerifyMsg] = useState(null);
 
-  const fetchFbCookieStatus = async () => {
-    setFbCookieStatus("loading");
-    const res = await getCookieStatus("facebook");
-    if (res.success && res.data) {
-      if (res.data.exists) {
-        setFbCookieStatus("valid");
-      } else {
-        setFbCookieStatus("none");
-      }
-    } else {
-      setFbCookieStatus("none");
-    }
-  };
-
   const handleVerifyFbCookie = async () => {
     setIsVerifyingFbCookie(true);
     setFbCookieVerifyMsg(null);
@@ -144,20 +102,6 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isVerifyingIgCookie, setIsVerifyingIgCookie] = useState(false);
   const [igCookieVerifyMsg, setIgCookieVerifyMsg] = useState(null);
 
-  const fetchIgCookieStatus = async () => {
-    setIgCookieStatus("loading");
-    const res = await getCookieStatus("instagram");
-    if (res.success && res.data) {
-      if (res.data.exists) {
-        setIgCookieStatus("valid");
-      } else {
-        setIgCookieStatus("none");
-      }
-    } else {
-      setIgCookieStatus("none");
-    }
-  };
-
   const handleVerifyIgCookie = async () => {
     setIsVerifyingIgCookie(true);
     setIgCookieVerifyMsg(null);
@@ -178,20 +122,6 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isXOpen, setIsXOpen] = useState(false);
   const [isVerifyingXCookie, setIsVerifyingXCookie] = useState(false);
   const [xCookieVerifyMsg, setXCookieVerifyMsg] = useState(null);
-
-  const fetchXCookieStatus = async () => {
-    setXCookieStatus("loading");
-    const res = await getCookieStatus("x");
-    if (res.success && res.data) {
-      if (res.data.exists) {
-        setXCookieStatus("valid");
-      } else {
-        setXCookieStatus("none");
-      }
-    } else {
-      setXCookieStatus("none");
-    }
-  };
 
   const handleVerifyXCookie = async () => {
     setIsVerifyingXCookie(true);

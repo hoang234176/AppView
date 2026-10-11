@@ -224,18 +224,6 @@ const OpenAPISpecJSON = `{
         }
       }
     },
-    "/api/v1/cookies/status": {
-      "get": {
-        "tags": ["Coordinator • Cookies"],
-        "summary": "[Coordinator] Get Cookie File Status",
-        "parameters": [
-          { "name": "platform", "in": "query", "required": true, "schema": { "type": "string", "example": "youtube" } }
-        ],
-        "responses": {
-          "200": { "description": "File existence and modification time" }
-        }
-      }
-    },
     "/api/v1/cookies/verify": {
       "post": {
         "tags": ["Coordinator • Cookies"],

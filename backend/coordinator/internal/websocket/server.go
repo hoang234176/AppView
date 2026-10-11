@@ -99,7 +99,7 @@ func (s *Server) handleMessage(connection *Connection, currentWorkerID string, m
 		return "", s.coordinator.StorageHistory(currentWorkerID, message.StorageHistory)
 	case protocol.StorageInfoMessage:
 		return "", s.coordinator.StorageInfo(currentWorkerID, message.StorageInfo)
-	case protocol.CookieStatus, protocol.CookieVerify:
+	case protocol.CookieVerify:
 		if s.coordinator.ResolveRPC(message.TaskID, message) {
 			return "", nil
 		}

@@ -331,24 +331,8 @@ func TestHandlerCookieMessages(t *testing.T) {
 
 	handler := NewHandler(nil, nil)
 
-	// 1. Initial status query
+	// 1. Save cookies
 	var sent []Message
-	handler.HandleCookieMessage(Message{
-		Type:    CookieStatus,
-		TaskID:  "task-status-1",
-		Payload: []byte(`{"platform":"youtube"}`),
-	}, collect(&sent))
-
-	if len(sent) != 1 || sent[0].Type != CookieStatus {
-		t.Fatalf("expected CookieStatus response, got %+v", sent)
-	}
-	statusRes, ok := sent[0].Result.(CookieStatusResult)
-	if !ok || statusRes.Exists {
-		t.Fatalf("expected exists=false, got %+v", sent[0].Result)
-	}
-
-	// 2. Save cookies
-	sent = nil
 	sampleCookies := "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tTEST\tVALUE\n"
 	savePayload, _ := json.Marshal(CookieRequestPayload{Platform: "youtube", Cookies: sampleCookies})
 	handler.HandleCookieMessage(Message{
@@ -363,22 +347,6 @@ func TestHandlerCookieMessages(t *testing.T) {
 	saveRes, ok := sent[0].Result.(CookieSaveResult)
 	if !ok || !saveRes.Success {
 		t.Fatalf("expected success=true, got %+v", sent[0].Result)
-	}
-
-	// 3. Status query after save
-	sent = nil
-	handler.HandleCookieMessage(Message{
-		Type:    CookieStatus,
-		TaskID:  "task-status-2",
-		Payload: []byte(`{"platform":"youtube"}`),
-	}, collect(&sent))
-
-	if len(sent) != 1 || sent[0].Type != CookieStatus {
-		t.Fatalf("expected CookieStatus response, got %+v", sent)
-	}
-	statusRes, ok = sent[0].Result.(CookieStatusResult)
-	if !ok || !statusRes.Exists || statusRes.UpdatedAt == nil {
-		t.Fatalf("expected exists=true with non-nil updated_at, got %+v", sent[0].Result)
 	}
 
 	// 4. Get cookies

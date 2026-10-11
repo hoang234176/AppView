@@ -21,7 +21,6 @@ const (
 	StorageHistory         MessageType = "storage.history"
 	StorageInfoMessage     MessageType = "storage.info"
 	DownloadEventMessage   MessageType = "download_event"
-	CookieStatus           MessageType = "cookie.status"
 	CookieSave             MessageType = "cookie.save"
 	CookieGet              MessageType = "cookie.get"
 	CookieVerify           MessageType = "cookie.verify"
@@ -186,12 +185,6 @@ type CookieRequestPayload struct {
 	Platform string            `json:"platform"`
 	Cookies  string            `json:"cookies,omitempty"`
 	Fields   map[string]string `json:"fields,omitempty"`
-}
-
-type CookieStatusResult struct {
-	Platform  string     `json:"platform"`
-	Exists    bool       `json:"exists"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 type CookieSaveResult struct {

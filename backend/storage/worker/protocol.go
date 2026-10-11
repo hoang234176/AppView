@@ -22,7 +22,6 @@ const (
 	FilesystemEvent    = "filesystem_event"
 	StorageHistory     = "storage.history"
 	StorageInfoMessage = "storage.info"
-	CookieStatus       = "cookie.status"
 	CookieSave         = "cookie.save"
 	CookieGet          = "cookie.get"
 	SessionStatus      = "session.status"
@@ -98,12 +97,6 @@ type ErrorPayload struct {
 type CookieRequestPayload struct {
 	Platform string `json:"platform"`
 	Cookies  string `json:"cookies,omitempty"`
-}
-
-type CookieStatusResult struct {
-	Platform  string     `json:"platform"`
-	Exists    bool       `json:"exists"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 type CookieSaveResult struct {

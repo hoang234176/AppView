@@ -337,22 +337,6 @@ export class DownloadWebSocketClient {
   }
 }
 
-export const getCookieStatus = async (platform = 'youtube') => {
-  try {
-    const response = await createCoordinatorClient().get('/cookies/status', {
-      params: { platform },
-    });
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.error || 'Không thể lấy trạng thái cookie.',
-    };
-  }
-};
 
 export const verifyCookies = async (platform = 'youtube', fields = null, cookies = null) => {
   try {

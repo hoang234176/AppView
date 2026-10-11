@@ -31,31 +31,15 @@ func TestCookieEndpointsValidationAndNoWorker(t *testing.T) {
 	mux := http.NewServeMux()
 	Register(mux, coordinator)
 
-	// 1. Status missing platform
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/cookies/status", nil)
+	// 1. Verify missing platform -> 400
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"","cookies":"sample"}`))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	// 2. Status with no worker -> 503
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/cookies/status?platform=youtube", nil)
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	// 3. Verify missing platform -> 400
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"","cookies":"sample"}`))
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	// 4. Verify no worker -> 503
+	// 2. Verify no worker -> 503
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"youtube","cookies":"sample"}`))
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -72,18 +56,6 @@ func TestCookieEndpointsSuccessWithWorkers(t *testing.T) {
 	storageSender.onSend = func(msg protocol.Message) error {
 		go func() {
 			switch msg.Type {
-			case protocol.CookieStatus:
-				now := time.Now().UTC()
-				b, _ := json.Marshal(protocol.CookieStatusResult{
-					Platform:  "youtube",
-					Exists:    true,
-					UpdatedAt: &now,
-				})
-				coordinator.ResolveRPC(msg.TaskID, protocol.Message{
-					Type:   protocol.CookieStatus,
-					TaskID: msg.TaskID,
-					Result: b,
-				})
 			case protocol.CookieSave:
 				now := time.Now().UTC()
 				b, _ := json.Marshal(protocol.CookieSaveResult{
@@ -128,24 +100,9 @@ func TestCookieEndpointsSuccessWithWorkers(t *testing.T) {
 	mux := http.NewServeMux()
 	Register(mux, coordinator)
 
-	// Test Status success
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/cookies/status?platform=youtube", nil)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var statusRes protocol.CookieStatusResult
-	if err := json.Unmarshal(rec.Body.Bytes(), &statusRes); err != nil {
-		t.Fatal(err)
-	}
-	if !statusRes.Exists || statusRes.Platform != "youtube" {
-		t.Fatalf("unexpected status result: %+v", statusRes)
-	}
-
 	// Test Verify success
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"youtube","cookies":"# sample"}`))
-	rec = httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cookies/verify", bytes.NewBufferString(`{"platform":"youtube","cookies":"# sample"}`))
+	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())

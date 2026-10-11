@@ -18,7 +18,6 @@ All messages use the `internal/protocol.Message` JSON envelope. Fields not relev
 | `filesystem_event` | Storage worker → coordinator → frontend | `event.type`, relative paths | Best-effort canonical filesystem invalidation. |
 | `storage.history` | Storage worker → coordinator | `storageHistory.jobs[]` | Password-free durable archive metadata from one identified Storage worker. |
 | `storage.info` | Storage worker → coordinator | `storageInfo` | Small ROOT_PATH filesystem capacity projection for Settings. |
-| `cookie.status` | coordinator ↔ Storage worker | `taskId`, `payload`/`result` | Queries cookie file existence and timestamp on Storage. |
 | `cookie.save` | coordinator ↔ Storage worker | `taskId`, `payload`/`result` | Persists verified cookies with 0600 file permissions on Storage. |
 | `cookie.get` | Download worker ↔ coordinator ↔ Storage | `taskId`, `payload`/`result` | In-memory cookie retrieval for media extraction without filesystem access. |
 | `cookie.verify` | coordinator ↔ Download worker | `taskId`, `payload`/`result` | In-memory candidate cookie verification against platform extraction. |
@@ -55,7 +54,6 @@ Coordinator broadcasts `{ "type": "download_event", "download": { "jobId": "..."
 
 Social cookies storage, verification, and retrieval are orchestrated across Storage, Coordinator, and Download for all supported platforms (`youtube`, `facebook`, `tiktok`, `instagram`, etc.):
 
-- `GET /api/v1/cookies/status?platform=<platform>`: Coordinator queries Storage worker via WebSocket RPC (`cookie.status`) for file existence and updated timestamp.
 - `POST /api/v1/cookies/verify`: Body `{ "platform": "<platform>", "cookies": "..." }` or `{ "platform": "<platform>" }`. If cookies are omitted, Coordinator fetches existing cookies from Storage worker on disk. If the cookie file does not exist, Storage worker automatically creates an empty file `~/.tmp-appview/cookies/<platform>.txt` (`0600`). Coordinator routes Netscape cookies to Download worker via WebSocket RPC (`cookie.verify`) to test extraction in-memory against target platform. Returns `{ "valid": bool, "message": string }`.
 
 Storage worker persists verified cookies (`~/.tmp-appview/cookies/<platform>.txt`) via WebSocket RPC (`cookie.save`) triggered automatically during Download token renewal/rotation.

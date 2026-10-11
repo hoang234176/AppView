@@ -637,32 +637,6 @@ class DownloadApi {
     }
   }
 
-  static Future<Map<String, dynamic>> getCookieStatus([
-    String platform = 'youtube',
-  ]) async {
-    try {
-      final response = await _createCoordinatorDio().get(
-        '/cookies/status',
-        queryParameters: {'platform': platform},
-      );
-      return {
-        'success': true,
-        'data':
-            response.data is Map
-                ? Map<String, dynamic>.from(response.data as Map)
-                : <String, dynamic>{},
-      };
-    } on DioException catch (e) {
-      final error = e.response?.data is Map ? e.response?.data['error'] : null;
-      return {
-        'success': false,
-        'message':
-            error is String ? error : 'Không thể lấy trạng thái cookie.',
-      };
-    } catch (e) {
-      return {'success': false, 'message': e.toString()};
-    }
-  }
 
   static Future<Map<String, dynamic>> verifyCookies({
     String platform = 'youtube',

@@ -786,32 +786,6 @@ func (c *Coordinator) ResolveRPC(taskID string, resp protocol.Message) bool {
 	return false
 }
 
-func (c *Coordinator) GetCookieStatus(ctx context.Context, platform string) (protocol.CookieStatusResult, error) {
-	platform = strings.TrimSpace(platform)
-	if platform == "" {
-		return protocol.CookieStatusResult{}, fmt.Errorf("platform is required")
-	}
-	storageWorker, ok := c.workers.AnyFor(string(protocol.DownloadFile))
-	if !ok {
-		return protocol.CookieStatusResult{}, fmt.Errorf("storage worker is unavailable")
-	}
-	payload := mustJSON(protocol.CookieRequestPayload{Platform: platform})
-	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
-		Type:    protocol.CookieStatus,
-		Payload: payload,
-	})
-	if err != nil {
-		return protocol.CookieStatusResult{}, err
-	}
-	if resp.Error != nil {
-		return protocol.CookieStatusResult{}, fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message)
-	}
-	var res protocol.CookieStatusResult
-	if err := json.Unmarshal(resp.Result, &res); err != nil {
-		return protocol.CookieStatusResult{}, fmt.Errorf("invalid response from storage worker: %w", err)
-	}
-	return res, nil
-}
 
 func (c *Coordinator) SaveCookies(ctx context.Context, platform, cookies string) (protocol.CookieSaveResult, error) {
 	platform = strings.TrimSpace(platform)

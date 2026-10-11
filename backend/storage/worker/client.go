@@ -171,7 +171,7 @@ func (c *Client) connectOnce(ctx context.Context) error {
 				defer assignments.Done()
 				c.handler.Handle(connectionCtx, task, safeConn.Send)
 			}(incoming)
-		case CookieStatus, CookieSave, CookieGet:
+		case CookieSave, CookieGet:
 			go c.handler.HandleCookieMessage(incoming, safeConn.Send)
 		case SessionStatus, SessionSave, SessionGet:
 			go c.handler.HandleSessionMessage(incoming, safeConn.Send)
