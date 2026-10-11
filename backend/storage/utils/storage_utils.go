@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -291,6 +292,20 @@ func AcquireFFmpeg(ctx context.Context) (func(), error) {
 }
 
 
+var videoDimensionRegex = regexp.MustCompile(`(?i)Video:[^\n]*?,\s*(\d{2,5})x(\d{2,5})`)
+
+func parseDimensionsFromFFmpegOutput(output string) (int, int) {
+	m := videoDimensionRegex.FindStringSubmatch(output)
+	if len(m) == 3 {
+		w, errW := strconv.Atoi(m[1])
+		h, errH := strconv.Atoi(m[2])
+		if errW == nil && errH == nil && w > 0 && h > 0 {
+			return w, h
+		}
+	}
+	return 0, 0
+}
+
 func GetVideoDimensions(fullPath string, modTime time.Time) (int, int) {
 	if modTime.IsZero() {
 		if fi, err := os.Stat(fullPath); err == nil {
@@ -331,6 +346,21 @@ func GetVideoDimensions(fullPath string, modTime time.Time) (int, int) {
 				return w, h
 			}
 		}
+	}
+
+	// Fallback: parse ffmpeg -i output if ffprobe is absent or fails
+	cmdFF := exec.CommandContext(ctx, "ffmpeg", "-i", fullPath)
+	outFF, _ := cmdFF.CombinedOutput()
+	if w, h := parseDimensionsFromFFmpegOutput(string(outFF)); w > 0 && h > 0 {
+		videoMetaMu.Lock()
+		videoMetaCache[fullPath] = struct {
+			Width   int
+			Height  int
+			ModTime time.Time
+		}{Width: w, Height: h, ModTime: modTime}
+		videoMetaMu.Unlock()
+
+		return w, h
 	}
 
 	return 0, 0
@@ -405,8 +435,16 @@ func GenerateVideoThumbnail(srcPath string, thumbPath string) error {
 		return nil
 	}
 
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		LogError("[THUMBNAIL] Lỗi tạo video thumbnail cho %s: 'ffmpeg' chưa được cài đặt hoặc không có trong PATH. Vui lòng cài đặt ffmpeg.", srcPath)
+		return err
+	}
+
 	tmpPath := fmt.Sprintf("%s.tmp-%d-%s.jpg", thumbPath, time.Now().UnixNano(), uuid.NewString()[:8])
 	defer os.Remove(tmpPath)
+
+	var lastErr error
+	var lastOutput []byte
 
 	runFFmpeg := func() error {
 		ffmpegSemaphore <- struct{}{}
@@ -414,31 +452,46 @@ func GenerateVideoThumbnail(srcPath string, thumbPath string) error {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-ss", "00:00:01", "-i", srcPath, "-vframes", "1", "-f", "image2", "-update", "1", "-q:v", "3", "-vf", "scale='min(400,iw)':-1", tmpPath)
-		err := cmd.Run()
+		out, err := cmd.CombinedOutput()
 		cancel()
+		lastErr = err
+		lastOutput = out
 
 		if err != nil || fileEmpty(tmpPath) {
 			_ = os.Remove(tmpPath)
 			ctx0, cancel0 := context.WithTimeout(context.Background(), 8*time.Second)
 			cmd0 := exec.CommandContext(ctx0, "ffmpeg", "-y", "-ss", "00:00:00", "-i", srcPath, "-vframes", "1", "-f", "image2", "-update", "1", "-q:v", "3", "-vf", "scale='min(400,iw)':-1", tmpPath)
-			err = cmd0.Run()
+			out0, err0 := cmd0.CombinedOutput()
 			cancel0()
+			lastErr = err0
+			lastOutput = out0
+			return err0
 		}
-		return err
+		return nil
 	}
 
 	_ = runFFmpeg()
 
 	if fi, statErr := os.Stat(tmpPath); statErr == nil && fi.Size() > 0 {
-		if renameErr := os.Rename(tmpPath, thumbPath); renameErr == nil {
-			LogInfo("[THUMBNAIL] Đã tạo video thumbnail thành công: %s", thumbPath)
-			w, h := GetVideoDimensions(srcPath, fi.ModTime())
-			_ = metadata.UpdateThumbStatus(drive.ID, cleanRel, true, w, h)
-			return nil
+		if renameErr := os.Rename(tmpPath, thumbPath); renameErr != nil {
+			LogError("[THUMBNAIL] Lỗi đổi tên file thumbnail tạm cho %s: %v", srcPath, renameErr)
+			return renameErr
 		}
+		LogInfo("[THUMBNAIL] Đã tạo video thumbnail thành công: %s", thumbPath)
+		w, h := GetVideoDimensions(srcPath, fi.ModTime())
+		_ = metadata.UpdateThumbStatus(drive.ID, cleanRel, true, w, h)
+		return nil
 	}
 
-	LogError("[THUMBNAIL] Lỗi tạo video thumbnail cho: %s", srcPath)
+	trimmedOut := strings.TrimSpace(string(lastOutput))
+	if len(trimmedOut) > 200 {
+		trimmedOut = trimmedOut[len(trimmedOut)-200:]
+	}
+	if lastErr != nil {
+		LogError("[THUMBNAIL] Lỗi tạo video thumbnail cho %s: %v (chi tiết: %s)", srcPath, lastErr, trimmedOut)
+	} else {
+		LogError("[THUMBNAIL] Lỗi tạo video thumbnail cho %s: file tạo ra bị rỗng", srcPath)
+	}
 	return os.ErrNotExist
 }
 

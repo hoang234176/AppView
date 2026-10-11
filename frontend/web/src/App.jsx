@@ -173,6 +173,7 @@ function App() {
   };
 
   const activeControllerRef = useRef(null);
+  const handleRefreshAllRef = useRef(null);
 
   const updateUrlPath = (path) => {
     const url = new URL(window.location.href);
@@ -263,13 +264,13 @@ function App() {
     setPage(1);
   };
 
-  const loadTreeData = useCallback(async () => {
+  const loadTreeData = useCallback(async (drive = activeDrive) => {
     if (!isServerConfigured()) {
       setTreeData([]);
       setIsConnected(false);
       return;
     }
-    const result = await fetchFolderTree();
+    const result = await fetchFolderTree(drive);
     if (result.success) {
       setTreeData(result.data || []);
     } else {
@@ -558,7 +559,14 @@ function App() {
       if (isSameOrDescendantPath(normCurrent, normOld)) {
         nextPath = replacePathPrefix(currentPath, oldPath, newPath);
         refreshCurrent = true;
-      } else if (normCurrent === normOldParent || normCurrent === normNewParent) {
+      } else if (normCurrent === normOldParent) {
+        setFolders((prev) => {
+          const next = prev.filter((f) => normalize(f.path) !== normOld);
+          if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - 1));
+          return next;
+        });
+        refreshCurrent = true;
+      } else if (normCurrent === normNewParent) {
         refreshCurrent = true;
       } else {
         return;
@@ -568,7 +576,25 @@ function App() {
     // 8. Batch Items Moved / Copied - Tree sync
     if (type === 'items_moved' || type === 'items_copied') {
       loadTreeData();
-      if (normCurrent === normNewParent || normCurrent === normOldParent) {
+      if (type === 'items_moved' && normCurrent === normOldParent) {
+        const movedSet = new Set((event.paths || []).map(normalize));
+        setFolders((prev) => {
+          const next = prev.filter((f) => !movedSet.has(normalize(f.path)));
+          if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - (prev.length - next.length)));
+          return next;
+        });
+        setPictures((prev) => {
+          const next = prev.filter((p) => !movedSet.has(normalize(p.path)));
+          if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - (prev.length - next.length)));
+          return next;
+        });
+        setVideos((prev) => {
+          const next = prev.filter((v) => !movedSet.has(normalize(v.path)));
+          if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - (prev.length - next.length)));
+          return next;
+        });
+        refreshCurrent = true;
+      } else if (normCurrent === normNewParent || normCurrent === normOldParent) {
         refreshCurrent = true;
       } else {
         return;
@@ -634,6 +660,7 @@ function App() {
                   if (item.id !== job.id) return item;
                   return {
                     ...item,
+                    sourceName: job.source_name || item.sourceName,
                     action: job.action || item.action,
                     percent: job.percent ?? item.percent,
                     status: job.status || item.status,
@@ -649,6 +676,8 @@ function App() {
                   {
                     id: job.id,
                     action: job.action,
+                    dest: job.dest_folder ? `/${job.dest_folder}` : '/ (Thư mục gốc)',
+                    sourceName: job.source_name || '',
                     dest_folder: job.dest_folder,
                     percent: job.percent ?? 0,
                     status: job.status || 'running',
@@ -661,6 +690,7 @@ function App() {
               }
             });
             if (job.status === 'completed') {
+              handleRefreshAllRef.current?.();
               setTimeout(() => {
                 setTransferTasks((prev) => prev.filter((item) => item.id !== job.id));
               }, 3500);
@@ -802,11 +832,15 @@ function App() {
     setSearchQuery('');
   };
 
-  const handleRefreshAll = () => {
-	if (!isConnected) return;
-    loadTreeData();
+  const handleRefreshAll = useCallback(() => {
+    if (!isConnected) return;
+    loadTreeData(activeDrive);
     loadData(currentPath);
-  };
+  }, [isConnected, activeDrive, currentPath, loadTreeData, loadData]);
+
+  useEffect(() => {
+    handleRefreshAllRef.current = handleRefreshAll;
+  }, [handleRefreshAll]);
 
   const handleEmptyContextMenu = (e) => {
 	if (!isConnected) return;
@@ -1088,10 +1122,16 @@ function App() {
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const destDisplayName = selectedFolder ? `/${selectedFolder}` : '/ (Thư mục gốc)';
 
+    const firstItem = items[0];
+    const firstItemName = firstItem?.name || firstItem?.item?.name || (firstItem?.path || firstItem?.item?.path || '').split('/').filter(Boolean).pop() || '';
+    const itemNames = items.map((it) => it.name || it.item?.name || (it.path || it.item?.path || '').split('/').filter(Boolean).pop()).filter(Boolean);
+    const sourceDisplayName = itemNames.length > 1 ? `${itemNames[0]} (+${itemNames.length - 1} mục khác)` : firstItemName;
+
     const initialTask = {
       id: tempId,
       action,
       dest: destDisplayName,
+      sourceName: sourceDisplayName,
       destDrive: destDrive || activeDrive,
       srcDrive: activeDrive,
       itemsCount: items.length,
@@ -1148,7 +1188,54 @@ function App() {
             : item
         )
       );
-      handleRefreshAll();
+
+      if (action === 'move') {
+        const movedNormalized = new Set(
+          items.map((it) => (it.path || it.item?.path || '').replace(/^\/+|\/+$/g, ''))
+        );
+        setFolders((prev) => {
+          const next = prev.filter((f) => !movedNormalized.has((f.path || '').replace(/^\/+|\/+$/g, '')));
+          if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - (prev.length - next.length)));
+          return next;
+        });
+        setPictures((prev) => {
+          const next = prev.filter((p) => !movedNormalized.has((p.path || '').replace(/^\/+|\/+$/g, '')));
+          if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - (prev.length - next.length)));
+          return next;
+        });
+        setVideos((prev) => {
+          const next = prev.filter((v) => !movedNormalized.has((v.path || '').replace(/^\/+|\/+$/g, '')));
+          if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - (prev.length - next.length)));
+          return next;
+        });
+
+        const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
+        const normCurrent = normalize(currentPath);
+        let targetNavPath = null;
+        for (const it of items) {
+          const normItemPath = normalize(it.path || it.item?.path);
+          if (normItemPath && (normCurrent === normItemPath || normCurrent.startsWith(normItemPath + '/'))) {
+            const relSuffix = normCurrent === normItemPath ? '' : normCurrent.slice(normItemPath.length + 1);
+            const baseName = normItemPath.split('/').pop();
+            const normDest = normalize(selectedFolder);
+            const newBasePath = normDest ? `${normDest}/${baseName}` : baseName;
+            targetNavPath = relSuffix ? `${newBasePath}/${relSuffix}` : newBasePath;
+            break;
+          }
+        }
+
+        if (targetNavPath !== null) {
+          updateUrlPath(targetNavPath);
+          setCurrentPath(targetNavPath);
+          loadData(targetNavPath);
+        } else {
+          loadData(currentPath);
+        }
+        loadTreeData(activeDrive);
+      } else {
+        handleRefreshAll();
+      }
+
       setTimeout(() => {
         setTransferTasks((prev) => prev.filter((item) => item.id !== finishedId && item.id !== tempId));
       }, 3500);
@@ -1173,7 +1260,7 @@ function App() {
         )
       );
     }
-  }, [activeDrive, handleRefreshAll]);
+  }, [activeDrive, currentPath, handleRefreshAll, loadData, loadTreeData]);
 
   const handleExecuteBatch = useCallback(async ({ action, selectedFolder, destDrive, items }) => {
     setBatchModalState({ isOpen: false, action: null, items: [] });

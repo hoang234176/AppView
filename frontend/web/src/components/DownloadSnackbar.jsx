@@ -237,9 +237,7 @@ export const DownloadSnackbar = ({ tasks = [], transferTasks = [], summary = nul
                                 ? t.message || 'Thao tác hoàn tất'
                                 : isFailed
                                 ? t.message || 'Thao tác thất bại'
-                                : t.current_file
-                                ? t.current_file
-                                : `${t.itemsCount || 1} mục`}
+                                : t.sourceName || t.source_name || (t.itemsCount ? `${t.itemsCount} mục` : t.dest)}
                             </span>
                             {t.total_bytes > 0 && !isCompleted && !isFailed && (
                               <span className="text-gray-400 flex-shrink-0 ml-2">
@@ -472,7 +470,7 @@ export const DownloadSnackbar = ({ tasks = [], transferTasks = [], summary = nul
                     {activeTransferTasks.length === 1
                       ? activeTransferTasks[0].status === 'completed'
                         ? (activeTransferTasks[0].message || 'Hoàn tất')
-                        : (activeTransferTasks[0].current_file || activeTransferTasks[0].dest)
+                        : (activeTransferTasks[0].sourceName || activeTransferTasks[0].source_name || activeTransferTasks[0].dest)
                       : <span><RollingNumber value={activeTransferTasks.length} /> tác vụ</span>}
                   </span>
                 </div>

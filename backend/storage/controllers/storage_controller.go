@@ -32,6 +32,10 @@ func GetDrives(c *fiber.Ctx) error {
 
 
 func GetFolders(c *fiber.Ctx) error {
+	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Set("Pragma", "no-cache")
+	c.Set("Expires", "0")
+
 	rootPath := configs.GetRootFolderPath(c)
 	targetRelPath := c.Query("path", "")
 
@@ -283,6 +287,10 @@ func DeleteFile(c *fiber.Ctx) error {
 }
 
 func HandleGetTreeFolder(c *fiber.Ctx) error {
+	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Set("Pragma", "no-cache")
+	c.Set("Expires", "0")
+
 	rootPath := configs.GetRootFolderPath(c)
 	tree, err := utils.GetFolderTree(rootPath, "")
 	if err != nil {

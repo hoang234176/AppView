@@ -26,6 +26,7 @@ type BatchJobProgressEvent struct {
 	SrcDrive    string    `json:"src_drive"`
 	DestDrive   string    `json:"dest_drive"`
 	DestFolder  string    `json:"dest_folder"`
+	SourceName  string    `json:"source_name,omitempty"`
 	Status      string    `json:"status"` // "running", "completed", "failed"
 	Percent     int       `json:"percent"`
 	TotalBytes  int64     `json:"total_bytes"`

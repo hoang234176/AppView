@@ -21,6 +21,7 @@ type BatchJob struct {
 	SrcDrive    string    `json:"src_drive"`
 	DestDrive   string    `json:"dest_drive"`
 	DestFolder  string    `json:"dest_folder"`
+	SourceName  string    `json:"source_name,omitempty"`
 	Status      string    `json:"status"` // "running", "completed", "failed"
 	Percent     int       `json:"percent"`
 	TotalBytes  int64     `json:"total_bytes"`
@@ -127,12 +128,23 @@ func HandleBatchItems(c *fiber.Ctx) error {
 		destDisplayName = "thư mục gốc"
 	}
 
+	sourceName := ""
+	if len(req.Items) > 0 {
+		cleanFirst := filepath.Base(filepath.Clean(req.Items[0].Path))
+		if len(req.Items) > 1 {
+			sourceName = fmt.Sprintf("%s (+%d mục khác)", cleanFirst, len(req.Items)-1)
+		} else {
+			sourceName = cleanFirst
+		}
+	}
+
 	job := &BatchJob{
 		ID:          jobID,
 		Action:      req.Action,
 		SrcDrive:    srcDrive,
 		DestDrive:   destDrive,
 		DestFolder:  req.DestFolder,
+		SourceName:  sourceName,
 		Status:      "running",
 		Percent:     0,
 		TotalBytes:  totalBytes,
@@ -159,6 +171,7 @@ func HandleBatchItems(c *fiber.Ctx) error {
 			SrcDrive:    j.SrcDrive,
 			DestDrive:   j.DestDrive,
 			DestFolder:  j.DestFolder,
+			SourceName:  j.SourceName,
 			Status:      j.Status,
 			Percent:     j.Percent,
 			TotalBytes:  j.TotalBytes,
@@ -204,34 +217,73 @@ func HandleBatchItems(c *fiber.Ctx) error {
 		// Publish granular filesystem event
 		if req.Action == "delete" {
 			publishFolderEvent(events.FilesystemEvent{
-				Type:       "items_deleted",
-				Drive:      srcDrive,
-				Paths:      itemPaths,
-				ParentPath: folderParent(itemPaths[0]),
+				Type:          "items_deleted",
+				Drive:         srcDrive,
+				Paths:         itemPaths,
+				ParentPath:    folderParent(itemPaths[0]),
+				OldParentPath: folderParent(itemPaths[0]),
 			})
-			publishFolderEvent(events.FilesystemEvent{
-				Type:       "folder_deleted",
-				Drive:      srcDrive,
-				Path:       itemPaths[0],
-				OldPath:    itemPaths[0],
-				ParentPath: folderParent(itemPaths[0]),
-			})
+			for _, it := range req.Items {
+				if it.Type == "folder" {
+					cleanP := filepath.ToSlash(filepath.Clean(it.Path))
+					publishFolderEvent(events.FilesystemEvent{
+						Type:          "folder_deleted",
+						Drive:         srcDrive,
+						Path:          cleanP,
+						OldPath:       cleanP,
+						ParentPath:    folderParent(cleanP),
+						OldParentPath: folderParent(cleanP),
+					})
+				}
+			}
 		} else {
+			srcParent := folderParent(itemPaths[0])
+			destParent := req.DestFolder
+
 			publishFolderEvent(events.FilesystemEvent{
-				Type:       "items_moved",
-				Drive:      destDrive,
-				Paths:      itemPaths,
-				Path:       req.DestFolder,
-				NewPath:    req.DestFolder,
-				ParentPath: folderParent(req.DestFolder),
+				Type:          "items_moved",
+				Drive:         destDrive,
+				Paths:         itemPaths,
+				Path:          destParent,
+				NewPath:       destParent,
+				OldParentPath: srcParent,
+				NewParentPath: destParent,
+				ParentPath:    destParent,
 			})
-			publishFolderEvent(events.FilesystemEvent{
-				Type:       "folder_moved",
-				Drive:      destDrive,
-				Path:       req.DestFolder,
-				NewPath:    req.DestFolder,
-				ParentPath: folderParent(req.DestFolder),
-			})
+			if srcDrive != "" && destDrive != "" && !strings.EqualFold(srcDrive, destDrive) {
+				publishFolderEvent(events.FilesystemEvent{
+					Type:          "items_moved",
+					Drive:         srcDrive,
+					Paths:         itemPaths,
+					Path:          destParent,
+					NewPath:       destParent,
+					OldParentPath: srcParent,
+					NewParentPath: destParent,
+					ParentPath:    srcParent,
+				})
+			}
+
+			for _, it := range req.Items {
+				if it.Type == "folder" {
+					cleanOld := filepath.ToSlash(filepath.Clean(it.Path))
+					cleanNew := filepath.ToSlash(filepath.Join(destParent, filepath.Base(cleanOld)))
+					fEvt := events.FilesystemEvent{
+						Type:          "folder_moved",
+						Drive:         destDrive,
+						Path:          cleanNew,
+						OldPath:       cleanOld,
+						NewPath:       cleanNew,
+						OldParentPath: folderParent(cleanOld),
+						NewParentPath: destParent,
+						ParentPath:    destParent,
+					}
+					publishFolderEvent(fEvt)
+					if srcDrive != "" && destDrive != "" && !strings.EqualFold(srcDrive, destDrive) {
+						fEvt.Drive = srcDrive
+						publishFolderEvent(fEvt)
+					}
+				}
+			}
 		}
 
 		return c.JSON(fiber.Map{"success": true, "job": job})
@@ -289,32 +341,66 @@ func HandleBatchItems(c *fiber.Ctx) error {
 
 		// Publish filesystem event so connected clients update
 		if execErr == nil {
+			srcParent := folderParent(itemPaths[0])
+			destParent := req.DestFolder
+
 			if req.Action == "copy" {
 				publishFolderEvent(events.FilesystemEvent{
-					Type:       "items_copied",
-					Drive:      destDrive,
-					Paths:      itemPaths,
-					Path:       req.DestFolder,
-					NewPath:    req.DestFolder,
-					ParentPath: folderParent(req.DestFolder),
+					Type:          "items_copied",
+					Drive:         destDrive,
+					Paths:         itemPaths,
+					Path:          destParent,
+					NewPath:       destParent,
+					OldParentPath: srcParent,
+					NewParentPath: destParent,
+					ParentPath:    destParent,
 				})
 			} else {
 				publishFolderEvent(events.FilesystemEvent{
-					Type:       "items_moved",
-					Drive:      destDrive,
-					Paths:      itemPaths,
-					Path:       req.DestFolder,
-					NewPath:    req.DestFolder,
-					ParentPath: folderParent(req.DestFolder),
+					Type:          "items_moved",
+					Drive:         destDrive,
+					Paths:         itemPaths,
+					Path:          destParent,
+					NewPath:       destParent,
+					OldParentPath: srcParent,
+					NewParentPath: destParent,
+					ParentPath:    destParent,
 				})
+				if srcDrive != "" && destDrive != "" && !strings.EqualFold(srcDrive, destDrive) {
+					publishFolderEvent(events.FilesystemEvent{
+						Type:          "items_moved",
+						Drive:         srcDrive,
+						Paths:         itemPaths,
+						Path:          destParent,
+						NewPath:       destParent,
+						OldParentPath: srcParent,
+						NewParentPath: destParent,
+						ParentPath:    srcParent,
+					})
+				}
+
+				for _, it := range req.Items {
+					if it.Type == "folder" {
+						cleanOld := filepath.ToSlash(filepath.Clean(it.Path))
+						cleanNew := filepath.ToSlash(filepath.Join(destParent, filepath.Base(cleanOld)))
+						fEvt := events.FilesystemEvent{
+							Type:          "folder_moved",
+							Drive:         destDrive,
+							Path:          cleanNew,
+							OldPath:       cleanOld,
+							NewPath:       cleanNew,
+							OldParentPath: folderParent(cleanOld),
+							NewParentPath: destParent,
+							ParentPath:    destParent,
+						}
+						publishFolderEvent(fEvt)
+						if srcDrive != "" && destDrive != "" && !strings.EqualFold(srcDrive, destDrive) {
+							fEvt.Drive = srcDrive
+							publishFolderEvent(fEvt)
+						}
+					}
+				}
 			}
-			publishFolderEvent(events.FilesystemEvent{
-				Type:       "folder_moved",
-				Drive:      destDrive,
-				Path:       req.DestFolder,
-				NewPath:    req.DestFolder,
-				ParentPath: folderParent(req.DestFolder),
-			})
 		}
 	}()
 

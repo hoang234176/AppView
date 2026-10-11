@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -26,6 +27,9 @@ import (
 
 func main() {
 	configs.LoadEnvironment()
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		utils.LogEvent("WARN", "ffmpeg chưa được cài đặt hoặc không có trong PATH; tính năng tạo video thumbnail và convert video sẽ bị lỗi", map[string]any{"error": err.Error()})
+	}
 	if err := metadata.InitDB(); err != nil {
 		utils.LogEvent("WARN", "failed to initialize metadata db", map[string]any{"error": err.Error()})
 	}

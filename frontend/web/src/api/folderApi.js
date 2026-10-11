@@ -28,7 +28,7 @@ export const fetchFolderContents = async (folderPath = '', queryOptions = {}, si
   const client = createApiClient();
   
   try {
-    const params = { ...queryOptions };
+    const params = { ...queryOptions, _t: Date.now() };
     const activeDrive = getActiveDrive();
     if (activeDrive) {
       params.drive = activeDrive;
@@ -152,7 +152,7 @@ export const fetchFolderTree = async (driveOrSignal = null, signal = null) => {
     }
 
     const activeDrive = targetDrive || getActiveDrive();
-    const params = activeDrive ? { drive: activeDrive } : {};
+    const params = { _t: Date.now(), ...(activeDrive ? { drive: activeDrive } : {}) };
     const response = await client.get('/tree-folder', { params, signal: cancelSignal });
     const resData = response.data;
     
