@@ -169,7 +169,7 @@ elif [ -f "$ROOT_DIR/venv/bin/python" ]; then
     PYTHON_CMD="$ROOT_DIR/venv/bin/python"
 fi
 
-(cd "$ROOT_DIR/backend/download" && "$PYTHON_CMD" -u main.py) &
+(cd "$ROOT_DIR/backend/download" && source .venv/bin/activate && "$PYTHON_CMD" -u main.py) &
 PIDS+=($!)
 
 # 4. Khởi chạy Frontend Web (:5173 - host LAN) nếu chọn option 2

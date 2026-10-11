@@ -220,6 +220,122 @@ set -o pipefail
 # Chạy xcodebuild qua bộ lọc Python Progress Bar độc lập
 PROGRESS_PARSER="$PROJECT_ROOT/.tmp-appview/xcode_progress.py"
 
+if [ ! -f "$PROGRESS_PARSER" ]; then
+    mkdir -p "$PROJECT_ROOT/.tmp-appview"
+    cat << 'EOF' > "$PROGRESS_PARSER"
+#!/usr/bin/env python3
+import sys, os, re
+
+def main():
+    log_file_path = sys.argv[1] if len(sys.argv) > 1 else None
+    log_file = None
+    if log_file_path:
+        os.makedirs(os.path.dirname(os.path.abspath(log_file_path)), exist_ok=True)
+        log_file = open(log_file_path, "w", encoding="utf-8", errors="replace")
+
+    CYAN = '\033[1;36m'
+    GREEN = '\033[0;32m'
+    RED = '\033[0;31m'
+    GRAY = '\033[0;90m'
+    NC = '\033[0m'
+    CLEAR_LINE = '\033[K'
+    BAR_WIDTH = 28
+
+    patterns = [
+        (re.compile(r"^PhaseScriptExecution\s+([^\s]+)"), "Thực thi script"),
+        (re.compile(r"^CompileSwiftSources"), "Biên dịch mã nguồn Swift"),
+        (re.compile(r"^CompileSwift\s+\S+\s+\S+\s+(?:.+/)?([^/\s]+)"), "Biên dịch Swift: {}"),
+        (re.compile(r"^CompileC\s+\S+\s+(?:.+/)?([^/\s]+)"), "Biên dịch C/C++: {}"),
+        (re.compile(r"^SwiftDriver\b"), "Xử lý mô-đun Swift"),
+        (re.compile(r"^Ld\s+(?:.+/)?([^/\s]+)"), "Liên kết nhị phân: {}"),
+        (re.compile(r"^GenerateDSYMFile\s+(?:.+/)?([^/\s]+)"), "Tạo dSYM: {}"),
+        (re.compile(r"^CodeSign\s+(?:.+/)?([^/\s]+)"), "Ký số mã nguồn: {}"),
+        (re.compile(r"^ProcessInfoPlistFile\s+(?:.+/)?([^/\s]+)"), "Xử lý Info.plist"),
+        (re.compile(r"^CpResource\s+(?:.+/)?([^/\s]+)"), "Sao chép tài nguyên: {}"),
+        (re.compile(r"^Touch\s+(?:.+/)?([^/\s]+)"), "Đóng gói ứng dụng: {}"),
+        (re.compile(r"^Validate\s+(?:.+/)?([^/\s]+)"), "Kiểm tra tính hợp lệ"),
+        (re.compile(r"^CreateBuildDirectory"), "Khởi tạo thư mục build"),
+    ]
+
+    estimated_total = 90
+    step = 0
+    current_action = "Đang khởi tạo trình biên dịch..."
+    build_succeeded = False
+    build_failed = False
+
+    def render(percent, action, color=CYAN):
+        percent = min(100, max(0, percent))
+        filled = int(BAR_WIDTH * percent / 100)
+        bar = '█' * filled + '░' * (BAR_WIDTH - filled)
+        short_action = (action[:45] + '...') if len(action) > 48 else action
+        sys.stdout.write(f"\r  {color}[{bar}] {percent:>3}%{NC} {GRAY}{short_action}{NC}{CLEAR_LINE}")
+        sys.stdout.flush()
+
+    render(5, current_action)
+
+    try:
+        for raw_line in sys.stdin:
+            if log_file:
+                log_file.write(raw_line)
+                log_file.flush()
+
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if "** BUILD SUCCEEDED **" in line:
+                build_succeeded = True
+                break
+            elif "** BUILD FAILED **" in line:
+                build_failed = True
+                break
+
+            matched = False
+            for pat, template in patterns:
+                m = pat.search(line)
+                if m:
+                    step += 1
+                    if "{}" in template:
+                        arg = m.group(1) if m.groups() else ""
+                        current_action = template.format(arg)
+                    else:
+                        current_action = template
+                    matched = True
+                    break
+
+            if matched:
+                if step >= estimated_total - 5:
+                    estimated_total += 25
+                pct = min(98, max(5, int((step / estimated_total) * 100)))
+                render(pct, current_action)
+    except Exception:
+        pass
+    finally:
+        if log_file:
+            log_file.close()
+
+    if build_succeeded:
+        render(100, "Biên dịch và ký mã hoàn tất!", GREEN)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        sys.exit(0)
+    elif build_failed:
+        render(max(5, int((step / max(1, estimated_total)) * 100)), "Biên dịch thất bại!", RED)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        sys.exit(1)
+    else:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()
+EOF
+    chmod +x "$PROGRESS_PARSER"
+fi
+
+
 xcodebuild -workspace "$WORKSPACE" \
            -scheme "$SCHEME" \
            -configuration "$CONFIGURATION" \
