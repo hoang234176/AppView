@@ -132,6 +132,23 @@ img {
   animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Cookie Verification Notification Banner Smooth Transitions */
+.cookie-banner-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), margin-top 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-top: 0;
+}
+.cookie-banner-wrapper.is-visible {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  margin-top: 0.75rem;
+}
+.cookie-banner-inner {
+  overflow: hidden;
+}
+
 /* Skeleton Loading Shimmer */
 .skeleton {
   background: linear-gradient(90deg, #202124 25%, #2d2f31 50%, #202124 75%);

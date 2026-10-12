@@ -53,6 +53,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   bool _isVerifyingCookie = false;
   String? _cookieVerifyMsg;
   bool _cookieVerifySuccess = false;
+  Timer? _youtubeTimer;
 
   // Social Cookies State (TikTok)
   String _tiktokCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
@@ -60,6 +61,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   bool _isVerifyingTiktokCookie = false;
   String? _tiktokCookieVerifyMsg;
   bool _tiktokCookieVerifySuccess = false;
+  Timer? _tiktokTimer;
 
   // Social Cookies State (Facebook)
   String _fbCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
@@ -67,6 +69,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   bool _isVerifyingFbCookie = false;
   String? _fbCookieVerifyMsg;
   bool _fbCookieVerifySuccess = false;
+  Timer? _fbTimer;
 
   // Social Cookies State (Instagram)
   String _igCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
@@ -74,6 +77,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   bool _isVerifyingIgCookie = false;
   String? _igCookieVerifyMsg;
   bool _igCookieVerifySuccess = false;
+  Timer? _igTimer;
 
   // Social Cookies State (X / Twitter)
   String _xCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
@@ -81,6 +85,7 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   bool _isVerifyingXCookie = false;
   String? _xCookieVerifyMsg;
   bool _xCookieVerifySuccess = false;
+  Timer? _xTimer;
 
   CacheInfoData? _cacheInfo;
 
@@ -105,11 +110,17 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   void dispose() {
     _storageSubscription?.cancel();
     _hostController.dispose();
+    _youtubeTimer?.cancel();
+    _tiktokTimer?.cancel();
+    _fbTimer?.cancel();
+    _igTimer?.cancel();
+    _xTimer?.cancel();
     super.dispose();
   }
 
 
   Future<void> _handleVerifyCookie() async {
+    _youtubeTimer?.cancel();
     setState(() {
       _isVerifyingCookie = true;
       _cookieVerifyMsg = null;
@@ -138,10 +149,19 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             'Cookie không hợp lệ hoặc đã hết hạn.';
       }
     });
+
+    _youtubeTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _cookieVerifyMsg = null;
+        });
+      }
+    });
   }
 
 
   Future<void> _handleVerifyTiktokCookie() async {
+    _tiktokTimer?.cancel();
     setState(() {
       _isVerifyingTiktokCookie = true;
       _tiktokCookieVerifyMsg = null;
@@ -170,10 +190,19 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             'Cookie không hợp lệ hoặc đã hết hạn.';
       }
     });
+
+    _tiktokTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _tiktokCookieVerifyMsg = null;
+        });
+      }
+    });
   }
 
 
   Future<void> _handleVerifyFbCookie() async {
+    _fbTimer?.cancel();
     setState(() {
       _isVerifyingFbCookie = true;
       _fbCookieVerifyMsg = null;
@@ -202,9 +231,18 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             'Cookie không hợp lệ hoặc đã hết hạn.';
       }
     });
+
+    _fbTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _fbCookieVerifyMsg = null;
+        });
+      }
+    });
   }
 
   Future<void> _handleVerifyIgCookie() async {
+    _igTimer?.cancel();
     setState(() {
       _isVerifyingIgCookie = true;
       _igCookieVerifyMsg = null;
@@ -233,9 +271,18 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             'Cookie không hợp lệ hoặc đã hết hạn.';
       }
     });
+
+    _igTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _igCookieVerifyMsg = null;
+        });
+      }
+    });
   }
 
   Future<void> _handleVerifyXCookie() async {
+    _xTimer?.cancel();
     setState(() {
       _isVerifyingXCookie = true;
       _xCookieVerifyMsg = null;
@@ -262,6 +309,14 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             msg ??
             res['message']?.toString() ??
             'Cookie không hợp lệ hoặc đã hết hạn.';
+      }
+    });
+
+    _xTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _xCookieVerifyMsg = null;
+        });
       }
     });
   }
@@ -1111,62 +1166,11 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                                   color: AppTheme.borderColor,
                                                 ),
 
-                                                // Feedback message
-                                                if (_cookieVerifyMsg != null) ...[
-                                                  const SizedBox(height: 10),
-                                                  Container(
-                                                    padding: const EdgeInsets.all(8),
-                                                    decoration: BoxDecoration(
-                                                      color:
-                                                          _cookieVerifySuccess
-                                                              ? Colors.green.withValues(
-                                                                alpha: 0.1,
-                                                              )
-                                                              : Colors.red.withValues(
-                                                                alpha: 0.1,
-                                                              ),
-                                                      borderRadius: BorderRadius.circular(8),
-                                                      border: Border.all(
-                                                        color:
-                                                            _cookieVerifySuccess
-                                                                ? Colors.green.withValues(
-                                                                  alpha: 0.3,
-                                                                )
-                                                                : Colors.red.withValues(
-                                                                  alpha: 0.3,
-                                                                ),
-                                                      ),
-                                                    ),
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(
-                                                          _cookieVerifySuccess
-                                                              ? Icons.check_circle_rounded
-                                                              : Icons.error_outline_rounded,
-                                                          size: 14,
-                                                          color:
-                                                              _cookieVerifySuccess
-                                                                  ? Colors.greenAccent
-                                                                  : Colors.redAccent,
-                                                        ),
-                                                        const SizedBox(width: 6),
-                                                        Expanded(
-                                                          child: Text(
-                                                            _cookieVerifyMsg!,
-                                                            style: TextStyle(
-                                                              fontSize: 11,
-                                                              fontWeight: FontWeight.w600,
-                                                              color:
-                                                                  _cookieVerifySuccess
-                                                                      ? Colors.greenAccent
-                                                                      : Colors.redAccent,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
+                                                // Feedback message with smooth animation
+                                                _buildAnimatedVerifyBanner(
+                                                  message: _cookieVerifyMsg,
+                                                  isSuccess: _cookieVerifySuccess,
+                                                ),
 
                                                 // Action Buttons - hidden while verifying
                                                 if (!_isVerifyingCookie) ...[
@@ -1463,6 +1467,78 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     );
   }
 
+  Widget _buildAnimatedVerifyBanner({
+    required String? message,
+    required bool isSuccess,
+  }) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: SizeTransition(
+              sizeFactor: animation,
+              alignment: Alignment.topCenter,
+              child: child,
+            ),
+          );
+        },
+        child: message != null
+            ? Padding(
+                key: ValueKey<String>(message),
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSuccess
+                        ? Colors.green.withValues(alpha: 0.1)
+                        : Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSuccess
+                          ? Colors.green.withValues(alpha: 0.3)
+                          : Colors.red.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isSuccess
+                            ? Icons.check_circle_rounded
+                            : Icons.error_outline_rounded,
+                        size: 14,
+                        color: isSuccess
+                            ? Colors.greenAccent
+                            : Colors.redAccent,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isSuccess
+                                ? Colors.greenAccent
+                                : Colors.redAccent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : const SizedBox.shrink(key: ValueKey<String>('empty')),
+      ),
+    );
+  }
+
   Widget _buildTikTokCard() {
     return Container(
       decoration: BoxDecoration(
@@ -1585,50 +1661,11 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           color: AppTheme.borderColor,
                         ),
 
-                        // Feedback message
-                        if (_tiktokCookieVerifyMsg != null) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: _tiktokCookieVerifySuccess
-                                  ? Colors.green.withValues(alpha: 0.1)
-                                  : Colors.red.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _tiktokCookieVerifySuccess
-                                    ? Colors.green.withValues(alpha: 0.3)
-                                    : Colors.red.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _tiktokCookieVerifySuccess
-                                      ? Icons.check_circle_rounded
-                                      : Icons.error_outline_rounded,
-                                  size: 14,
-                                  color: _tiktokCookieVerifySuccess
-                                      ? Colors.greenAccent
-                                      : Colors.redAccent,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    _tiktokCookieVerifyMsg!,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: _tiktokCookieVerifySuccess
-                                          ? Colors.greenAccent
-                                          : Colors.redAccent,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                        // Feedback message with smooth animation
+                        _buildAnimatedVerifyBanner(
+                          message: _tiktokCookieVerifyMsg,
+                          isSuccess: _tiktokCookieVerifySuccess,
+                        ),
 
                         // Action Buttons - hidden while verifying
                         if (!_isVerifyingTiktokCookie) ...[
@@ -1804,50 +1841,11 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           color: AppTheme.borderColor,
                         ),
 
-                        // Feedback message
-                        if (_fbCookieVerifyMsg != null) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: _fbCookieVerifySuccess
-                                  ? Colors.green.withValues(alpha: 0.1)
-                                  : Colors.red.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _fbCookieVerifySuccess
-                                    ? Colors.green.withValues(alpha: 0.3)
-                                    : Colors.red.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _fbCookieVerifySuccess
-                                      ? Icons.check_circle_rounded
-                                      : Icons.error_outline_rounded,
-                                  size: 14,
-                                  color: _fbCookieVerifySuccess
-                                      ? Colors.greenAccent
-                                      : Colors.redAccent,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    _fbCookieVerifyMsg!,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: _fbCookieVerifySuccess
-                                          ? Colors.greenAccent
-                                          : Colors.redAccent,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                        // Feedback message with smooth animation
+                        _buildAnimatedVerifyBanner(
+                          message: _fbCookieVerifyMsg,
+                          isSuccess: _fbCookieVerifySuccess,
+                        ),
 
                         // Action Buttons - hidden while verifying
                         if (!_isVerifyingFbCookie) ...[
@@ -2023,50 +2021,11 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           color: AppTheme.borderColor,
                         ),
 
-                        // Feedback message
-                        if (_igCookieVerifyMsg != null) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: _igCookieVerifySuccess
-                                  ? Colors.green.withValues(alpha: 0.1)
-                                  : Colors.red.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _igCookieVerifySuccess
-                                    ? Colors.green.withValues(alpha: 0.3)
-                                    : Colors.red.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _igCookieVerifySuccess
-                                      ? Icons.check_circle_rounded
-                                      : Icons.error_outline_rounded,
-                                  size: 16,
-                                  color: _igCookieVerifySuccess
-                                      ? Colors.greenAccent
-                                      : Colors.redAccent,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    _igCookieVerifyMsg!,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: _igCookieVerifySuccess
-                                          ? Colors.greenAccent
-                                          : Colors.redAccent,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                        // Feedback message with smooth animation
+                        _buildAnimatedVerifyBanner(
+                          message: _igCookieVerifyMsg,
+                          isSuccess: _igCookieVerifySuccess,
+                        ),
 
                         // Action Buttons - hidden while verifying
                         if (!_isVerifyingIgCookie) ...[
@@ -2242,50 +2201,11 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                           color: AppTheme.borderColor,
                         ),
 
-                        // Feedback message
-                        if (_xCookieVerifyMsg != null) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: _xCookieVerifySuccess
-                                  ? Colors.green.withValues(alpha: 0.1)
-                                  : Colors.red.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _xCookieVerifySuccess
-                                    ? Colors.green.withValues(alpha: 0.3)
-                                    : Colors.red.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _xCookieVerifySuccess
-                                      ? Icons.check_circle_rounded
-                                      : Icons.error_outline_rounded,
-                                  size: 16,
-                                  color: _xCookieVerifySuccess
-                                      ? Colors.greenAccent
-                                      : Colors.redAccent,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    _xCookieVerifyMsg!,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: _xCookieVerifySuccess
-                                          ? Colors.greenAccent
-                                          : Colors.redAccent,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                        // Feedback message with smooth animation
+                        _buildAnimatedVerifyBanner(
+                          message: _xCookieVerifyMsg,
+                          isSuccess: _xCookieVerifySuccess,
+                        ),
 
                         // Action Buttons - hidden while verifying
                         if (!_isVerifyingXCookie) ...[

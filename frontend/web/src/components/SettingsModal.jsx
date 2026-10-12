@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   Server,
@@ -38,9 +38,11 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isYoutubeOpen, setIsYoutubeOpen] = useState(false);
   const [isVerifyingCookie, setIsVerifyingCookie] = useState(false);
   const [cookieVerifyMsg, setCookieVerifyMsg] = useState(null);
+  const youtubeTimerRef = useRef(null);
 
   const handleVerifyYoutubeCookie = async () => {
     setIsVerifyingCookie(true);
+    if (youtubeTimerRef.current) clearTimeout(youtubeTimerRef.current);
     setCookieVerifyMsg(null);
     const res = await verifyCookies("youtube");
     setIsVerifyingCookie(false);
@@ -52,6 +54,9 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
       const errMsg = res.data?.message || res.message || "Cookie không hợp lệ hoặc đã hết hạn.";
       setCookieVerifyMsg({ type: "error", text: errMsg });
     }
+    youtubeTimerRef.current = setTimeout(() => {
+      setCookieVerifyMsg(null);
+    }, 5000);
   };
 
   // Social Cookies State (TikTok)
@@ -59,10 +64,12 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isTiktokOpen, setIsTiktokOpen] = useState(false);
   const [isVerifyingTiktokCookie, setIsVerifyingTiktokCookie] = useState(false);
   const [tiktokCookieVerifyMsg, setTiktokCookieVerifyMsg] = useState(null);
+  const tiktokTimerRef = useRef(null);
 
   const handleVerifyTiktokCookie = async () => {
     setIsVerifyingTiktokCookie(true);
-    setCookieVerifyMsg(null);
+    if (tiktokTimerRef.current) clearTimeout(tiktokTimerRef.current);
+    setTiktokCookieVerifyMsg(null);
     const res = await verifyCookies("tiktok");
     setIsVerifyingTiktokCookie(false);
     if (res.success && res.data?.valid) {
@@ -73,6 +80,9 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
       const errMsg = res.data?.message || res.message || "Cookie không hợp lệ hoặc đã hết hạn.";
       setTiktokCookieVerifyMsg({ type: "error", text: errMsg });
     }
+    tiktokTimerRef.current = setTimeout(() => {
+      setTiktokCookieVerifyMsg(null);
+    }, 5000);
   };
 
   // Social Cookies State (Facebook)
@@ -80,9 +90,11 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isFbOpen, setIsFbOpen] = useState(false);
   const [isVerifyingFbCookie, setIsVerifyingFbCookie] = useState(false);
   const [fbCookieVerifyMsg, setFbCookieVerifyMsg] = useState(null);
+  const fbTimerRef = useRef(null);
 
   const handleVerifyFbCookie = async () => {
     setIsVerifyingFbCookie(true);
+    if (fbTimerRef.current) clearTimeout(fbTimerRef.current);
     setFbCookieVerifyMsg(null);
     const res = await verifyCookies("facebook");
     setIsVerifyingFbCookie(false);
@@ -94,6 +106,9 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
       const errMsg = res.data?.message || res.message || "Cookie không hợp lệ hoặc đã hết hạn.";
       setFbCookieVerifyMsg({ type: "error", text: errMsg });
     }
+    fbTimerRef.current = setTimeout(() => {
+      setFbCookieVerifyMsg(null);
+    }, 5000);
   };
 
   // Social Cookies State (Instagram)
@@ -101,9 +116,11 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isIgOpen, setIsIgOpen] = useState(false);
   const [isVerifyingIgCookie, setIsVerifyingIgCookie] = useState(false);
   const [igCookieVerifyMsg, setIgCookieVerifyMsg] = useState(null);
+  const igTimerRef = useRef(null);
 
   const handleVerifyIgCookie = async () => {
     setIsVerifyingIgCookie(true);
+    if (igTimerRef.current) clearTimeout(igTimerRef.current);
     setIgCookieVerifyMsg(null);
     const res = await verifyCookies("instagram");
     setIsVerifyingIgCookie(false);
@@ -115,6 +132,9 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
       const errMsg = res.data?.message || res.message || "Cookie không hợp lệ hoặc đã hết hạn.";
       setIgCookieVerifyMsg({ type: "error", text: errMsg });
     }
+    igTimerRef.current = setTimeout(() => {
+      setIgCookieVerifyMsg(null);
+    }, 5000);
   };
 
   // Social Cookies State (X / Twitter)
@@ -122,9 +142,11 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
   const [isXOpen, setIsXOpen] = useState(false);
   const [isVerifyingXCookie, setIsVerifyingXCookie] = useState(false);
   const [xCookieVerifyMsg, setXCookieVerifyMsg] = useState(null);
+  const xTimerRef = useRef(null);
 
   const handleVerifyXCookie = async () => {
     setIsVerifyingXCookie(true);
+    if (xTimerRef.current) clearTimeout(xTimerRef.current);
     setXCookieVerifyMsg(null);
     const res = await verifyCookies("x");
     setIsVerifyingXCookie(false);
@@ -136,7 +158,21 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
       const errMsg = res.data?.message || res.message || "Cookie không hợp lệ hoặc đã hết hạn.";
       setXCookieVerifyMsg({ type: "error", text: errMsg });
     }
+    xTimerRef.current = setTimeout(() => {
+      setXCookieVerifyMsg(null);
+    }, 5000);
   };
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (youtubeTimerRef.current) clearTimeout(youtubeTimerRef.current);
+      if (tiktokTimerRef.current) clearTimeout(tiktokTimerRef.current);
+      if (fbTimerRef.current) clearTimeout(fbTimerRef.current);
+      if (igTimerRef.current) clearTimeout(igTimerRef.current);
+      if (xTimerRef.current) clearTimeout(xTimerRef.current);
+    };
+  }, []);
 
   // Client Cache State
   const [cacheSizeText, setCacheSizeText] = useState('Đang tính...');
@@ -550,23 +586,27 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                       isYoutubeOpen ? "max-h-[500px] opacity-100 p-3 pt-0 space-y-3 border-t border-[#383c42]/40" : "max-h-0 opacity-0"
                     }`}
                   >
-                    {/* Verification feedback message */}
-                    {cookieVerifyMsg && (
-                      <div
-                        className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 mt-3 ${
-                          cookieVerifyMsg.type === "success"
-                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
-                            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
-                        }`}
-                      >
-                        {cookieVerifyMsg.type === "success" ? (
-                          <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 shrink-0" />
+                    {/* Verification feedback message with smooth transition */}
+                    <div className={`cookie-banner-wrapper ${cookieVerifyMsg ? "is-visible" : ""}`}>
+                      <div className="cookie-banner-inner">
+                        {cookieVerifyMsg && (
+                          <div
+                            className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
+                              cookieVerifyMsg.type === "success"
+                                ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                                : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                            }`}
+                          >
+                            {cookieVerifyMsg.type === "success" ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 shrink-0" />
+                            )}
+                            <span>{cookieVerifyMsg.text}</span>
+                          </div>
                         )}
-                        <span>{cookieVerifyMsg.text}</span>
                       </div>
-                    )}
+                    </div>
 
                     {/* Action Buttons - hidden while verifying */}
                     {!isVerifyingCookie && (
@@ -633,23 +673,27 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                       isTiktokOpen ? "max-h-[500px] opacity-100 p-3 pt-0 space-y-3 border-t border-[#383c42]/40" : "max-h-0 opacity-0"
                     }`}
                   >
-                    {/* Verification feedback message */}
-                    {tiktokCookieVerifyMsg && (
-                      <div
-                        className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 mt-3 ${
-                          tiktokCookieVerifyMsg.type === "success"
-                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
-                            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
-                        }`}
-                      >
-                        {tiktokCookieVerifyMsg.type === "success" ? (
-                          <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 shrink-0" />
+                    {/* Verification feedback message with smooth transition */}
+                    <div className={`cookie-banner-wrapper ${tiktokCookieVerifyMsg ? "is-visible" : ""}`}>
+                      <div className="cookie-banner-inner">
+                        {tiktokCookieVerifyMsg && (
+                          <div
+                            className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
+                              tiktokCookieVerifyMsg.type === "success"
+                                ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                                : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                            }`}
+                          >
+                            {tiktokCookieVerifyMsg.type === "success" ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 shrink-0" />
+                            )}
+                            <span>{tiktokCookieVerifyMsg.text}</span>
+                          </div>
                         )}
-                        <span>{tiktokCookieVerifyMsg.text}</span>
                       </div>
-                    )}
+                    </div>
 
                     {/* Action Buttons - hidden while verifying */}
                     {!isVerifyingTiktokCookie && (
@@ -716,23 +760,27 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                       isFbOpen ? "max-h-[500px] opacity-100 p-3 pt-0 space-y-3 border-t border-[#383c42]/40" : "max-h-0 opacity-0"
                     }`}
                   >
-                    {/* Verification feedback message */}
-                    {fbCookieVerifyMsg && (
-                      <div
-                        className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 mt-3 ${
-                          fbCookieVerifyMsg.type === "success"
-                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
-                            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
-                        }`}
-                      >
-                        {fbCookieVerifyMsg.type === "success" ? (
-                          <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 shrink-0" />
+                    {/* Verification feedback message with smooth transition */}
+                    <div className={`cookie-banner-wrapper ${fbCookieVerifyMsg ? "is-visible" : ""}`}>
+                      <div className="cookie-banner-inner">
+                        {fbCookieVerifyMsg && (
+                          <div
+                            className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
+                              fbCookieVerifyMsg.type === "success"
+                                ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                                : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                            }`}
+                          >
+                            {fbCookieVerifyMsg.type === "success" ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 shrink-0" />
+                            )}
+                            <span>{fbCookieVerifyMsg.text}</span>
+                          </div>
                         )}
-                        <span>{fbCookieVerifyMsg.text}</span>
                       </div>
-                    )}
+                    </div>
 
                     {/* Action Buttons - hidden while verifying */}
                     {!isVerifyingFbCookie && (
@@ -799,23 +847,27 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
                       isIgOpen ? "max-h-[500px] opacity-100 p-3 pt-0 space-y-3 border-t border-[#383c42]/40" : "max-h-0 opacity-0"
                     }`}
                   >
-                    {/* Verification feedback message */}
-                    {igCookieVerifyMsg && (
-                      <div
-                        className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 mt-3 ${
-                          igCookieVerifyMsg.type === "success"
-                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
-                            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
-                        }`}
-                      >
-                        {igCookieVerifyMsg.type === "success" ? (
-                          <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 shrink-0" />
+                    {/* Verification feedback message with smooth transition */}
+                    <div className={`cookie-banner-wrapper ${igCookieVerifyMsg ? "is-visible" : ""}`}>
+                      <div className="cookie-banner-inner">
+                        {igCookieVerifyMsg && (
+                          <div
+                            className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
+                              igCookieVerifyMsg.type === "success"
+                                ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                                : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                            }`}
+                          >
+                            {igCookieVerifyMsg.type === "success" ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 shrink-0" />
+                            )}
+                            <span>{igCookieVerifyMsg.text}</span>
+                          </div>
                         )}
-                        <span>{igCookieVerifyMsg.text}</span>
                       </div>
-                    )}
+                    </div>
 
                     {/* Action Buttons - hidden while verifying */}
                     {!isVerifyingIgCookie && (
@@ -874,23 +926,27 @@ export const SettingsModal = ({ isOpen, onClose, onRefreshFolder, onServerConfig
 
                   {/* Body Content */}
                   <div className={`border-t border-[#383c42]/60 p-3 space-y-3 ${isXOpen ? "block" : "hidden"}`}>
-                    {/* Verification feedback message */}
-                    {xCookieVerifyMsg && (
-                      <div
-                        className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
-                          xCookieVerifyMsg.type === "success"
-                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
-                            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
-                        }`}
-                      >
-                        {xCookieVerifyMsg.type === "success" ? (
-                          <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 shrink-0" />
+                    {/* Verification feedback message with smooth transition */}
+                    <div className={`cookie-banner-wrapper ${xCookieVerifyMsg ? "is-visible" : ""}`}>
+                      <div className="cookie-banner-inner">
+                        {xCookieVerifyMsg && (
+                          <div
+                            className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
+                              xCookieVerifyMsg.type === "success"
+                                ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                                : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                            }`}
+                          >
+                            {xCookieVerifyMsg.type === "success" ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 shrink-0" />
+                            )}
+                            <span>{xCookieVerifyMsg.text}</span>
+                          </div>
                         )}
-                        <span>{xCookieVerifyMsg.text}</span>
                       </div>
-                    )}
+                    </div>
 
                     {/* Action Buttons - hidden while verifying */}
                     {!isVerifyingXCookie && (
