@@ -91,6 +91,59 @@ export const VideoPlayerModal = memo(({ videos = [], currentIndex, onClose, onSe
     onSelectIndex(trackPosition === -2 ? currentIndex + 1 : currentIndex - 1);
   };
 
+  // Media Session API integration for system media controller
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentVid) return;
+
+    const thumbnailUrl = getVideoThumbnailUrl(currentVid);
+    const artwork = thumbnailUrl
+      ? [
+          { src: thumbnailUrl, sizes: '96x96', type: 'image/jpeg' },
+          { src: thumbnailUrl, sizes: '128x128', type: 'image/jpeg' },
+          { src: thumbnailUrl, sizes: '256x256', type: 'image/jpeg' },
+          { src: thumbnailUrl, sizes: '512x512', type: 'image/jpeg' },
+        ]
+      : [];
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentVid.name || 'Video',
+      artist: 'AppView',
+      album: currentVid.path ? currentVid.path.split('/').slice(0, -1).pop() || 'Media' : 'Media',
+      artwork,
+    });
+
+    try {
+      navigator.mediaSession.setActionHandler('previoustrack', currentIndex > 0 ? handlePrev : null);
+    } catch {
+      // Ignore unsupported action errors
+    }
+
+    try {
+      navigator.mediaSession.setActionHandler('nexttrack', currentIndex < videos.length - 1 ? handleNext : null);
+    } catch {
+      // Ignore unsupported action errors
+    }
+
+    return () => {
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.setActionHandler('previoustrack', null);
+          navigator.mediaSession.setActionHandler('nexttrack', null);
+        } catch {
+          // Ignore
+        }
+      }
+    };
+  }, [currentIndex, currentVid, handleNext, handlePrev, videos.length]);
+
+  useEffect(() => {
+    return () => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
