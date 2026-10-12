@@ -51,41 +51,26 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   String _cookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isYoutubeCardOpen = false;
   bool _isVerifyingCookie = false;
-  String? _cookieVerifyMsg;
-  bool _cookieVerifySuccess = false;
-  Timer? _youtubeTimer;
 
   // Social Cookies State (TikTok)
   String _tiktokCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isTiktokCardOpen = false;
   bool _isVerifyingTiktokCookie = false;
-  String? _tiktokCookieVerifyMsg;
-  bool _tiktokCookieVerifySuccess = false;
-  Timer? _tiktokTimer;
 
   // Social Cookies State (Facebook)
   String _fbCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isFbCardOpen = false;
   bool _isVerifyingFbCookie = false;
-  String? _fbCookieVerifyMsg;
-  bool _fbCookieVerifySuccess = false;
-  Timer? _fbTimer;
 
   // Social Cookies State (Instagram)
   String _igCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isIgCardOpen = false;
   bool _isVerifyingIgCookie = false;
-  String? _igCookieVerifyMsg;
-  bool _igCookieVerifySuccess = false;
-  Timer? _igTimer;
 
   // Social Cookies State (X / Twitter)
   String _xCookieStatus = 'none'; // 'loading', 'none', 'valid', 'expired'
   bool _isXCardOpen = false;
   bool _isVerifyingXCookie = false;
-  String? _xCookieVerifyMsg;
-  bool _xCookieVerifySuccess = false;
-  Timer? _xTimer;
 
   CacheInfoData? _cacheInfo;
 
@@ -110,20 +95,13 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
   void dispose() {
     _storageSubscription?.cancel();
     _hostController.dispose();
-    _youtubeTimer?.cancel();
-    _tiktokTimer?.cancel();
-    _fbTimer?.cancel();
-    _igTimer?.cancel();
-    _xTimer?.cancel();
     super.dispose();
   }
 
 
   Future<void> _handleVerifyCookie() async {
-    _youtubeTimer?.cancel();
     setState(() {
       _isVerifyingCookie = true;
-      _cookieVerifyMsg = null;
     });
 
     final res = await DownloadApi.verifyCookies(platform: 'youtube');
@@ -135,36 +113,15 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           res['data'] is Map &&
           res['data']['valid'] == true) {
         _cookieStatus = 'valid';
-        _cookieVerifySuccess = true;
-        _cookieVerifyMsg =
-            res['data']['message']?.toString() ?? '✓ Cookie hợp lệ!';
       } else {
         _cookieStatus = 'expired';
-        _cookieVerifySuccess = false;
-        final msg =
-            res['data'] is Map ? res['data']['message']?.toString() : null;
-        _cookieVerifyMsg =
-            msg ??
-            res['message']?.toString() ??
-            'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-
-    _youtubeTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _cookieVerifyMsg = null;
-        });
       }
     });
   }
 
-
   Future<void> _handleVerifyTiktokCookie() async {
-    _tiktokTimer?.cancel();
     setState(() {
       _isVerifyingTiktokCookie = true;
-      _tiktokCookieVerifyMsg = null;
     });
 
     final res = await DownloadApi.verifyCookies(platform: 'tiktok');
@@ -176,36 +133,15 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           res['data'] is Map &&
           res['data']['valid'] == true) {
         _tiktokCookieStatus = 'valid';
-        _tiktokCookieVerifySuccess = true;
-        _tiktokCookieVerifyMsg =
-            res['data']['message']?.toString() ?? '✓ Cookie hợp lệ!';
       } else {
         _tiktokCookieStatus = 'expired';
-        _tiktokCookieVerifySuccess = false;
-        final msg =
-            res['data'] is Map ? res['data']['message']?.toString() : null;
-        _tiktokCookieVerifyMsg =
-            msg ??
-            res['message']?.toString() ??
-            'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-
-    _tiktokTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _tiktokCookieVerifyMsg = null;
-        });
       }
     });
   }
 
-
   Future<void> _handleVerifyFbCookie() async {
-    _fbTimer?.cancel();
     setState(() {
       _isVerifyingFbCookie = true;
-      _fbCookieVerifyMsg = null;
     });
 
     final res = await DownloadApi.verifyCookies(platform: 'facebook');
@@ -217,35 +153,15 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           res['data'] is Map &&
           res['data']['valid'] == true) {
         _fbCookieStatus = 'valid';
-        _fbCookieVerifySuccess = true;
-        _fbCookieVerifyMsg =
-            res['data']['message']?.toString() ?? '✓ Cookie Facebook hợp lệ!';
       } else {
         _fbCookieStatus = 'expired';
-        _fbCookieVerifySuccess = false;
-        final msg =
-            res['data'] is Map ? res['data']['message']?.toString() : null;
-        _fbCookieVerifyMsg =
-            msg ??
-            res['message']?.toString() ??
-            'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-
-    _fbTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _fbCookieVerifyMsg = null;
-        });
       }
     });
   }
 
   Future<void> _handleVerifyIgCookie() async {
-    _igTimer?.cancel();
     setState(() {
       _isVerifyingIgCookie = true;
-      _igCookieVerifyMsg = null;
     });
 
     final res = await DownloadApi.verifyCookies(platform: 'instagram');
@@ -257,35 +173,15 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           res['data'] is Map &&
           res['data']['valid'] == true) {
         _igCookieStatus = 'valid';
-        _igCookieVerifySuccess = true;
-        _igCookieVerifyMsg =
-            res['data']['message']?.toString() ?? '✓ Cookie Instagram hợp lệ!';
       } else {
         _igCookieStatus = 'expired';
-        _igCookieVerifySuccess = false;
-        final msg =
-            res['data'] is Map ? res['data']['message']?.toString() : null;
-        _igCookieVerifyMsg =
-            msg ??
-            res['message']?.toString() ??
-            'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-
-    _igTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _igCookieVerifyMsg = null;
-        });
       }
     });
   }
 
   Future<void> _handleVerifyXCookie() async {
-    _xTimer?.cancel();
     setState(() {
       _isVerifyingXCookie = true;
-      _xCookieVerifyMsg = null;
     });
 
     final res = await DownloadApi.verifyCookies(platform: 'x');
@@ -297,26 +193,8 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
           res['data'] is Map &&
           res['data']['valid'] == true) {
         _xCookieStatus = 'valid';
-        _xCookieVerifySuccess = true;
-        _xCookieVerifyMsg =
-            res['data']['message']?.toString() ?? '✓ Cookie X (Twitter) hợp lệ!';
       } else {
         _xCookieStatus = 'expired';
-        _xCookieVerifySuccess = false;
-        final msg =
-            res['data'] is Map ? res['data']['message']?.toString() : null;
-        _xCookieVerifyMsg =
-            msg ??
-            res['message']?.toString() ??
-            'Cookie không hợp lệ hoặc đã hết hạn.';
-      }
-    });
-
-    _xTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _xCookieVerifyMsg = null;
-        });
       }
     });
   }
@@ -1157,29 +1035,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                     alignment: Alignment.topCenter,
                                     child: _isYoutubeCardOpen
                                         ? Padding(
-                                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                const Divider(
-                                                  height: 1,
-                                                  color: AppTheme.borderColor,
-                                                ),
-
-                                                // Feedback message with smooth animation
-                                                _buildAnimatedVerifyBanner(
-                                                  message: _cookieVerifyMsg,
-                                                  isSuccess: _cookieVerifySuccess,
-                                                ),
-
                                                 // Action Buttons - hidden while verifying
-                                                if (!_isVerifyingCookie) ...[
-                                                  const SizedBox(height: 10),
-                                                  const Divider(
-                                                    height: 1,
-                                                    color: AppTheme.borderColor,
-                                                  ),
-                                                  const SizedBox(height: 10),
+                                                if (!_isVerifyingCookie)
                                                   Row(
                                                     mainAxisAlignment: MainAxisAlignment.end,
                                                     children: [
@@ -1210,7 +1071,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                                                       ),
                                                     ],
                                                   ),
-                                                ],
                                               ],
                                             ),
                                           )
@@ -1467,77 +1327,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
     );
   }
 
-  Widget _buildAnimatedVerifyBanner({
-    required String? message,
-    required bool isSuccess,
-  }) {
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOutCubic,
-      alignment: Alignment.topCenter,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: SizeTransition(
-              sizeFactor: animation,
-              alignment: Alignment.topCenter,
-              child: child,
-            ),
-          );
-        },
-        child: message != null
-            ? Padding(
-                key: ValueKey<String>(message),
-                padding: const EdgeInsets.only(top: 10),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isSuccess
-                        ? Colors.green.withValues(alpha: 0.1)
-                        : Colors.red.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isSuccess
-                          ? Colors.green.withValues(alpha: 0.3)
-                          : Colors.red.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isSuccess
-                            ? Icons.check_circle_rounded
-                            : Icons.error_outline_rounded,
-                        size: 14,
-                        color: isSuccess
-                            ? Colors.greenAccent
-                            : Colors.redAccent,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          message,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: isSuccess
-                                ? Colors.greenAccent
-                                : Colors.redAccent,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            : const SizedBox.shrink(key: ValueKey<String>('empty')),
-      ),
-    );
-  }
 
   Widget _buildTikTokCard() {
     return Container(
@@ -1652,29 +1441,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             alignment: Alignment.topCenter,
             child: _isTiktokCardOpen
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Divider(
-                          height: 1,
-                          color: AppTheme.borderColor,
-                        ),
-
-                        // Feedback message with smooth animation
-                        _buildAnimatedVerifyBanner(
-                          message: _tiktokCookieVerifyMsg,
-                          isSuccess: _tiktokCookieVerifySuccess,
-                        ),
-
                         // Action Buttons - hidden while verifying
-                        if (!_isVerifyingTiktokCookie) ...[
-                          const SizedBox(height: 10),
-                          const Divider(
-                            height: 1,
-                            color: AppTheme.borderColor,
-                          ),
-                          const SizedBox(height: 10),
+                        if (!_isVerifyingTiktokCookie)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
@@ -1704,7 +1476,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                               ),
                             ],
                           ),
-                        ],
                       ],
                     ),
                   )
@@ -1832,29 +1603,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             alignment: Alignment.topCenter,
             child: _isFbCardOpen
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Divider(
-                          height: 1,
-                          color: AppTheme.borderColor,
-                        ),
-
-                        // Feedback message with smooth animation
-                        _buildAnimatedVerifyBanner(
-                          message: _fbCookieVerifyMsg,
-                          isSuccess: _fbCookieVerifySuccess,
-                        ),
-
                         // Action Buttons - hidden while verifying
-                        if (!_isVerifyingFbCookie) ...[
-                          const SizedBox(height: 10),
-                          const Divider(
-                            height: 1,
-                            color: AppTheme.borderColor,
-                          ),
-                          const SizedBox(height: 10),
+                        if (!_isVerifyingFbCookie)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
@@ -1884,7 +1638,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                               ),
                             ],
                           ),
-                        ],
                       ],
                     ),
                   )
@@ -2012,29 +1765,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             alignment: Alignment.topCenter,
             child: _isIgCardOpen
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Divider(
-                          height: 1,
-                          color: AppTheme.borderColor,
-                        ),
-
-                        // Feedback message with smooth animation
-                        _buildAnimatedVerifyBanner(
-                          message: _igCookieVerifyMsg,
-                          isSuccess: _igCookieVerifySuccess,
-                        ),
-
                         // Action Buttons - hidden while verifying
-                        if (!_isVerifyingIgCookie) ...[
-                          const SizedBox(height: 10),
-                          const Divider(
-                            height: 1,
-                            color: AppTheme.borderColor,
-                          ),
-                          const SizedBox(height: 10),
+                        if (!_isVerifyingIgCookie)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
@@ -2064,7 +1800,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                               ),
                             ],
                           ),
-                        ],
                       ],
                     ),
                   )
@@ -2192,29 +1927,12 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
             alignment: Alignment.topCenter,
             child: _isXCardOpen
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Divider(
-                          height: 1,
-                          color: AppTheme.borderColor,
-                        ),
-
-                        // Feedback message with smooth animation
-                        _buildAnimatedVerifyBanner(
-                          message: _xCookieVerifyMsg,
-                          isSuccess: _xCookieVerifySuccess,
-                        ),
-
                         // Action Buttons - hidden while verifying
-                        if (!_isVerifyingXCookie) ...[
-                          const SizedBox(height: 10),
-                          const Divider(
-                            height: 1,
-                            color: AppTheme.borderColor,
-                          ),
-                          const SizedBox(height: 10),
+                        if (!_isVerifyingXCookie)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
@@ -2244,7 +1962,6 @@ class _ConfigApiDialogState extends State<ConfigApiDialog> {
                               ),
                             ],
                           ),
-                        ],
                       ],
                     ),
                   )
