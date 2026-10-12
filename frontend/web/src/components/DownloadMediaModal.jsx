@@ -437,79 +437,6 @@ export const DownloadMediaModal = ({
     }
   };
 
-  const cleanUrl = (url || '').trim().toLowerCase();
-  const isFbUrl = Boolean(
-    cleanUrl &&
-      (cleanUrl.includes('facebook.com') ||
-        cleanUrl.includes('fb.watch') ||
-        cleanUrl.includes('fb.com') ||
-        cleanUrl.includes('fb.me'))
-  );
-  const isYtUrl = Boolean(cleanUrl && (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')));
-  const isTtUrl = Boolean(cleanUrl && cleanUrl.includes('tiktok.com'));
-  const isIgUrl = Boolean(
-    cleanUrl && (cleanUrl.includes('instagram.com') || cleanUrl.includes('instagr.am'))
-  );
-  const isTgUrl = Boolean(
-    cleanUrl && (cleanUrl.includes('t.me') || cleanUrl.includes('telegram.me'))
-  );
-  const isXUrl = Boolean(
-    cleanUrl &&
-      (cleanUrl.includes('x.com') ||
-        cleanUrl.includes('twitter.com') ||
-        cleanUrl.includes('t.co'))
-  );
-
-  const supportedPlatforms = [
-    {
-      id: 'facebook',
-      name: 'Facebook',
-      icon: FacebookIcon,
-      active: isFbUrl,
-      activeClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-sm',
-    },
-    {
-      id: 'tiktok',
-      name: 'TikTok',
-      icon: TikTokIcon,
-      active: isTtUrl,
-      activeClass: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm',
-    },
-    {
-      id: 'youtube',
-      name: 'YouTube',
-      icon: YouTubeIcon,
-      active: isYtUrl,
-      activeClass: 'bg-rose-500/20 text-rose-400 border border-rose-500/40 shadow-sm',
-    },
-    {
-      id: 'instagram',
-      name: 'Instagram',
-      icon: InstagramIcon,
-      active: isIgUrl,
-      activeClass: 'bg-pink-500/20 text-pink-400 border border-pink-500/40 shadow-sm',
-    },
-    {
-      id: 'telegram',
-      name: 'Telegram',
-      icon: TelegramIcon,
-      active: isTgUrl,
-      activeClass: 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-sm',
-    },
-    {
-      id: 'x',
-      name: 'X (Twitter)',
-      icon: XIcon,
-      active: isXUrl,
-      activeClass: 'bg-white/20 text-white border border-white/40 shadow-sm',
-    },
-  ];
-
-  const sortedPlatforms = [...supportedPlatforms].sort((a, b) => {
-    if (a.active && !b.active) return -1;
-    if (!a.active && b.active) return 1;
-    return 0;
-  });
 
   const isInstagram = preview?.source === 'instagram';
   const isFacebook = preview?.source === 'facebook';
@@ -640,27 +567,6 @@ export const DownloadMediaModal = ({
                       )}
                     </button>
                   </div>
-                </div>
-
-                {/* Brand pills below input */}
-                <div className="flex items-center flex-wrap gap-1.5 pt-2 text-[11px]">
-                  <span className="text-gray-500 font-medium">Hỗ trợ:</span>
-                  {sortedPlatforms.map((p) => {
-                    const Icon = p.icon;
-                    return (
-                      <span
-                        key={p.id}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold transition-all duration-200 ${
-                          p.active
-                            ? p.activeClass
-                            : 'text-gray-400 bg-white/5 border border-transparent'
-                        }`}
-                      >
-                        <Icon className="w-3 h-3" />
-                        <span>{p.name}</span>
-                      </span>
-                    );
-                  })}
                 </div>
               </div>
 
