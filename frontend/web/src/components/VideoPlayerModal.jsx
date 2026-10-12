@@ -68,28 +68,45 @@ export const VideoPlayerModal = memo(({ videos = [], currentIndex, onClose, onSe
     }
   }, [startHideControlsTimer]);
 
-  const handlePrev = useCallback(() => {
+  const handlePrev = useCallback((immediate = false) => {
     if (currentIndex > 0) {
+      if (immediate || document.visibilityState === 'hidden') {
+        onSelectIndex(currentIndex - 1);
+        return;
+      }
       setTransitionVideo(videos[currentIndex - 1]);
       setIsSwitching(true);
       setTrackTransitioning(true);
       setTrackPosition(0);
     }
-  }, [currentIndex, videos]);
+  }, [currentIndex, onSelectIndex, videos]);
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback((immediate = false) => {
     if (currentIndex < videos.length - 1) {
+      if (immediate || document.visibilityState === 'hidden') {
+        onSelectIndex(currentIndex + 1);
+        return;
+      }
       setTransitionVideo(videos[currentIndex + 1]);
       setIsSwitching(true);
       setTrackTransitioning(true);
       setTrackPosition(-2);
     }
-  }, [currentIndex, videos]);
+  }, [currentIndex, onSelectIndex, videos]);
 
   const handleTrackTransitionEnd = (event) => {
     if (event.target !== event.currentTarget || !trackTransitioning) return;
     onSelectIndex(trackPosition === -2 ? currentIndex + 1 : currentIndex - 1);
   };
+
+  // Fallback safety: If CSS transitionend does not fire (tab throttled / minimized), advance video after 350ms
+  useEffect(() => {
+    if (!trackTransitioning) return;
+    const fallbackTimer = window.setTimeout(() => {
+      onSelectIndex(trackPosition === -2 ? currentIndex + 1 : currentIndex - 1);
+    }, 350);
+    return () => window.clearTimeout(fallbackTimer);
+  }, [trackTransitioning, trackPosition, currentIndex, onSelectIndex]);
 
   // Media Session API integration for system media controller
   useEffect(() => {
@@ -113,13 +130,13 @@ export const VideoPlayerModal = memo(({ videos = [], currentIndex, onClose, onSe
     });
 
     try {
-      navigator.mediaSession.setActionHandler('previoustrack', currentIndex > 0 ? handlePrev : null);
+      navigator.mediaSession.setActionHandler('previoustrack', currentIndex > 0 ? () => handlePrev(true) : null);
     } catch {
       // Ignore unsupported action errors
     }
 
     try {
-      navigator.mediaSession.setActionHandler('nexttrack', currentIndex < videos.length - 1 ? handleNext : null);
+      navigator.mediaSession.setActionHandler('nexttrack', currentIndex < videos.length - 1 ? () => handleNext(true) : null);
     } catch {
       // Ignore unsupported action errors
     }
