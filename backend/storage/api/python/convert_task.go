@@ -194,6 +194,8 @@ func probeVideoCompatibilityContext(parent context.Context, path string) VideoCo
 		return VideoCompatibility{IsVideo: true}
 	}
 
+	isMOV := strings.EqualFold(filepath.Ext(path), ".mov")
+
 	// ffprobe gọi MP4/MOV là "mov,mp4,m4a,3gp,3g2,mj2".
 	result := VideoCompatibility{
 		ContainerOK: strings.Contains(media.Format.FormatName, "mov") || strings.Contains(media.Format.FormatName, "mp4"),
@@ -205,11 +207,11 @@ func probeVideoCompatibilityContext(parent context.Context, path string) VideoCo
 		case "video":
 			result.IsVideo = true
 			result.Width, result.Height = stream.Width, stream.Height
-			if stream.CodecName == "h264" && (stream.PixFmt == "yuv420p" || stream.PixFmt == "yuvj420p") {
+			if isMOV || (stream.CodecName == "h264" && (stream.PixFmt == "yuv420p" || stream.PixFmt == "yuvj420p")) {
 				result.VideoOK = true
 			}
 		case "audio":
-			if stream.CodecName != "aac" {
+			if !isMOV && stream.CodecName != "aac" {
 				result.AudioOK = false
 			}
 		}
@@ -728,7 +730,7 @@ func convertSingleFile(job *ConvertJob, taskID, srcPath, dstPath string, idx, to
 	case c.AudioOK:
 		return transcodeVideoOnly(job, taskID, srcPath, dstPath, idx, total)
 	default:
-		return transcodeVideoOnly(job, taskID, srcPath, dstPath, idx, total)
+		return transcodeVideoAndAudio(job, taskID, srcPath, dstPath, idx, total)
 	}
 }
 
