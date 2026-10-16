@@ -20,14 +20,49 @@ class FolderTreeDrawer extends StatefulWidget {
   State<FolderTreeDrawer> createState() => _FolderTreeDrawerState();
 }
 
+class _FlatTreeItem {
+  final TreeNode node;
+  final int depth;
+  final TreeNode? parent;
+  final String? parentPath;
+  final bool hasChildren;
+  final bool isExpanded;
+  int totalVisibleDescendants = 0;
+
+  _FlatTreeItem({
+    required this.node,
+    required this.depth,
+    this.parent,
+    this.parentPath,
+    required this.hasChildren,
+    required this.isExpanded,
+  });
+}
+
 class _FolderTreeDrawerState extends State<FolderTreeDrawer>
     with TickerProviderStateMixin {
+  static const double kTreeItemHeight = 44.0;
   final Map<String, bool> _expandedNodes = {};
+  late final ScrollController _scrollController;
+  List<_FlatTreeItem> _cachedFlatItems = [];
+  String _lastScrolledPath = '';
+  String _lastDrive = '';
+  int _lastTreeLength = 0;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
     _autoExpandCurrentPath();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToCurrentFolder(animate: false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _autoExpandCurrentPath() {
@@ -42,6 +77,75 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
     }
   }
 
+  void _scrollToCurrentFolder({bool animate = false}) {
+    if (!_scrollController.hasClients) return;
+    final appState = context.read<AppStateProvider>();
+    final currentPath = appState.currentPath;
+    if (currentPath.isEmpty) return;
+
+    final targetIndex = _cachedFlatItems.indexWhere((it) => it.node.path == currentPath);
+    if (targetIndex == -1) return;
+
+    final targetItem = _cachedFlatItems[targetIndex];
+    final hasRootItem = appState.drives.isEmpty;
+    final rootShift = hasRootItem ? kTreeItemHeight : 0.0;
+
+    double targetOffset = 0.0;
+    if (targetItem.parentPath != null) {
+      // Trường hợp A: Thư mục phụ thuộc (con) -> cha ghim ở Dòng 1, con ở Dòng 2
+      targetOffset = rootShift + (targetIndex - 1) * kTreeItemHeight;
+    } else {
+      // Trường hợp B: Thư mục độc lập / không phụ thuộc -> hiện lên Dòng 1
+      targetOffset = rootShift + targetIndex * kTreeItemHeight;
+    }
+
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    targetOffset = targetOffset.clamp(0.0, maxScroll);
+
+    if (animate) {
+      _scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _scrollController.jumpTo(targetOffset);
+    }
+  }
+
+  List<_FlatTreeItem> _buildFlatList(List<TreeNode> treeData) {
+    final List<_FlatTreeItem> list = [];
+
+    int addNode(TreeNode node, int depth, TreeNode? parent) {
+      final isExpanded = _expandedNodes[node.path] ?? false;
+      final item = _FlatTreeItem(
+        node: node,
+        depth: depth,
+        parent: parent,
+        parentPath: parent?.path,
+        hasChildren: node.hasChildren,
+        isExpanded: isExpanded,
+      );
+      list.add(item);
+      final itemIndex = list.length - 1;
+
+      int descendantsCount = 0;
+      if (node.hasChildren && isExpanded) {
+        for (final child in node.children) {
+          descendantsCount += 1 + addNode(child, depth + 1, node);
+        }
+      }
+      list[itemIndex].totalVisibleDescendants = descendantsCount;
+      return descendantsCount;
+    }
+
+    for (final rootNode in treeData) {
+      addNode(rootNode, 1, null);
+    }
+
+    return list;
+  }
+
   void _toggleExpand(String path, {bool? forceExpand}) {
     setState(() {
       _expandedNodes[path] = forceExpand ?? !(_expandedNodes[path] ?? false);
@@ -52,6 +156,9 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
     setState(() {
       _expandedNodes.clear();
     });
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
   }
 
   @override
@@ -59,6 +166,33 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
     return Consumer<AppStateProvider>(
       builder: (context, appState, child) {
         final treeData = appState.treeData;
+
+        if (_lastScrolledPath != appState.currentPath ||
+            _lastDrive != appState.activeDrive ||
+            _lastTreeLength != treeData.length) {
+          _lastScrolledPath = appState.currentPath;
+          _lastDrive = appState.activeDrive;
+          _lastTreeLength = treeData.length;
+          _autoExpandCurrentPath();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToCurrentFolder(animate: false);
+          });
+        }
+
+        if (treeData.isNotEmpty) {
+          _cachedFlatItems = _buildFlatList(treeData);
+        } else if (appState.folders.isNotEmpty) {
+          _cachedFlatItems = appState.folders.map((f) => _FlatTreeItem(
+            node: TreeNode(name: f.name, path: f.path),
+            depth: 1,
+            hasChildren: false,
+            isExpanded: false,
+          )).toList();
+        } else {
+          _cachedFlatItems = const [];
+        }
+        final flatItems = _cachedFlatItems;
+        final hasRootItem = appState.drives.isEmpty;
 
         return Drawer(
           backgroundColor: AppTheme.bgBlock,
@@ -209,24 +343,46 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
                   child: Divider(color: AppTheme.borderColor, height: 1),
                 ),
 
-                // Tree Content (Full Scrollable Area)
+                // Tree Content (Full Scrollable Area with Sticky Parent Header)
                 Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    physics: const BouncingScrollPhysics(),
-                    children: [
-                      // Fallback root item only if no drives configured
-                      if (appState.drives.isEmpty) ...[
-                        _buildRootItem(appState),
-                        const SizedBox(height: 4),
-                      ],
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final viewportHeight = constraints.maxHeight;
+                      final totalListHeight = (flatItems.length + (hasRootItem ? 1 : 0)) * kTreeItemHeight;
+                      final bottomSpacerHeight = totalListHeight > viewportHeight
+                          ? math.max(0.0, viewportHeight - 2 * kTreeItemHeight)
+                          : 16.0;
 
-                      // Tree Nodes or Fallback Folders
-                      if (treeData.isNotEmpty)
-                        ...treeData.map((node) => _buildTreeNode(node, depth: 1, appState: appState))
-                      else if (appState.folders.isNotEmpty)
-                        ...appState.folders.map((f) => _buildFlatFolderItem(f, appState)),
-                    ],
+                      final itemCount = flatItems.length + (hasRootItem ? 1 : 0) + 1;
+
+                      return Stack(
+                        children: [
+                          ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: itemCount,
+                            itemBuilder: (context, index) {
+                              if (hasRootItem && index == 0) {
+                                return _buildRootItem(appState);
+                              }
+                              final itemIndex = index - (hasRootItem ? 1 : 0);
+                              if (itemIndex == flatItems.length) {
+                                return SizedBox(height: bottomSpacerHeight);
+                              }
+                              final item = flatItems[itemIndex];
+                              return _buildFlatTreeRow(item, appState);
+                            },
+                          ),
+                          AnimatedBuilder(
+                            animation: _scrollController,
+                            builder: (context, _) {
+                              return _buildStickyHeaderOverlay(flatItems, appState, hasRootItem);
+                            },
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
 
@@ -395,10 +551,11 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
       },
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        height: kTreeItemHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           color: isSelected ? AppTheme.googleBlue : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           children: [
@@ -510,44 +667,205 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
     );
   }
 
-  Widget _buildTreeNode(TreeNode node, {required int depth, required AppStateProvider appState}) {
+  Widget _buildFlatTreeRow(_FlatTreeItem item, AppStateProvider appState) {
+    final node = item.node;
     final isSelected = node.path == appState.currentPath;
-    final hasChildren = node.hasChildren;
-    final isExpanded = _expandedNodes[node.path] ?? false;
-    final double leftPadding = depth * 14.0 + 4;
+    final hasChildren = item.hasChildren;
+    final isExpanded = item.isExpanded;
+    final double leftPadding = item.depth * 14.0 + 4;
     final folderItem = FolderItem(name: node.name, path: node.path);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InkWell(
+    return InkWell(
+      onTap: () {
+        appState.navigateTo(node.path);
+        if (hasChildren && !isExpanded) {
+          _toggleExpand(node.path, forceExpand: true);
+        }
+        Navigator.of(context).pop();
+      },
+      onLongPress: () => _showFolderOptionsModal(folderItem),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: kTreeItemHeight,
+        padding: EdgeInsets.only(left: leftPadding, right: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.googleBlue : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            // Expand / Collapse Chevron
+            if (hasChildren)
+              InkWell(
+                onTap: () => _toggleExpand(node.path),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: AnimatedRotation(
+                    turns: isExpanded ? 0.25 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: isSelected ? const Color(0xFF1C1D21) : const Color(0xFF9AA0A6),
+                    ),
+                  ),
+                ),
+              )
+            else
+              const SizedBox(width: 22),
+
+            const SizedBox(width: 4),
+
+            // Folder Icon
+            Icon(
+              isExpanded ? Icons.folder_open_rounded : Icons.folder_rounded,
+              size: 18,
+              color: isSelected ? const Color(0xFF1C1D21) : AppTheme.folderYellow,
+            ),
+            const SizedBox(width: 8),
+
+            // Folder Name
+            Expanded(
+              child: Text(
+                node.name,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? const Color(0xFF1C1D21) : const Color(0xFFE8EAED),
+                ),
+              ),
+            ),
+
+            // Child count badge
+            if (hasChildren)
+              Container(
+                margin: const EdgeInsets.only(right: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0x331C1D21)
+                      : AppTheme.bgCard,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: RollingNumber(
+                  value: node.children.length,
+                  animateOnMount: true,
+                  duration: const Duration(milliseconds: 650),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? const Color(0xFF1C1D21) : const Color(0xFF9AA0A6),
+                  ),
+                ),
+              ),
+
+            // 3-dots action button
+            IconButton(
+              icon: Icon(
+                Icons.more_vert_rounded,
+                color: isSelected ? const Color(0xFF1C1D21) : const Color(0xFF80868B),
+                size: 16,
+              ),
+              onPressed: () => _showFolderOptionsModal(folderItem),
+              padding: EdgeInsets.zero,
+              alignment: Alignment.center,
+              constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+              splashRadius: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStickyHeaderOverlay(List<_FlatTreeItem> flatItems, AppStateProvider appState, bool hasRootItem) {
+    if (!_scrollController.hasClients || flatItems.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final rawOffset = _scrollController.offset;
+    final rootShift = hasRootItem ? kTreeItemHeight : 0.0;
+    final offset = rawOffset - rootShift;
+
+    if (offset <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    final topIndex = (offset / kTreeItemHeight).floor().clamp(0, flatItems.length - 1);
+    final topItem = flatItems[topIndex];
+
+    _FlatTreeItem? pinnedItem;
+    double pushOffset = 0.0;
+
+    if (topItem.parentPath != null) {
+      final parentIdx = flatItems.indexWhere((it) => it.node.path == topItem.parentPath);
+      if (parentIdx != -1) {
+        final parentItem = flatItems[parentIdx];
+        final sectionEndOffset = (parentIdx + parentItem.totalVisibleDescendants + 1) * kTreeItemHeight;
+        final diff = (sectionEndOffset - offset) - kTreeItemHeight;
+        pushOffset = diff < 0 ? diff : 0.0;
+        if (pushOffset > -kTreeItemHeight) {
+          pinnedItem = parentItem;
+        }
+      }
+    } else if (topItem.isExpanded && topItem.hasChildren && offset >= topIndex * kTreeItemHeight) {
+      final sectionEndOffset = (topIndex + topItem.totalVisibleDescendants + 1) * kTreeItemHeight;
+      final diff = (sectionEndOffset - offset) - kTreeItemHeight;
+      pushOffset = diff < 0 ? diff : 0.0;
+      if (pushOffset > -kTreeItemHeight) {
+        pinnedItem = topItem;
+      }
+    }
+
+    if (pinnedItem == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      top: pushOffset,
+      left: 0.0,
+      right: 0.0,
+      child: _buildPinnedHeaderWidget(pinnedItem, appState),
+    );
+  }
+
+  Widget _buildPinnedHeaderWidget(_FlatTreeItem item, AppStateProvider appState) {
+    final folderItem = FolderItem(name: item.node.name, path: item.node.path);
+    final isSelected = item.node.path == appState.currentPath;
+    final double leftPadding = item.depth * 14.0 + 4;
+    final hasChildren = item.hasChildren;
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        height: kTreeItemHeight,
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.googleBlue : const Color(0xFF25262B),
+          border: const Border(
+            bottom: BorderSide(color: AppTheme.borderColor, width: 1.0),
+          ),
+        ),
+        child: InkWell(
           onTap: () {
-            appState.navigateTo(node.path);
-            if (hasChildren && !isExpanded) {
-              _toggleExpand(node.path, forceExpand: true);
-            }
+            appState.navigateTo(item.node.path);
             Navigator.of(context).pop();
           },
           onLongPress: () => _showFolderOptionsModal(folderItem),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: EdgeInsets.only(left: leftPadding, right: 6, top: 6, bottom: 6),
-            decoration: BoxDecoration(
-              color: isSelected ? AppTheme.googleBlue : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-            ),
+          child: Padding(
+            padding: EdgeInsets.only(left: 8.0 + leftPadding, right: 14.0),
             child: Row(
               children: [
-                // Expand / Collapse Chevron
                 if (hasChildren)
                   InkWell(
-                    onTap: () => _toggleExpand(node.path),
+                    onTap: () => _toggleExpand(item.node.path),
                     borderRadius: BorderRadius.circular(12),
                     child: Padding(
                       padding: const EdgeInsets.all(2),
                       child: AnimatedRotation(
-                        turns: isExpanded ? 0.25 : 0.0,
+                        turns: 0.25,
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeOut,
                         child: Icon(
@@ -563,18 +881,16 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
 
                 const SizedBox(width: 4),
 
-                // Folder Icon
                 Icon(
-                  isExpanded ? Icons.folder_open_rounded : Icons.folder_rounded,
+                  Icons.folder_open_rounded,
                   size: 18,
                   color: isSelected ? const Color(0xFF1C1D21) : AppTheme.folderYellow,
                 ),
                 const SizedBox(width: 8),
 
-                // Folder Name
                 Expanded(
                   child: Text(
-                    node.name,
+                    item.node.name,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 14.5,
@@ -584,7 +900,6 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
                   ),
                 ),
 
-                // Child count badge
                 if (hasChildren)
                   Container(
                     margin: const EdgeInsets.only(right: 2),
@@ -596,7 +911,7 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: RollingNumber(
-                      value: node.children.length,
+                      value: item.node.children.length,
                       animateOnMount: true,
                       duration: const Duration(milliseconds: 650),
                       style: TextStyle(
@@ -608,7 +923,6 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
                     ),
                   ),
 
-                // 3-dots action button
                 IconButton(
                   icon: Icon(
                     Icons.more_vert_rounded,
@@ -624,77 +938,6 @@ class _FolderTreeDrawerState extends State<FolderTreeDrawer>
               ],
             ),
           ),
-        ),
-
-        // Recursive children expand downward instead of appearing instantly.
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          alignment: Alignment.topCenter,
-          child: hasChildren && isExpanded
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: node.children
-                      .map((childNode) => _buildTreeNode(
-                            childNode,
-                            depth: depth + 1,
-                            appState: appState,
-                          ))
-                      .toList(),
-                )
-              : const SizedBox.shrink(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFlatFolderItem(FolderItem folder, AppStateProvider appState) {
-    final isSelected = folder.path == appState.currentPath;
-    return InkWell(
-      onTap: () {
-        appState.navigateTo(folder.path);
-        Navigator.of(context).pop();
-      },
-      onLongPress: () => _showFolderOptionsModal(folder),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.googleBlue : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.folder_rounded,
-              size: 18,
-              color: isSelected ? const Color(0xFF1C1D21) : AppTheme.folderYellow,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                folder.name,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14.5,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? const Color(0xFF1C1D21) : const Color(0xFFE8EAED),
-                ),
-              ),
-            ),
-            IconButton(
-              icon: Icon(
-                Icons.more_vert_rounded,
-                color: isSelected ? const Color(0xFF1C1D21) : const Color(0xFF80868B),
-                size: 16,
-              ),
-              onPressed: () => _showFolderOptionsModal(folder),
-              padding: EdgeInsets.zero,
-              alignment: Alignment.center,
-              constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-              splashRadius: 16,
-            ),
-          ],
         ),
       ),
     );
