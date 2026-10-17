@@ -3,7 +3,7 @@ import {
   ContextMenuWrapper,
   EmptyContextMenu,
   FolderContextMenu,
-} from '../components/ContextMenuLayout';
+} from '../components/layout/ContextMenuLayout';
 import './ContextMenuLayout.css';
 
 /**

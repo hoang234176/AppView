@@ -4,7 +4,7 @@ import {
   CreateFolderModal,
   DownloadMediafireModal,
   DownloadMediaModal,
-} from '../components/FloatingActionLayout';
+} from '../components/layout/FloatingActionLayout';
 import './FloatingActionLayout.css';
 
 /**

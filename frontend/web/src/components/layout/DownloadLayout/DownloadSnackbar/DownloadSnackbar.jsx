@@ -9,10 +9,10 @@ import {
   FolderInput,
   CheckCircle2
 } from 'lucide-react';
-import { formatFileSize, formatSpeed, getFileCategory } from '../../../utils/formatters';
-import { cancelDownloadTask, submitTaskPassword } from '../../../api/downloadApi';
-import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from '../../icons/FileTypeIcon';
-import { RollingNumber } from '../../common/RollingNumber';
+import { formatFileSize, formatSpeed, getFileCategory } from '../../../../utils/formatters';
+import { cancelDownloadTask, submitTaskPassword } from '../../../../api/downloadApi';
+import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from '../../../icons/FileTypeIcon';
+import { RollingNumber } from '../../../common/RollingNumber';
 import './DownloadSnackbar.css';
 
 // Go báo `current` là số video đã hoàn tất. Khi đang convert, video hiển thị

@@ -1,19 +1,17 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
-import { Image as ImageIcon, Calendar, HardDrive, MoreVertical, Info, FolderInput, Trash2, Check, Copy } from 'lucide-react';
-import { formatDate, formatFileSize, getThumbnailUrl, getPictureUrl } from '../../../utils/formatters';
-import { RollingNumber } from '../../common/RollingNumber';
-import { useVirtualGrid } from '../../../utils/useVirtualGrid';
-import './PictureGrid.css';
+import { Play, Film, HardDrive, Calendar, MoreVertical, Info, FolderInput, Trash2, Check, Copy } from 'lucide-react';
+import { formatDate, formatFileSize, getVideoThumbnailUrl } from '../../../../utils/formatters';
+import { RollingNumber } from '../../../common/RollingNumber';
+import { useVirtualGrid } from '../../../../utils/useVirtualGrid';
+import './VideoGrid.css';
 
-const PictureCard = memo(({
-  pic,
+const VideoCard = memo(({
+  vid,
   idx,
   isSelected,
   isSelectMode,
-  failedImage,
-  onImageError,
   onToggleSelect,
-  onOpenLightbox,
+  onOpenVideo,
   isMenuOpen,
   onToggleMenu,
   menuRef,
@@ -22,15 +20,15 @@ const PictureCard = memo(({
   onMoveItem,
   onDeleteItem,
 }) => {
-  const thumbUrl = getThumbnailUrl(pic);
+  const thumbUrl = getVideoThumbnailUrl(vid);
 
   return (
     <div
       onClick={() => {
         if (isSelectMode) {
-          if (onToggleSelect) onToggleSelect(pic, 'picture');
+          if (onToggleSelect) onToggleSelect(vid, 'video');
         } else {
-          onOpenLightbox(idx);
+          onOpenVideo(idx);
         }
       }}
       onContextMenu={(e) => {
@@ -39,18 +37,18 @@ const PictureCard = memo(({
         e.stopPropagation();
         onToggleMenu(idx);
       }}
-      className={`picture-card group relative flex flex-col hover:-translate-y-1 ${
+      className={`video-card group relative flex flex-col hover:-translate-y-1 ${
         isSelected
-          ? 'picture-card-selected'
-          : 'border-[#383c42] hover:border-[#8ab4f8]'
-      } ${isMenuOpen ? 'picture-card-menu-open' : 'z-1'}`}
+          ? 'video-card-selected'
+          : 'border-[#383c42] hover:border-purple-400/80'
+      } ${isMenuOpen ? 'video-card-menu-open' : 'z-1'}`}
     >
       {/* Select Checkbox at top-left corner */}
       {isSelectMode && (
         <div className="absolute top-2.5 left-2.5 z-20">
           <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors duration-150 shadow-md ${
             isSelected
-              ? 'bg-blue-500 border-blue-500 text-white scale-105'
+              ? 'bg-purple-500 border-purple-500 text-white scale-105'
               : 'border-white/70 bg-black/60 hover:border-white'
           }`}>
             {isSelected && <Check className="w-4 h-4 stroke-[3]" />}
@@ -58,38 +56,45 @@ const PictureCard = memo(({
         </div>
       )}
 
-      <div className="relative aspect-[4/3] bg-[#18191c] overflow-hidden flex items-center justify-center rounded-t-[24px]">
-        {failedImage ? (
-          <div className="flex flex-col items-center justify-center p-3 text-center text-gray-500">
-            <ImageIcon className="w-8 h-8 mb-1 stroke-[1.5]" />
-            <span className="text-[10px]">Lỗi tải ảnh</span>
-          </div>
-        ) : (
+      <div className="relative aspect-video bg-[#121316] overflow-hidden flex items-center justify-center rounded-t-[24px]">
+        {thumbUrl ? (
           <img
             src={thumbUrl}
-            alt={pic.name}
+            alt={vid.name}
             loading="lazy"
-            onError={(e) => onImageError(idx, e, pic)}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
           />
+        ) : (
+          <div className="w-full h-full bg-[#121316] flex items-center justify-center">
+            <Film className="w-10 h-10 text-gray-600" />
+          </div>
         )}
 
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+        {!isSelectMode && (
+          <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-purple-600/90 group-hover:bg-purple-500 text-white flex items-center justify-center shadow-lg transition-transform transform group-hover:scale-110">
+              <Play className="w-6 h-6 fill-white ml-0.5" />
+            </div>
+          </div>
+        )}
 
-        <div className="absolute bottom-2 right-2 bg-black/85 border border-white/10 text-blue-300 font-mono text-[10px] px-2.5 py-0.5 rounded-[24px] flex items-center gap-1 z-10">
-          <HardDrive className="w-3 h-3 text-blue-400" />
-          <span>{pic.size > 0 ? formatFileSize(pic.size) : '2.4 MB'}</span>
+        <div className="absolute bottom-2 right-2 bg-black/85 border border-white/10 text-purple-300 font-mono text-[10px] px-2.5 py-0.5 rounded-[24px] flex items-center gap-1 z-10">
+          <HardDrive className="w-3 h-3 text-purple-400" />
+          <span>{vid.size > 0 ? formatFileSize(vid.size) : '45.2 MB'}</span>
         </div>
       </div>
 
       <div className="p-3.5 bg-[#202124] border-t border-[#383c42]/30 rounded-b-[24px] flex items-center justify-between gap-2 relative">
         <div className="min-w-0 flex-1">
-          <h3 className="text-xs font-semibold text-gray-200 group-hover:text-[#8ab4f8] truncate" title={pic.name}>
-            {pic.name}
+          <h3 className="text-xs font-semibold text-gray-200 group-hover:text-purple-300 truncate" title={vid.name}>
+            {vid.name}
           </h3>
           <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-1 font-mono">
             <Calendar className="w-3 h-3 text-gray-500" />
-            <span className="truncate">{formatDate(pic.mod_time)}</span>
+            <span className="truncate">{formatDate(vid.mod_time)}</span>
           </div>
         </div>
 
@@ -111,11 +116,11 @@ const PictureCard = memo(({
           <div
             ref={menuRef}
             onClick={(e) => e.stopPropagation()}
-            className="picture-card-menu-popover animate-pop-fast"
+            className="video-card-menu-popover animate-pop-fast"
           >
             <button
               type="button"
-              onClick={() => onShowInfo && onShowInfo(pic, 'picture')}
+              onClick={() => onShowInfo && onShowInfo(vid, 'video')}
               className="relative z-10 w-full flex items-center gap-2 px-3 py-2 text-gray-200 hover:text-white hover:bg-white/10 rounded-[12px] transition-colors"
             >
               <Info className="w-3.5 h-3.5 text-blue-400" />
@@ -124,7 +129,7 @@ const PictureCard = memo(({
 
             <button
               type="button"
-              onClick={() => onCopyItem && onCopyItem(pic)}
+              onClick={() => onCopyItem && onCopyItem(vid)}
               className="w-full flex items-center gap-2 px-3 py-2 text-gray-200 hover:text-white hover:bg-blue-500/20 rounded-[12px] transition-colors"
             >
               <Copy className="w-3.5 h-3.5 text-blue-400" />
@@ -133,7 +138,7 @@ const PictureCard = memo(({
 
             <button
               type="button"
-              onClick={() => onMoveItem && onMoveItem(pic)}
+              onClick={() => onMoveItem && onMoveItem(vid)}
               className="w-full flex items-center gap-2 px-3 py-2 text-gray-200 hover:text-white hover:bg-amber-500/20 rounded-[12px] transition-colors"
             >
               <FolderInput className="w-3.5 h-3.5 text-amber-400" />
@@ -142,11 +147,11 @@ const PictureCard = memo(({
 
             <button
               type="button"
-              onClick={() => onDeleteItem && onDeleteItem(pic)}
+              onClick={() => onDeleteItem && onDeleteItem(vid)}
               className="w-full flex items-center gap-2 px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-[12px] transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5 text-red-400" />
-              <span>Xóa ảnh này</span>
+              <span>Xóa video này</span>
             </button>
           </div>
         )}
@@ -155,12 +160,12 @@ const PictureCard = memo(({
   );
 });
 
-PictureCard.displayName = 'PictureCard';
+VideoCard.displayName = 'VideoCard';
 
-export const PictureGrid = memo(({
-  pictures = [],
+export const VideoGrid = memo(({
+  videos = [],
   totalCount,
-  onOpenLightbox,
+  onOpenVideo,
   onShowInfo,
   onCopyItem,
   onMoveItem,
@@ -170,15 +175,8 @@ export const PictureGrid = memo(({
   onToggleSelect,
   onToggleSelectAll,
 }) => {
-  const [failedImages, setFailedImages] = useState({});
   const [openMenuIndex, setOpenMenuIndex] = useState(null);
   const menuRef = useRef(null);
-
-  const [prevPictures, setPrevPictures] = useState(pictures);
-  if (pictures !== prevPictures) {
-    setPrevPictures(pictures);
-    setFailedImages({});
-  }
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -194,15 +192,6 @@ export const PictureGrid = memo(({
     };
   }, [openMenuIndex]);
 
-  const handleImageError = useCallback((index, e, pic) => {
-    const fullUrl = getPictureUrl(pic);
-    if (fullUrl && e.target.src !== fullUrl) {
-      e.target.src = fullUrl;
-    } else {
-      setFailedImages((prev) => ({ ...prev, [index]: true }));
-    }
-  }, []);
-
   const handleToggleMenu = useCallback((idx) => {
     setOpenMenuIndex((prev) => (prev === idx ? null : idx));
   }, []);
@@ -212,7 +201,7 @@ export const PictureGrid = memo(({
     if (actionFn) actionFn();
   }, []);
 
-  const pictureCount = pictures ? pictures.length : 0;
+  const videoCount = videos ? videos.length : 0;
   const {
     containerRef,
     cols,
@@ -220,18 +209,18 @@ export const PictureGrid = memo(({
     totalHeight,
     visibleRowIndices,
     isVirtualized,
-  } = useVirtualGrid({ totalItems: pictureCount, type: 'picture' });
+  } = useVirtualGrid({ totalItems: videoCount, type: 'video' });
 
-  if (!pictures || pictures.length === 0) return null;
+  if (!videos || videos.length === 0) return null;
 
-  const countDisplay = totalCount && totalCount > pictures.length ? `${pictures.length} / ${totalCount}` : pictures.length;
-  const isAllSelected = pictures.length > 0 && pictures.every((p) => selectedItems.has(`picture:${p.path}`));
+  const countDisplay = totalCount && totalCount > videos.length ? `${videos.length} / ${totalCount}` : videos.length;
+  const isAllSelected = videos.length > 0 && videos.every((v) => selectedItems.has(`video:${v.path}`));
 
   return (
-    <section className="picture-grid-section">
-      <div className="picture-grid-header">
-        <h2 className="picture-grid-title">
-          <ImageIcon className="w-4 h-4 text-blue-400" /> Hình Ảnh <span className="text-xs font-mono text-gray-500">(<RollingNumber value={countDisplay} />)</span>
+    <section className="video-grid-section">
+      <div className="video-grid-header">
+        <h2 className="video-grid-title">
+          <Film className="w-4 h-4 text-purple-400" /> Video <span className="text-xs font-mono text-gray-500">(<RollingNumber value={countDisplay} />)</span>
         </h2>
 
         {isSelectMode && (
@@ -241,10 +230,10 @@ export const PictureGrid = memo(({
               onClick={onToggleSelectAll}
               title={isAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
               aria-label={isAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-              className={`picture-grid-select-all-btn ${
+              className={`video-grid-select-all-btn ${
                 isAllSelected
-                  ? 'bg-blue-500 border-blue-500 text-white shadow-blue-500/20'
-                  : 'bg-[#28292d] border-[#383c42] hover:border-blue-500/60 hover:bg-[#383c42] text-gray-400 hover:text-white'
+                  ? 'bg-purple-500 border-purple-500 text-white shadow-purple-500/20'
+                  : 'bg-[#28292d] border-[#383c42] hover:border-purple-500/60 hover:bg-[#383c42] text-gray-400 hover:text-white'
               }`}
             >
               <Check className={`w-3.5 h-3.5 stroke-[2.5] transition-all ${
@@ -266,34 +255,32 @@ export const PictureGrid = memo(({
         >
           {visibleRowIndices.map((rowIndex) => {
             const rowTop = rowIndex * rowHeight;
-            const rowItems = pictures.slice(rowIndex * cols, (rowIndex + 1) * cols);
+            const rowItems = videos.slice(rowIndex * cols, (rowIndex + 1) * cols);
 
             return (
               <div
                 key={rowIndex}
-                className="absolute left-0 right-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5"
+                className="absolute left-0 right-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5"
                 style={{ top: `${rowTop}px` }}
               >
-                {rowItems.map((pic, colIdx) => {
+                {rowItems.map((vid, colIdx) => {
                   const idx = rowIndex * cols + colIdx;
                   return (
-                    <PictureCard
-                      key={pic.path || pic.name || idx}
-                      pic={pic}
+                    <VideoCard
+                      key={vid.path || vid.name || idx}
+                      vid={vid}
                       idx={idx}
-                      isSelected={Boolean(selectedItems.has(`picture:${pic.path}`))}
+                      isSelected={Boolean(selectedItems.has(`video:${vid.path}`))}
                       isSelectMode={isSelectMode}
-                      failedImage={Boolean(failedImages[idx])}
-                      onImageError={handleImageError}
                       onToggleSelect={onToggleSelect}
-                      onOpenLightbox={onOpenLightbox}
+                      onOpenVideo={onOpenVideo}
                       isMenuOpen={openMenuIndex === idx}
                       onToggleMenu={handleToggleMenu}
                       menuRef={menuRef}
-                      onShowInfo={(p, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(p, t))}
-                      onCopyItem={(p) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(p))}
-                      onMoveItem={(p) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(p))}
-                      onDeleteItem={(p) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(p))}
+                      onShowInfo={(v, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(v, t))}
+                      onCopyItem={(v) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(v))}
+                      onMoveItem={(v) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(v))}
+                      onDeleteItem={(v) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(v))}
                     />
                   );
                 })}
@@ -304,26 +291,24 @@ export const PictureGrid = memo(({
       ) : (
         <div
           ref={containerRef}
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5"
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5"
         >
-          {pictures.map((pic, idx) => (
-            <PictureCard
-              key={pic.path || pic.name || idx}
-              pic={pic}
+          {videos.map((vid, idx) => (
+            <VideoCard
+              key={vid.path || vid.name || idx}
+              vid={vid}
               idx={idx}
-              isSelected={Boolean(selectedItems.has(`picture:${pic.path}`))}
+              isSelected={Boolean(selectedItems.has(`video:${vid.path}`))}
               isSelectMode={isSelectMode}
-              failedImage={Boolean(failedImages[idx])}
-              onImageError={handleImageError}
               onToggleSelect={onToggleSelect}
-              onOpenLightbox={onOpenLightbox}
+              onOpenVideo={onOpenVideo}
               isMenuOpen={openMenuIndex === idx}
               onToggleMenu={handleToggleMenu}
               menuRef={menuRef}
-              onShowInfo={(p, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(p, t))}
-              onCopyItem={(p) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(p))}
-              onMoveItem={(p) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(p))}
-              onDeleteItem={(p) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(p))}
+              onShowInfo={(v, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(v, t))}
+              onCopyItem={(v) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(v))}
+              onMoveItem={(v) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(v))}
+              onDeleteItem={(v) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(v))}
             />
           ))}
         </div>
@@ -332,4 +317,4 @@ export const PictureGrid = memo(({
   );
 });
 
-PictureGrid.displayName = 'PictureGrid';
+VideoGrid.displayName = 'VideoGrid';

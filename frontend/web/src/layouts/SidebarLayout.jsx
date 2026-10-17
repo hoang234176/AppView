@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { FolderTreeSidebar } from '../components/SidebarLayout';
+import { FolderTreeSidebar } from '../components/layout/SidebarLayout';
 import './SidebarLayout.css';
 
 /**

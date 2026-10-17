@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { HardDrive } from 'lucide-react';
-import { formatDriveCapacity } from '../../../utils/formatters';
-import { RollingNumber } from '../../common/RollingNumber';
+import { formatDriveCapacity } from '../../../../utils/formatters';
+import { RollingNumber } from '../../../common/RollingNumber';
 import { LiquidWaveCanvas } from './LiquidWaveCanvas';
 import './LiquidDriveButton.css';
 

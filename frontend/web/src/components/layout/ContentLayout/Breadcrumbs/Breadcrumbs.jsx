@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, Fragment } from 'react';
 import { ChevronRight, Folder, HardDrive } from 'lucide-react';
-import { parseBreadcrumbs } from '../../../utils/formatters';
+import { parseBreadcrumbs } from '../../../../utils/formatters';
 import './Breadcrumbs.css';
 
 /**

@@ -1,6 +1,6 @@
 import { useState, useEffect, memo } from 'react';
 import { Folder, FolderOpen, ChevronRight } from 'lucide-react';
-import { RollingNumber } from '../../common/RollingNumber';
+import { RollingNumber } from '../../../common/RollingNumber';
 import './TreeNodeItem.css';
 
 /**

@@ -1,15 +1,14 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   Folder, 
   FolderOpen, 
   ChevronRight, 
   ChevronDown, 
-  Home, 
   X,
   Settings,
   HardDrive
 } from 'lucide-react';
-import { LiquidDriveButton } from './SidebarLayout';
+import { LiquidDriveButton } from './layout/SidebarLayout';
 
 /**
  * Mobile Recursive Tree Node Component

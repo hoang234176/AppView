@@ -1,8 +1,8 @@
 import { memo, useState } from 'react';
 import { Folder, ArrowRight, Check, Image as ImageIcon, Film } from 'lucide-react';
-import { WindowsFolderIcon } from '../../icons/WindowsFolderIcon';
-import { RollingNumber } from '../../common/RollingNumber';
-import { useVirtualGrid } from '../../../utils/useVirtualGrid';
+import { WindowsFolderIcon } from '../../../icons/WindowsFolderIcon';
+import { RollingNumber } from '../../../common/RollingNumber';
+import { useVirtualGrid } from '../../../../utils/useVirtualGrid';
 import './FolderGrid.css';
 
 const FolderCard = memo(({

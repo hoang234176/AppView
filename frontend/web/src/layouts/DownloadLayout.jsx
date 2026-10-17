@@ -2,7 +2,7 @@ import { memo } from 'react';
 import {
   DownloadPanelModal,
   DownloadSnackbar,
-} from '../components/DownloadLayout';
+} from '../components/layout/DownloadLayout';
 import './DownloadLayout.css';
 
 /**

@@ -8,7 +8,7 @@ import {
   ErrorState,
   EmptyState,
   ContentLoadMore,
-} from '../components/ContentLayout';
+} from '../components/layout/ContentLayout';
 import './ContentLayout.css';
 
 /**

@@ -7,9 +7,9 @@ import {
   Clipboard,
   ClipboardCheck
 } from 'lucide-react';
-import { startArchiveDownload } from '../../../api/downloadApi';
-import { canonicalDownloadDestination } from '../../../utils/downloadDestination';
-import { FolderPicker } from '../../FolderPicker';
+import { startArchiveDownload } from '../../../../api/downloadApi';
+import { canonicalDownloadDestination } from '../../../../utils/downloadDestination';
+import { FolderPicker } from '../../../FolderPicker';
 import './DownloadMediafireModal.css';
 
 export const DownloadMediafireModal = ({

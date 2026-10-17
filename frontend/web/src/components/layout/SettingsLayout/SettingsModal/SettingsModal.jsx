@@ -1,7 +1,7 @@
 import { useState, useEffect, memo } from 'react';
 import { X, Server } from 'lucide-react';
-import { saveServerConfig, getServerHost, validateCoordinatorHost } from '../../../api/axiosConfig';
-import { fetchCoordinatorStorageInfo, verifyCookies } from '../../../api/downloadApi';
+import { saveServerConfig, getServerHost, validateCoordinatorHost } from '../../../../api/axiosConfig';
+import { fetchCoordinatorStorageInfo, verifyCookies } from '../../../../api/downloadApi';
 import { SettingsStorage } from './SettingsStorage/SettingsStorage';
 import { SettingsServer } from './SettingsServer/SettingsServer';
 import { SettingsCookies } from './SettingsCookies/SettingsCookies';

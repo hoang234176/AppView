@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { X, Copy, FolderInput, Trash2, CheckCircle2 } from 'lucide-react';
-import { RollingNumber } from '../../common/RollingNumber';
+import { RollingNumber } from '../../../common/RollingNumber';
 import './HeaderSelectMode.css';
 
 /**

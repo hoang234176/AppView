@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { SettingsModal, DisconnectedOverlay } from '../components/SettingsLayout';
+import { SettingsModal, DisconnectedOverlay } from '../components/layout/SettingsLayout';
 import './SettingsLayout.css';
 
 /**
