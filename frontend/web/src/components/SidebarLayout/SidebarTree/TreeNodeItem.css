@@ -1,0 +1,70 @@
+/* TreeNodeItem.css */
+.tree-node-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  min-height: 38px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tree-node-item-selected {
+  background-color: #8ab4f8;
+  color: #1c1d21;
+  font-weight: 700;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.tree-node-item-unselected {
+  color: #d1d5db;
+}
+
+.tree-node-item-unselected:hover {
+  background-color: #28292d;
+  color: #ffffff;
+}
+
+.tree-node-chevron-btn {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.tree-node-chevron-btn:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.tree-node-badge {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.tree-node-badge-selected {
+  background-color: rgba(28, 29, 33, 0.2);
+  color: #1c1d21;
+  font-weight: 700;
+}
+
+.tree-node-badge-unselected {
+  background-color: #28292d;
+  color: #9ca3af;
+}
+
+.tree-node-item:hover .tree-node-badge-unselected {
+  color: #e5e7eb;
+}

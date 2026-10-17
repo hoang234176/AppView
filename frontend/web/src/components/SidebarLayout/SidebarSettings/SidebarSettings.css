@@ -1,0 +1,52 @@
+/* SidebarSettings.css */
+.sidebar-settings-card {
+  background-color: #202124;
+  border: 1px solid #383c42;
+  border-radius: 20px !important;
+  padding: 0.625rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-settings-card:hover {
+  background-color: #28292d;
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.sidebar-settings-icon-wrap {
+  position: relative;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  background-color: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.sidebar-settings-card:hover .sidebar-settings-icon-wrap {
+  background-color: rgba(37, 99, 235, 0.3);
+  border-color: rgba(96, 165, 250, 0.6);
+}
+
+.sidebar-settings-gear-end {
+  position: relative;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 9999px;
+  background-color: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #9ca3af;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.sidebar-settings-card:hover .sidebar-settings-gear-end {
+  color: #ffffff;
+  border-color: rgba(59, 130, 246, 0.4);
+}

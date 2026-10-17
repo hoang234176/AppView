@@ -1,0 +1,73 @@
+/* LiquidDriveButton.css */
+.liquid-drive-btn {
+  position: relative;
+  flex: 1 1 0%;
+  height: 72px;
+  border-radius: 16px;
+  overflow: hidden;
+  user-select: none;
+  transition: all 0.5s cubic-bezier(0, 0, 0.2, 1);
+  border: 1px solid #33363d;
+  background-color: #16171b;
+}
+
+.liquid-drive-btn:hover {
+  border-color: #6b7280;
+}
+
+/* Active normal */
+.liquid-drive-btn-active-normal {
+  border-color: rgba(96, 165, 250, 0.8) !important;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.35);
+  background-color: #121316;
+}
+
+/* Active warning */
+.liquid-drive-btn-active-warning {
+  border-color: rgba(249, 115, 22, 0.8) !important;
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.35);
+  background-color: #171412;
+}
+
+/* Inactive warning */
+.liquid-drive-btn-inactive-warning {
+  border-color: rgba(66, 50, 38, 1);
+  background-color: #161413;
+}
+.liquid-drive-btn-inactive-warning:hover {
+  border-color: rgba(194, 65, 12, 0.6);
+}
+
+/* Active danger */
+.liquid-drive-btn-active-danger {
+  border-color: rgba(239, 68, 68, 0.8) !important;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+  background-color: #181212;
+}
+
+/* Inactive danger */
+.liquid-drive-btn-inactive-danger {
+  border-color: #442323;
+  background-color: #171313;
+}
+.liquid-drive-btn-inactive-danger:hover {
+  border-color: rgba(185, 28, 28, 0.6);
+}
+
+/* Disconnected */
+.liquid-drive-btn-disconnected {
+  border-color: #2e3036;
+  background-color: rgba(20, 21, 24, 0.9);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.liquid-drive-content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0.625rem;
+}

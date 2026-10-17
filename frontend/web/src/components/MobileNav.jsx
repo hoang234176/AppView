@@ -9,7 +9,7 @@ import {
   Settings,
   HardDrive
 } from 'lucide-react';
-import { LiquidDriveButton } from './FolderTreeSidebar';
+import { LiquidDriveButton } from './SidebarLayout';
 
 /**
  * Mobile Recursive Tree Node Component
