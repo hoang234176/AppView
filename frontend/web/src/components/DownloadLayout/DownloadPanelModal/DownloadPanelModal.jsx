@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { X, Download, Video, Image, Trash2, AlertTriangle, RotateCw } from 'lucide-react';
-import { formatFileSize, formatSpeed, getFileCategory } from '../utils/formatters';
-import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask, retryCoordinatorArchive, submitCoordinatorArchivePassword, cancelCoordinatorArchive, applyCoordinatorVideoDecisions } from '../api/downloadApi';
-import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from './icons/FileTypeIcon';
-import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload, isCancelledOptimization } from '../utils/downloadPresentation';
-import { CustomSelect } from './CustomSelect';
+import { X, Download, Trash2, AlertTriangle, RotateCw } from 'lucide-react';
+import { formatFileSize, formatSpeed, getFileCategory } from '../../../utils/formatters';
+import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask, retryCoordinatorArchive, submitCoordinatorArchivePassword, cancelCoordinatorArchive, applyCoordinatorVideoDecisions } from '../../../api/downloadApi';
+import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from '../../icons/FileTypeIcon';
+import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload, isCancelledOptimization } from '../../../utils/downloadPresentation';
+import { CustomSelect } from '../../CustomSelect';
+import './DownloadPanelModal.css';
 
 const isRetryableDownloadError = isRetryableDownload;
 const getUnoptimizedCount = (t) => {

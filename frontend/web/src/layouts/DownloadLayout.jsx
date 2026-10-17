@@ -1,8 +1,10 @@
 import { memo } from 'react';
-import { DownloadMediaModal } from '../components/DownloadMediaModal';
-import { DownloadMediafireModal } from '../components/DownloadMediafireModal';
-import { DownloadPanelModal } from '../components/DownloadPanelModal';
-import { DownloadSnackbar } from '../components/DownloadSnackbar';
+import {
+  DownloadMediaModal,
+  DownloadMediafireModal,
+  DownloadPanelModal,
+  DownloadSnackbar,
+} from '../components/DownloadLayout';
 import './DownloadLayout.css';
 
 /**

@@ -15,10 +15,11 @@ import {
   ZoomIn,
   FileText,
 } from 'lucide-react';
-import { previewMediaDownload, startMediaDownload, getProxiedImageUrl } from '../api/downloadApi';
-import { canonicalDownloadDestination } from '../utils/downloadDestination';
-import { FolderPicker } from './FolderPicker';
-import { CustomSelect } from './CustomSelect';
+import { previewMediaDownload, startMediaDownload, getProxiedImageUrl } from '../../../api/downloadApi';
+import { canonicalDownloadDestination } from '../../../utils/downloadDestination';
+import { FolderPicker } from '../../FolderPicker';
+import { CustomSelect } from '../../CustomSelect';
+import './DownloadMediaModal.css';
 
 const FacebookIcon = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={`${className} fill-current`} viewBox="0 0 24 24">
@@ -56,12 +57,6 @@ const XIcon = ({ className = 'w-3.5 h-3.5' }) => (
   </svg>
 );
 
-const formatBytes = (bytes) => {
-  if (!bytes || bytes <= 0) return '';
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
-};
 
 const formatDuration = (seconds) => {
   if (!seconds || seconds <= 0) return '';

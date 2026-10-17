@@ -9,10 +9,11 @@ import {
   FolderInput,
   CheckCircle2
 } from 'lucide-react';
-import { formatFileSize, formatSpeed, getFileCategory } from '../utils/formatters';
-import { cancelDownloadTask, submitTaskPassword } from '../api/downloadApi';
-import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from './icons/FileTypeIcon';
-import { RollingNumber } from './common/RollingNumber';
+import { formatFileSize, formatSpeed, getFileCategory } from '../../../utils/formatters';
+import { cancelDownloadTask, submitTaskPassword } from '../../../api/downloadApi';
+import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from '../../icons/FileTypeIcon';
+import { RollingNumber } from '../../common/RollingNumber';
+import './DownloadSnackbar.css';
 
 // Go báo `current` là số video đã hoàn tất. Khi đang convert, video hiển thị
 // phải là video kế tiếp đang chạy: 0 -> [1/N], 1 -> [2/N].
@@ -77,7 +78,7 @@ export const DownloadSnackbar = ({ tasks = [], transferTasks = [], summary = nul
 
   let aggregatePercent = 0;
   if (hasDownloads) {
-    aggregatePercent = Boolean(downloadingTask)
+    aggregatePercent = downloadingTask
       ? (summary?.download?.percent ?? downloadingTask?.download_percent ?? 0)
       : (summary?.extract?.percent ?? 0);
   } else if (hasTransfers) {
@@ -272,7 +273,6 @@ export const DownloadSnackbar = ({ tasks = [], transferTasks = [], summary = nul
                   const isExtractingTask = ['waiting_extract', 'extracting'].includes(t.stage);
                   const isScanningTask = t.stage === 'scanning';
                   const isConvertingTask = t.stage === 'converting';
-                  const isDownloadingTask = ['queued', 'resolving', 'downloading'].includes(t.stage);
                   const fileLabel = t.filename || t.original_url || '...';
 
                   // Mọi task dùng thanh ngang. Download có phần trăm xác định;

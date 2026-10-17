@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Download,
   X,
@@ -7,9 +7,10 @@ import {
   Clipboard,
   ClipboardCheck
 } from 'lucide-react';
-import { startArchiveDownload } from '../api/downloadApi';
-import { canonicalDownloadDestination } from '../utils/downloadDestination';
-import { FolderPicker } from './FolderPicker';
+import { startArchiveDownload } from '../../../api/downloadApi';
+import { canonicalDownloadDestination } from '../../../utils/downloadDestination';
+import { FolderPicker } from '../../FolderPicker';
+import './DownloadMediafireModal.css';
 
 export const DownloadMediafireModal = ({
   isOpen,
@@ -28,6 +29,7 @@ export const DownloadMediafireModal = ({
   // Auto-preselect current path when modal opens
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDestination(currentPath || '');
       setErrorMsg(null);
       setIsSubmitting(false);
