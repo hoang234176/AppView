@@ -1,0 +1,143 @@
+/* HeaderSelectMode.css */
+
+/* Select Mode Bar Container */
+.header-select-bar {
+  flex: 1 1 0%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+/* Exit Select Mode Button */
+.header-select-exit-btn {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid #383c42;
+  background-color: #28292d;
+  color: #d1d5db;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.header-select-exit-btn:hover {
+  color: #ffffff;
+  border-color: rgba(239, 68, 68, 0.6);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.header-select-exit-btn:active {
+  transform: scale(0.95);
+}
+
+/* Selected Items Count */
+.header-select-count-text {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.025em;
+}
+
+@media (min-width: 640px) {
+  .header-select-count-text {
+    font-size: 1rem;
+  }
+}
+
+.header-select-count-number {
+  color: #60a5fa;
+  font-family: monospace;
+  font-size: 1rem;
+}
+
+@media (min-width: 640px) {
+  .header-select-count-number {
+    font-size: 1.125rem;
+  }
+}
+
+/* Batch Action Buttons */
+.header-select-action-btn {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid #383c42;
+  background-color: #28292d;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.header-select-action-btn:active {
+  transform: scale(0.95);
+}
+
+.header-select-action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Copy button specific */
+.header-select-copy-btn {
+  color: #60a5fa;
+}
+
+.header-select-copy-btn:hover:not(:disabled) {
+  color: #ffffff;
+  background-color: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.6);
+}
+
+/* Move button specific */
+.header-select-move-btn {
+  color: #fbbf24;
+}
+
+.header-select-move-btn:hover:not(:disabled) {
+  color: #ffffff;
+  background-color: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
+/* Delete button specific */
+.header-select-delete-btn {
+  color: #f87171;
+}
+
+.header-select-delete-btn:hover:not(:disabled) {
+  color: #ffffff;
+  background-color: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+/* Normal Mode Enter Select Button */
+.header-select-trigger-btn {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid #383c42;
+  background-color: #28292d;
+  color: #d1d5db;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.header-select-trigger-btn:hover {
+  color: #ffffff;
+  border-color: rgba(138, 180, 248, 0.6);
+}
+
+.header-select-trigger-btn:active {
+  transform: scale(0.95);
+}

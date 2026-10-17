@@ -1,0 +1,45 @@
+/* Header.css — Main Header component layout styles */
+.header-container {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 1rem 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  overflow: visible !important;
+}
+
+@media (min-width: 640px) {
+  .header-container {
+    padding: 1.25rem 2rem;
+  }
+}
+
+.header-inner {
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 40px;
+}
+
+@media (min-width: 640px) {
+  .header-inner {
+    gap: 1.5rem;
+  }
+}
+
+.header-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .header-actions-group {
+    gap: 0.75rem;
+  }
+}

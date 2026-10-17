@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Header } from '../components/Header';
+import { Header } from '../components/HeaderLayout';
 import './HeaderLayout.css';
 
 /**
