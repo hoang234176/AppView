@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { FabSpeedDial } from '../components/FabSpeedDial';
+import { FabSpeedDial } from '../components/FloatingActionLayout';
 import './FloatingActionLayout.css';
 
 /**

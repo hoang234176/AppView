@@ -1,0 +1,166 @@
+/* FabSpeedDial.css — Floating Action Button & Speed Dial Menu */
+.fab-container {
+  position: fixed;
+  bottom: 2.5rem;
+  right: 2.5rem;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
+  user-select: none;
+}
+
+@media (min-width: 640px) {
+  .fab-container {
+    bottom: 3rem;
+    right: 3rem;
+  }
+}
+
+/* Speed dial menu entering animation */
+@keyframes speedDialEnter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-speed-dial-enter {
+  animation: speedDialEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.fab-options-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.625rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Base Option Button */
+.fab-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 1rem;
+  border-radius: 9999px;
+  background-color: #1c1d21;
+  border: 1px solid #383c42;
+  color: #ffffff;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.fab-option-btn:hover {
+  transform: scale(1.05);
+}
+
+.fab-option-btn:active {
+  transform: scale(0.95);
+}
+
+.fab-option-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #e5e7eb;
+  transition: color 0.15s ease;
+}
+
+/* Option Icon Badges */
+.fab-option-icon-badge {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Color Variants */
+.fab-option-archive:hover {
+  border-color: #fbbf24;
+}
+.fab-option-archive:hover .fab-option-label {
+  color: #fcd34d;
+}
+.fab-option-badge-archive {
+  background-color: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.fab-option-media:hover {
+  border-color: #fb7185;
+}
+.fab-option-media:hover .fab-option-label {
+  color: #fda4af;
+}
+.fab-option-badge-media {
+  background-color: rgba(244, 63, 94, 0.2);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #fb7185;
+}
+
+.fab-option-folder:hover {
+  border-color: #60a5fa;
+}
+.fab-option-folder:hover .fab-option-label {
+  color: #93c5fd;
+}
+.fab-option-badge-folder {
+  background-color: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+/* Main Trigger Button */
+.fab-main-btn {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  transition: all 400ms ease;
+  cursor: pointer;
+  border: 1px solid rgba(147, 197, 253, 0.3);
+}
+
+.fab-main-btn:hover {
+  transform: scale(1.05);
+}
+
+.fab-main-btn:active {
+  transform: scale(0.95);
+}
+
+.fab-main-btn-closed {
+  background: linear-gradient(to top right, #2563eb, #60a5fa);
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
+}
+
+.fab-main-btn-open {
+  background-color: #28292d;
+  border-color: #383c42;
+  color: #d1d5db;
+}
+
+.fab-main-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  transition: transform 400ms ease-in-out, color 400ms ease-in-out;
+}
+
+.fab-main-icon-rotated {
+  transform: rotate(45deg);
+  color: #fb7185;
+}
