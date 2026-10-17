@@ -4,6 +4,7 @@ import { SidebarLayout } from './layouts/SidebarLayout';
 import { HeaderLayout } from './layouts/HeaderLayout';
 import { ContentLayout } from './layouts/ContentLayout';
 import { FloatingActionLayout } from './layouts/FloatingActionLayout';
+import { SettingsLayout } from './layouts/SettingsLayout';
 import { AppModals } from './components/AppModals';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, checkBatchConflicts, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
@@ -1347,9 +1348,6 @@ function App() {
           onRefresh={handleRefreshAll}
           loading={loading}
           isConnected={isConnected}
-          onSaveServerConfig={handleSaveServerConfig}
-          showConfigModal={showConfigModal}
-          setShowConfigModal={setShowConfigModal}
           onOpenMobileTree={() => setIsMobileDrawerOpen(true)}
           onOpenDownloadPanel={() => setShowDownloadPanel(true)}
           activeDownloadCount={activeDownloadCount}
@@ -1510,12 +1508,6 @@ function App() {
           transferTasks={transferTasks}
           downloadSummary={downloadSummary}
           onOpenDownloadPanel={() => setShowDownloadPanel(true)}
-          isConnected={isConnected}
-          showConfigModal={showConfigModal}
-          setShowConfigModal={setShowConfigModal}
-          onCloseConfigModal={() => setShowConfigModal(false)}
-          onServerConfigSaved={handleServerConfigSaved}
-          onServerConfigFailed={handleServerConfigFailed}
           infoModalData={infoModalData}
           onCloseInfoModal={() => setInfoModalData((prev) => ({ ...prev, isOpen: false }))}
           batchModalState={batchModalState}
@@ -1528,6 +1520,17 @@ function App() {
             setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null })
           }
           toastMessage={toastMessage}
+        />
+      }
+      settings={
+        <SettingsLayout
+          isConnected={isConnected}
+          showConfigModal={showConfigModal}
+          onOpenConfig={() => setShowConfigModal(true)}
+          onCloseConfigModal={() => setShowConfigModal(false)}
+          onRefresh={handleRefreshAll}
+          onServerConfigSaved={handleServerConfigSaved}
+          onServerConfigFailed={handleServerConfigFailed}
         />
       }
     />

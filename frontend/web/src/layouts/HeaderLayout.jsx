@@ -12,9 +12,6 @@ export const HeaderLayout = memo(({
   onRefresh,
   loading,
   isConnected,
-  onSaveServerConfig,
-  showConfigModal,
-  setShowConfigModal,
   onOpenMobileTree,
   onOpenDownloadPanel,
   activeDownloadCount,
@@ -42,9 +39,6 @@ export const HeaderLayout = memo(({
       onRefresh={onRefresh}
       loading={loading}
       isConnected={isConnected}
-      onSaveServerConfig={onSaveServerConfig}
-      showConfigModal={showConfigModal}
-      setShowConfigModal={setShowConfigModal}
       onOpenMobileTree={onOpenMobileTree}
       onOpenDownloadPanel={onOpenDownloadPanel}
       activeDownloadCount={activeDownloadCount}

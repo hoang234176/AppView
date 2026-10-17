@@ -10,7 +10,6 @@ import { DownloadMediaModal } from './DownloadMediaModal';
 import { DownloadMediafireModal } from './DownloadMediafireModal';
 import { DownloadPanelModal } from './DownloadPanelModal';
 import { DownloadSnackbar } from './DownloadSnackbar';
-import { SettingsModal } from './SettingsModal';
 import { MediaInfoModal } from './MediaInfoModal';
 import { BatchActionModal } from './BatchActionModal';
 import { ConflictResolutionModal } from './ConflictResolutionModal';
@@ -88,14 +87,6 @@ export const AppModals = memo(({
   transferTasks,
   downloadSummary,
   onOpenDownloadPanel,
-
-  // Disconnection & Settings
-  isConnected,
-  showConfigModal,
-  setShowConfigModal,
-  onCloseConfigModal,
-  onServerConfigSaved,
-  onServerConfigFailed,
 
   // Media Info
   infoModalData,
@@ -202,7 +193,7 @@ export const AppModals = memo(({
           downloadTasks={downloadTasks}
           onClose={onCloseDownloadMediaModal}
           onSuccess={onCoordinatorJobCreated}
-          onOpenSettings={() => setShowConfigModal(true)}
+          onOpenSettings={onOpenConfig}
         />
       )}
 
@@ -233,38 +224,6 @@ export const AppModals = memo(({
         transferTasks={transferTasks}
         summary={downloadSummary}
         onOpenPanel={onOpenDownloadPanel}
-      />
-
-      {/* A failed health check invalidates every server-backed surface */}
-      {!isConnected && !showConfigModal && (
-        <div
-          className="fixed inset-0 z-[99990] flex items-center justify-center bg-[#1c1d21]/75 p-6 backdrop-brightness-75"
-          role="alert"
-          aria-live="assertive"
-        >
-          <div className="max-w-sm rounded-2xl border border-red-500/35 bg-[#202124] p-5 text-center shadow-2xl">
-            <h2 className="text-sm font-bold text-white">Chưa kết nối máy chủ</h2>
-            <p className="mt-2 text-xs text-gray-400">
-              Cần kết nối Coordinator hợp lệ trước khi duyệt thư mục, mở media hoặc tải xuống.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowConfigModal(true)}
-              className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500"
-            >
-              Mở cài đặt kết nối
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Settings Modal */}
-      <SettingsModal
-        isOpen={showConfigModal}
-        onClose={onCloseConfigModal}
-        onRefreshFolder={onRefresh}
-        onServerConfigSaved={onServerConfigSaved}
-        onServerConfigFailed={onServerConfigFailed}
       />
 
       {/* Media Info Dialog Modal */}
