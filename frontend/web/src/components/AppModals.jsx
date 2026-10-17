@@ -3,7 +3,6 @@ import { LightboxModal } from './LightboxModal';
 import { VideoPlayerModal } from './VideoPlayerModal';
 import { MobileNav } from './MobileNav';
 import { DeleteModal } from './DeleteModal';
-import { CreateFolderModal } from './CreateFolderModal';
 import { RenameFolderModal } from './RenameFolderModal';
 import { MediaInfoModal } from './MediaInfoModal';
 import { BatchActionModal } from './BatchActionModal';
@@ -46,10 +45,7 @@ export const AppModals = memo(({
   onCloseDeleteModal,
   onDeleteSuccess,
 
-  // Create & Rename Folder Modals
-  showCreateFolderModal,
-  onCloseCreateFolderModal,
-  onCreateFolderSubmit,
+  // Rename Folder Modal
   showRenameFolderModal,
   onCloseRenameFolderModal,
   targetFolder,
@@ -118,13 +114,6 @@ export const AppModals = memo(({
         targetItem={deleteModalData.item}
         isFolder={deleteModalData.isFolder}
         onSuccess={onDeleteSuccess}
-      />
-
-      {/* Create Folder Dialog Modal */}
-      <CreateFolderModal
-        isOpen={showCreateFolderModal}
-        onClose={onCloseCreateFolderModal}
-        onCreate={onCreateFolderSubmit}
       />
 
       {/* Rename Folder Dialog Modal */}

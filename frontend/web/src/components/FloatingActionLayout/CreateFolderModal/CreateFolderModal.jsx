@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FolderPlus, X, Check, Loader2 } from 'lucide-react';
+import './CreateFolderModal.css';
 
 export const CreateFolderModal = ({ isOpen, onClose, onCreate }) => {
   const [folderName, setFolderName] = useState('');
@@ -9,6 +10,7 @@ export const CreateFolderModal = ({ isOpen, onClose, onCreate }) => {
 
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFolderName('');
       setErrorMsg('');
       setIsSubmitting(false);
@@ -29,7 +31,7 @@ export const CreateFolderModal = ({ isOpen, onClose, onCreate }) => {
       return;
     }
 
-    if (/[/\:*?"<>|]/.test(cleanName) || cleanName.includes('..')) {
+    if (/[/:*?"<>|\\]/.test(cleanName) || cleanName.includes('..')) {
       setErrorMsg('Tên thư mục chứa ký tự không hợp lệ (/ \\ : * ? " < > |).');
       return;
     }

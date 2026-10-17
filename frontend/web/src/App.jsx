@@ -1413,6 +1413,24 @@ function App() {
           onCreateFolder={() => setShowCreateFolderModal(true)}
           onDownloadArchive={() => setShowDownloadMediafireModal(true)}
           onDownloadMedia={() => setShowDownloadMediaModal(true)}
+          showCreateFolderModal={showCreateFolderModal}
+          onCloseCreateFolderModal={() => setShowCreateFolderModal(false)}
+          onCreateFolderSubmit={handleCreateFolderSubmit}
+          showDownloadMediafireModal={showDownloadMediafireModal}
+          onCloseDownloadMediafireModal={() => setShowDownloadMediafireModal(false)}
+          onDownloadMediafireSuccess={(job) => {
+            handleCoordinatorJobCreated(job);
+            setDownloadPanelTab('active');
+            setShowDownloadPanel(true);
+          }}
+          showDownloadMediaModal={showDownloadMediaModal}
+          onCloseDownloadMediaModal={() => setShowDownloadMediaModal(false)}
+          downloadTasks={downloadTasks}
+          onCoordinatorJobCreated={handleCoordinatorJobCreated}
+          onOpenSettings={() => setShowConfigModal(true)}
+          currentPath={currentPath}
+          treeData={treeData}
+          activeDrive={activeDrive}
         />
       }
       modals={
@@ -1461,9 +1479,6 @@ function App() {
               });
             }
           }}
-          showCreateFolderModal={showCreateFolderModal}
-          onCloseCreateFolderModal={() => setShowCreateFolderModal(false)}
-          onCreateFolderSubmit={handleCreateFolderSubmit}
           showRenameFolderModal={showRenameFolderModal}
           onCloseRenameFolderModal={() => setShowRenameFolderModal(false)}
           targetFolder={targetFolder}
@@ -1495,23 +1510,9 @@ function App() {
       }
       downloads={
         <DownloadLayout
-          showDownloadMediaModal={showDownloadMediaModal}
-          onCloseDownloadMediaModal={() => setShowDownloadMediaModal(false)}
-          currentPath={currentPath}
-          treeData={treeData}
-          activeDrive={activeDrive}
-          downloadTasks={downloadTasks}
-          onCoordinatorJobCreated={handleCoordinatorJobCreated}
-          onOpenSettings={() => setShowConfigModal(true)}
-          showDownloadMediafireModal={showDownloadMediafireModal}
-          onCloseDownloadMediafireModal={() => setShowDownloadMediafireModal(false)}
-          onDownloadMediafireSuccess={(job) => {
-            handleCoordinatorJobCreated(job);
-            setDownloadPanelTab('active');
-            setShowDownloadPanel(true);
-          }}
           showDownloadPanel={showDownloadPanel}
           onCloseDownloadPanel={() => setShowDownloadPanel(false)}
+          downloadTasks={downloadTasks}
           downloadPanelTab={downloadPanelTab}
           onSelectedTabChange={setDownloadPanelTab}
           onOpenAddModal={() => {
