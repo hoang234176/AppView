@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Film, HardDrive, Calendar, MoreVertical, Info, FolderInput, Trash2, Check, Copy } from 'lucide-react';
 import { formatDate, formatFileSize, getVideoThumbnailUrl } from '../utils/formatters';
 import { RollingNumber } from './common/RollingNumber';
+import { useVirtualGrid } from '../utils/useVirtualGrid';
 
 const VideoCard = React.memo(({
   vid,
@@ -199,13 +200,26 @@ export const VideoGrid = ({
     if (actionFn) actionFn();
   }, []);
 
+  const videoCount = videos ? videos.length : 0;
+  const {
+    containerRef,
+    cols,
+    rowHeight,
+    totalHeight,
+    visibleRowIndices,
+    isVirtualized,
+  } = useVirtualGrid({ totalItems: videoCount, type: 'video' });
+
   if (!videos || videos.length === 0) return null;
 
   const countDisplay = totalCount && totalCount > videos.length ? `${videos.length} / ${totalCount}` : videos.length;
   const isAllSelected = videos.length > 0 && videos.every((v) => selectedItems.has(`video:${v.path}`));
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-2">
+    <section
+      className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-2"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '360px' }}
+    >
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
           <Film className="w-4 h-4 text-purple-400" /> Video <span className="text-xs font-mono text-gray-500">(<RollingNumber value={countDisplay} />)</span>
@@ -235,26 +249,72 @@ export const VideoGrid = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-        {videos.map((vid, idx) => (
-          <VideoCard
-            key={vid.path || vid.name || idx}
-            vid={vid}
-            idx={idx}
-            isSelected={Boolean(selectedItems.has(`video:${vid.path}`))}
-            isSelectMode={isSelectMode}
-            onToggleSelect={onToggleSelect}
-            onOpenVideo={onOpenVideo}
-            isMenuOpen={openMenuIndex === idx}
-            onToggleMenu={handleToggleMenu}
-            menuRef={menuRef}
-            onShowInfo={(v, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(v, t))}
-            onCopyItem={(v) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(v))}
-            onMoveItem={(v) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(v))}
-            onDeleteItem={(v) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(v))}
-          />
-        ))}
-      </div>
+      {isVirtualized ? (
+        <div
+          ref={containerRef}
+          className="relative w-full"
+          style={{ height: `${totalHeight}px` }}
+        >
+          {visibleRowIndices.map((rowIndex) => {
+            const rowTop = rowIndex * rowHeight;
+            const rowItems = videos.slice(rowIndex * cols, (rowIndex + 1) * cols);
+
+            return (
+              <div
+                key={rowIndex}
+                className="absolute left-0 right-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5"
+                style={{ top: `${rowTop}px` }}
+              >
+                {rowItems.map((vid, colIdx) => {
+                  const idx = rowIndex * cols + colIdx;
+                  return (
+                    <VideoCard
+                      key={vid.path || vid.name || idx}
+                      vid={vid}
+                      idx={idx}
+                      isSelected={Boolean(selectedItems.has(`video:${vid.path}`))}
+                      isSelectMode={isSelectMode}
+                      onToggleSelect={onToggleSelect}
+                      onOpenVideo={onOpenVideo}
+                      isMenuOpen={openMenuIndex === idx}
+                      onToggleMenu={handleToggleMenu}
+                      menuRef={menuRef}
+                      onShowInfo={(v, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(v, t))}
+                      onCopyItem={(v) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(v))}
+                      onMoveItem={(v) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(v))}
+                      onDeleteItem={(v) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(v))}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div
+          ref={containerRef}
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5"
+        >
+          {videos.map((vid, idx) => (
+            <VideoCard
+              key={vid.path || vid.name || idx}
+              vid={vid}
+              idx={idx}
+              isSelected={Boolean(selectedItems.has(`video:${vid.path}`))}
+              isSelectMode={isSelectMode}
+              onToggleSelect={onToggleSelect}
+              onOpenVideo={onOpenVideo}
+              isMenuOpen={openMenuIndex === idx}
+              onToggleMenu={handleToggleMenu}
+              menuRef={menuRef}
+              onShowInfo={(v, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(v, t))}
+              onCopyItem={(v) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(v))}
+              onMoveItem={(v) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(v))}
+              onDeleteItem={(v) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(v))}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 };

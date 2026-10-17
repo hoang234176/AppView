@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Image as ImageIcon, Calendar, HardDrive, MoreVertical, Info, FolderInput, Trash2, Check, Copy } from 'lucide-react';
 import { formatDate, formatFileSize, getThumbnailUrl, getPictureUrl } from '../utils/formatters';
 import { RollingNumber } from './common/RollingNumber';
+import { useVirtualGrid } from '../utils/useVirtualGrid';
 
 const PictureCard = React.memo(({
   pic,
@@ -172,9 +173,11 @@ export const PictureGrid = ({
   const [openMenuIndex, setOpenMenuIndex] = useState(null);
   const menuRef = useRef(null);
 
-  useEffect(() => {
+  const [prevPictures, setPrevPictures] = useState(pictures);
+  if (pictures !== prevPictures) {
+    setPrevPictures(pictures);
     setFailedImages({});
-  }, [pictures]);
+  }
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -208,13 +211,26 @@ export const PictureGrid = ({
     if (actionFn) actionFn();
   }, []);
 
+  const pictureCount = pictures ? pictures.length : 0;
+  const {
+    containerRef,
+    cols,
+    rowHeight,
+    totalHeight,
+    visibleRowIndices,
+    isVirtualized,
+  } = useVirtualGrid({ totalItems: pictureCount, type: 'picture' });
+
   if (!pictures || pictures.length === 0) return null;
 
   const countDisplay = totalCount && totalCount > pictures.length ? `${pictures.length} / ${totalCount}` : pictures.length;
   const isAllSelected = pictures.length > 0 && pictures.every((p) => selectedItems.has(`picture:${p.path}`));
 
   return (
-    <section className="max-w-7xl mx-auto px-6 sm:px-8 pt-4 pb-2 mb-2">
+    <section
+      className="max-w-7xl mx-auto px-6 sm:px-8 pt-4 pb-2 mb-2"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '400px' }}
+    >
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
           <ImageIcon className="w-4 h-4 text-blue-400" /> Hình Ảnh <span className="text-xs font-mono text-gray-500">(<RollingNumber value={countDisplay} />)</span>
@@ -244,28 +260,76 @@ export const PictureGrid = ({
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
-        {pictures.map((pic, idx) => (
-          <PictureCard
-            key={pic.path || pic.name || idx}
-            pic={pic}
-            idx={idx}
-            isSelected={Boolean(selectedItems.has(`picture:${pic.path}`))}
-            isSelectMode={isSelectMode}
-            failedImage={Boolean(failedImages[idx])}
-            onImageError={handleImageError}
-            onToggleSelect={onToggleSelect}
-            onOpenLightbox={onOpenLightbox}
-            isMenuOpen={openMenuIndex === idx}
-            onToggleMenu={handleToggleMenu}
-            menuRef={menuRef}
-            onShowInfo={(p, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(p, t))}
-            onCopyItem={(p) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(p))}
-            onMoveItem={(p) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(p))}
-            onDeleteItem={(p) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(p))}
-          />
-        ))}
-      </div>
+      {isVirtualized ? (
+        <div
+          ref={containerRef}
+          className="relative w-full"
+          style={{ height: `${totalHeight}px` }}
+        >
+          {visibleRowIndices.map((rowIndex) => {
+            const rowTop = rowIndex * rowHeight;
+            const rowItems = pictures.slice(rowIndex * cols, (rowIndex + 1) * cols);
+
+            return (
+              <div
+                key={rowIndex}
+                className="absolute left-0 right-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5"
+                style={{ top: `${rowTop}px` }}
+              >
+                {rowItems.map((pic, colIdx) => {
+                  const idx = rowIndex * cols + colIdx;
+                  return (
+                    <PictureCard
+                      key={pic.path || pic.name || idx}
+                      pic={pic}
+                      idx={idx}
+                      isSelected={Boolean(selectedItems.has(`picture:${pic.path}`))}
+                      isSelectMode={isSelectMode}
+                      failedImage={Boolean(failedImages[idx])}
+                      onImageError={handleImageError}
+                      onToggleSelect={onToggleSelect}
+                      onOpenLightbox={onOpenLightbox}
+                      isMenuOpen={openMenuIndex === idx}
+                      onToggleMenu={handleToggleMenu}
+                      menuRef={menuRef}
+                      onShowInfo={(p, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(p, t))}
+                      onCopyItem={(p) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(p))}
+                      onMoveItem={(p) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(p))}
+                      onDeleteItem={(p) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(p))}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div
+          ref={containerRef}
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5"
+        >
+          {pictures.map((pic, idx) => (
+            <PictureCard
+              key={pic.path || pic.name || idx}
+              pic={pic}
+              idx={idx}
+              isSelected={Boolean(selectedItems.has(`picture:${pic.path}`))}
+              isSelectMode={isSelectMode}
+              failedImage={Boolean(failedImages[idx])}
+              onImageError={handleImageError}
+              onToggleSelect={onToggleSelect}
+              onOpenLightbox={onOpenLightbox}
+              isMenuOpen={openMenuIndex === idx}
+              onToggleMenu={handleToggleMenu}
+              menuRef={menuRef}
+              onShowInfo={(p, t) => handleCloseMenuAndAction(() => onShowInfo && onShowInfo(p, t))}
+              onCopyItem={(p) => handleCloseMenuAndAction(() => onCopyItem && onCopyItem(p))}
+              onMoveItem={(p) => handleCloseMenuAndAction(() => onMoveItem && onMoveItem(p))}
+              onDeleteItem={(p) => handleCloseMenuAndAction(() => onDeleteItem && onDeleteItem(p))}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 };

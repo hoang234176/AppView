@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Folder, ArrowRight, Check } from 'lucide-react';
 import { WindowsFolderIcon } from './icons/WindowsFolderIcon';
 import { RollingNumber } from './common/RollingNumber';
+import { useVirtualGrid } from '../utils/useVirtualGrid';
 
 const FolderCard = React.memo(({
   folder,
@@ -101,13 +102,26 @@ export const FolderGrid = ({
   onToggleSelect,
   onToggleSelectAll,
 }) => {
+  const folderCount = folders ? folders.length : 0;
+  const {
+    containerRef,
+    cols,
+    rowHeight,
+    totalHeight,
+    visibleRowIndices,
+    isVirtualized,
+  } = useVirtualGrid({ totalItems: folderCount, type: 'folder' });
+
   if (!folders || folders.length === 0) return null;
 
   const countDisplay = totalCount && totalCount > folders.length ? `${folders.length}/${totalCount}` : folders.length;
   const isAllSelected = folders.length > 0 && folders.every((f) => selectedItems.has(`folder:${f.path}`));
 
   return (
-    <section className="px-6 sm:px-8 pt-4 pb-2 max-w-7xl mx-auto mb-2">
+    <section
+      className="px-6 sm:px-8 pt-4 pb-2 max-w-7xl mx-auto mb-2"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '320px' }}
+    >
       <div className="flex items-center justify-between mb-4 px-1">
         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
           <Folder className="w-4 h-4 text-yellow-400 fill-yellow-400/20" /> Thư Mục{' '}
@@ -142,20 +156,59 @@ export const FolderGrid = ({
         )}
       </div>
 
-      {/* Same column count as PictureGrid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
-        {folders.map((folder, idx) => (
-          <FolderCard
-            key={folder.path || idx}
-            folder={folder}
-            isSelected={Boolean(selectedItems.has(`folder:${folder.path}`))}
-            isSelectMode={isSelectMode}
-            onToggleSelect={onToggleSelect}
-            onNavigate={onNavigate}
-            onFolderContextMenu={onFolderContextMenu}
-          />
-        ))}
-      </div>
+      {/* If virtualized: absolute row positioning (zero layout shifts). Otherwise: standard CSS grid */}
+      {isVirtualized ? (
+        <div
+          ref={containerRef}
+          className="relative w-full"
+          style={{ height: `${totalHeight}px` }}
+        >
+          {visibleRowIndices.map((rowIndex) => {
+            const rowTop = rowIndex * rowHeight;
+            const rowItems = folders.slice(rowIndex * cols, (rowIndex + 1) * cols);
+
+            return (
+              <div
+                key={rowIndex}
+                className="absolute left-0 right-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5"
+                style={{ top: `${rowTop}px` }}
+              >
+                {rowItems.map((folder, colIdx) => {
+                  const idx = rowIndex * cols + colIdx;
+                  return (
+                    <FolderCard
+                      key={folder.path || idx}
+                      folder={folder}
+                      isSelected={Boolean(selectedItems.has(`folder:${folder.path}`))}
+                      isSelectMode={isSelectMode}
+                      onToggleSelect={onToggleSelect}
+                      onNavigate={onNavigate}
+                      onFolderContextMenu={onFolderContextMenu}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div
+          ref={containerRef}
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5"
+        >
+          {folders.map((folder, idx) => (
+            <FolderCard
+              key={folder.path || idx}
+              folder={folder}
+              isSelected={Boolean(selectedItems.has(`folder:${folder.path}`))}
+              isSelectMode={isSelectMode}
+              onToggleSelect={onToggleSelect}
+              onNavigate={onNavigate}
+              onFolderContextMenu={onFolderContextMenu}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 };
