@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { FolderTreeSidebar } from '../components/FolderTreeSidebar';
+import './SidebarLayout.css';
 
 /**
  * SidebarLayout — Area 1: Left Column Sidebar

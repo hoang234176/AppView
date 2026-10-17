@@ -1,0 +1,21 @@
+/* AppLayout.css — Top-level Tahoe frame shell */
+.app-layout-wrapper {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  padding: 8px;
+  gap: 8px;
+  box-sizing: border-box;
+  background-color: var(--bg-app, #0b0c0e);
+  overflow: hidden;
+}
+
+.app-main-column {
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  gap: 8px;
+}

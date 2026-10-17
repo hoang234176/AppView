@@ -1,3 +1,4 @@
+import './AppLayout.css';
 
 /**
  * AppLayout — Tahoe UI Top-Level Frame Shell
@@ -10,12 +11,12 @@
  */
 export function AppLayout({ sidebar, header, content, fab, modals }) {
   return (
-    <div className="tahoe-app-wrapper overflow-hidden">
+    <div className="tahoe-app-wrapper app-layout-wrapper overflow-hidden">
       {/* Area 1: Left Column Sidebar */}
       {sidebar}
 
       {/* Right Container: Header + Content Canvas */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden gap-2">
+      <div className="app-main-column">
         {/* Area 2: Top Header Bar */}
         {header}
 

@@ -6,6 +6,7 @@ import { PictureGrid } from '../components/PictureGrid';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { ErrorState } from '../components/ErrorState';
 import { FolderX, Loader2 } from 'lucide-react';
+import './ContentLayout.css';
 
 /**
  * ContentLayout — Area 3: Main Content Canvas
@@ -48,9 +49,9 @@ export const ContentLayout = memo(({
   onLoadMore,
 }) => {
   return (
-    <div className="tahoe-block flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div className="content-canvas">
       {/* Breadcrumbs Navigation */}
-      <div className="flex-shrink-0 bg-[#1c1d21] border-b border-[#383c42]/40 z-10">
+      <div className="content-breadcrumbs-bar">
         <Breadcrumbs
           currentPath={currentPath}
           onNavigate={onNavigate}
@@ -64,7 +65,7 @@ export const ContentLayout = memo(({
       {/* Scrollable Content Body */}
       <main
         onContextMenu={onEmptyContextMenu}
-        className="flex-1 overflow-y-auto custom-scrollbar p-2 pb-4 min-h-0"
+        className="content-scroll-body custom-scrollbar"
       >
         {loading ? (
           <LoadingSkeleton />
@@ -75,8 +76,8 @@ export const ContentLayout = memo(({
           />
         ) : !hasContent ? (
           /* Empty state */
-          <div className="max-w-md mx-auto my-16 p-8 text-center bg-[#28292d] rounded-[24px] border border-[#383c42] animate-fade-in space-y-4 shadow-md">
-            <div className="w-14 h-14 rounded-[24px] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
+          <div className="content-empty-state animate-fade-in space-y-4">
+            <div className="content-empty-icon">
               <FolderX className="w-7 h-7" />
             </div>
             <div>
@@ -99,7 +100,7 @@ export const ContentLayout = memo(({
           </div>
         ) : (
           /* Folders, Pictures, and Videos Grid */
-          <div className="animate-fade-in space-y-6 pt-2">
+          <div className="content-grids animate-fade-in">
             <FolderGrid
               folders={visibleFolders}
               totalCount={totalFolders}
@@ -145,7 +146,7 @@ export const ContentLayout = memo(({
                   type="button"
                   onClick={onLoadMore}
                   disabled={isLoadingMore}
-                  className="bg-[#202124] hover:bg-[#2d2f31] text-[#8ab4f8] border border-[#383c42] hover:border-[#8ab4f8] px-8 py-3 rounded-full text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2.5 hover:scale-105 active:scale-95 disabled:opacity-60"
+                  className="content-load-more-btn"
                 >
                   {isLoadingMore ? (
                     <>
@@ -155,7 +156,7 @@ export const ContentLayout = memo(({
                   ) : (
                     <>
                       <span className="text-sm">Xem thêm</span>
-                      <span className="text-[11px] font-mono bg-blue-500/20 text-blue-300 px-2.5 py-0.5 rounded-full border border-blue-500/30">
+                      <span className="content-load-more-badge">
                         +{remainingCount} mục
                       </span>
                     </>

@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Header } from '../components/Header';
+import './HeaderLayout.css';
 
 /**
  * HeaderLayout — Area 2: Top Header Bar

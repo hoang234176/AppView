@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { FabSpeedDial } from '../components/FabSpeedDial';
+import './FloatingActionLayout.css';
 
 /**
  * FloatingActionLayout — Area 4: Floating Action Button
