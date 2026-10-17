@@ -6,10 +6,6 @@ import { ContextMenu } from './ContextMenu';
 import { DeleteModal } from './DeleteModal';
 import { CreateFolderModal } from './CreateFolderModal';
 import { RenameFolderModal } from './RenameFolderModal';
-import { DownloadMediaModal } from './DownloadMediaModal';
-import { DownloadMediafireModal } from './DownloadMediafireModal';
-import { DownloadPanelModal } from './DownloadPanelModal';
-import { DownloadSnackbar } from './DownloadSnackbar';
 import { MediaInfoModal } from './MediaInfoModal';
 import { BatchActionModal } from './BatchActionModal';
 import { ConflictResolutionModal } from './ConflictResolutionModal';
@@ -69,24 +65,6 @@ export const AppModals = memo(({
   onCloseRenameFolderModal,
   targetFolder,
   onRenameFolderSubmit,
-
-  // Download Modals & Panel
-  showDownloadMediaModal,
-  onCloseDownloadMediaModal,
-  downloadTasks,
-  onCoordinatorJobCreated,
-  showDownloadMediafireModal,
-  onCloseDownloadMediafireModal,
-  onDownloadMediafireSuccess,
-  showDownloadPanel,
-  onCloseDownloadPanel,
-  downloadPanelTab,
-  onSelectedTabChange,
-  onOpenAddModal,
-  onDeleteTask,
-  transferTasks,
-  downloadSummary,
-  onOpenDownloadPanel,
 
   // Media Info
   infoModalData,
@@ -182,48 +160,6 @@ export const AppModals = memo(({
         onClose={onCloseRenameFolderModal}
         folder={targetFolder}
         onRename={onRenameFolderSubmit}
-      />
-
-      {/* Download Media (Instagram, Facebook, TikTok, YouTube) Modal */}
-      {showDownloadMediaModal && (
-        <DownloadMediaModal
-          currentPath={currentPath}
-          treeData={treeData}
-          activeDrive={activeDrive}
-          downloadTasks={downloadTasks}
-          onClose={onCloseDownloadMediaModal}
-          onSuccess={onCoordinatorJobCreated}
-          onOpenSettings={onOpenConfig}
-        />
-      )}
-
-      {/* Download Mediafire Archive Modal */}
-      <DownloadMediafireModal
-        isOpen={showDownloadMediafireModal}
-        onClose={onCloseDownloadMediafireModal}
-        currentPath={currentPath}
-        treeData={treeData}
-        activeDrive={activeDrive}
-        onSuccess={onDownloadMediafireSuccess}
-      />
-
-      {/* Download Manager Panel Modal */}
-      <DownloadPanelModal
-        isOpen={showDownloadPanel}
-        onClose={onCloseDownloadPanel}
-        tasks={downloadTasks}
-        selectedTab={downloadPanelTab}
-        onSelectedTabChange={onSelectedTabChange}
-        onOpenAddModal={onOpenAddModal}
-        onDeleteTask={onDeleteTask}
-      />
-
-      {/* Compact Bottom Snackbar */}
-      <DownloadSnackbar
-        tasks={downloadTasks}
-        transferTasks={transferTasks}
-        summary={downloadSummary}
-        onOpenPanel={onOpenDownloadPanel}
       />
 
       {/* Media Info Dialog Modal */}

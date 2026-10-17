@@ -8,9 +8,10 @@ import './AppLayout.css';
  * 3. content (Main canvas: Breadcrumbs, Grids, Empty/Loading states)
  * 4. fab (Floating '+' Action button)
  * 5. settings (SettingsModal & Server Connection management)
+ * 6. downloads (Download modals, panel, & progress snackbar)
  * Plus background modals, context menus & snackbars.
  */
-export function AppLayout({ sidebar, header, content, fab, modals, settings }) {
+export function AppLayout({ sidebar, header, content, fab, modals, settings, downloads }) {
   return (
     <div className="tahoe-app-wrapper app-layout-wrapper overflow-hidden">
       {/* Area 1: Left Column Sidebar */}
@@ -30,6 +31,9 @@ export function AppLayout({ sidebar, header, content, fab, modals, settings }) {
 
       {/* Area 5: Settings & Connection Management */}
       {settings}
+
+      {/* Area 6: Downloads & Notification */}
+      {downloads}
 
       {/* Popups, Dialogs & Modals */}
       {modals}

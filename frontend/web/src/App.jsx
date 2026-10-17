@@ -5,6 +5,7 @@ import { HeaderLayout } from './layouts/HeaderLayout';
 import { ContentLayout } from './layouts/ContentLayout';
 import { FloatingActionLayout } from './layouts/FloatingActionLayout';
 import { SettingsLayout } from './layouts/SettingsLayout';
+import { DownloadLayout } from './layouts/DownloadLayout';
 import { AppModals } from './components/AppModals';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, checkBatchConflicts, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
@@ -1483,31 +1484,6 @@ function App() {
           onCloseRenameFolderModal={() => setShowRenameFolderModal(false)}
           targetFolder={targetFolder}
           onRenameFolderSubmit={handleRenameFolderSubmit}
-          showDownloadMediaModal={showDownloadMediaModal}
-          onCloseDownloadMediaModal={() => setShowDownloadMediaModal(false)}
-          downloadTasks={downloadTasks}
-          onCoordinatorJobCreated={handleCoordinatorJobCreated}
-          showDownloadMediafireModal={showDownloadMediafireModal}
-          onCloseDownloadMediafireModal={() => setShowDownloadMediafireModal(false)}
-          onDownloadMediafireSuccess={(job) => {
-            handleCoordinatorJobCreated(job);
-            setDownloadPanelTab('active');
-            setShowDownloadPanel(true);
-          }}
-          showDownloadPanel={showDownloadPanel}
-          onCloseDownloadPanel={() => setShowDownloadPanel(false)}
-          downloadPanelTab={downloadPanelTab}
-          onSelectedTabChange={setDownloadPanelTab}
-          onOpenAddModal={() => {
-            setShowDownloadPanel(false);
-            setShowDownloadMediafireModal(true);
-          }}
-          onDeleteTask={(taskId) => {
-            setDownloadTasks((prev) => prev.filter((t) => t.task_id !== taskId));
-          }}
-          transferTasks={transferTasks}
-          downloadSummary={downloadSummary}
-          onOpenDownloadPanel={() => setShowDownloadPanel(true)}
           infoModalData={infoModalData}
           onCloseInfoModal={() => setInfoModalData((prev) => ({ ...prev, isOpen: false }))}
           batchModalState={batchModalState}
@@ -1531,6 +1507,39 @@ function App() {
           onRefresh={handleRefreshAll}
           onServerConfigSaved={handleServerConfigSaved}
           onServerConfigFailed={handleServerConfigFailed}
+        />
+      }
+      downloads={
+        <DownloadLayout
+          showDownloadMediaModal={showDownloadMediaModal}
+          onCloseDownloadMediaModal={() => setShowDownloadMediaModal(false)}
+          currentPath={currentPath}
+          treeData={treeData}
+          activeDrive={activeDrive}
+          downloadTasks={downloadTasks}
+          onCoordinatorJobCreated={handleCoordinatorJobCreated}
+          onOpenSettings={() => setShowConfigModal(true)}
+          showDownloadMediafireModal={showDownloadMediafireModal}
+          onCloseDownloadMediafireModal={() => setShowDownloadMediafireModal(false)}
+          onDownloadMediafireSuccess={(job) => {
+            handleCoordinatorJobCreated(job);
+            setDownloadPanelTab('active');
+            setShowDownloadPanel(true);
+          }}
+          showDownloadPanel={showDownloadPanel}
+          onCloseDownloadPanel={() => setShowDownloadPanel(false)}
+          downloadPanelTab={downloadPanelTab}
+          onSelectedTabChange={setDownloadPanelTab}
+          onOpenAddModal={() => {
+            setShowDownloadPanel(false);
+            setShowDownloadMediafireModal(true);
+          }}
+          onDeleteTask={(taskId) => {
+            setDownloadTasks((prev) => prev.filter((t) => t.task_id !== taskId));
+          }}
+          transferTasks={transferTasks}
+          downloadSummary={downloadSummary}
+          onOpenDownloadPanel={() => setShowDownloadPanel(true)}
         />
       }
     />
