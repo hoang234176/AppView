@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, memo } from 'react';
 
 /**
  * Windows-style SVG folder icon with compact, balanced height.
@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react';
  *   - 'fixed': Fixed portrait 3:4 polaroid cards.
  *   - 'adaptive': Automatically detects whether each image is portrait or landscape and adjusts card ratio.
  */
-export const WindowsFolderIcon = ({
+export const WindowsFolderIcon = memo(({
   previews = [],
   className = '',
   isHovered: externalHovered,
@@ -26,10 +26,13 @@ export const WindowsFolderIcon = ({
 
   // Track natural image aspect ratios for 'adaptive' mode
   const [imgRatios, setImgRatios] = useState({});
+  const previewKey = `${validPreviews[0] || ''}_${validPreviews[1] || ''}`;
+  const [prevKey, setPrevKey] = useState(previewKey);
 
-  useEffect(() => {
+  if (prevKey !== previewKey) {
+    setPrevKey(previewKey);
     setImgRatios({});
-  }, [validPreviews[0], validPreviews[1]]);
+  }
 
   const handleImageLoad = (idx, e) => {
     const { naturalWidth, naturalHeight } = e.currentTarget;
@@ -269,4 +272,6 @@ export const WindowsFolderIcon = ({
       </svg>
     </div>
   );
-};
+});
+
+WindowsFolderIcon.displayName = 'WindowsFolderIcon';
