@@ -1,28 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FolderTreeSidebar } from './components/FolderTreeSidebar';
-import { Header } from './components/Header';
-import { Breadcrumbs } from './components/Breadcrumbs';
-import { FolderGrid } from './components/FolderGrid';
-import { PictureGrid } from './components/PictureGrid';
-import { VideoGrid } from './components/VideoGrid';
-import { LightboxModal } from './components/LightboxModal';
-import { VideoPlayerModal } from './components/VideoPlayerModal';
-import { ErrorState } from './components/ErrorState';
-import { LoadingSkeleton } from './components/LoadingSkeleton';
-import { MobileNav } from './components/MobileNav';
-import { CreateFolderModal } from './components/CreateFolderModal';
-import { RenameFolderModal } from './components/RenameFolderModal';
-import { MediaInfoModal } from './components/MediaInfoModal';
-import { DeleteModal } from './components/DeleteModal';
-import { ContextMenu } from './components/ContextMenu';
-import { FabSpeedDial } from './components/FabSpeedDial';
-import { SettingsModal } from './components/SettingsModal';
-import { DownloadMediafireModal } from './components/DownloadMediafireModal';
-import { DownloadMediaModal } from './components/DownloadMediaModal';
-import { DownloadPanelModal } from './components/DownloadPanelModal';
-import { DownloadSnackbar } from './components/DownloadSnackbar';
-import { BatchActionModal } from './components/BatchActionModal';
-import { ConflictResolutionModal } from './components/ConflictResolutionModal';
+import { AppLayout } from './layouts/AppLayout';
+import { SidebarLayout } from './layouts/SidebarLayout';
+import { HeaderLayout } from './layouts/HeaderLayout';
+import { ContentLayout } from './layouts/ContentLayout';
+import { FloatingActionLayout } from './layouts/FloatingActionLayout';
+import { AppModals } from './components/AppModals';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, checkBatchConflicts, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
 import {
@@ -37,7 +19,6 @@ import {
 } from './api/axiosConfig';
 import { isActiveDownload, needsDownloadAttention } from './utils/downloadPresentation';
 import { isMultipartArchive } from './components/icons/FileTypeIcon';
-import { FolderX, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import './styles/index.css';
 
 const isSameOrDescendantPath = (candidate, parent) => Boolean(parent) && (candidate === parent || candidate.startsWith(`${parent}/`));
@@ -1344,27 +1325,23 @@ function App() {
   const isConverting = downloadTasks.some((t) => t.stage === 'converting');
 
   return (
-    <div className="tahoe-app-wrapper overflow-hidden">
-
-      {/* Sidebar */}
-      <FolderTreeSidebar
-        currentPath={currentPath}
-        treeData={treeData}
-        folders={filteredFolders}
-        onNavigate={handleNavigate}
-        onFolderContextMenu={handleFolderContextMenu}
-        onEmptyContextMenu={handleEmptyContextMenu}
-        onOpenConfig={() => setShowConfigModal(true)}
-        drives={drives}
-        activeDrive={activeDrive}
-        onSelectDrive={handleSelectDrive}
-      />
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden gap-2">
-
-        {/* Header */}
-        <Header
+    <AppLayout
+      sidebar={
+        <SidebarLayout
+          currentPath={currentPath}
+          treeData={treeData}
+          folders={filteredFolders}
+          onNavigate={handleNavigate}
+          onFolderContextMenu={handleFolderContextMenu}
+          onEmptyContextMenu={handleEmptyContextMenu}
+          onOpenConfig={() => setShowConfigModal(true)}
+          drives={drives}
+          activeDrive={activeDrive}
+          onSelectDrive={handleSelectDrive}
+        />
+      }
+      header={
+        <HeaderLayout
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onRefresh={handleRefreshAll}
@@ -1393,156 +1370,67 @@ function App() {
           mxhFilters={mxhFilters}
           setMxhFilters={setMxhFilters}
         />
-
-        {/* Main Content Canvas */}
-        <div className="tahoe-block flex-1 flex flex-col min-w-0 overflow-hidden">
-
-          {/* Breadcrumbs Navigation */}
-          <div className="flex-shrink-0 bg-[#1c1d21] border-b border-[#383c42]/40 z-10">
-            <Breadcrumbs
-              currentPath={currentPath}
-              onNavigate={handleNavigate}
-              totalFolders={searchQuery.trim() ? filteredFolders.length : totalFolders}
-              totalPictures={searchQuery.trim() ? filteredPictures.length : totalPictures}
-              totalVideos={searchQuery.trim() ? filteredVideos.length : totalVideos}
-              activeDrive={activeDrive}
-            />
-          </div>
-
-          {/* Scrollable Content Body */}
-          <main
-            onContextMenu={handleEmptyContextMenu}
-            className="flex-1 overflow-y-auto custom-scrollbar p-2 pb-4 min-h-0"
-          >
-            {loading ? (
-              <LoadingSkeleton />
-            ) : errorInfo ? (
-              <ErrorState
-                errorInfo={errorInfo}
-                onRetry={handleRefreshAll}
-              />
-            ) : !hasContent ? (
-              /* Empty state */
-              <div className="max-w-md mx-auto my-16 p-8 text-center bg-[#28292d] rounded-[24px] border border-[#383c42] animate-fade-in space-y-4 shadow-md">
-                <div className="w-14 h-14 rounded-[24px] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
-                  <FolderX className="w-7 h-7" />
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-white">Thư mục này trống</h3>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {searchQuery
-                      ? `Không tìm thấy mục khớp với "${searchQuery}"`
-                      : 'Chưa có thư mục con, hình ảnh hoặc video nào tại đường dẫn này.'}
-                  </p>
-                </div>
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="btn-google btn-google-surface text-xs mt-2"
-                  >
-                    Xóa bộ lọc tìm kiếm
-                  </button>
-                )}
-              </div>
-            ) : (
-              /* Folders, Pictures, and Videos Grid */
-              <div className="animate-fade-in space-y-6 pt-2">
-                <FolderGrid
-                  folders={visibleFolders}
-                  totalCount={totalFolders}
-                  onNavigate={handleNavigate}
-                  onFolderContextMenu={handleFolderContextMenu}
-                  isSelectMode={isSelectMode}
-                  selectedItems={selectedItems}
-                  onToggleSelect={handleToggleSelectItem}
-                  onToggleSelectAll={handleToggleSelectAllFolders}
-                />
-
-                <VideoGrid
-                  videos={visibleVideos}
-                  totalCount={totalVideos}
-                  onOpenVideo={handleOpenVideo}
-                  onShowInfo={handleShowMediaInfo}
-                  onCopyItem={(vid) => handleCopySingleItem(vid, 'video')}
-                  onMoveItem={(vid) => handleOpenMoveItem(vid, 'video')}
-                  onDeleteItem={handleDeleteMediaItem}
-                  isSelectMode={isSelectMode}
-                  selectedItems={selectedItems}
-                  onToggleSelect={handleToggleSelectItem}
-                  onToggleSelectAll={handleToggleSelectAllVideos}
-                />
-
-                <PictureGrid
-                  pictures={visiblePictures}
-                  totalCount={totalPictures}
-                  onOpenLightbox={handleOpenLightbox}
-                  onShowInfo={handleShowMediaInfo}
-                  onCopyItem={(pic) => handleCopySingleItem(pic, 'picture')}
-                  onMoveItem={(pic) => handleOpenMoveItem(pic, 'picture')}
-                  onDeleteItem={handleDeleteMediaItem}
-                  isSelectMode={isSelectMode}
-                  selectedItems={selectedItems}
-                  onToggleSelect={handleToggleSelectItem}
-                  onToggleSelectAll={handleToggleSelectAllPictures}
-                />
-
-                {hasMore && (
-                  <div className="flex justify-center pt-2 pb-4">
-                    <button
-                      type="button"
-                      onClick={handleLoadMore}
-                      disabled={isLoadingMore}
-                      className="bg-[#202124] hover:bg-[#2d2f31] text-[#8ab4f8] border border-[#383c42] hover:border-[#8ab4f8] px-8 py-3 rounded-full text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2.5 hover:scale-105 active:scale-95 disabled:opacity-60"
-                    >
-                      {isLoadingMore ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                          <span>Đang tải thêm...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-sm">Xem thêm</span>
-                          <span className="text-[11px] font-mono bg-blue-500/20 text-blue-300 px-2.5 py-0.5 rounded-full border border-blue-500/30">
-                            +{remainingCount} mục
-                          </span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </main>
-        </div>
-
-        {/* Lightbox Modal */}
-        {lightbox !== null && (
-          <LightboxModal
-            pictures={lightbox.pictures}
-            currentIndex={lightbox.index}
-            onClose={() => setLightbox(null)}
-            onSelectIndex={(newIdx) => setLightbox((current) => current ? { ...current, index: newIdx } : current)}
-            totalPictures={lightbox.pictures.length}
-            hasMore={hasMore}
-            isLoadingMore={isLoadingMore}
-            onLoadMore={handleLoadMore}
-          />
-        )}
-
-        {/* Video Player Modal */}
-        {videoModalIndex !== null && (
-          <VideoPlayerModal
-            videos={filteredVideos}
-            currentIndex={videoModalIndex}
-            onClose={() => setVideoModalIndex(null)}
-            onSelectIndex={(newIdx) => setVideoModalIndex(newIdx)}
-          />
-        )}
-
-        {/* Mobile Navigation Drawer */}
-        <MobileNav
-          isOpen={isMobileDrawerOpen}
-          onClose={() => setIsMobileDrawerOpen(false)}
+      }
+      content={
+        <ContentLayout
+          currentPath={currentPath}
+          onNavigate={handleNavigate}
+          totalFolders={searchQuery.trim() ? filteredFolders.length : totalFolders}
+          totalPictures={searchQuery.trim() ? filteredPictures.length : totalPictures}
+          totalVideos={searchQuery.trim() ? filteredVideos.length : totalVideos}
+          activeDrive={activeDrive}
+          onEmptyContextMenu={handleEmptyContextMenu}
+          loading={loading}
+          errorInfo={errorInfo}
+          onRetry={handleRefreshAll}
+          hasContent={hasContent}
+          searchQuery={searchQuery}
+          onClearSearch={() => setSearchQuery('')}
+          visibleFolders={visibleFolders}
+          visibleVideos={visibleVideos}
+          visiblePictures={visiblePictures}
+          isSelectMode={isSelectMode}
+          selectedItems={selectedItems}
+          onToggleSelectItem={handleToggleSelectItem}
+          onToggleSelectAllFolders={handleToggleSelectAllFolders}
+          onToggleSelectAllVideos={handleToggleSelectAllVideos}
+          onToggleSelectAllPictures={handleToggleSelectAllPictures}
+          onFolderContextMenu={handleFolderContextMenu}
+          onOpenVideo={handleOpenVideo}
+          onOpenLightbox={handleOpenLightbox}
+          onShowMediaInfo={handleShowMediaInfo}
+          onCopySingleItem={handleCopySingleItem}
+          onOpenMoveItem={handleOpenMoveItem}
+          onDeleteMediaItem={handleDeleteMediaItem}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          remainingCount={remainingCount}
+          onLoadMore={handleLoadMore}
+        />
+      }
+      fab={
+        <FloatingActionLayout
+          onCreateFolder={() => setShowCreateFolderModal(true)}
+          onDownloadArchive={() => setShowDownloadMediafireModal(true)}
+          onDownloadMedia={() => setShowDownloadMediaModal(true)}
+        />
+      }
+      modals={
+        <AppModals
+          lightbox={lightbox}
+          onCloseLightbox={() => setLightbox(null)}
+          onSelectLightboxIndex={(newIdx) =>
+            setLightbox((current) => (current ? { ...current, index: newIdx } : current))
+          }
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          onLoadMore={handleLoadMore}
+          videoModalIndex={videoModalIndex}
+          videos={filteredVideos}
+          onCloseVideoModal={() => setVideoModalIndex(null)}
+          onSelectVideoIndex={(newIdx) => setVideoModalIndex(newIdx)}
+          isMobileDrawerOpen={isMobileDrawerOpen}
+          onCloseMobileDrawer={() => setIsMobileDrawerOpen(false)}
           currentPath={currentPath}
           treeData={treeData}
           folders={filteredFolders}
@@ -1551,23 +1439,8 @@ function App() {
           drives={drives}
           activeDrive={activeDrive}
           onSelectDrive={handleSelectDrive}
-        />
-
-        {/* Floating Action Button */}
-        <FabSpeedDial
-          onCreateFolder={() => setShowCreateFolderModal(true)}
-          onDownloadArchive={() => setShowDownloadMediafireModal(true)}
-          onDownloadMedia={() => setShowDownloadMediaModal(true)}
-        />
-
-        {/* Custom Context Menu */}
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          isOpen={contextMenu.isOpen}
-          onClose={handleCloseContextMenu}
-          mode={contextMenu.mode}
-          targetFolder={contextMenu.folder}
+          contextMenu={contextMenu}
+          onCloseContextMenu={handleCloseContextMenu}
           onCreateFolder={() => setShowCreateFolderModal(true)}
           onRenameFolder={(folder) => {
             setTargetFolder(folder);
@@ -1583,15 +1456,9 @@ function App() {
             handleOpenDeleteItem(folder, true);
           }}
           onRefresh={handleRefreshAll}
-        />
-
-        {/* Delete Confirmation Modal */}
-        <DeleteModal
-          isOpen={deleteModalData.isOpen}
-          onClose={() => setDeleteModalData({ isOpen: false, item: null, isFolder: false })}
-          targetItem={deleteModalData.item}
-          isFolder={deleteModalData.isFolder}
-          onSuccess={(item, isFolder) => {
+          deleteModalData={deleteModalData}
+          onCloseDeleteModal={() => setDeleteModalData({ isOpen: false, item: null, isFolder: false })}
+          onDeleteSuccess={(item, isFolder) => {
             const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
             if (isFolder) {
               loadTreeData();
@@ -1611,56 +1478,27 @@ function App() {
               });
             }
           }}
-        />
-
-        {/* Create Folder Dialog Modal */}
-        <CreateFolderModal
-          isOpen={showCreateFolderModal}
-          onClose={() => setShowCreateFolderModal(false)}
-          onCreate={handleCreateFolderSubmit}
-        />
-
-        {/* Rename Folder Dialog Modal */}
-        <RenameFolderModal
-          isOpen={showRenameFolderModal}
-          onClose={() => setShowRenameFolderModal(false)}
-          folder={targetFolder}
-          onRename={handleRenameFolderSubmit}
-        />
-
-        {/* Download Media (Instagram, Facebook, TikTok, YouTube) Modal */}
-        {showDownloadMediaModal && <DownloadMediaModal
-          currentPath={currentPath}
-          treeData={treeData}
-          activeDrive={activeDrive}
+          showCreateFolderModal={showCreateFolderModal}
+          onCloseCreateFolderModal={() => setShowCreateFolderModal(false)}
+          onCreateFolderSubmit={handleCreateFolderSubmit}
+          showRenameFolderModal={showRenameFolderModal}
+          onCloseRenameFolderModal={() => setShowRenameFolderModal(false)}
+          targetFolder={targetFolder}
+          onRenameFolderSubmit={handleRenameFolderSubmit}
+          showDownloadMediaModal={showDownloadMediaModal}
+          onCloseDownloadMediaModal={() => setShowDownloadMediaModal(false)}
           downloadTasks={downloadTasks}
-          onClose={() => setShowDownloadMediaModal(false)}
-          onSuccess={(job) => {
-            handleCoordinatorJobCreated(job);
-          }}
-          onOpenSettings={() => setShowConfigModal(true)}
-        />}
-        <DownloadMediafireModal
-          isOpen={showDownloadMediafireModal}
-          onClose={() => setShowDownloadMediafireModal(false)}
-          currentPath={currentPath}
-          treeData={treeData}
-          activeDrive={activeDrive}
-          onSuccess={(job) => {
-            // The modal passes the accepted parent job; retain and poll that
-            // exact Coordinator ID instead of creating another legacy task.
+          onCoordinatorJobCreated={handleCoordinatorJobCreated}
+          showDownloadMediafireModal={showDownloadMediafireModal}
+          onCloseDownloadMediafireModal={() => setShowDownloadMediafireModal(false)}
+          onDownloadMediafireSuccess={(job) => {
             handleCoordinatorJobCreated(job);
             setDownloadPanelTab('active');
             setShowDownloadPanel(true);
           }}
-        />
-
-        {/* Download Manager Panel Modal */}
-        <DownloadPanelModal
-          isOpen={showDownloadPanel}
-          onClose={() => setShowDownloadPanel(false)}
-          tasks={downloadTasks}
-          selectedTab={downloadPanelTab}
+          showDownloadPanel={showDownloadPanel}
+          onCloseDownloadPanel={() => setShowDownloadPanel(false)}
+          downloadPanelTab={downloadPanelTab}
           onSelectedTabChange={setDownloadPanelTab}
           onOpenAddModal={() => {
             setShowDownloadPanel(false);
@@ -1669,78 +1507,30 @@ function App() {
           onDeleteTask={(taskId) => {
             setDownloadTasks((prev) => prev.filter((t) => t.task_id !== taskId));
           }}
-        />
-
-        {/* Compact Bottom Snackbar */}
-        <DownloadSnackbar
-          tasks={downloadTasks}
           transferTasks={transferTasks}
-          summary={downloadSummary}
-          onOpenPanel={() => setShowDownloadPanel(true)}
-        />
-
-		{/* A failed health check invalidates every server-backed surface. This is
-		    separate from the Settings backdrop: it remains after Settings closes
-		    and exposes only a route back to connection settings. */}
-		{!isConnected && !showConfigModal && (
-		  <div className="fixed inset-0 z-[99990] flex items-center justify-center bg-[#1c1d21]/75 p-6 backdrop-brightness-75" role="alert" aria-live="assertive">
-			<div className="max-w-sm rounded-2xl border border-red-500/35 bg-[#202124] p-5 text-center shadow-2xl">
-			  <h2 className="text-sm font-bold text-white">Chưa kết nối máy chủ</h2>
-			  <p className="mt-2 text-xs text-gray-400">Cần kết nối Coordinator hợp lệ trước khi duyệt thư mục, mở media hoặc tải xuống.</p>
-			  <button type="button" onClick={() => setShowConfigModal(true)} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500">Mở cài đặt kết nối</button>
-			</div>
-		  </div>
-		)}
-
-        {/* Settings Modal */}
-        <SettingsModal
-          isOpen={showConfigModal}
-          onClose={() => setShowConfigModal(false)}
-          onRefreshFolder={handleRefreshAll}
+          downloadSummary={downloadSummary}
+          onOpenDownloadPanel={() => setShowDownloadPanel(true)}
+          isConnected={isConnected}
+          showConfigModal={showConfigModal}
+          setShowConfigModal={setShowConfigModal}
+          onCloseConfigModal={() => setShowConfigModal(false)}
           onServerConfigSaved={handleServerConfigSaved}
           onServerConfigFailed={handleServerConfigFailed}
+          infoModalData={infoModalData}
+          onCloseInfoModal={() => setInfoModalData((prev) => ({ ...prev, isOpen: false }))}
+          batchModalState={batchModalState}
+          onCloseBatchModal={() => setBatchModalState({ isOpen: false, action: null, items: [] })}
+          selectedItems={selectedItems}
+          onConfirmBatch={handleExecuteBatch}
+          conflictModalData={conflictModalData}
+          onResolveConflicts={handleResolveConflicts}
+          onCloseConflictModal={() =>
+            setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null })
+          }
+          toastMessage={toastMessage}
         />
-
-        {/* Media Info Dialog Modal */}
-        <MediaInfoModal
-          isOpen={infoModalData.isOpen}
-          onClose={() => setInfoModalData((prev) => ({ ...prev, isOpen: false }))}
-          item={infoModalData.item}
-          type={infoModalData.type}
-        />
-
-        {/* Batch Action Modal for Select Mode & Single Item Actions */}
-        <BatchActionModal
-          isOpen={batchModalState.isOpen}
-          action={batchModalState.action}
-          onClose={() => setBatchModalState({ isOpen: false, action: null, items: [] })}
-          items={batchModalState.items && batchModalState.items.length > 0 ? batchModalState.items : Array.from(selectedItems.values())}
-          treeData={treeData}
-          currentPath={currentPath}
-          drives={drives}
-          activeDrive={activeDrive}
-          onConfirm={handleExecuteBatch}
-        />
-
-        {/* Conflict Resolution Modal with Side-by-Side Thumbnail Comparison */}
-        <ConflictResolutionModal
-          isOpen={conflictModalData.isOpen}
-          conflicts={conflictModalData.conflicts}
-          action={conflictModalData.action}
-          onResolve={handleResolveConflicts}
-          onClose={() => setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null })}
-        />
-
-        {/* Floating Toast Notification */}
-        {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-[999999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#1c1d21] border border-blue-500/40 text-white text-xs font-semibold shadow-2xl animate-pop-fast">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
-
-      </div>
-    </div>
+      }
+    />
   );
 }
 
