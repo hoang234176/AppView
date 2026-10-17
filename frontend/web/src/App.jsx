@@ -18,7 +18,7 @@ import {
   setActiveDrive,
 } from './api/axiosConfig';
 import { isActiveDownload, needsDownloadAttention } from './utils/downloadPresentation';
-import { isMultipartArchive } from './components/icons/FileTypeIcon';
+import { isMultipartArchive } from './utils/fileType';
 import './styles/index.css';
 
 const isSameOrDescendantPath = (candidate, parent) => Boolean(parent) && (candidate === parent || candidate.startsWith(`${parent}/`));

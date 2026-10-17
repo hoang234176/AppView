@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { fileTypeLabel, isMultipartArchive } from './utils';
+import { fileTypeLabel, isMultipartArchive } from '../../../utils/fileType';
 import { MultipartArchiveIcon } from './MultipartArchiveIcon';
 
 /**
