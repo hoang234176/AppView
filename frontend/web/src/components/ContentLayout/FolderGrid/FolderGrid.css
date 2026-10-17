@@ -1,0 +1,142 @@
+/* FolderGrid.css */
+.folder-grid-section {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-top: 1rem;
+  padding-bottom: 0.5rem;
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 0.5rem;
+  content-visibility: auto;
+  contain-intrinsic-size: 320px;
+}
+
+@media (min-width: 640px) {
+  .folder-grid-section {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+.folder-grid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.folder-grid-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.folder-grid-select-all-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #383c42;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.folder-grid-select-all-btn:active {
+  transform: scale(0.9);
+}
+
+/* Folder Card */
+.folder-card {
+  position: relative;
+  background-color: #202124;
+  border: 1px solid #383c42;
+  border-radius: 24px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 1 / 1;
+}
+
+.folder-card:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transform: translateY(-0.25rem);
+  border-color: rgba(250, 204, 21, 0.7);
+}
+
+.folder-card-selected {
+  border-color: #facc15 !important;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.3);
+  background-color: rgba(234, 179, 8, 0.1) !important;
+}
+
+.folder-card-checkbox {
+  position: absolute;
+  top: 0.625rem;
+  left: 0.625rem;
+  z-index: 20;
+}
+
+.folder-card-checkbox-box {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.5rem;
+  border-width: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: colors 0.15s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.folder-card-counts {
+  position: absolute;
+  top: 0.625rem;
+  right: 0.625rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+
+.folder-card-icon-area {
+  position: relative;
+  flex: 1 1 0%;
+  min-height: 0;
+  background-color: rgba(234, 179, 8, 0.07);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  border-bottom: 1px solid rgba(234, 179, 8, 0.1);
+  transition: background-color 0.2s ease;
+}
+
+.folder-card:hover .folder-card-icon-area {
+  background-color: rgba(234, 179, 8, 0.12);
+}
+
+.folder-card-footer {
+  padding: 0.875rem;
+  background-color: #202124;
+  border-bottom-left-radius: 24px;
+  border-bottom-right-radius: 24px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

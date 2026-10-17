@@ -1,18 +1,21 @@
-import React from 'react';
+import { memo } from 'react';
 import { AlertTriangle, RefreshCw, Terminal, Globe, HelpCircle } from 'lucide-react';
+import './ErrorState.css';
 
-export const ErrorState = ({ errorInfo, onRetry }) => {
+/**
+ * ErrorState — Error feedback card with request details, troubleshooting tips, and retry action
+ */
+export const ErrorState = memo(({ errorInfo, onRetry }) => {
   if (!errorInfo) return null;
 
   return (
-    <div className="max-w-4xl mx-auto my-8 px-4 sm:px-6 animate-fade-in">
-      <div className="bg-red-950/90 border border-red-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden">
-        
+    <div className="error-state-container animate-fade-in">
+      <div className="error-state-card">
         {/* Background glow */}
-        <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-red-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="error-state-glow" />
 
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center flex-shrink-0 text-red-400">
+          <div className="error-state-icon">
             <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
           </div>
 
@@ -33,7 +36,7 @@ export const ErrorState = ({ errorInfo, onRetry }) => {
 
             {/* Request Details Box */}
             {errorInfo.requestUrl && (
-              <div className="bg-[#18191c] rounded-2xl p-3 sm:p-3.5 border border-[#3c4043]/60 font-mono text-xs space-y-1.5 overflow-hidden">
+              <div className="error-state-details-box">
                 <div className="flex items-center gap-2 text-gray-400 flex-wrap">
                   <Globe className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
                   <span>URL:</span>
@@ -51,7 +54,7 @@ export const ErrorState = ({ errorInfo, onRetry }) => {
             )}
 
             {/* Troubleshooting Guide */}
-            <div className="bg-[#202124] rounded-2xl p-3.5 border border-[#3c4043]/40 space-y-1.5 text-xs text-gray-300">
+            <div className="error-state-troubleshoot-box">
               <div className="flex items-center gap-1.5 font-bold text-amber-300">
                 <HelpCircle className="w-4 h-4" /> Gợi ý khắc phục:
               </div>
@@ -65,17 +68,18 @@ export const ErrorState = ({ errorInfo, onRetry }) => {
             {/* Action */}
             <div className="pt-1">
               <button
+                type="button"
                 onClick={onRetry}
                 className="btn-google btn-google-primary text-xs"
               >
                 <RefreshCw className="w-4 h-4" /> Thử lại kết nối
               </button>
             </div>
-
           </div>
         </div>
-
       </div>
     </div>
   );
-};
+});
+
+ErrorState.displayName = 'ErrorState';

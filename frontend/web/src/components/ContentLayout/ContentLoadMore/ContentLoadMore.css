@@ -1,0 +1,48 @@
+/* ContentLoadMore.css */
+.content-load-more-wrapper {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.5rem;
+  padding-bottom: 1rem;
+}
+
+.content-load-more-btn {
+  background-color: #202124;
+  color: #8ab4f8;
+  border: 1px solid #383c42;
+  padding: 0.75rem 2rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.content-load-more-btn:hover:not(:disabled) {
+  background-color: #2d2f31;
+  border-color: #8ab4f8;
+  transform: scale(1.05);
+}
+
+.content-load-more-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.content-load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.content-load-more-badge {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}

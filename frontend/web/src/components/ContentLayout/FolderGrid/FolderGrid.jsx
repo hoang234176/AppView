@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { memo, useState } from 'react';
 import { Folder, ArrowRight, Check, Image as ImageIcon, Film } from 'lucide-react';
-import { WindowsFolderIcon } from './icons/WindowsFolderIcon';
-import { RollingNumber } from './common/RollingNumber';
-import { useVirtualGrid } from '../utils/useVirtualGrid';
+import { WindowsFolderIcon } from '../../icons/WindowsFolderIcon';
+import { RollingNumber } from '../../common/RollingNumber';
+import { useVirtualGrid } from '../../../utils/useVirtualGrid';
+import './FolderGrid.css';
 
-const FolderCard = React.memo(({
+const FolderCard = memo(({
   folder,
   isSelected,
   isSelectMode,
@@ -46,16 +47,16 @@ const FolderCard = React.memo(({
           onFolderContextMenu(e, folder);
         }
       }}
-      className={`group relative bg-[#202124] border rounded-[24px] shadow-sm hover:shadow-xl cursor-pointer transition-[border-color,background-color,box-shadow] duration-150 flex flex-col hover:-translate-y-1 aspect-square ${
+      className={`folder-card group relative flex flex-col hover:-translate-y-1 aspect-square ${
         isSelected
-          ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-500/10'
+          ? 'folder-card-selected'
           : 'border-[#383c42] hover:border-yellow-400/70'
       }`}
     >
       {/* Select Checkbox — top-left corner over icon area */}
       {isSelectMode && (
-        <div className="absolute top-2.5 left-2.5 z-20">
-          <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors duration-150 shadow-md ${
+        <div className="folder-card-checkbox">
+          <div className={`folder-card-checkbox-box ${
             isSelected
               ? 'bg-yellow-400 border-yellow-400 text-[#1c1d21] scale-105'
               : 'border-white/70 bg-black/60 hover:border-white'
@@ -67,7 +68,7 @@ const FolderCard = React.memo(({
 
       {/* Media Count Badges — top-right corner stacked vertically */}
       {hasCounts && (
-        <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-end gap-1 pointer-events-none">
+        <div className="folder-card-counts">
           {pictureCount > 0 && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm border border-white/10 text-[10px] font-medium text-blue-300 shadow-sm">
               <ImageIcon className="w-2.5 h-2.5 stroke-[2.5]" />
@@ -83,14 +84,8 @@ const FolderCard = React.memo(({
         </div>
       )}
 
-      {/*
-        Icon area — flex-1 fills remaining space after footer.
-        Total card = aspect-square → icon area becomes a short rectangle.
-        Layout: flex-col with a fixed 12px top spacer, then icon centered
-        in the remaining space. 12px is always ≥5% of icon area height
-        at any viewport size.
-      */}
-      <div className="relative flex-1 min-h-0 bg-yellow-500/[0.07] overflow-hidden flex flex-col items-center rounded-t-[24px] border-b border-yellow-500/10 group-hover:bg-yellow-500/[0.12] transition-colors duration-200">
+      {/* Icon area */}
+      <div className="folder-card-icon-area">
         {/* Hard spacer — icon top edge is always ≥12px from container top */}
         <div className="h-3 w-full flex-shrink-0" />
         {/* Remaining space: icon centered inside */}
@@ -105,7 +100,7 @@ const FolderCard = React.memo(({
       </div>
 
       {/* Footer — fixed height, takes the bottom slice of the square card */}
-      <div className="px-3.5 py-3.5 bg-[#202124] rounded-b-[24px] flex items-center gap-2">
+      <div className="folder-card-footer">
         <h3
           className="text-xs font-semibold text-gray-200 group-hover:text-yellow-300 truncate min-w-0 flex-1"
           title={tooltipTitle}
@@ -123,7 +118,7 @@ const FolderCard = React.memo(({
 
 FolderCard.displayName = 'FolderCard';
 
-export const FolderGrid = ({
+export const FolderGrid = memo(({
   folders = [],
   totalCount,
   onNavigate,
@@ -149,12 +144,9 @@ export const FolderGrid = ({
   const isAllSelected = folders.length > 0 && folders.every((f) => selectedItems.has(`folder:${f.path}`));
 
   return (
-    <section
-      className="px-6 sm:px-8 pt-4 pb-2 max-w-7xl mx-auto mb-2"
-      style={{ contentVisibility: 'auto', containIntrinsicSize: '320px' }}
-    >
-      <div className="flex items-center justify-between mb-4 px-1">
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+    <section className="folder-grid-section">
+      <div className="folder-grid-header">
+        <h2 className="folder-grid-title">
           <Folder className="w-4 h-4 text-yellow-400 fill-yellow-400/20" /> Thư Mục{' '}
           <span className="text-xs font-mono text-gray-500">
             (<RollingNumber value={countDisplay} />)
@@ -168,7 +160,7 @@ export const FolderGrid = ({
               onClick={onToggleSelectAll}
               title={isAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
               aria-label={isAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-              className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all duration-200 active:scale-90 shadow-sm ${
+              className={`folder-grid-select-all-btn ${
                 isAllSelected
                   ? 'bg-yellow-400 border-yellow-400 text-[#1c1d21] shadow-yellow-400/20'
                   : 'bg-[#28292d] border-[#383c42] hover:border-yellow-400/60 hover:bg-[#383c42] text-gray-400 hover:text-white'
@@ -242,4 +234,6 @@ export const FolderGrid = ({
       )}
     </section>
   );
-};
+});
+
+FolderGrid.displayName = 'FolderGrid';
