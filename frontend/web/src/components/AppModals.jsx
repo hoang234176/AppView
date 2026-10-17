@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { LightboxModal } from './LightboxModal';
 import { VideoPlayerModal } from './VideoPlayerModal';
 import { MobileNav } from './MobileNav';
-import { ContextMenu } from './ContextMenu';
 import { DeleteModal } from './DeleteModal';
 import { CreateFolderModal } from './CreateFolderModal';
 import { RenameFolderModal } from './RenameFolderModal';
@@ -12,7 +11,7 @@ import { ConflictResolutionModal } from './ConflictResolutionModal';
 import { CheckCircle2 } from 'lucide-react';
 
 /**
- * AppModals — Encapsulates dialogs, modals, context menus, and global alerts
+ * AppModals — Encapsulates dialogs, modals, and global alerts
  * Keeps App.jsx clean and decoupled from modal rendering details.
  */
 export const AppModals = memo(({
@@ -41,16 +40,6 @@ export const AppModals = memo(({
   drives,
   activeDrive,
   onSelectDrive,
-
-  // Context Menu
-  contextMenu,
-  onCloseContextMenu,
-  onCreateFolder,
-  onRenameFolder,
-  onCopyFolder,
-  onMoveFolder,
-  onDeleteFolder,
-  onRefresh,
 
   // Delete Modal
   deleteModalData,
@@ -120,22 +109,6 @@ export const AppModals = memo(({
         drives={drives}
         activeDrive={activeDrive}
         onSelectDrive={onSelectDrive}
-      />
-
-      {/* Custom Context Menu */}
-      <ContextMenu
-        x={contextMenu.x}
-        y={contextMenu.y}
-        isOpen={contextMenu.isOpen}
-        onClose={onCloseContextMenu}
-        mode={contextMenu.mode}
-        targetFolder={contextMenu.folder}
-        onCreateFolder={onCreateFolder}
-        onRenameFolder={onRenameFolder}
-        onCopyFolder={onCopyFolder}
-        onMoveFolder={onMoveFolder}
-        onDeleteFolder={onDeleteFolder}
-        onRefresh={onRefresh}
       />
 
       {/* Delete Confirmation Modal */}

@@ -1,0 +1,12 @@
+/* EmptyContextMenu.css — Styles for empty canvas/sidebar context menu */
+.empty-context-menu-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 14px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}

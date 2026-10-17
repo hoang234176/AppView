@@ -6,6 +6,7 @@ import { ContentLayout } from './layouts/ContentLayout';
 import { FloatingActionLayout } from './layouts/FloatingActionLayout';
 import { SettingsLayout } from './layouts/SettingsLayout';
 import { DownloadLayout } from './layouts/DownloadLayout';
+import { ContextMenuLayout } from './layouts/ContextMenuLayout';
 import { AppModals } from './components/AppModals';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, checkBatchConflicts, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
@@ -1438,23 +1439,6 @@ function App() {
           drives={drives}
           activeDrive={activeDrive}
           onSelectDrive={handleSelectDrive}
-          contextMenu={contextMenu}
-          onCloseContextMenu={handleCloseContextMenu}
-          onCreateFolder={() => setShowCreateFolderModal(true)}
-          onRenameFolder={(folder) => {
-            setTargetFolder(folder);
-            setShowRenameFolderModal(true);
-          }}
-          onCopyFolder={(folder) => {
-            handleCopySingleItem(folder, 'folder');
-          }}
-          onMoveFolder={(folder) => {
-            handleOpenMoveItem(folder, 'folder');
-          }}
-          onDeleteFolder={(folder) => {
-            handleOpenDeleteItem(folder, true);
-          }}
-          onRefresh={handleRefreshAll}
           deleteModalData={deleteModalData}
           onCloseDeleteModal={() => setDeleteModalData({ isOpen: false, item: null, isFolder: false })}
           onDeleteSuccess={(item, isFolder) => {
@@ -1540,6 +1524,27 @@ function App() {
           transferTasks={transferTasks}
           downloadSummary={downloadSummary}
           onOpenDownloadPanel={() => setShowDownloadPanel(true)}
+        />
+      }
+      contextMenu={
+        <ContextMenuLayout
+          contextMenu={contextMenu}
+          onClose={handleCloseContextMenu}
+          onCreateFolder={() => setShowCreateFolderModal(true)}
+          onRenameFolder={(folder) => {
+            setTargetFolder(folder);
+            setShowRenameFolderModal(true);
+          }}
+          onCopyFolder={(folder) => {
+            handleCopySingleItem(folder, 'folder');
+          }}
+          onMoveFolder={(folder) => {
+            handleOpenMoveItem(folder, 'folder');
+          }}
+          onDeleteFolder={(folder) => {
+            handleOpenDeleteItem(folder, true);
+          }}
+          onRefresh={handleRefreshAll}
         />
       }
     />
