@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, Trash2, X, Loader2 } from 'lucide-react';
-import { deleteFolder, deleteFile } from '../api/folderApi';
+import { deleteFolder, deleteFile } from '../../../../api/folderApi';
+import './DeleteModal.css';
 
 export const DeleteModal = ({ isOpen, onClose, targetItem, isFolder = false, onSuccess }) => {
   const [isDeleting, setIsDeleting] = useState(false);

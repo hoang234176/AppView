@@ -2,12 +2,9 @@ import { memo } from 'react';
 import { LightboxModal } from './LightboxModal';
 import { VideoPlayerModal } from './VideoPlayerModal';
 import { MobileNav } from './MobileNav';
-import { DeleteModal } from './DeleteModal';
 import { RenameFolderModal } from './RenameFolderModal';
 import { MediaInfoModal } from './MediaInfoModal';
 import { BatchActionModal } from './BatchActionModal';
-import { ConflictResolutionModal } from './ConflictResolutionModal';
-import { CheckCircle2 } from 'lucide-react';
 
 /**
  * AppModals — Encapsulates dialogs, modals, and global alerts
@@ -40,11 +37,6 @@ export const AppModals = memo(({
   activeDrive,
   onSelectDrive,
 
-  // Delete Modal
-  deleteModalData,
-  onCloseDeleteModal,
-  onDeleteSuccess,
-
   // Rename Folder Modal
   showRenameFolderModal,
   onCloseRenameFolderModal,
@@ -55,17 +47,11 @@ export const AppModals = memo(({
   infoModalData,
   onCloseInfoModal,
 
-  // Batch & Conflict
+  // Batch Action Modal
   batchModalState,
   onCloseBatchModal,
   selectedItems,
   onConfirmBatch,
-  conflictModalData,
-  onResolveConflicts,
-  onCloseConflictModal,
-
-  // Toast
-  toastMessage,
 }) => {
   return (
     <>
@@ -107,15 +93,6 @@ export const AppModals = memo(({
         onSelectDrive={onSelectDrive}
       />
 
-      {/* Delete Confirmation Modal */}
-      <DeleteModal
-        isOpen={deleteModalData.isOpen}
-        onClose={onCloseDeleteModal}
-        targetItem={deleteModalData.item}
-        isFolder={deleteModalData.isFolder}
-        onSuccess={onDeleteSuccess}
-      />
-
       {/* Rename Folder Dialog Modal */}
       <RenameFolderModal
         isOpen={showRenameFolderModal}
@@ -148,23 +125,6 @@ export const AppModals = memo(({
         activeDrive={activeDrive}
         onConfirm={onConfirmBatch}
       />
-
-      {/* Conflict Resolution Modal with Side-by-Side Thumbnail Comparison */}
-      <ConflictResolutionModal
-        isOpen={conflictModalData.isOpen}
-        conflicts={conflictModalData.conflicts}
-        action={conflictModalData.action}
-        onResolve={onResolveConflicts}
-        onClose={onCloseConflictModal}
-      />
-
-      {/* Floating Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-[999999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#1c1d21] border border-blue-500/40 text-white text-xs font-semibold shadow-2xl animate-pop-fast">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
     </>
   );
 });

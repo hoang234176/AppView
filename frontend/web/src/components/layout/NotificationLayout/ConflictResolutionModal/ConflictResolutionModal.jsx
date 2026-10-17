@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   X,
   AlertTriangle,
@@ -10,12 +10,12 @@ import {
   CheckSquare,
   Square,
 } from 'lucide-react';
-import { FileTypeIcon } from './icons/FileTypeIcon';
+import { FileTypeIcon } from '../../../icons/FileTypeIcon';
+import './ConflictResolutionModal.css';
 
 export const ConflictResolutionModal = ({
   isOpen,
   conflicts = [],
-  action = 'copy',
   onResolve, // ({ resolutions, defaultResolution }) => void
   onClose,
 }) => {

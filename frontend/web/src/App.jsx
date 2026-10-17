@@ -7,6 +7,7 @@ import { FloatingActionLayout } from './layouts/FloatingActionLayout';
 import { SettingsLayout } from './layouts/SettingsLayout';
 import { DownloadLayout } from './layouts/DownloadLayout';
 import { ContextMenuLayout } from './layouts/ContextMenuLayout';
+import { NotificationLayout } from './layouts/NotificationLayout';
 import { AppModals } from './components/AppModals';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, checkBatchConflicts, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
@@ -1457,28 +1458,6 @@ function App() {
           drives={drives}
           activeDrive={activeDrive}
           onSelectDrive={handleSelectDrive}
-          deleteModalData={deleteModalData}
-          onCloseDeleteModal={() => setDeleteModalData({ isOpen: false, item: null, isFolder: false })}
-          onDeleteSuccess={(item, isFolder) => {
-            const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
-            if (isFolder) {
-              loadTreeData();
-              setFolders((prev) => prev.filter((f) => normalize(f.path) !== normalize(item?.path)));
-              setTotalFolders((c) => Math.max(0, c - 1));
-            } else {
-              const norm = normalize(item?.path || item?.name);
-              setPictures((prev) => {
-                const next = prev.filter((p) => normalize(p.path || p.name) !== norm);
-                if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
-                return next;
-              });
-              setVideos((prev) => {
-                const next = prev.filter((v) => normalize(v.path || v.name) !== norm);
-                if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
-                return next;
-              });
-            }
-          }}
           showRenameFolderModal={showRenameFolderModal}
           onCloseRenameFolderModal={() => setShowRenameFolderModal(false)}
           targetFolder={targetFolder}
@@ -1489,19 +1468,11 @@ function App() {
           onCloseBatchModal={() => setBatchModalState({ isOpen: false, action: null, items: [] })}
           selectedItems={selectedItems}
           onConfirmBatch={handleExecuteBatch}
-          conflictModalData={conflictModalData}
-          onResolveConflicts={handleResolveConflicts}
-          onCloseConflictModal={() =>
-            setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null })
-          }
-          toastMessage={toastMessage}
         />
       }
       settings={
         <SettingsLayout
-          isConnected={isConnected}
           showConfigModal={showConfigModal}
-          onOpenConfig={() => setShowConfigModal(true)}
           onCloseConfigModal={() => setShowConfigModal(false)}
           onRefresh={handleRefreshAll}
           onServerConfigSaved={handleServerConfigSaved}
@@ -1546,6 +1517,41 @@ function App() {
             handleOpenDeleteItem(folder, true);
           }}
           onRefresh={handleRefreshAll}
+        />
+      }
+      notifications={
+        <NotificationLayout
+          isConnected={isConnected}
+          showConfigModal={showConfigModal}
+          onOpenConfig={() => setShowConfigModal(true)}
+          conflictModalData={conflictModalData}
+          onResolveConflicts={handleResolveConflicts}
+          onCloseConflictModal={() =>
+            setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null })
+          }
+          deleteModalData={deleteModalData}
+          onCloseDeleteModal={() => setDeleteModalData({ isOpen: false, item: null, isFolder: false })}
+          onDeleteSuccess={(item, isFolder) => {
+            const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
+            if (isFolder) {
+              loadTreeData();
+              setFolders((prev) => prev.filter((f) => normalize(f.path) !== normalize(item?.path)));
+              setTotalFolders((c) => Math.max(0, c - 1));
+            } else {
+              const norm = normalize(item?.path || item?.name);
+              setPictures((prev) => {
+                const next = prev.filter((p) => normalize(p.path || p.name) !== norm);
+                if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
+                return next;
+              });
+              setVideos((prev) => {
+                const next = prev.filter((v) => normalize(v.path || v.name) !== norm);
+                if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
+                return next;
+              });
+            }
+          }}
+          toastMessage={toastMessage}
         />
       }
     />

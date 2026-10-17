@@ -1,38 +1,26 @@
 import { memo } from 'react';
-import { SettingsModal, DisconnectedOverlay } from '../components/layout/SettingsLayout';
+import { SettingsModal } from '../components/layout/SettingsLayout';
 import './SettingsLayout.css';
 
 /**
- * SettingsLayout — Area 5: Settings & Server Connection Management
- * Encapsulates the SettingsModal and the disconnected server alert overlay.
+ * SettingsLayout — Area 5: Settings & Server Configuration Management
+ * Encapsulates the SettingsModal for coordinator host, cookies, and cache settings.
  */
 export const SettingsLayout = memo(({
-  isConnected,
   showConfigModal,
-  onOpenConfig,
   onCloseConfigModal,
   onRefresh,
   onServerConfigSaved,
   onServerConfigFailed,
 }) => {
   return (
-    <>
-      {/* A failed health check invalidates every server-backed surface */}
-      <DisconnectedOverlay
-        isConnected={isConnected}
-        showConfigModal={showConfigModal}
-        onOpenConfig={onOpenConfig}
-      />
-
-      {/* Settings Modal */}
-      <SettingsModal
-        isOpen={showConfigModal}
-        onClose={onCloseConfigModal}
-        onRefreshFolder={onRefresh}
-        onServerConfigSaved={onServerConfigSaved}
-        onServerConfigFailed={onServerConfigFailed}
-      />
-    </>
+    <SettingsModal
+      isOpen={showConfigModal}
+      onClose={onCloseConfigModal}
+      onRefreshFolder={onRefresh}
+      onServerConfigSaved={onServerConfigSaved}
+      onServerConfigFailed={onServerConfigFailed}
+    />
   );
 });
 

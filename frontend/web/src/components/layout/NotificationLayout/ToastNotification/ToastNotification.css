@@ -1,0 +1,7 @@
+/* ToastNotification.css — Dedicated styles for floating toast notification */
+.toast-notification {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 999999;
+}
