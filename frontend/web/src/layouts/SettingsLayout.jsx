@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { SettingsModal } from '../components/SettingsModal';
+import { SettingsModal, DisconnectedOverlay } from '../components/SettingsLayout';
 import './SettingsLayout.css';
 
 /**
@@ -18,27 +18,11 @@ export const SettingsLayout = memo(({
   return (
     <>
       {/* A failed health check invalidates every server-backed surface */}
-      {!isConnected && !showConfigModal && (
-        <div
-          className="settings-disconnected-overlay"
-          role="alert"
-          aria-live="assertive"
-        >
-          <div className="settings-disconnected-card">
-            <h2 className="settings-disconnected-title">Chưa kết nối máy chủ</h2>
-            <p className="settings-disconnected-desc">
-              Cần kết nối Coordinator hợp lệ trước khi duyệt thư mục, mở media hoặc tải xuống.
-            </p>
-            <button
-              type="button"
-              onClick={onOpenConfig}
-              className="settings-disconnected-btn"
-            >
-              Mở cài đặt kết nối
-            </button>
-          </div>
-        </div>
-      )}
+      <DisconnectedOverlay
+        isConnected={isConnected}
+        showConfigModal={showConfigModal}
+        onOpenConfig={onOpenConfig}
+      />
 
       {/* Settings Modal */}
       <SettingsModal

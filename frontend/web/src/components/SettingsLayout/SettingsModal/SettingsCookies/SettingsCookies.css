@@ -1,0 +1,32 @@
+/* SettingsCookies.css */
+.settings-cookies-accordion {
+  border: 1px solid #383c42;
+  border-radius: 20px;
+  background-color: rgba(32, 33, 36, 0.6);
+  overflow: hidden;
+}
+
+.settings-cookies-header-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #e5e7eb;
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.settings-cookies-header-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.settings-cookies-card {
+  background-color: #18191c;
+  border: 1px solid rgba(56, 60, 66, 0.6);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  margin-top: 0.75rem;
+}
