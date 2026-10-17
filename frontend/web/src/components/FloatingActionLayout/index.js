@@ -1,1 +1,1 @@
-export { FabSpeedDial } from './FabSpeedDial';
+export { FabSpeedDial } from './FabSpeedDial/FabSpeedDial';
