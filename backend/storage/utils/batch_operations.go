@@ -252,6 +252,12 @@ func ExecuteBatchSameDrive(rootPath string, items []BatchItem, destRelFolder str
 			drive := configs.FindDriveForPath(rootPath)
 			newRelPath := filepath.ToSlash(filepath.Join(cleanDest, fileName))
 			_ = metadata.MoveItemMetadata(drive.ID, item.Path, newRelPath, cleanDest)
+			srcParent := filepath.ToSlash(filepath.Dir(item.Path))
+			if srcParent == "." {
+				srcParent = ""
+			}
+			_ = metadata.InvalidateFolderMeta(drive.ID, srcParent)
+			_ = metadata.InvalidateFolderMeta(drive.ID, cleanDest)
 
 			if info.IsDir() {
 				oldThumb := filepath.Join(rootPath, ".thumbnails", filepath.FromSlash(item.Path))
@@ -309,6 +315,7 @@ func ExecuteBatchSameDrive(rootPath string, items []BatchItem, destRelFolder str
 					return err
 				}
 			}
+			_ = metadata.InvalidateFolderMeta(configs.FindDriveForPath(rootPath).ID, cleanDest)
 			LogInfo("[BATCH SAME-DRIVE] Đã sao chép: %s -> %s", cleanSrc, destFull)
 
 		case "delete":
@@ -346,6 +353,7 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 		cleanDest = ""
 	}
 	destFolder := filepath.Join(destRoot, cleanDest)
+	destDrive := configs.FindDriveForPath(destRoot)
 
 	var copiedBytes int64
 
@@ -378,7 +386,6 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 			} else if item.Resolution == "overwrite" {
 				if _, statErr := os.Stat(destFull); statErr == nil {
 					_ = os.RemoveAll(destFull)
-					destDrive := configs.FindDriveForPath(destRoot)
 					_ = metadata.DeleteItemMetadata(destDrive.ID, filepath.ToSlash(filepath.Join(cleanDest, fileName)))
 					_ = os.Remove(filepath.Join(destRoot, ".thumbnails", filepath.FromSlash(filepath.Join(cleanDest, fileName))+".jpg"))
 				}
@@ -396,6 +403,7 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 					return fmt.Errorf("lỗi sao chép file %s sang %s: %w", srcFull, destFull, err)
 				}
 			}
+			_ = metadata.InvalidateFolderMeta(destDrive.ID, cleanDest)
 			LogInfo("[BATCH CROSS-DRIVE] Đã sao chép liên ổ đĩa: %s -> %s", srcFull, destFull)
 
 		case "move":
@@ -438,6 +446,12 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 				}
 				_ = metadata.DeleteItemMetadata(srcDrive.ID, item.Path)
 			}
+			srcParent := filepath.ToSlash(filepath.Dir(item.Path))
+			if srcParent == "." {
+				srcParent = ""
+			}
+			_ = metadata.InvalidateFolderMeta(srcDrive.ID, srcParent)
+			_ = metadata.InvalidateFolderMeta(destDrive.ID, cleanDest)
 			LogInfo("[BATCH CROSS-DRIVE] Đã di chuyển liên ổ đĩa: %s -> %s", srcFull, destFull)
 
 		case "delete":
@@ -453,6 +467,11 @@ func ExecuteBatchCrossDrive(srcRoot string, destRoot string, items []BatchItem, 
 			} else {
 				_ = metadata.DeleteItemMetadata(srcDrive.ID, item.Path)
 				_ = os.Remove(filepath.Join(srcRoot, ".thumbnails", filepath.FromSlash(item.Path)+".jpg"))
+				parentFolder := filepath.ToSlash(filepath.Dir(item.Path))
+				if parentFolder == "." {
+					parentFolder = ""
+				}
+				_ = metadata.InvalidateFolderMeta(srcDrive.ID, parentFolder)
 			}
 		}
 	}

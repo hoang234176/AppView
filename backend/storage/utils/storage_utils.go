@@ -583,31 +583,41 @@ func GetSubFolders(baseDir string, targetRelPath string) ([]*models.FolderItem, 
 	return folders, nil
 }
 
-// ScanFolderPreviewImages scans the immediate folder directory for up to maxCount media files (images or videos)
-func ScanFolderPreviewImages(fullDir string, relPrefix string, maxCount int) []string {
+// ScanFolderMediaInfo scans the immediate directory (shallow, depth=1) to count pictures, videos, and retrieve up to maxPreviews preview paths
+func ScanFolderMediaInfo(fullDir string, relPrefix string, maxPreviews int) (previews []string, pictureCount int, videoCount int) {
 	entries, err := os.ReadDir(fullDir)
 	if err != nil {
-		return nil
+		return nil, 0, 0
 	}
 
-	var results []string
 	for _, entry := range entries {
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || strings.HasPrefix(entry.Name(), "$") {
 			continue
 		}
-		if IsImageFile(entry.Name()) || IsVideoFile(entry.Name()) {
+		isImg := IsImageFile(entry.Name())
+		isVid := IsVideoFile(entry.Name())
+		if isImg {
+			pictureCount++
+		} else if isVid {
+			videoCount++
+		}
+
+		if (isImg || isVid) && len(previews) < maxPreviews {
 			itemRelPath := filepath.ToSlash(filepath.Join(relPrefix, entry.Name()))
-			results = append(results, itemRelPath)
-			if len(results) >= maxCount {
-				break
-			}
+			previews = append(previews, itemRelPath)
 		}
 	}
 
-	return results
+	return previews, pictureCount, videoCount
 }
 
-// PopulateFolderPreviews enriches FolderItem list with preview thumbnail URLs using SQLite cache
+// ScanFolderPreviewImages scans the immediate folder directory for up to maxCount media files (images or videos)
+func ScanFolderPreviewImages(fullDir string, relPrefix string, maxCount int) []string {
+	previews, _, _ := ScanFolderMediaInfo(fullDir, relPrefix, maxCount)
+	return previews
+}
+
+// PopulateFolderPreviews enriches FolderItem list with preview thumbnail URLs and media counts using SQLite cache
 func PopulateFolderPreviews(drive, baseDir string, folders []*models.FolderItem, baseURL string) {
 	if len(folders) == 0 {
 		return
@@ -631,30 +641,50 @@ func PopulateFolderPreviews(drive, baseDir string, folders []*models.FolderItem,
 			cleanPath = ""
 		}
 
-		if meta, found := metaMap[cleanPath]; found && meta.HasImages && len(meta.Previews) > 0 {
-			allExist := true
-			for _, p := range meta.Previews {
-				fullFilePath := filepath.Join(baseDir, filepath.FromSlash(p))
-				if fi, err := os.Stat(fullFilePath); err != nil || fi.IsDir() {
-					allExist = false
-					break
+		meta, found := metaMap[cleanPath]
+		isCacheValid := false
+
+		if found && meta != nil && meta.ScannedCounts {
+			if len(meta.Previews) > 0 {
+				allExist := true
+				for _, p := range meta.Previews {
+					fullFilePath := filepath.Join(baseDir, filepath.FromSlash(p))
+					if fi, err := os.Stat(fullFilePath); err != nil || fi.IsDir() {
+						allExist = false
+						break
+					}
 				}
-			}
-			if allExist {
-				previewPaths = meta.Previews
+				if allExist {
+					previewPaths = meta.Previews
+					f.PictureCount = meta.PictureCount
+					f.VideoCount = meta.VideoCount
+					isCacheValid = true
+				}
+			} else if !meta.HasImages {
+				// Empty folder or no media files, valid cached state
+				previewPaths = []string{}
+				f.PictureCount = meta.PictureCount
+				f.VideoCount = meta.VideoCount
+				isCacheValid = true
 			}
 		}
 
-		if len(previewPaths) == 0 {
-			// Not cached, empty, or cached files were deleted: rescan to find valid previews
-			previewPaths = ScanFolderPreviewImages(filepath.Join(baseDir, f.Path), f.Path, 2)
+		if !isCacheValid {
+			// Not cached, empty, or cached files were deleted: rescan to find valid previews and counts (shallow, depth=1)
+			var picCount, vidCount int
+			previewPaths, picCount, vidCount = ScanFolderMediaInfo(filepath.Join(baseDir, f.Path), f.Path, 2)
 			hasImages := len(previewPaths) > 0
+			f.PictureCount = picCount
+			f.VideoCount = vidCount
+
 			_ = metadata.UpsertFolderMeta(&metadata.FolderMeta{
-				Drive:     drive,
-				Folder:    cleanPath,
-				HasImages: hasImages,
-				Previews:  previewPaths,
-				UpdatedAt: time.Now(),
+				Drive:        drive,
+				Folder:       cleanPath,
+				HasImages:    hasImages,
+				Previews:     previewPaths,
+				PictureCount: picCount,
+				VideoCount:   vidCount,
+				UpdatedAt:    time.Now(),
 			})
 		}
 
@@ -1011,6 +1041,13 @@ func MoveItem(rootPath string, srcRel string, destRel string) error {
 	newPath := filepath.ToSlash(filepath.Join(destClean, fileName))
 	drive := configs.FindDriveForPath(rootPath)
 	_ = metadata.MoveItemMetadata(drive.ID, srcRel, newPath, destClean)
+
+	srcParent := filepath.ToSlash(filepath.Dir(srcRel))
+	if srcParent == "." {
+		srcParent = ""
+	}
+	_ = metadata.InvalidateFolderMeta(drive.ID, srcParent)
+	_ = metadata.InvalidateFolderMeta(drive.ID, destClean)
 
 	destInfo, _ := os.Stat(destFull)
 

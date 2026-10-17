@@ -5,7 +5,9 @@ type FolderItem struct {
 	Name     string   `json:"name"`               // Tên thư mục (vd: "school", "travel")
 	Path     string   `json:"path"`               // Đường dẫn tương đối (vd: "school")
 	Type     string   `json:"type"`               // Luôn là "folder"
-	Previews []string `json:"previews,omitempty"` // 1-2 ảnh preview (thumbnail URLs)
+	Previews     []string `json:"previews,omitempty"`     // 1-2 ảnh preview (thumbnail URLs)
+	PictureCount int      `json:"picture_count"`          // Số lượng ảnh trực tiếp (depth = 1)
+	VideoCount   int      `json:"video_count"`            // Số lượng video trực tiếp (depth = 1)
 }
 
 // FolderNode dùng cho cây danh mục đệ quy (Sidebar)

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Folder, ArrowRight, Check } from 'lucide-react';
+import { Folder, ArrowRight, Check, Image as ImageIcon, Film } from 'lucide-react';
 import { WindowsFolderIcon } from './icons/WindowsFolderIcon';
 import { RollingNumber } from './common/RollingNumber';
 import { useVirtualGrid } from '../utils/useVirtualGrid';
@@ -13,6 +13,19 @@ const FolderCard = React.memo(({
   onFolderContextMenu,
 }) => {
   const [isCardHovered, setIsCardHovered] = useState(false);
+
+  const pictureCount = folder.picture_count ?? folder.pictureCount ?? 0;
+  const videoCount = folder.video_count ?? folder.videoCount ?? 0;
+  const hasCounts = pictureCount > 0 || videoCount > 0;
+
+  const tooltipTitle = hasCounts
+    ? `${folder.name} (${[
+        pictureCount > 0 ? `${pictureCount} ảnh` : '',
+        videoCount > 0 ? `${videoCount} video` : '',
+      ]
+        .filter(Boolean)
+        .join(', ')})`
+    : folder.name;
 
   return (
     <div
@@ -52,6 +65,24 @@ const FolderCard = React.memo(({
         </div>
       )}
 
+      {/* Media Count Badges — top-right corner stacked vertically */}
+      {hasCounts && (
+        <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-end gap-1 pointer-events-none">
+          {pictureCount > 0 && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm border border-white/10 text-[10px] font-medium text-blue-300 shadow-sm">
+              <ImageIcon className="w-2.5 h-2.5 stroke-[2.5]" />
+              {pictureCount}
+            </span>
+          )}
+          {videoCount > 0 && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm border border-white/10 text-[10px] font-medium text-rose-300 shadow-sm">
+              <Film className="w-2.5 h-2.5 stroke-[2.5]" />
+              {videoCount}
+            </span>
+          )}
+        </div>
+      )}
+
       {/*
         Icon area — flex-1 fills remaining space after footer.
         Total card = aspect-square → icon area becomes a short rectangle.
@@ -77,7 +108,7 @@ const FolderCard = React.memo(({
       <div className="px-3.5 py-3.5 bg-[#202124] rounded-b-[24px] flex items-center gap-2">
         <h3
           className="text-xs font-semibold text-gray-200 group-hover:text-yellow-300 truncate min-w-0 flex-1"
-          title={folder.name}
+          title={tooltipTitle}
         >
           {folder.name}
         </h3>

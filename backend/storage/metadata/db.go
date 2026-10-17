@@ -28,11 +28,14 @@ type MediaMeta struct {
 }
 
 type FolderMeta struct {
-	Drive     string    `json:"drive"`
-	Folder    string    `json:"folder"`
-	HasImages bool      `json:"has_images"`
-	Previews  []string  `json:"previews"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Drive        string    `json:"drive"`
+	Folder       string    `json:"folder"`
+	HasImages    bool      `json:"has_images"`
+	Previews     []string  `json:"previews"`
+	PictureCount  int       `json:"picture_count"`
+	VideoCount    int       `json:"video_count"`
+	ScannedCounts bool      `json:"scanned_counts"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 
@@ -117,6 +120,9 @@ func InitDB() error {
 			folder TEXT NOT NULL,
 			has_images INTEGER DEFAULT 0,
 			previews TEXT DEFAULT '[]',
+			picture_count INTEGER DEFAULT 0,
+			video_count INTEGER DEFAULT 0,
+			scanned_counts INTEGER DEFAULT 0,
 			updated_at INTEGER DEFAULT 0,
 			PRIMARY KEY (drive, folder)
 		);
@@ -128,6 +134,11 @@ func InitDB() error {
 			dbErr = fmt.Errorf("failed to initialize metadata schema: %w", err)
 			return
 		}
+
+		// Backward-compatible migrations for existing databases
+		_, _ = conn.Exec(`ALTER TABLE folder_meta ADD COLUMN picture_count INTEGER DEFAULT 0;`)
+		_, _ = conn.Exec(`ALTER TABLE folder_meta ADD COLUMN video_count INTEGER DEFAULT 0;`)
+		_, _ = conn.Exec(`ALTER TABLE folder_meta ADD COLUMN scanned_counts INTEGER DEFAULT 0;`)
 
 		db = conn
 	})
@@ -423,7 +434,7 @@ func GetFoldersMetadataBatch(drive string, folders []string) (map[string]*Folder
 		args[i+1] = p
 	}
 
-	query := fmt.Sprintf(`SELECT drive, folder, has_images, previews, updated_at
+	query := fmt.Sprintf(`SELECT drive, folder, has_images, previews, picture_count, video_count, scanned_counts, updated_at
 	                      FROM folder_meta WHERE drive = ? AND folder IN (%s)`, strings.Join(placeholders, ","))
 
 	rows, err := db.Query(query, args...)
@@ -434,14 +445,15 @@ func GetFoldersMetadataBatch(drive string, folders []string) (map[string]*Folder
 
 	for rows.Next() {
 		var fm FolderMeta
-		var hasImgInt int
+		var hasImgInt, scannedCountsInt int
 		var prevJSON string
 		var updatedUnix int64
 
-		if err := rows.Scan(&fm.Drive, &fm.Folder, &hasImgInt, &prevJSON, &updatedUnix); err != nil {
+		if err := rows.Scan(&fm.Drive, &fm.Folder, &hasImgInt, &prevJSON, &fm.PictureCount, &fm.VideoCount, &scannedCountsInt, &updatedUnix); err != nil {
 			continue
 		}
 		fm.HasImages = (hasImgInt == 1)
+		fm.ScannedCounts = (scannedCountsInt == 1)
 		fm.UpdatedAt = time.Unix(updatedUnix, 0)
 		_ = json.Unmarshal([]byte(prevJSON), &fm.Previews)
 		result[fm.Folder] = &fm
@@ -469,20 +481,49 @@ func UpsertFolderMeta(meta *FolderMeta) error {
 		hasImgInt = 1
 	}
 
+	scannedCountsInt := 1
+
 	updatedUnix := meta.UpdatedAt.Unix()
 	if updatedUnix <= 0 {
 		updatedUnix = time.Now().Unix()
 	}
 
-	query := `INSERT INTO folder_meta(drive, folder, has_images, previews, updated_at)
-	          VALUES(?, ?, ?, ?, ?)
+	query := `INSERT INTO folder_meta(drive, folder, has_images, previews, picture_count, video_count, scanned_counts, updated_at)
+	          VALUES(?, ?, ?, ?, ?, ?, ?, ?)
 	          ON CONFLICT(drive, folder) DO UPDATE SET
 	              has_images = excluded.has_images,
 	              previews = excluded.previews,
+	              picture_count = excluded.picture_count,
+	              video_count = excluded.video_count,
+	              scanned_counts = 1,
 	              updated_at = excluded.updated_at`
 
-	_, execErr := db.Exec(query, meta.Drive, clean, hasImgInt, string(prevBytes), updatedUnix)
+	_, execErr := db.Exec(query, meta.Drive, clean, hasImgInt, string(prevBytes), meta.PictureCount, meta.VideoCount, scannedCountsInt, updatedUnix)
 	return execErr
+}
+
+// AdjustFolderMediaCount adjusts the cached media counts for a folder when files are added, removed, or moved
+func AdjustFolderMediaCount(drive, folder string, deltaPictures, deltaVideos int) error {
+	if err := InitDB(); err != nil {
+		return err
+	}
+	cleanFolder := filepath.ToSlash(filepath.Clean(folder))
+	if cleanFolder == "." {
+		cleanFolder = ""
+	}
+	now := time.Now().Unix()
+
+	query := `
+	INSERT INTO folder_meta (drive, folder, has_images, previews, picture_count, video_count, scanned_counts, updated_at)
+	VALUES (?, ?, 0, '[]', MAX(0, ?), MAX(0, ?), 1, ?)
+	ON CONFLICT(drive, folder) DO UPDATE SET
+		picture_count = MAX(0, folder_meta.picture_count + ?),
+		video_count = MAX(0, folder_meta.video_count + ?),
+		scanned_counts = 1,
+		updated_at = ?
+	`
+	_, err := db.Exec(query, drive, cleanFolder, deltaPictures, deltaVideos, now, deltaPictures, deltaVideos, now)
+	return err
 }
 
 

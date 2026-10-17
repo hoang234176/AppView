@@ -99,18 +99,22 @@ func TestFolderMeta(t *testing.T) {
 
 	// 1. Insert folder meta
 	fm1 := &FolderMeta{
-		Drive:     "HDD",
-		Folder:    "Albums/Cosplay",
-		HasImages: true,
-		Previews:  []string{"Albums/Cosplay/001.jpg", "Albums/Cosplay/002.jpg"},
-		UpdatedAt: time.Now(),
+		Drive:        "HDD",
+		Folder:       "Albums/Cosplay",
+		HasImages:    true,
+		Previews:     []string{"Albums/Cosplay/001.jpg", "Albums/Cosplay/002.jpg"},
+		PictureCount: 15,
+		VideoCount:   3,
+		UpdatedAt:    time.Now(),
 	}
 	fm2 := &FolderMeta{
-		Drive:     "HDD",
-		Folder:    "Albums/EmptyDoc",
-		HasImages: false,
-		Previews:  []string{},
-		UpdatedAt: time.Now(),
+		Drive:        "HDD",
+		Folder:       "Albums/EmptyDoc",
+		HasImages:    false,
+		Previews:     []string{},
+		PictureCount: 0,
+		VideoCount:   0,
+		UpdatedAt:    time.Now(),
 	}
 
 	if err := UpsertFolderMeta(fm1); err != nil {
@@ -128,11 +132,20 @@ func TestFolderMeta(t *testing.T) {
 	if len(batch) != 2 {
 		t.Fatalf("Expected 2 records, got %d", len(batch))
 	}
-	if !batch["Albums/Cosplay"].HasImages || len(batch["Albums/Cosplay"].Previews) != 2 {
+	if !batch["Albums/Cosplay"].HasImages || len(batch["Albums/Cosplay"].Previews) != 2 || batch["Albums/Cosplay"].PictureCount != 15 || batch["Albums/Cosplay"].VideoCount != 3 {
 		t.Fatalf("Unexpected fm1 data: %+v", batch["Albums/Cosplay"])
 	}
-	if batch["Albums/EmptyDoc"].HasImages || len(batch["Albums/EmptyDoc"].Previews) != 0 {
+	if batch["Albums/EmptyDoc"].HasImages || len(batch["Albums/EmptyDoc"].Previews) != 0 || batch["Albums/EmptyDoc"].PictureCount != 0 {
 		t.Fatalf("Unexpected fm2 data: %+v", batch["Albums/EmptyDoc"])
+	}
+
+	// Test AdjustFolderMediaCount
+	if err := AdjustFolderMediaCount("HDD", "Albums/Cosplay", -2, 1); err != nil {
+		t.Fatalf("AdjustFolderMediaCount failed: %v", err)
+	}
+	batchAdj, err := GetFoldersMetadataBatch("HDD", []string{"Albums/Cosplay"})
+	if err != nil || batchAdj["Albums/Cosplay"].PictureCount != 13 || batchAdj["Albums/Cosplay"].VideoCount != 4 {
+		t.Fatalf("Unexpected counts after adjust: %+v", batchAdj["Albums/Cosplay"])
 	}
 
 	// 3. Rename
