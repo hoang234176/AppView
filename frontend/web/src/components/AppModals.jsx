@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { LightboxModal } from './LightboxModal';
 import { VideoPlayerModal } from './VideoPlayerModal';
 import { MobileNav } from './MobileNav';

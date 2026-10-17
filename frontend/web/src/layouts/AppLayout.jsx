@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * AppLayout — Tahoe UI Top-Level Frame Shell

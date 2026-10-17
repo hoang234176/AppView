@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { FolderGrid } from '../components/FolderGrid';
 import { VideoGrid } from '../components/VideoGrid';
