@@ -1,4 +1,7 @@
 /* AppLayout.css — Top-level Tahoe frame shell */
+
+/* Tahoe island blocks layout: 8px inset padding & 8px gap */
+.tahoe-app-wrapper,
 .app-layout-wrapper {
   display: flex;
   height: 100vh;
@@ -7,6 +10,15 @@
   gap: 8px;
   box-sizing: border-box;
   background-color: var(--bg-app, #0b0c0e);
+  overflow: hidden;
+}
+
+/* Tahoe Island Block styling (Sidebar, Content) */
+.tahoe-block {
+  background-color: var(--bg-tahoe-block, #1c1d21);
+  border: 1px solid var(--border-color, #383c42);
+  border-radius: 24px !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   overflow: hidden;
 }
 

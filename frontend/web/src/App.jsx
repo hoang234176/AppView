@@ -19,7 +19,7 @@ import {
 } from './api/axiosConfig';
 import { isActiveDownload, needsDownloadAttention } from './utils/downloadPresentation';
 import { isMultipartArchive } from './utils/fileType';
-import './styles/index.css';
+import './App.css';
 
 const isSameOrDescendantPath = (candidate, parent) => Boolean(parent) && (candidate === parent || candidate.startsWith(`${parent}/`));
 const parentPath = (path) => {
