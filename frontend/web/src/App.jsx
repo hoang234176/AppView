@@ -10,7 +10,6 @@ import { ContextMenuLayout } from './layouts/ContextMenuLayout';
 import { NotificationLayout } from './layouts/NotificationLayout';
 import { ViewerLayout } from './layouts/ViewerLayout';
 import { FileOperationLayout } from './layouts/FileOperationLayout';
-import { FileOperationProvider } from './contexts/FileOperationContext';
 import {
   useFolderNavigation,
   useRealtimeSync,
@@ -479,6 +478,15 @@ function App() {
     onSelectVideoIndex: (newIdx) => setVideoModalIndex(newIdx),
     infoModalData,
     onCloseInfoModal: () => setInfoModalData((prev) => ({ ...prev, isOpen: false })),
+
+    // File Operations & Batch Dialogs
+    showRenameFolderModal,
+    onCloseRenameFolderModal: () => setShowRenameFolderModal(false),
+    targetFolder,
+    onRenameFolderSubmit: handleRenameFolderSubmit,
+    batchModalState,
+    onCloseBatchModal: () => setBatchModalState({ isOpen: false, action: null, items: [] }),
+    onConfirmBatch: handleExecuteBatch,
   }), [
     currentPath,
     treeData,
@@ -570,34 +578,12 @@ function App() {
     videoModalIndex,
     filteredVideos,
     infoModalData,
-  ]);
-
-  const fileOperationValue = useMemo(() => ({
-    showRenameFolderModal,
-    onCloseRenameFolderModal: () => setShowRenameFolderModal(false),
-    targetFolder,
-    onRenameFolderSubmit: handleRenameFolderSubmit,
-    batchModalState,
-    onCloseBatchModal: () => setBatchModalState({ isOpen: false, action: null, items: [] }),
-    selectedItems,
-    treeData,
-    currentPath,
-    drives,
-    activeDrive,
-    onConfirmBatch: handleExecuteBatch,
-  }), [
-    showRenameFolderModal,
-    setShowRenameFolderModal,
-    targetFolder,
     handleRenameFolderSubmit,
     batchModalState,
     setBatchModalState,
-    selectedItems,
-    treeData,
-    currentPath,
-    drives,
-    activeDrive,
     handleExecuteBatch,
+    showRenameFolderModal,
+    targetFolder,
   ]);
 
   return (
@@ -637,9 +623,7 @@ function App() {
         <ViewerLayout />
 
         {/* Area 10: File Operations & Batch Dialogs */}
-        <FileOperationProvider value={fileOperationValue}>
-          <FileOperationLayout />
-        </FileOperationProvider>
+        <FileOperationLayout />
       </div>
     </NavigationProvider>
   );
