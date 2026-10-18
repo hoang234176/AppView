@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { AppLayout } from './layouts/AppLayout';
 import { SidebarLayout } from './layouts/SidebarLayout';
 import { HeaderLayout } from './layouts/HeaderLayout';
 import { ContentLayout } from './layouts/ContentLayout';
@@ -1329,22 +1328,24 @@ function App() {
   const isConverting = downloadTasks.some((t) => t.stage === 'converting');
 
   return (
-    <AppLayout
-      sidebar={
-        <SidebarLayout
-          currentPath={currentPath}
-          treeData={treeData}
-          folders={filteredFolders}
-          onNavigate={handleNavigate}
-          onFolderContextMenu={handleFolderContextMenu}
-          onEmptyContextMenu={handleEmptyContextMenu}
-          onOpenConfig={() => setShowConfigModal(true)}
-          drives={drives}
-          activeDrive={activeDrive}
-          onSelectDrive={handleSelectDrive}
-        />
-      }
-      header={
+    <div className="tahoe-app-wrapper app-layout-wrapper overflow-hidden">
+      {/* Area 1: Left Column Sidebar */}
+      <SidebarLayout
+        currentPath={currentPath}
+        treeData={treeData}
+        folders={filteredFolders}
+        onNavigate={handleNavigate}
+        onFolderContextMenu={handleFolderContextMenu}
+        onEmptyContextMenu={handleEmptyContextMenu}
+        onOpenConfig={() => setShowConfigModal(true)}
+        drives={drives}
+        activeDrive={activeDrive}
+        onSelectDrive={handleSelectDrive}
+      />
+
+      {/* Right Container: Header + Content Canvas */}
+      <div className="app-main-column">
+        {/* Area 2: Top Header Bar */}
         <HeaderLayout
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1370,8 +1371,8 @@ function App() {
           mxhFilters={mxhFilters}
           setMxhFilters={setMxhFilters}
         />
-      }
-      content={
+
+        {/* Area 3: Main Content Canvas */}
         <ContentLayout
           currentPath={currentPath}
           onNavigate={handleNavigate}
@@ -1407,151 +1408,151 @@ function App() {
           remainingCount={remainingCount}
           onLoadMore={handleLoadMore}
         />
-      }
-      fab={
-        <FloatingActionLayout
-          onCreateFolder={() => setShowCreateFolderModal(true)}
-          onDownloadArchive={() => setShowDownloadMediafireModal(true)}
-          onDownloadMedia={() => setShowDownloadMediaModal(true)}
-          showCreateFolderModal={showCreateFolderModal}
-          onCloseCreateFolderModal={() => setShowCreateFolderModal(false)}
-          onCreateFolderSubmit={handleCreateFolderSubmit}
-          showDownloadMediafireModal={showDownloadMediafireModal}
-          onCloseDownloadMediafireModal={() => setShowDownloadMediafireModal(false)}
-          onDownloadMediafireSuccess={(job) => {
-            handleCoordinatorJobCreated(job);
-            setDownloadPanelTab('active');
-            setShowDownloadPanel(true);
-          }}
-          showDownloadMediaModal={showDownloadMediaModal}
-          onCloseDownloadMediaModal={() => setShowDownloadMediaModal(false)}
-          downloadTasks={downloadTasks}
-          onCoordinatorJobCreated={handleCoordinatorJobCreated}
-          onOpenSettings={() => setShowConfigModal(true)}
-          currentPath={currentPath}
-          treeData={treeData}
-          activeDrive={activeDrive}
-        />
-      }
-      viewer={
-        <ViewerLayout
-          lightbox={lightbox}
-          onCloseLightbox={() => setLightbox(null)}
-          onSelectLightboxIndex={(newIdx) =>
-            setLightbox((current) => (current ? { ...current, index: newIdx } : current))
+      </div>
+
+      {/* Area 4: Floating Action Button */}
+      <FloatingActionLayout
+        onCreateFolder={() => setShowCreateFolderModal(true)}
+        onDownloadArchive={() => setShowDownloadMediafireModal(true)}
+        onDownloadMedia={() => setShowDownloadMediaModal(true)}
+        showCreateFolderModal={showCreateFolderModal}
+        onCloseCreateFolderModal={() => setShowCreateFolderModal(false)}
+        onCreateFolderSubmit={handleCreateFolderSubmit}
+        showDownloadMediafireModal={showDownloadMediafireModal}
+        onCloseDownloadMediafireModal={() => setShowDownloadMediafireModal(false)}
+        onDownloadMediafireSuccess={(job) => {
+          handleCoordinatorJobCreated(job);
+          setDownloadPanelTab('active');
+          setShowDownloadPanel(true);
+        }}
+        showDownloadMediaModal={showDownloadMediaModal}
+        onCloseDownloadMediaModal={() => setShowDownloadMediaModal(false)}
+        downloadTasks={downloadTasks}
+        onCoordinatorJobCreated={handleCoordinatorJobCreated}
+        onOpenSettings={() => setShowConfigModal(true)}
+        currentPath={currentPath}
+        treeData={treeData}
+        activeDrive={activeDrive}
+      />
+
+      {/* Area 5: Settings & Connection Management */}
+      <SettingsLayout
+        showConfigModal={showConfigModal}
+        onCloseConfigModal={() => setShowConfigModal(false)}
+        onRefresh={handleRefreshAll}
+        onServerConfigSaved={handleServerConfigSaved}
+        onServerConfigFailed={handleServerConfigFailed}
+      />
+
+      {/* Area 6: Downloads & Notification */}
+      <DownloadLayout
+        showDownloadPanel={showDownloadPanel}
+        onCloseDownloadPanel={() => setShowDownloadPanel(false)}
+        downloadTasks={downloadTasks}
+        downloadPanelTab={downloadPanelTab}
+        onSelectedTabChange={setDownloadPanelTab}
+        onOpenAddModal={() => {
+          setShowDownloadPanel(false);
+          setShowDownloadMediafireModal(true);
+        }}
+        onDeleteTask={(taskId) => {
+          setDownloadTasks((prev) => prev.filter((t) => t.task_id !== taskId));
+        }}
+        transferTasks={transferTasks}
+        downloadSummary={downloadSummary}
+        onOpenDownloadPanel={() => setShowDownloadPanel(true)}
+      />
+
+      {/* Area 7: Context Menus */}
+      <ContextMenuLayout
+        contextMenu={contextMenu}
+        onClose={handleCloseContextMenu}
+        onCreateFolder={() => setShowCreateFolderModal(true)}
+        onRenameFolder={(folder) => {
+          setTargetFolder(folder);
+          setShowRenameFolderModal(true);
+        }}
+        onCopyFolder={(folder) => {
+          handleCopySingleItem(folder, 'folder');
+        }}
+        onMoveFolder={(folder) => {
+          handleOpenMoveItem(folder, 'folder');
+        }}
+        onDeleteFolder={(folder) => {
+          handleOpenDeleteItem(folder, true);
+        }}
+        onRefresh={handleRefreshAll}
+      />
+
+      {/* Area 8: Notifications, System Alerts & Feedback */}
+      <NotificationLayout
+        isConnected={isConnected}
+        showConfigModal={showConfigModal}
+        onOpenConfig={() => setShowConfigModal(true)}
+        conflictModalData={conflictModalData}
+        onResolveConflicts={handleResolveConflicts}
+        onCloseConflictModal={() =>
+          setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null })
+        }
+        deleteModalData={deleteModalData}
+        onCloseDeleteModal={() => setDeleteModalData({ isOpen: false, item: null, isFolder: false })}
+        onDeleteSuccess={(item, isFolder) => {
+          const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
+          if (isFolder) {
+            loadTreeData();
+            setFolders((prev) => prev.filter((f) => normalize(f.path) !== normalize(item?.path)));
+            setTotalFolders((c) => Math.max(0, c - 1));
+          } else {
+            const norm = normalize(item?.path || item?.name);
+            setPictures((prev) => {
+              const next = prev.filter((p) => normalize(p.path || p.name) !== norm);
+              if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
+              return next;
+            });
+            setVideos((prev) => {
+              const next = prev.filter((v) => normalize(v.path || v.name) !== norm);
+              if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
+              return next;
+            });
           }
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
-          onLoadMore={handleLoadMore}
-          videoModalIndex={videoModalIndex}
-          videos={filteredVideos}
-          onCloseVideoModal={() => setVideoModalIndex(null)}
-          onSelectVideoIndex={(newIdx) => setVideoModalIndex(newIdx)}
-          infoModalData={infoModalData}
-          onCloseInfoModal={() => setInfoModalData((prev) => ({ ...prev, isOpen: false }))}
-        />
-      }
-      fileOperations={
-        <FileOperationLayout
-          showRenameFolderModal={showRenameFolderModal}
-          onCloseRenameFolderModal={() => setShowRenameFolderModal(false)}
-          targetFolder={targetFolder}
-          onRenameFolderSubmit={handleRenameFolderSubmit}
-          batchModalState={batchModalState}
-          onCloseBatchModal={() => setBatchModalState({ isOpen: false, action: null, items: [] })}
-          selectedItems={selectedItems}
-          treeData={treeData}
-          currentPath={currentPath}
-          drives={drives}
-          activeDrive={activeDrive}
-          onConfirmBatch={handleExecuteBatch}
-        />
-      }
-      settings={
-        <SettingsLayout
-          showConfigModal={showConfigModal}
-          onCloseConfigModal={() => setShowConfigModal(false)}
-          onRefresh={handleRefreshAll}
-          onServerConfigSaved={handleServerConfigSaved}
-          onServerConfigFailed={handleServerConfigFailed}
-        />
-      }
-      downloads={
-        <DownloadLayout
-          showDownloadPanel={showDownloadPanel}
-          onCloseDownloadPanel={() => setShowDownloadPanel(false)}
-          downloadTasks={downloadTasks}
-          downloadPanelTab={downloadPanelTab}
-          onSelectedTabChange={setDownloadPanelTab}
-          onOpenAddModal={() => {
-            setShowDownloadPanel(false);
-            setShowDownloadMediafireModal(true);
-          }}
-          onDeleteTask={(taskId) => {
-            setDownloadTasks((prev) => prev.filter((t) => t.task_id !== taskId));
-          }}
-          transferTasks={transferTasks}
-          downloadSummary={downloadSummary}
-          onOpenDownloadPanel={() => setShowDownloadPanel(true)}
-        />
-      }
-      contextMenu={
-        <ContextMenuLayout
-          contextMenu={contextMenu}
-          onClose={handleCloseContextMenu}
-          onCreateFolder={() => setShowCreateFolderModal(true)}
-          onRenameFolder={(folder) => {
-            setTargetFolder(folder);
-            setShowRenameFolderModal(true);
-          }}
-          onCopyFolder={(folder) => {
-            handleCopySingleItem(folder, 'folder');
-          }}
-          onMoveFolder={(folder) => {
-            handleOpenMoveItem(folder, 'folder');
-          }}
-          onDeleteFolder={(folder) => {
-            handleOpenDeleteItem(folder, true);
-          }}
-          onRefresh={handleRefreshAll}
-        />
-      }
-      notifications={
-        <NotificationLayout
-          isConnected={isConnected}
-          showConfigModal={showConfigModal}
-          onOpenConfig={() => setShowConfigModal(true)}
-          conflictModalData={conflictModalData}
-          onResolveConflicts={handleResolveConflicts}
-          onCloseConflictModal={() =>
-            setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null })
-          }
-          deleteModalData={deleteModalData}
-          onCloseDeleteModal={() => setDeleteModalData({ isOpen: false, item: null, isFolder: false })}
-          onDeleteSuccess={(item, isFolder) => {
-            const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
-            if (isFolder) {
-              loadTreeData();
-              setFolders((prev) => prev.filter((f) => normalize(f.path) !== normalize(item?.path)));
-              setTotalFolders((c) => Math.max(0, c - 1));
-            } else {
-              const norm = normalize(item?.path || item?.name);
-              setPictures((prev) => {
-                const next = prev.filter((p) => normalize(p.path || p.name) !== norm);
-                if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
-                return next;
-              });
-              setVideos((prev) => {
-                const next = prev.filter((v) => normalize(v.path || v.name) !== norm);
-                if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
-                return next;
-              });
-            }
-          }}
-          toastMessage={toastMessage}
-        />
-      }
-    />
+        }}
+        toastMessage={toastMessage}
+      />
+
+      {/* Area 9: Media Viewers & Player Modals */}
+      <ViewerLayout
+        lightbox={lightbox}
+        onCloseLightbox={() => setLightbox(null)}
+        onSelectLightboxIndex={(newIdx) =>
+          setLightbox((current) => (current ? { ...current, index: newIdx } : current))
+        }
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadMore={handleLoadMore}
+        videoModalIndex={videoModalIndex}
+        videos={filteredVideos}
+        onCloseVideoModal={() => setVideoModalIndex(null)}
+        onSelectVideoIndex={(newIdx) => setVideoModalIndex(newIdx)}
+        infoModalData={infoModalData}
+        onCloseInfoModal={() => setInfoModalData((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Area 10: File Operations & Batch Dialogs */}
+      <FileOperationLayout
+        showRenameFolderModal={showRenameFolderModal}
+        onCloseRenameFolderModal={() => setShowRenameFolderModal(false)}
+        targetFolder={targetFolder}
+        onRenameFolderSubmit={handleRenameFolderSubmit}
+        batchModalState={batchModalState}
+        onCloseBatchModal={() => setBatchModalState({ isOpen: false, action: null, items: [] })}
+        selectedItems={selectedItems}
+        treeData={treeData}
+        currentPath={currentPath}
+        drives={drives}
+        activeDrive={activeDrive}
+        onConfirmBatch={handleExecuteBatch}
+      />
+    </div>
   );
 }
 
