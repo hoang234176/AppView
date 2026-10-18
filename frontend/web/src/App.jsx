@@ -4,7 +4,6 @@ import { NavigationProvider } from './contexts/NavigationContext';
 import { HeaderLayout } from './layouts/HeaderLayout';
 import { ContentLayout } from './layouts/ContentLayout';
 import { FloatingActionLayout } from './layouts/FloatingActionLayout';
-import { FloatingActionProvider } from './contexts/FloatingActionContext';
 import { SettingsLayout } from './layouts/SettingsLayout';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { DownloadLayout } from './layouts/DownloadLayout';
@@ -402,6 +401,26 @@ function App() {
     isLoadingMore,
     remainingCount,
     onLoadMore: handleLoadMore,
+
+    // Floating Action Modals
+    onCreateFolder: () => setShowCreateFolderModal(true),
+    onDownloadArchive: () => setShowDownloadMediafireModal(true),
+    onDownloadMedia: () => setShowDownloadMediaModal(true),
+    showCreateFolderModal,
+    onCloseCreateFolderModal: () => setShowCreateFolderModal(false),
+    onCreateFolderSubmit: handleCreateFolderSubmit,
+    showDownloadMediafireModal,
+    onCloseDownloadMediafireModal: () => setShowDownloadMediafireModal(false),
+    onDownloadMediafireSuccess: (job) => {
+      handleCoordinatorJobCreated(job);
+      setDownloadPanelTab('active');
+      setShowDownloadPanel(true);
+    },
+    showDownloadMediaModal,
+    onCloseDownloadMediaModal: () => setShowDownloadMediaModal(false),
+    downloadTasks,
+    onCoordinatorJobCreated: handleCoordinatorJobCreated,
+    onOpenSettings: () => setShowConfigModal(true),
   }), [
     currentPath,
     treeData,
@@ -460,47 +479,17 @@ function App() {
     isLoadingMore,
     remainingCount,
     handleLoadMore,
-  ]);
-
-
-  const floatingActionValue = useMemo(() => ({
-    onCreateFolder: () => setShowCreateFolderModal(true),
-    onDownloadArchive: () => setShowDownloadMediafireModal(true),
-    onDownloadMedia: () => setShowDownloadMediaModal(true),
-    showCreateFolderModal,
-    onCloseCreateFolderModal: () => setShowCreateFolderModal(false),
-    onCreateFolderSubmit: handleCreateFolderSubmit,
-    showDownloadMediafireModal,
-    onCloseDownloadMediafireModal: () => setShowDownloadMediafireModal(false),
-    onDownloadMediafireSuccess: (job) => {
-      handleCoordinatorJobCreated(job);
-      setDownloadPanelTab('active');
-      setShowDownloadPanel(true);
-    },
-    showDownloadMediaModal,
-    onCloseDownloadMediaModal: () => setShowDownloadMediaModal(false),
-    downloadTasks,
-    onCoordinatorJobCreated: handleCoordinatorJobCreated,
-    onOpenSettings: () => setShowConfigModal(true),
-    currentPath,
-    treeData,
-    activeDrive,
-  }), [
     showCreateFolderModal,
     handleCreateFolderSubmit,
     showDownloadMediafireModal,
     setShowDownloadMediafireModal,
     handleCoordinatorJobCreated,
     setDownloadPanelTab,
-    setShowDownloadPanel,
     showDownloadMediaModal,
     setShowDownloadMediaModal,
     downloadTasks,
-    setShowConfigModal,
-    currentPath,
-    treeData,
-    activeDrive,
   ]);
+
 
   const settingsValue = useMemo(() => ({
     showConfigModal,
@@ -668,9 +657,8 @@ function App() {
         </div>
 
         {/* Area 4: Floating Action Button */}
-        <FloatingActionProvider value={floatingActionValue}>
-          <FloatingActionLayout />
-        </FloatingActionProvider>
+        <FloatingActionLayout />
+
 
         {/* Area 5: Settings & Connection Management */}
         <SettingsProvider value={settingsValue}>
