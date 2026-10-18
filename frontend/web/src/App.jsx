@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SidebarLayout } from './layouts/SidebarLayout';
 import { HeaderLayout } from './layouts/HeaderLayout';
 import { ContentLayout } from './layouts/ContentLayout';
@@ -46,8 +46,7 @@ function App() {
   const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0, mode: 'empty', folder: null });
 
   // Toast Notification State
-  const [toastMessage, setToastMessage] = useState(null);
-  const toastTimerRef = useRef(null);
+  const [toastMessage] = useState(null);
 
   // 1. Navigation & Content Hook
   const {
@@ -215,7 +214,7 @@ function App() {
     setIsConnected(true);
   };
 
-  const handleServerConfigFailed = (message) => {
+  const handleServerConfigFailed = useCallback((message) => {
     if (activeControllerRef.current) activeControllerRef.current.abort();
     setIsConnected(false);
     setFolders([]);
@@ -228,7 +227,7 @@ function App() {
       status: 'Lỗi kết nối máy chủ',
       message: message || 'Không thể kết nối đến Coordinator trên máy chủ vừa nhập.',
     });
-  };
+  }, [activeControllerRef, setErrorInfo, setFolders, setPictures, setTotalFolders, setTotalPictures, setTotalVideos, setVideos]);
 
   useEffect(() => {
     let active = true;
@@ -239,7 +238,7 @@ function App() {
       else handleServerConfigFailed(result.message);
     });
     return () => { active = false; };
-  }, [configVersion]);
+  }, [configVersion, handleServerConfigFailed]);
 
   // Viewers & Modals Handlers
   const handleShowMediaInfo = (item, type) => {
