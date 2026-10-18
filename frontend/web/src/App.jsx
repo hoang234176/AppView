@@ -5,7 +5,6 @@ import { HeaderLayout } from './layouts/HeaderLayout';
 import { ContentLayout } from './layouts/ContentLayout';
 import { FloatingActionLayout } from './layouts/FloatingActionLayout';
 import { SettingsLayout } from './layouts/SettingsLayout';
-import { SettingsProvider } from './contexts/SettingsContext';
 import { DownloadLayout } from './layouts/DownloadLayout';
 import { DownloadProvider } from './contexts/DownloadContext';
 import { ContextMenuLayout } from './layouts/ContextMenuLayout';
@@ -421,6 +420,13 @@ function App() {
     downloadTasks,
     onCoordinatorJobCreated: handleCoordinatorJobCreated,
     onOpenSettings: () => setShowConfigModal(true),
+
+    // Settings & Connection Management
+    showConfigModal,
+    onCloseConfigModal: () => setShowConfigModal(false),
+    onRefresh: handleRefreshAll,
+    onServerConfigSaved: handleServerConfigSaved,
+    onServerConfigFailed: handleServerConfigFailed,
   }), [
     currentPath,
     treeData,
@@ -488,18 +494,7 @@ function App() {
     showDownloadMediaModal,
     setShowDownloadMediaModal,
     downloadTasks,
-  ]);
-
-
-  const settingsValue = useMemo(() => ({
     showConfigModal,
-    onCloseConfigModal: () => setShowConfigModal(false),
-    onRefresh: handleRefreshAll,
-    onServerConfigSaved: handleServerConfigSaved,
-    onServerConfigFailed: handleServerConfigFailed,
-  }), [
-    showConfigModal,
-    handleRefreshAll,
     handleServerConfigSaved,
     handleServerConfigFailed,
   ]);
@@ -661,9 +656,7 @@ function App() {
 
 
         {/* Area 5: Settings & Connection Management */}
-        <SettingsProvider value={settingsValue}>
-          <SettingsLayout />
-        </SettingsProvider>
+        <SettingsLayout />
 
         {/* Area 6: Downloads & Notification */}
         <DownloadProvider value={downloadValue}>
