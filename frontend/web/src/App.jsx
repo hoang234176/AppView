@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { SidebarLayout } from './layouts/SidebarLayout';
 import { HeaderLayout } from './layouts/HeaderLayout';
 import { ContentLayout } from './layouts/ContentLayout';
@@ -9,166 +9,202 @@ import { ContextMenuLayout } from './layouts/ContextMenuLayout';
 import { NotificationLayout } from './layouts/NotificationLayout';
 import { ViewerLayout } from './layouts/ViewerLayout';
 import { FileOperationLayout } from './layouts/FileOperationLayout';
-import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, checkBatchConflicts, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
-import { fetchCoordinatorDownloads } from './api/downloadApi';
+import {
+  useFolderNavigation,
+  useRealtimeSync,
+  useCoordinatorDownloads,
+  useBatchOperations,
+  useMediaFilter,
+} from './hooks';
+import { createNewFolder, renameFolder } from './api/folderApi';
 import {
   getApiBaseUrl,
   isServerConfigured,
   getServerHost,
-  saveServerConfig,
   validateCoordinatorHost,
-  getCoordinatorEventsWsUrl,
-  getActiveDrive,
-  setActiveDrive,
 } from './api/axiosConfig';
-import { isActiveDownload, needsDownloadAttention } from './utils/downloadPresentation';
-import { isMultipartArchive } from './utils/fileType';
 import './App.css';
 
-const isSameOrDescendantPath = (candidate, parent) => Boolean(parent) && (candidate === parent || candidate.startsWith(`${parent}/`));
-const parentPath = (path) => {
-  const separator = path.lastIndexOf('/');
-  return separator === -1 ? '' : path.slice(0, separator);
-};
-const replacePathPrefix = (path, oldPrefix, newPrefix) => path === oldPrefix ? newPrefix : `${newPrefix}${path.slice(oldPrefix.length)}`;
-
 function App() {
-
-  const getInitialPathFromUrl = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('path') || '';
-  };
-
-  const [currentPath, setCurrentPath] = useState(getInitialPathFromUrl);
-  const [drives, setDrives] = useState([]);
-  const [activeDrive, setActiveDriveState] = useState(getActiveDrive);
-  const [folders, setFolders] = useState([]);
-  const [pictures, setPictures] = useState([]);
-  const [videos, setVideos] = useState([]);
-  const [totalFolders, setTotalFolders] = useState(0);
-  const [totalPictures, setTotalPictures] = useState(0);
-  const [totalVideos, setTotalVideos] = useState(0);
-  const [treeData, setTreeData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [errorInfo, setErrorInfo] = useState(null);
-	// Server-backed UI becomes usable only after Coordinator /health succeeds.
-	// Presence of a configured host is intentionally not treated as connected.
+  // Server Configuration & Connection State
+  const [, setApiBaseUrl] = useState(getApiBaseUrl());
+  const [configVersion, setConfigVersion] = useState(0);
+  const [showConfigModal, setShowConfigModal] = useState(!isServerConfigured());
   const [isConnected, setIsConnected] = useState(false);
 
+  // Search & Viewer Modals State
   const [searchQuery, setSearchQuery] = useState('');
   const [lightbox, setLightbox] = useState(null);
   const [videoModalIndex, setVideoModalIndex] = useState(null);
-
-  const [apiBaseUrl, setApiBaseUrl] = useState(getApiBaseUrl());
-  const [configVersion, setConfigVersion] = useState(0);
-  const [showConfigModal, setShowConfigModal] = useState(!isServerConfigured());
-
-  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
-  const [showRenameFolderModal, setShowRenameFolderModal] = useState(false);
-  const [targetFolder, setTargetFolder] = useState(null);
   const [infoModalData, setInfoModalData] = useState({ isOpen: false, item: null, type: 'picture' });
   const [deleteModalData, setDeleteModalData] = useState({ isOpen: false, item: null, isFolder: false });
 
-  // Download Service State
-  const [downloadTasks, setDownloadTasks] = useState([]);
-  const [downloadSummary, setDownloadSummary] = useState(null);
-  const [showDownloadPanel, setShowDownloadPanel] = useState(false);
-  const [downloadPanelTab, setDownloadPanelTab] = useState('active');
-  const [showDownloadMediafireModal, setShowDownloadMediafireModal] = useState(false);
-  const [showDownloadMediaModal, setShowDownloadMediaModal] = useState(false);
-  const coordinatorPollersRef = useRef(new Map());
-  const isMountedRef = useRef(true);
-  const realtimeSocketRef = useRef(null);
-  const realtimeReconnectTimerRef = useRef(null);
-  const realtimeRefreshTimerRef = useRef(null);
-  const realtimeRefreshRef = useRef(null);
-  const refreshCoordinatorDownloadsRef = useRef(null);
-  const downloadRefreshTimerRef = useRef(null);
-  const downloadRefreshSequenceRef = useRef(0);
-  const loadDrivesRef = useRef(null);
-
-  const PAGE_SIZE = 20;
-  const [folderLimit, setFolderLimit] = useState(PAGE_SIZE);
-  const [pictureLimit, setPictureLimit] = useState(PAGE_SIZE);
-  const [videoLimit, setVideoLimit] = useState(PAGE_SIZE);
-
-  useEffect(() => {
-    setFolderLimit(PAGE_SIZE);
-    setPictureLimit(PAGE_SIZE);
-    setVideoLimit(PAGE_SIZE);
-  }, [currentPath, searchQuery]);
-
-  const handleShowMediaInfo = (item, type) => {
-    setInfoModalData({ isOpen: true, item, type });
-  };
-
-  const handleOpenMoveItem = useCallback((item, type = 'folder') => {
-    setBatchModalState({
-      isOpen: true,
-      action: 'move',
-      items: [{ type, item }],
-    });
-  }, []);
-
-  const handleOpenDeleteItem = (item, isFolder = false) => {
-    setDeleteModalData({ isOpen: true, item, isFolder });
-  };
-
+  // Folder Dialogs & Context Menu State
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [showRenameFolderModal, setShowRenameFolderModal] = useState(false);
+  const [targetFolder, setTargetFolder] = useState(null);
   const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0, mode: 'empty', folder: null });
 
-  const handleCloseContextMenu = () => {
-    setContextMenu({ isOpen: false, x: 0, y: 0, mode: 'empty', folder: null });
-  };
-
-  // Select Mode State
-  const [isSelectMode, setIsSelectMode] = useState(false);
-  const [selectedItems, setSelectedItems] = useState(new Map());
-  const [batchModalState, setBatchModalState] = useState({ isOpen: false, action: null });
-  const [conflictModalData, setConflictModalData] = useState({
-    isOpen: false,
-    conflicts: [],
-    action: 'copy',
-    pendingBatch: null,
-  });
-  const [transferTasks, setTransferTasks] = useState([]);
-  const transferTasksRef = useRef(transferTasks);
-  transferTasksRef.current = transferTasks;
+  // Toast Notification State
   const [toastMessage, setToastMessage] = useState(null);
   const toastTimerRef = useRef(null);
-  const transferPollRef = useRef(null);
 
-  const showToast = (message) => {
-    setToastMessage(message);
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
-  };
+  // 1. Navigation & Content Hook
+  const {
+    currentPath,
+    setCurrentPath,
+    updateUrlPath,
+    drives,
+    setDrives,
+    loadDrives,
+    activeDrive,
+    handleSelectDrive,
+    folders,
+    setFolders,
+    totalFolders,
+    setTotalFolders,
+    pictures,
+    setPictures,
+    totalPictures,
+    setTotalPictures,
+    videos,
+    setVideos,
+    totalVideos,
+    setTotalVideos,
+    treeData,
+    loadTreeData,
+    loading,
+    isLoadingMore,
+    errorInfo,
+    setErrorInfo,
+    loadData,
+    handleNavigate,
+    handleRefreshAll,
+    hasMore,
+    remainingCount,
+    handleLoadMore,
+    activeControllerRef,
+  } = useFolderNavigation({
+    configVersion,
+    isConnected,
+    setIsConnected,
+    setShowConfigModal,
+    searchQuery,
+    setSearchQuery,
+  });
 
-  const handleEnterSelectMode = () => {
-    setIsSelectMode(true);
-  };
+  // 2. Media Filter & Search Hook
+  const {
+    fileTypeFilters,
+    setFileTypeFilters,
+    mxhFilters,
+    setMxhFilters,
+    filteredFolders,
+    filteredPictures,
+    filteredVideos,
+    visibleFolders,
+    visiblePictures,
+    visibleVideos,
+    hasContent,
+  } = useMediaFilter({
+    folders,
+    pictures,
+    videos,
+    searchQuery,
+  });
 
-  const handleExitSelectMode = () => {
-    setIsSelectMode(false);
-    setSelectedItems(new Map());
-  };
+  // 3. Batch Operations & Selection Hook
+  const {
+    isSelectMode,
+    selectedItems,
+    batchModalState,
+    setBatchModalState,
+    conflictModalData,
+    setConflictModalData,
+    transferTasks,
+    setTransferTasks,
+    handleEnterSelectMode,
+    handleExitSelectMode,
+    handleToggleSelectItem,
+    handleToggleSelectAllFolders,
+    handleToggleSelectAllPictures,
+    handleToggleSelectAllVideos,
+    handleBatchCopy,
+    handleBatchMove,
+    handleBatchDelete,
+    handleCopySingleItem,
+    handleOpenMoveItem,
+    handleExecuteBatch,
+    handleResolveConflicts,
+  } = useBatchOperations({
+    activeDrive,
+    currentPath,
+    handleRefreshAll,
+    loadData,
+    loadTreeData,
+    setFolders,
+    setPictures,
+    setVideos,
+    setTotalFolders,
+    setTotalPictures,
+    setTotalVideos,
+    updateUrlPath,
+    setCurrentPath,
+    visibleFolders,
+    visiblePictures,
+    visibleVideos,
+  });
 
-  const activeControllerRef = useRef(null);
-  const handleRefreshAllRef = useRef(null);
+  // 4. Coordinator Downloads Hook
+  const {
+    downloadTasks,
+    setDownloadTasks,
+    downloadSummary,
+    showDownloadPanel,
+    setShowDownloadPanel,
+    downloadPanelTab,
+    setDownloadPanelTab,
+    showDownloadMediafireModal,
+    setShowDownloadMediafireModal,
+    showDownloadMediaModal,
+    setShowDownloadMediaModal,
+    refreshCoordinatorDownloads,
+    handleCoordinatorJobCreated,
+    activeDownloadCount,
+    downloadProgressPercent,
+    isDownloadingMode,
+    hasPasswordError,
+    isScanning,
+    isConverting,
+  } = useCoordinatorDownloads({
+    isConnected,
+  });
 
-  const updateUrlPath = (path) => {
-    const url = new URL(window.location.href);
-    if (path && path.trim() !== '') {
-      url.searchParams.set('path', path);
-    } else {
-      url.searchParams.delete('path');
-    }
-    window.history.pushState({ path }, '', url.toString());
-  };
+  // 5. WebSocket Realtime Sync Hook
+  useRealtimeSync({
+    isConnected,
+    configVersion,
+    activeDrive,
+    currentPath,
+    setCurrentPath,
+    updateUrlPath,
+    setSearchQuery,
+    loadTreeData,
+    loadData,
+    loadDrives,
+    setDrives,
+    setFolders,
+    setPictures,
+    setVideos,
+    setTotalFolders,
+    setTotalPictures,
+    setTotalVideos,
+    setTransferTasks,
+    handleRefreshAll,
+    refreshCoordinatorDownloads,
+  });
 
+  // Server Config Handlers
   const handleServerConfigSaved = () => {
     const baseUrl = getApiBaseUrl();
     setApiBaseUrl(baseUrl);
@@ -176,14 +212,12 @@ function App() {
     updateUrlPath('');
     setCurrentPath('');
     setSearchQuery('');
-	setIsConnected(true);
+    setIsConnected(true);
   };
 
   const handleServerConfigFailed = (message) => {
-	if (activeControllerRef.current) activeControllerRef.current.abort();
-	if (realtimeSocketRef.current) realtimeSocketRef.current.close();
+    if (activeControllerRef.current) activeControllerRef.current.abort();
     setIsConnected(false);
-    setTreeData([]);
     setFolders([]);
     setPictures([]);
     setVideos([]);
@@ -196,643 +230,38 @@ function App() {
     });
   };
 
-	useEffect(() => {
-	  let active = true;
-	  if (!isServerConfigured()) return () => { active = false; };
-	  validateCoordinatorHost(getServerHost()).then((result) => {
-		if (!active) return;
-		if (result.success) setIsConnected(true);
-		else handleServerConfigFailed(result.message);
-	  });
-	  return () => { active = false; };
-	}, [configVersion]);
-
-  const handleSaveServerConfig = (host) => {
-    saveServerConfig(host);
-    handleServerConfigSaved();
-  };
-
   useEffect(() => {
-    const handlePopState = () => {
-      const pathFromUrl = new URLSearchParams(window.location.search).get('path') || '';
-      setCurrentPath(pathFromUrl);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    let active = true;
+    if (!isServerConfigured()) return () => { active = false; };
+    validateCoordinatorHost(getServerHost()).then((result) => {
+      if (!active) return;
+      if (result.success) setIsConnected(true);
+      else handleServerConfigFailed(result.message);
+    });
+    return () => { active = false; };
   }, [configVersion]);
 
-  const loadDrives = useCallback(async () => {
-    try {
-      const loadedDrives = await fetchDrives();
-      if (Array.isArray(loadedDrives) && loadedDrives.length > 0) {
-        setDrives(loadedDrives);
-      }
-    } catch {
-      // Ignore error
-    }
-  }, []);
-
-  useEffect(() => {
-    loadDrives();
-  }, [configVersion, loadDrives]);
-
-  const handleSelectDrive = (driveId) => {
-    if (driveId === activeDrive) return;
-    if (isSelectMode) {
-      handleExitSelectMode();
-    }
-    setActiveDrive(driveId);
-    setActiveDriveState(driveId);
-    setCurrentPath('');
-    updateUrlPath('');
-    setPage(1);
+  // Viewers & Modals Handlers
+  const handleShowMediaInfo = (item, type) => {
+    setInfoModalData({ isOpen: true, item, type });
   };
 
-  const loadTreeData = useCallback(async (drive = activeDrive) => {
-    if (!isServerConfigured()) {
-      setTreeData([]);
-      setIsConnected(false);
-      return;
-    }
-    const result = await fetchFolderTree(drive);
-    if (result.success) {
-      setTreeData(result.data || []);
-    } else {
-      setTreeData([]);
-    }
-  }, [activeDrive]);
-
-  const loadData = useCallback(async (path = currentPath, opts = {}, isSilent = false) => {
-    if (activeControllerRef.current) {
-      activeControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    activeControllerRef.current = controller;
-
-    if (!isSilent) {
-      setLoading(true);
-    } else {
-      setIsLoadingMore(true);
-    }
-    setErrorInfo(null);
-
-    if (!isServerConfigured()) {
-      setFolders([]);
-      setPictures([]);
-      setVideos([]);
-      setTotalFolders(0);
-      setTotalPictures(0);
-      setTotalVideos(0);
-      setLoading(false);
-      setIsLoadingMore(false);
-      setIsConnected(false);
-      setErrorInfo({
-        status: 'Chưa cấu hình máy chủ',
-        message: 'Vui lòng nhập Server Host trong phần cài đặt để bắt đầu.',
-      });
-      setShowConfigModal(true);
-      return;
-    }
-
-    try {
-      const queryOpts = {
-        limit: opts.limit !== undefined ? opts.limit : 0,
-        page: opts.page || 1,
-      };
-
-      const result = await fetchFolderContents(path, queryOpts, controller.signal);
-
-      if (controller.signal.aborted || result.canceled) {
-        return;
-      }
-
-      if (result.success) {
-        if (isSilent) {
-          setFolders((prev) => {
-            const existing = new Set(prev.map((f) => f.path || f.name));
-            const newItems = (result.data.folders || []).filter((f) => !existing.has(f.path || f.name));
-            return [...prev, ...newItems];
-          });
-          setPictures((prev) => {
-            const existing = new Set(prev.map((p) => p.path || p.name));
-            const newItems = (result.data.pictures || []).filter((p) => !existing.has(p.path || p.name));
-            return [...prev, ...newItems];
-          });
-          setVideos((prev) => {
-            const existing = new Set(prev.map((v) => v.path || v.name));
-            const newItems = (result.data.videos || []).filter((v) => !existing.has(v.path || v.name));
-            return [...prev, ...newItems];
-          });
-        } else {
-          setFolders(result.data.folders || []);
-          setPictures(result.data.pictures || []);
-          setVideos(result.data.videos || []);
-        }
-        setTotalFolders(result.data.totalFolders ?? (result.data.folders || []).length);
-        setTotalPictures(result.data.totalPictures ?? (result.data.pictures || []).length);
-        setTotalVideos(result.data.totalVideos ?? (result.data.videos || []).length);
-        setErrorInfo(null);
-      } else {
-        if (!isSilent) {
-          setFolders([]);
-          setPictures([]);
-          setVideos([]);
-          setTotalFolders(0);
-          setTotalPictures(0);
-          setTotalVideos(0);
-        }
-        setErrorInfo(result);
-      }
-    } catch (err) {
-      if (!controller.signal.aborted) {
-        setErrorInfo({ status: 500, message: 'Lỗi tải dữ liệu' });
-      }
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-        setIsLoadingMore(false);
-      }
-    }
-  }, [currentPath, activeDrive]);
-
-  const refreshFromFilesystemEvent = useCallback((event = null) => {
-    if (event?.drive && activeDrive && event.drive.toUpperCase() !== activeDrive.toUpperCase()) {
-      return;
-    }
-    let nextPath = currentPath;
-    let refreshCurrent = event === null;
-    const type = event?.type;
-    const oldPath = event?.oldPath || event?.path || '';
-    const newPath = event?.newPath || event?.path || '';
-    const oldParentPath = event?.oldParentPath || parentPath(oldPath);
-    const newParentPath = event?.newParentPath || event?.parentPath || parentPath(newPath);
-
-    const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
-    const normCurrent = normalize(currentPath);
-    const normOldParent = normalize(oldParentPath);
-    const normNewParent = normalize(newParentPath);
-    const normOld = normalize(oldPath);
-    const normNew = normalize(newPath);
-
-    // 1. File Created - Incremental prepend without reloading entire folder
-    if (type === 'file_created') {
-      if (normCurrent === normNewParent || normCurrent === normOldParent) {
-        if (event.item) {
-          const formatted = normalizeMediaItem(event.item, activeDrive);
-          if (formatted.type === 'video') {
-            setVideos((prev) => [formatted, ...prev.filter((v) => normalize(v.path) !== normNew)]);
-            setTotalVideos((c) => c + 1);
-          } else {
-            setPictures((prev) => [formatted, ...prev.filter((p) => normalize(p.path) !== normNew)]);
-            setTotalPictures((c) => c + 1);
-          }
-          return;
-        }
-        refreshCurrent = true;
-      } else {
-        return;
-      }
-    }
-
-    // 2. File Deleted - Incremental filter without reloading entire folder
-    if (type === 'file_deleted') {
-      if (normCurrent === normOldParent || normCurrent === normNewParent) {
-        setPictures((prev) => {
-          const next = prev.filter((p) => normalize(p.path) !== normOld);
-          if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
-          return next;
-        });
-        setVideos((prev) => {
-          const next = prev.filter((v) => normalize(v.path) !== normOld);
-          if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
-          return next;
-        });
-        return;
-      }
-      return;
-    }
-
-    // 3. File Moved
-    if (type === 'file_moved') {
-      if (normCurrent === normOldParent) {
-        setPictures((prev) => {
-          const next = prev.filter((p) => normalize(p.path) !== normOld);
-          if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
-          return next;
-        });
-        setVideos((prev) => {
-          const next = prev.filter((v) => normalize(v.path) !== normOld);
-          if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
-          return next;
-        });
-      }
-      if (normCurrent === normNewParent) {
-        if (event.item) {
-          const formatted = normalizeMediaItem(event.item, activeDrive);
-          if (formatted.type === 'video') {
-            setVideos((prev) => [formatted, ...prev.filter((v) => normalize(v.path) !== normNew)]);
-            setTotalVideos((c) => c + 1);
-          } else {
-            setPictures((prev) => [formatted, ...prev.filter((p) => normalize(p.path) !== normNew)]);
-            setTotalPictures((c) => c + 1);
-          }
-        } else {
-          refreshCurrent = true;
-        }
-      }
-      if (normCurrent !== normOldParent && normCurrent !== normNewParent) {
-        return;
-      }
-      if (!refreshCurrent) return;
-    }
-
-    // 4. Batch Items Deleted
-    if (type === 'items_deleted') {
-      const delSet = new Set((event.paths || []).map(normalize));
-      setFolders((prev) => {
-        const next = prev.filter((f) => !delSet.has(normalize(f.path)));
-        if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - (prev.length - next.length)));
-        return next;
-      });
-      setPictures((prev) => {
-        const next = prev.filter((p) => !delSet.has(normalize(p.path)));
-        if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - (prev.length - next.length)));
-        return next;
-      });
-      setVideos((prev) => {
-        const next = prev.filter((v) => !delSet.has(normalize(v.path)));
-        if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - (prev.length - next.length)));
-        return next;
-      });
-      loadTreeData();
-      return;
-    }
-
-    // 5. Folder Created - Incremental add & Tree sync
-    if (type === 'folder_created') {
-      loadTreeData();
-      if (normCurrent === normNewParent) {
-        const baseUrl = getApiBaseUrl();
-        const origin = baseUrl.replace(/\/api\/v1\/?$/, '');
-        if (event.item) {
-          const item = event.item;
-          const formattedItem = {
-            ...item,
-            previews: Array.isArray(item.previews)
-              ? item.previews.map((p) => (/^https?:\/\//i.test(p) ? p : `${origin}${p.startsWith('/') ? '' : '/'}${p}`))
-              : [],
-          };
-          setFolders((prev) => [formattedItem, ...prev.filter((f) => normalize(f.path) !== normNew)]);
-          setTotalFolders((c) => c + 1);
-          return;
-        }
-        const folderName = newPath.split('/').pop();
-        const newFolder = { name: folderName, path: newPath, previews: [] };
-        setFolders((prev) => [newFolder, ...prev.filter((f) => normalize(f.path) !== normNew)]);
-        setTotalFolders((c) => c + 1);
-        return;
-      }
-      return;
-    }
-
-    // 5b. Folder Updated (e.g. preview thumbnails became ready reactively)
-    if (type === 'folder_updated') {
-      const targetPath = normalize(event.path || event.newPath || '');
-      const rawPreviews = event.previews || event.item?.previews;
-      if (targetPath && Array.isArray(rawPreviews)) {
-        const baseUrl = getApiBaseUrl();
-        const origin = baseUrl.replace(/\/api\/v1\/?$/, '');
-        const previews = rawPreviews.map((p) => {
-          if (!p) return '';
-          if (/^https?:\/\//i.test(p)) return p;
-          return `${origin}${p.startsWith('/') ? '' : '/'}${p}`;
-        });
-        setFolders((prev) =>
-          prev.map((f) => {
-            if (normalize(f.path) === targetPath) {
-              return { ...f, previews };
-            }
-            return f;
-          })
-        );
-      }
-      return;
-    }
-
-    // 6. Folder Deleted - Navigate out or filter & Tree sync
-    if (type === 'folder_deleted') {
-      loadTreeData();
-      if (isSameOrDescendantPath(normCurrent, normOld)) {
-        nextPath = oldParentPath;
-        refreshCurrent = true;
-      } else if (normCurrent === normOldParent) {
-        setFolders((prev) => {
-          const next = prev.filter((f) => normalize(f.path) !== normOld);
-          if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - 1));
-          return next;
-        });
-        return;
-      } else {
-        return;
-      }
-    }
-
-    // 7. Folder Moved / Renamed - Tree sync
-    if (type === 'folder_moved' || type === 'folder_renamed') {
-      loadTreeData();
-      if (isSameOrDescendantPath(normCurrent, normOld)) {
-        nextPath = replacePathPrefix(currentPath, oldPath, newPath);
-        refreshCurrent = true;
-      } else if (normCurrent === normOldParent) {
-        setFolders((prev) => {
-          const next = prev.filter((f) => normalize(f.path) !== normOld);
-          if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - 1));
-          return next;
-        });
-        refreshCurrent = true;
-      } else if (normCurrent === normNewParent) {
-        refreshCurrent = true;
-      } else {
-        return;
-      }
-    }
-
-    // 8. Batch Items Moved / Copied - Tree sync
-    if (type === 'items_moved' || type === 'items_copied') {
-      loadTreeData();
-      if (type === 'items_moved' && normCurrent === normOldParent) {
-        const movedSet = new Set((event.paths || []).map(normalize));
-        setFolders((prev) => {
-          const next = prev.filter((f) => !movedSet.has(normalize(f.path)));
-          if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - (prev.length - next.length)));
-          return next;
-        });
-        setPictures((prev) => {
-          const next = prev.filter((p) => !movedSet.has(normalize(p.path)));
-          if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - (prev.length - next.length)));
-          return next;
-        });
-        setVideos((prev) => {
-          const next = prev.filter((v) => !movedSet.has(normalize(v.path)));
-          if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - (prev.length - next.length)));
-          return next;
-        });
-        refreshCurrent = true;
-      } else if (normCurrent === normNewParent || normCurrent === normOldParent) {
-        refreshCurrent = true;
-      } else {
-        return;
-      }
-    }
-
-    const pathChanged = nextPath !== currentPath;
-    if (pathChanged) {
-      updateUrlPath(nextPath);
-      setCurrentPath(nextPath);
-      setSearchQuery('');
-    }
-
-    if (realtimeRefreshTimerRef.current) {
-      window.clearTimeout(realtimeRefreshTimerRef.current);
-    }
-    realtimeRefreshTimerRef.current = window.setTimeout(() => {
-      loadTreeData();
-      if (refreshCurrent && !pathChanged) {
-        loadData(nextPath, { limit: 0 }, false);
-      }
-    }, 120);
-  }, [currentPath, activeDrive, loadData, loadTreeData]);
-
-  useEffect(() => {
-    realtimeRefreshRef.current = refreshFromFilesystemEvent;
-  }, [refreshFromFilesystemEvent]);
-
-  useEffect(() => {
-    loadDrivesRef.current = loadDrives;
-  }, [loadDrives]);
-
-  useEffect(() => {
-	if (!isConnected) return undefined;
-    const websocketUrl = getCoordinatorEventsWsUrl();
-    if (!websocketUrl) return undefined;
-
-    let stopped = false;
-    let reconnectAttempt = 0;
-    const connect = () => {
-      if (stopped) return;
-      const socket = new WebSocket(websocketUrl);
-      realtimeSocketRef.current = socket;
-      socket.onopen = () => {
-        reconnectAttempt = 0;
-        loadDrivesRef.current?.();
-        realtimeRefreshRef.current?.();
-        refreshCoordinatorDownloadsRef.current?.();
-      };
-      socket.onmessage = (message) => {
-        try {
-          const payload = JSON.parse(message.data);
-          if (payload?.type === 'storage.info' && Array.isArray(payload.storageInfo?.drives)) {
-            setDrives(payload.storageInfo.drives);
-          } else if (payload?.type === 'filesystem_event' && payload.event && typeof payload.event === 'object') {
-            realtimeRefreshRef.current?.(payload.event);
-          } else if (payload?.type === 'batch_job_progress' && payload.batchJob) {
-            const job = payload.batchJob;
-            setTransferTasks((prev) => {
-              const idx = prev.findIndex((t) => t.id === job.id);
-              if (idx >= 0) {
-                return prev.map((item) => {
-                  if (item.id !== job.id) return item;
-                  return {
-                    ...item,
-                    sourceName: job.source_name || item.sourceName,
-                    action: job.action || item.action,
-                    percent: job.percent ?? item.percent,
-                    status: job.status || item.status,
-                    message: job.message || item.message,
-                    current_file: job.current_file ?? item.current_file,
-                    copied_bytes: job.copied_bytes ?? item.copied_bytes,
-                    total_bytes: job.total_bytes ?? item.total_bytes,
-                  };
-                });
-              } else {
-                return [
-                  ...prev,
-                  {
-                    id: job.id,
-                    action: job.action,
-                    dest: job.dest_folder ? `/${job.dest_folder}` : '/ (Thư mục gốc)',
-                    sourceName: job.source_name || '',
-                    dest_folder: job.dest_folder,
-                    percent: job.percent ?? 0,
-                    status: job.status || 'running',
-                    message: job.message || '',
-                    current_file: job.current_file || '',
-                    copied_bytes: job.copied_bytes || 0,
-                    total_bytes: job.total_bytes || 0,
-                  },
-                ];
-              }
-            });
-            if (job.status === 'completed') {
-              handleRefreshAllRef.current?.();
-              setTimeout(() => {
-                setTransferTasks((prev) => prev.filter((item) => item.id !== job.id));
-              }, 3500);
-            } else if (job.status === 'failed') {
-              setTimeout(() => {
-                setTransferTasks((prev) => prev.filter((item) => item.id !== job.id));
-              }, 4500);
-            }
-          } else if (payload?.type === 'download_event') {
-            if (downloadRefreshTimerRef.current) window.clearTimeout(downloadRefreshTimerRef.current);
-            downloadRefreshTimerRef.current = window.setTimeout(() => {
-              refreshCoordinatorDownloadsRef.current?.();
-            }, 200);
-          }
-        } catch {
-          // Ignore malformed best-effort invalidation messages.
-        }
-      };
-      socket.onclose = () => {
-        if (stopped) return;
-        const delay = Math.min(1000 * (2 ** reconnectAttempt), 15000);
-        reconnectAttempt = Math.min(reconnectAttempt + 1, 4);
-        realtimeReconnectTimerRef.current = window.setTimeout(connect, delay);
-      };
-    };
-    connect();
-
-    return () => {
-      stopped = true;
-      if (realtimeReconnectTimerRef.current) window.clearTimeout(realtimeReconnectTimerRef.current);
-      if (realtimeRefreshTimerRef.current) window.clearTimeout(realtimeRefreshTimerRef.current);
-      const socket = realtimeSocketRef.current;
-      realtimeSocketRef.current = null;
-      if (socket) {
-        socket.onopen = null;
-        socket.onmessage = null;
-        socket.onclose = null;
-        socket.close();
-      }
-    };
-	}, [configVersion, isConnected]);
-
-  useEffect(() => {
-	if (!isConnected) return;
-    loadTreeData();
-  }, [configVersion, isConnected, loadTreeData]);
-
-  useEffect(() => {
-	if (!isConnected) return;
-    loadData(currentPath, { limit: 0 }, false);
-  }, [currentPath, configVersion, isConnected, loadData]);
-
-  // Coordinator jobs are polled individually. The legacy Python WebSocket is
-  // deliberately not used for normal submissions: the parent job is the
-  // client-facing source of truth for resolve/download completion and errors.
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      coordinatorPollersRef.current.forEach((timer) => window.clearTimeout(timer));
-      coordinatorPollersRef.current.clear();
-    };
-  }, []);
-
-  const mapCoordinatorJob = useCallback((job) => {
-    const progress = job.progress && typeof job.progress === 'object' ? job.progress : {};
-    const downloadedBytes = Number(progress.downloadedBytes) || 0;
-    const totalBytes = Number(progress.totalBytes) || 0;
-    const stage = job.stage || (job.state === 'downloading' ? (progress.state || 'downloading') : job.state === 'failed' ? 'error' : job.state);
-    const source = job.source || (
-      job.url?.includes('youtube.com') || job.url?.includes('youtu.be') ? 'youtube' :
-      job.url?.includes('tiktok.com') ? 'tiktok' :
-      (job.url?.includes('facebook.com') || job.url?.includes('fb.watch') || job.url?.includes('fb.com') || job.url?.includes('fb.me')) ? 'facebook' :
-      (job.url?.includes('instagram.com') || job.url?.includes('instagr.am')) ? 'instagram' :
-      (job.url?.includes('x.com') || job.url?.includes('twitter.com') || job.url?.includes('t.co')) ? 'x' : ''
-    );
-    return {
-      task_id: job.id,
-      original_url: job.url,
-      source,
-      filename: job.displayName || job.filename || progress.filename || '',
-      destination: job.destination || '',
-      stage,
-      downloaded_bytes: downloadedBytes,
-      download_total_bytes: totalBytes || null,
-      download_percent: totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : null,
-      download_speed_bytes: Number(progress.speedBytes) || 0,
-      extracted_percent: progress.extractedPercent ?? null,
-      convert_total: Number(job.conversionTotal ?? progress.conversion?.total) || 0,
-      convert_current: Number(job.conversionCurrent ?? progress.conversion?.current) || 0,
-      error: job.error?.message || null,
-      error_code: job.error?.code || null,
-      failure_stage: job.failureStage || null,
-      coordinator_job: true,
-      password_required: Boolean(job.passwordRequired), archive_downloaded: Boolean(job.archiveDownloaded), archive_extracted: Boolean(job.archiveExtracted), total_video_count: Number(job.totalVideoCount) || 0, invalid_video_count: Number(job.invalidVideoCount) || 0,
-      videos: Array.isArray(job.videos) ? job.videos : [],
-      optimization_cancelled: Boolean(job.optimizationCancelled || progress.optimizationCancelled),
-      cancelled_from_stage: job.cancelledFromStage || progress.cancelledFromStage || null,
-      created_at: job.createdAt || null,
-      updated_at: job.updatedAt || null,
-      is_multipart: Boolean(
-        job.isMultipart ||
-        job.is_multipart ||
-        progress.isMultipart ||
-        progress.is_multipart ||
-        (Number(job.totalParts || job.total_parts || progress.totalParts || progress.total_parts) > 1) ||
-        isMultipartArchive(job.displayName || job.filename || progress.filename || '', job.url || job.sourceUrl || job.partName || progress.partName || '')
-      ),
-      total_parts: Number(job.totalParts || job.total_parts || progress.totalParts || progress.total_parts) || 0,
-      current_part: Number(job.currentPart || job.current_part || progress.currentPart || progress.current_part) || 0,
-      part_name: job.partName || job.part_name || progress.partName || progress.part_name || '',
-    };
-  }, []);
-
-  const refreshCoordinatorDownloads = useCallback(async () => {
-	const requestSequence = ++downloadRefreshSequenceRef.current;
-	if (!isConnected) { setDownloadTasks([]); return; }
-    const response = await fetchCoordinatorDownloads();
-	if (requestSequence !== downloadRefreshSequenceRef.current) return;
-	if (isMountedRef.current && response.success) setDownloadTasks(response.data.map(mapCoordinatorJob));
-  }, [isConnected, mapCoordinatorJob]);
-  useEffect(() => { refreshCoordinatorDownloadsRef.current = refreshCoordinatorDownloads; refreshCoordinatorDownloads(); }, [refreshCoordinatorDownloads]);
-
-  const handleCoordinatorJobCreated = useCallback((job) => {
-    if (job?.id) refreshCoordinatorDownloads();
-  }, [refreshCoordinatorDownloads]);
-
-  const handleNavigate = (newPath) => {
-	if (!isConnected) return;
-    if (isSelectMode) {
-      handleExitSelectMode();
-    }
-    if (newPath === currentPath) {
-      refreshFromFilesystemEvent();
-      return;
-    }
-    updateUrlPath(newPath);
-    setCurrentPath(newPath);
-    setSearchQuery('');
+  const handleOpenDeleteItem = (item, isFolder = false) => {
+    setDeleteModalData({ isOpen: true, item, isFolder });
   };
 
-  const handleRefreshAll = useCallback(() => {
-    if (!isConnected) return;
-    loadTreeData(activeDrive);
-    loadData(currentPath);
-  }, [isConnected, activeDrive, currentPath, loadTreeData, loadData]);
+  const handleOpenVideo = useCallback((idx) => setVideoModalIndex(idx), []);
+  const handleOpenLightbox = useCallback((idx) => setLightbox({ pictures: [...visiblePictures], index: idx }), [visiblePictures]);
+  const handleDeleteMediaItem = useCallback((item) => handleOpenDeleteItem(item, false), []);
 
-  useEffect(() => {
-    handleRefreshAllRef.current = handleRefreshAll;
-  }, [handleRefreshAll]);
+  // Context Menu Handlers
+  const handleCloseContextMenu = () => {
+    setContextMenu({ isOpen: false, x: 0, y: 0, mode: 'empty', folder: null });
+  };
 
   const handleEmptyContextMenu = (e) => {
-	if (!isConnected) return;
+    if (!isConnected) return;
     e.preventDefault();
-    if (e.target.closest('input, button, a, img, video')) {
-      return;
-    }
-
     setContextMenu({
       isOpen: true,
       x: e.clientX,
@@ -843,7 +272,7 @@ function App() {
   };
 
   const handleFolderContextMenu = (e, folder) => {
-	if (!isConnected) return;
+    if (!isConnected) return;
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({
@@ -855,8 +284,9 @@ function App() {
     });
   };
 
+  // Folder Mutation Handlers
   const handleCreateFolderSubmit = async (arg1, arg2) => {
-	if (!isConnected) return { success: false, message: 'Chưa kết nối máy chủ.' };
+    if (!isConnected) return { success: false, message: 'Chưa kết nối máy chủ.' };
     let parentPath = currentPath;
     let folderName = arg1;
     if (arg2 !== undefined) {
@@ -872,7 +302,7 @@ function App() {
   };
 
   const handleRenameFolderSubmit = async (folder, newName) => {
-	if (!isConnected) return { success: false, message: 'Chưa kết nối máy chủ.' };
+    if (!isConnected) return { success: false, message: 'Chưa kết nối máy chủ.' };
     const res = await renameFolder(folder.path, newName);
     if (res.success) {
       await loadData(currentPath);
@@ -880,452 +310,6 @@ function App() {
     }
     return res;
   };
-
-  // Filter States: multi-select Sets
-  // fileTypes: Set of ('folder' | 'picture' | 'video') - empty or all 3 selected means show all
-  // mxhs: Set of ('youtube' | 'tiktok' | 'facebook' | 'instagram' | 'telegram' | 'x') - empty means show all
-  const [fileTypeFilters, setFileTypeFilters] = useState(new Set());
-  const [mxhFilters, setMxhFilters] = useState(new Set());
-
-  const matchesMxh = useCallback((name) => {
-    if (!name || mxhFilters.size === 0) return true;
-    const lower = name.toLowerCase();
-    for (const mxh of mxhFilters) {
-      if (mxh === 'youtube' && (lower.startsWith('[youtube]') || lower.includes('[youtube]'))) return true;
-      if (mxh === 'tiktok' && (lower.startsWith('[tiktok]') || lower.includes('[tiktok]'))) return true;
-      if (mxh === 'facebook' && (lower.startsWith('[facebook]') || lower.includes('[facebook]'))) return true;
-      if (mxh === 'instagram' && (lower.startsWith('[instagram]') || lower.includes('[instagram]'))) return true;
-      if (mxh === 'telegram' && (lower.startsWith('[telegram]') || lower.includes('[telegram]'))) return true;
-      if (mxh === 'x' && (lower.startsWith('[x]') || lower.includes('[x]'))) return true;
-    }
-    return false;
-  }, [mxhFilters]);
-
-  const filteredFolders = useMemo(() => {
-    if (fileTypeFilters.size > 0 && !fileTypeFilters.has('folder')) return [];
-    let list = folders;
-    if (mxhFilters.size > 0) {
-      list = list.filter((f) => matchesMxh(f.name));
-    }
-    if (!searchQuery.trim()) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter((f) =>
-      f.name?.toLowerCase().includes(q) ||
-      f.path?.toLowerCase().includes(q)
-    );
-  }, [folders, searchQuery, fileTypeFilters, mxhFilters, matchesMxh]);
-
-  const filteredPictures = useMemo(() => {
-    if (fileTypeFilters.size > 0 && !fileTypeFilters.has('picture')) return [];
-    let list = pictures;
-    if (mxhFilters.size > 0) {
-      list = list.filter((p) => matchesMxh(p.name));
-    }
-    if (!searchQuery.trim()) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter((p) =>
-      p.name?.toLowerCase().includes(q) ||
-      p.path?.toLowerCase().includes(q)
-    );
-  }, [pictures, searchQuery, fileTypeFilters, mxhFilters, matchesMxh]);
-
-  const filteredVideos = useMemo(() => {
-    if (fileTypeFilters.size > 0 && !fileTypeFilters.has('video')) return [];
-    let list = videos;
-    if (mxhFilters.size > 0) {
-      list = list.filter((v) => matchesMxh(v.name));
-    }
-    if (!searchQuery.trim()) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter((v) =>
-      v.name?.toLowerCase().includes(q) ||
-      v.path?.toLowerCase().includes(q)
-    );
-  }, [videos, searchQuery, fileTypeFilters, mxhFilters, matchesMxh]);
-
-  const visibleFolders = filteredFolders;
-  const visiblePictures = filteredPictures;
-  const visibleVideos = filteredVideos;
-
-  const handleToggleSelectItem = useCallback((item, type) => {
-    const key = `${type}:${item.path}`;
-    setSelectedItems((prev) => {
-      const next = new Map(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.set(key, { type, item });
-      }
-      return next;
-    });
-  }, []);
-
-  const handleToggleSelectAllFolders = useCallback(() => {
-    setSelectedItems((prev) => {
-      const isAll = visibleFolders.length > 0 && visibleFolders.every((f) => prev.has(`folder:${f.path}`));
-      const next = new Map(prev);
-      if (isAll) {
-        visibleFolders.forEach((f) => next.delete(`folder:${f.path}`));
-      } else {
-        visibleFolders.forEach((f) => next.set(`folder:${f.path}`, { type: 'folder', item: f }));
-      }
-      return next;
-    });
-  }, [visibleFolders]);
-
-  const handleToggleSelectAllPictures = useCallback(() => {
-    setSelectedItems((prev) => {
-      const isAll = visiblePictures.length > 0 && visiblePictures.every((p) => prev.has(`picture:${p.path}`));
-      const next = new Map(prev);
-      if (isAll) {
-        visiblePictures.forEach((p) => next.delete(`picture:${p.path}`));
-      } else {
-        visiblePictures.forEach((p) => next.set(`picture:${p.path}`, { type: 'picture', item: p }));
-      }
-      return next;
-    });
-  }, [visiblePictures]);
-
-  const handleToggleSelectAllVideos = useCallback(() => {
-    setSelectedItems((prev) => {
-      const isAll = visibleVideos.length > 0 && visibleVideos.every((v) => prev.has(`video:${v.path}`));
-      const next = new Map(prev);
-      if (isAll) {
-        visibleVideos.forEach((v) => next.delete(`video:${v.path}`));
-      } else {
-        visibleVideos.forEach((v) => next.set(`video:${v.path}`, { type: 'video', item: v }));
-      }
-      return next;
-    });
-  }, [visibleVideos]);
-
-  const handleBatchCopy = useCallback(() => {
-    setSelectedItems((prev) => {
-      if (prev.size > 0) {
-        setBatchModalState({ isOpen: true, action: 'copy' });
-      }
-      return prev;
-    });
-  }, []);
-
-  const handleBatchMove = useCallback(() => {
-    setSelectedItems((prev) => {
-      if (prev.size > 0) {
-        setBatchModalState({ isOpen: true, action: 'move' });
-      }
-      return prev;
-    });
-  }, []);
-
-  const handleBatchDelete = useCallback(() => {
-    setSelectedItems((prev) => {
-      if (prev.size > 0) {
-        setBatchModalState({ isOpen: true, action: 'delete' });
-      }
-      return prev;
-    });
-  }, []);
-
-  const handleOpenVideo = useCallback((idx) => setVideoModalIndex(idx), []);
-  const handleOpenLightbox = useCallback((idx) => setLightbox({ pictures: [...visiblePictures], index: idx }), [visiblePictures]);
-  const handleDeleteMediaItem = useCallback((item) => handleOpenDeleteItem(item, false), []);
-
-  // Centralized polling effect for all active batch transfer jobs
-  useEffect(() => {
-    const runningJobs = transferTasks.filter((t) => t.status === 'running' && t.id && !t.id.startsWith('temp_'));
-    if (runningJobs.length === 0) {
-      if (transferPollRef.current) {
-        clearInterval(transferPollRef.current);
-        transferPollRef.current = null;
-      }
-      return;
-    }
-
-    if (!transferPollRef.current) {
-      transferPollRef.current = setInterval(async () => {
-        const active = transferTasksRef.current.filter((t) => t.status === 'running' && t.id && !t.id.startsWith('temp_'));
-        if (active.length === 0) {
-          if (transferPollRef.current) {
-            clearInterval(transferPollRef.current);
-            transferPollRef.current = null;
-          }
-          return;
-        }
-
-        await Promise.all(
-          active.map(async (task) => {
-            try {
-              const pollRes = await fetchBatchJobStatus(task.id);
-              if (pollRes.success && pollRes.job) {
-                const updated = pollRes.job;
-                setTransferTasks((prev) =>
-                  prev.map((item) => {
-                    if (item.id !== task.id) return item;
-                    return {
-                      ...item,
-                      action: updated.action || item.action,
-                      percent: updated.percent ?? item.percent,
-                      status: updated.status || item.status,
-                      message: updated.message || item.message,
-                      current_file: updated.current_file ?? item.current_file,
-                      copied_bytes: updated.copied_bytes ?? item.copied_bytes,
-                      total_bytes: updated.total_bytes ?? item.total_bytes,
-                    };
-                  })
-                );
-
-                if (updated.status === 'completed') {
-                  handleRefreshAll();
-                  setTimeout(() => {
-                    setTransferTasks((prev) => prev.filter((item) => item.id !== task.id));
-                  }, 3500);
-                } else if (updated.status === 'failed') {
-                  setTimeout(() => {
-                    setTransferTasks((prev) => prev.filter((item) => item.id !== task.id));
-                  }, 4500);
-                }
-              }
-            } catch (err) {
-              // Ignore transient polling errors
-            }
-          })
-        );
-      }, 400);
-    }
-  }, [transferTasks, handleRefreshAll]);
-
-  const handleCopySingleItem = useCallback((item, type = 'folder') => {
-    setBatchModalState({
-      isOpen: true,
-      action: 'copy',
-      items: [{ type, item }],
-    });
-  }, []);
-
-  const runBatchExecution = useCallback(async ({ action, selectedFolder, destDrive, items, resolutions }) => {
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const destDisplayName = selectedFolder ? `/${selectedFolder}` : '/ (Thư mục gốc)';
-
-    const firstItem = items[0];
-    const firstItemName = firstItem?.name || firstItem?.item?.name || (firstItem?.path || firstItem?.item?.path || '').split('/').filter(Boolean).pop() || '';
-    const itemNames = items.map((it) => it.name || it.item?.name || (it.path || it.item?.path || '').split('/').filter(Boolean).pop()).filter(Boolean);
-    const sourceDisplayName = itemNames.length > 1 ? `${itemNames[0]} (+${itemNames.length - 1} mục khác)` : firstItemName;
-
-    const initialTask = {
-      id: tempId,
-      action,
-      dest: destDisplayName,
-      sourceName: sourceDisplayName,
-      destDrive: destDrive || activeDrive,
-      srcDrive: activeDrive,
-      itemsCount: items.length,
-      status: 'running',
-      percent: 0,
-      copied_bytes: 0,
-      total_bytes: 0,
-      current_file: '',
-      message: action === 'copy' ? `Đang sao chép đến ${destDisplayName}...` : `Đang di chuyển đến ${destDisplayName}...`,
-    };
-
-    setTransferTasks((prev) => [initialTask, ...prev]);
-
-    const res = await executeBatchItems({
-      action,
-      items,
-      destFolder: selectedFolder,
-      srcDrive: activeDrive,
-      destDrive: destDrive || activeDrive,
-      resolutions,
-    });
-
-    if (!res.success) {
-      setTransferTasks((prev) =>
-        prev.map((item) =>
-          item.id === tempId
-            ? {
-                ...item,
-                status: 'failed',
-                message: res.message || 'Thao tác thất bại',
-              }
-            : item
-        )
-      );
-      setTimeout(() => {
-        setTransferTasks((prev) => prev.filter((item) => item.id !== tempId));
-      }, 4000);
-      return;
-    }
-
-    const job = res.data?.job || res.job;
-    if (job && job.status === 'completed') {
-      const finishedId = job.id || tempId;
-      setTransferTasks((prev) =>
-        prev.map((item) =>
-          item.id === tempId
-            ? {
-                ...item,
-                id: finishedId,
-                status: 'completed',
-                percent: 100,
-                message: job.message || 'Thao tác hoàn tất',
-              }
-            : item
-        )
-      );
-
-      if (action === 'move') {
-        const movedNormalized = new Set(
-          items.map((it) => (it.path || it.item?.path || '').replace(/^\/+|\/+$/g, ''))
-        );
-        setFolders((prev) => {
-          const next = prev.filter((f) => !movedNormalized.has((f.path || '').replace(/^\/+|\/+$/g, '')));
-          if (next.length !== prev.length) setTotalFolders((c) => Math.max(0, c - (prev.length - next.length)));
-          return next;
-        });
-        setPictures((prev) => {
-          const next = prev.filter((p) => !movedNormalized.has((p.path || '').replace(/^\/+|\/+$/g, '')));
-          if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - (prev.length - next.length)));
-          return next;
-        });
-        setVideos((prev) => {
-          const next = prev.filter((v) => !movedNormalized.has((v.path || '').replace(/^\/+|\/+$/g, '')));
-          if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - (prev.length - next.length)));
-          return next;
-        });
-
-        const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
-        const normCurrent = normalize(currentPath);
-        let targetNavPath = null;
-        for (const it of items) {
-          const normItemPath = normalize(it.path || it.item?.path);
-          if (normItemPath && (normCurrent === normItemPath || normCurrent.startsWith(normItemPath + '/'))) {
-            const relSuffix = normCurrent === normItemPath ? '' : normCurrent.slice(normItemPath.length + 1);
-            const baseName = normItemPath.split('/').pop();
-            const normDest = normalize(selectedFolder);
-            const newBasePath = normDest ? `${normDest}/${baseName}` : baseName;
-            targetNavPath = relSuffix ? `${newBasePath}/${relSuffix}` : newBasePath;
-            break;
-          }
-        }
-
-        if (targetNavPath !== null) {
-          updateUrlPath(targetNavPath);
-          setCurrentPath(targetNavPath);
-          loadData(targetNavPath);
-        } else {
-          loadData(currentPath);
-        }
-        loadTreeData(activeDrive);
-      } else {
-        handleRefreshAll();
-      }
-
-      setTimeout(() => {
-        setTransferTasks((prev) => prev.filter((item) => item.id !== finishedId && item.id !== tempId));
-      }, 3500);
-      return;
-    }
-
-    if (job && job.id) {
-      setTransferTasks((prev) =>
-        prev.map((item) =>
-          item.id === tempId
-            ? {
-                ...item,
-                id: job.id,
-                status: job.status || 'running',
-                percent: job.percent || 0,
-                copied_bytes: job.copied_bytes || 0,
-                total_bytes: job.total_bytes || 0,
-                current_file: job.current_file || '',
-                message: job.message || item.message,
-              }
-            : item
-        )
-      );
-    }
-  }, [activeDrive, currentPath, handleRefreshAll, loadData, loadTreeData]);
-
-  const handleExecuteBatch = useCallback(async ({ action, selectedFolder, destDrive, items }) => {
-    setBatchModalState({ isOpen: false, action: null, items: [] });
-    if (isSelectMode) {
-      handleExitSelectMode();
-    }
-
-    if (action === 'copy' || action === 'move') {
-      try {
-        const chk = await checkBatchConflicts({
-          action,
-          items,
-          destFolder: selectedFolder,
-          srcDrive: activeDrive,
-          destDrive: destDrive || activeDrive,
-        });
-        if (chk.success && chk.has_conflicts && chk.conflicts.length > 0) {
-          setConflictModalData({
-            isOpen: true,
-            conflicts: chk.conflicts,
-            action,
-            pendingBatch: { action, selectedFolder, destDrive, items },
-          });
-          return;
-        }
-      } catch (err) {
-        console.error('Lỗi kiểm tra xung đột:', err);
-      }
-    }
-
-    runBatchExecution({ action, selectedFolder, destDrive, items });
-  }, [activeDrive, isSelectMode, handleExitSelectMode, runBatchExecution]);
-
-  const handleResolveConflicts = useCallback(({ resolutions }) => {
-    const pending = conflictModalData.pendingBatch;
-    setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null });
-    if (pending) {
-      runBatchExecution({ ...pending, resolutions });
-    }
-  }, [conflictModalData, runBatchExecution]);
-
-  const hasMore = (totalFolders > folders.length) || (totalPictures > pictures.length) || (totalVideos > videos.length);
-
-  const remainingCount = Math.max(0, totalFolders - folders.length) +
-                         Math.max(0, totalPictures - pictures.length) +
-                         Math.max(0, totalVideos - videos.length);
-
-  const handleLoadMore = useCallback(() => {
-	if (!isConnected) return;
-    if (isLoadingMore || !hasMore) return;
-    const nextPage = page + 1;
-    setPage(nextPage);
-    loadData(currentPath, { page: nextPage, limit: PAGE_SIZE }, true);
-  }, [page, currentPath, loadData, isLoadingMore, hasMore, isConnected]);
-
-  // Auto-prefetch next page when scrolling near bottom of page
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!hasMore || isLoadingMore || loading) return;
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 800) {
-        handleLoadMore();
-      }
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [hasMore, isLoadingMore, loading, handleLoadMore]);
-
-  const hasContent = filteredFolders.length > 0 || filteredPictures.length > 0 || filteredVideos.length > 0;
-
-  // Active Download Status Metrics for Header Icon
-  const activeDownloadCount = downloadTasks.filter(isActiveDownload).length;
-  // Summary có thể đến chậm hơn WebSocket. Luôn lấy task thật làm fallback để
-  // animation mũi tên Header xuất hiện ngay từ lúc Go bắt đầu tải.
-  const downloadingTask = downloadTasks.find((t) => t.stage === 'downloading');
-  const isDownloadingMode = Boolean(downloadingTask);
-  const downloadProgressPercent = isDownloadingMode
-    ? (downloadingTask?.download_percent ?? 0)
-    : 0;
-  const hasPasswordError = downloadTasks.some(needsDownloadAttention);
-  const isScanning = downloadTasks.some((t) => t.stage === 'scanning');
-  const isConverting = downloadTasks.some((t) => t.stage === 'converting');
 
   return (
     <div className="tahoe-app-wrapper app-layout-wrapper overflow-hidden">
