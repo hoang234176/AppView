@@ -87,13 +87,6 @@
   animation: fadeIn 0.2s ease-out forwards;
 }
 
-@keyframes slideInLeft {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
-}
-.animate-slide-in-left {
-  animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
 
 /* Skeleton Loading Shimmer */
 .skeleton {
@@ -209,23 +202,3 @@
   stroke-linecap: round;
 }
 
-/* Water Bottle Liquid Wave Animation */
-@keyframes water-wave-horizontal {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
-@keyframes water-wave-horizontal-reverse {
-  0% { transform: translateX(-50%); }
-  100% { transform: translateX(0); }
-}
-
-.water-wave-active {
-  animation: water-wave-horizontal 3s linear infinite;
-  will-change: transform;
-}
-
-.water-wave-secondary {
-  animation: water-wave-horizontal-reverse 4.5s linear infinite;
-  will-change: transform;
-}
