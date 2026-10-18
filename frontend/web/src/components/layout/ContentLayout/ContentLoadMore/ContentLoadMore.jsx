@@ -1,16 +1,23 @@
 import { memo } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useContentLoadMore } from '../../../../hooks/content';
 import './ContentLoadMore.css';
 
 /**
  * ContentLoadMore — Pagination button with remaining item counter and loading spinner
  */
 export const ContentLoadMore = memo(({
-  hasMore,
-  isLoadingMore,
-  remainingCount,
-  onLoadMore,
+  hasMore: propHasMore,
+  isLoadingMore: propIsLoadingMore,
+  remainingCount: propRemainingCount,
+  onLoadMore: propOnLoadMore,
 }) => {
+  const hookData = useContentLoadMore();
+  const hasMore = propHasMore !== undefined ? propHasMore : hookData.hasMore;
+  const isLoadingMore = propIsLoadingMore !== undefined ? propIsLoadingMore : hookData.isLoadingMore;
+  const remainingCount = propRemainingCount !== undefined ? propRemainingCount : hookData.remainingCount;
+  const onLoadMore = propOnLoadMore || hookData.onLoadMore;
+
   if (!hasMore) return null;
 
   return (

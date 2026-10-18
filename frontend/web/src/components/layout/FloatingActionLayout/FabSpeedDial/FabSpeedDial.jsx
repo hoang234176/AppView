@@ -1,11 +1,21 @@
 import { memo, useState, useEffect, useRef } from 'react';
 import { Plus, FolderPlus, Archive, Images } from 'lucide-react';
+import { useFabSpeedDial } from '../../../../hooks/floatingAction';
 import './FabSpeedDial.css';
 
 /**
  * FabSpeedDial — Floating Action Button with Speed Dial options
  */
-export const FabSpeedDial = memo(({ onCreateFolder, onDownloadArchive, onDownloadMedia }) => {
+export const FabSpeedDial = memo(({
+  onCreateFolder: propOnCreateFolder,
+  onDownloadArchive: propOnDownloadArchive,
+  onDownloadMedia: propOnDownloadMedia,
+}) => {
+  const hookData = useFabSpeedDial();
+  const onCreateFolder = propOnCreateFolder || hookData.onCreateFolder;
+  const onDownloadArchive = propOnDownloadArchive || hookData.onDownloadArchive;
+  const onDownloadMedia = propOnDownloadMedia || hookData.onDownloadMedia;
+
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
 

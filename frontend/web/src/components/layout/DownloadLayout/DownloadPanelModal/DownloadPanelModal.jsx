@@ -5,7 +5,7 @@ import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownlo
 import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from '../../../icons/FileTypeIcon';
 import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload, isCancelledOptimization } from '../../../../utils/downloadPresentation';
 import { CustomSelect } from '../../../common/CustomSelect';
-import './DownloadPanelModal.css';
+import { useDownloadPanelModal } from '../../../../hooks/download';
 
 const isRetryableDownloadError = isRetryableDownload;
 const getUnoptimizedCount = (t) => {
@@ -23,12 +23,36 @@ const getUnoptimizedCount = (t) => {
   return Math.max(0, total - current);
 };
 
+const EMPTY_TASKS = [];
+
 const displayConvertIndex = (task) => {
   const total = Number(task.convert_total) || 0;
   return total ? Math.min((Number(task.convert_current) || 0) + 1, total) : 0;
 };
 
-export const DownloadPanelModal = ({ isOpen, onClose, tasks = [], onDeleteTask, selectedTab: controlledTab, onSelectedTabChange }) => {
+export const DownloadPanelModal = ({
+  isOpen: propIsOpen,
+  onClose: propOnClose,
+  tasks: propTasks,
+  onDeleteTask: propOnDeleteTask,
+  selectedTab: propSelectedTab,
+  onSelectedTabChange: propOnSelectedTabChange,
+  onOpenAddModal: propOnOpenAddModal,
+}) => {
+  const hookData = useDownloadPanelModal();
+  const isOpen = propIsOpen !== undefined ? propIsOpen : hookData.isOpen;
+  const onClose = propOnClose || hookData.onClose;
+  const hookTasks = hookData.tasks;
+  const tasks = useMemo(
+    () => (propTasks !== undefined ? propTasks : (hookTasks || EMPTY_TASKS)),
+    [propTasks, hookTasks]
+  );
+  const onDeleteTask = propOnDeleteTask || hookData.onDeleteTask;
+  const controlledTab = propSelectedTab !== undefined ? propSelectedTab : hookData.selectedTab;
+  const onSelectedTabChange = propOnSelectedTabChange || hookData.onSelectedTabChange;
+  // eslint-disable-next-line no-unused-vars
+  const onOpenAddModal = propOnOpenAddModal || hookData.onOpenAddModal;
+
   const [passwords, setPasswords] = useState({});
   const [localTab, setLocalTab] = useState('active');
   const [pendingPasswords, setPendingPasswords] = useState({});

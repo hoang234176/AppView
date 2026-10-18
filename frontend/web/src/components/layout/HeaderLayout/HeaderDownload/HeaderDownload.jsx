@@ -1,18 +1,28 @@
 import { memo } from 'react';
+import { useHeaderDownload } from '../../../../hooks/header';
 import './HeaderDownload.css';
 
 /**
  * HeaderDownload — Circular SVG progress ring button with falling arrow and status badge
  */
 export const HeaderDownload = memo(({
-  onOpenDownloadPanel,
-  activeDownloadCount = 0,
-  downloadProgressPercent = 0,
-  isDownloadingMode = true,
-  hasPasswordError = false,
-  isScanning = false,
-  isConverting = false,
+  onOpenDownloadPanel: propOnOpenDownloadPanel,
+  activeDownloadCount: propActiveDownloadCount,
+  downloadProgressPercent: propDownloadProgressPercent,
+  isDownloadingMode: propIsDownloadingMode,
+  hasPasswordError: propHasPasswordError,
+  isScanning: propIsScanning,
+  isConverting: propIsConverting,
 }) => {
+  const hookData = useHeaderDownload();
+  const onOpenDownloadPanel = propOnOpenDownloadPanel || hookData.onOpenDownloadPanel;
+  const activeDownloadCount = propActiveDownloadCount !== undefined ? propActiveDownloadCount : hookData.activeDownloadCount;
+  const downloadProgressPercent = propDownloadProgressPercent !== undefined ? propDownloadProgressPercent : hookData.downloadProgressPercent;
+  const isDownloadingMode = propIsDownloadingMode !== undefined ? propIsDownloadingMode : hookData.isDownloadingMode;
+  const hasPasswordError = propHasPasswordError !== undefined ? propHasPasswordError : hookData.hasPasswordError;
+  const isScanning = propIsScanning !== undefined ? propIsScanning : hookData.isScanning;
+  const isConverting = propIsConverting !== undefined ? propIsConverting : hookData.isConverting;
+
   const radius = 17;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (downloadProgressPercent / 100) * circumference;

@@ -1,19 +1,28 @@
 import { memo, useEffect, useRef, Fragment } from 'react';
 import { ChevronRight, Folder, HardDrive } from 'lucide-react';
 import { parseBreadcrumbs } from '../../../../utils/formatters';
+import { useContentBreadcrumbs } from '../../../../hooks/content';
 import './Breadcrumbs.css';
 
 /**
  * Breadcrumbs — Navigation path pills with auto-scroll and item count statistics
  */
 export const Breadcrumbs = memo(({
-  currentPath,
-  onNavigate,
-  totalFolders = 0,
-  totalPictures = 0,
-  totalVideos = 0,
-  activeDrive = 'HDD',
+  currentPath: propCurrentPath,
+  onNavigate: propOnNavigate,
+  totalFolders: propTotalFolders,
+  totalPictures: propTotalPictures,
+  totalVideos: propTotalVideos,
+  activeDrive: propActiveDrive,
 }) => {
+  const hookData = useContentBreadcrumbs();
+  const currentPath = propCurrentPath !== undefined ? propCurrentPath : hookData.currentPath;
+  const onNavigate = propOnNavigate || hookData.onNavigate;
+  const totalFolders = propTotalFolders !== undefined ? propTotalFolders : hookData.totalFolders;
+  const totalPictures = propTotalPictures !== undefined ? propTotalPictures : hookData.totalPictures;
+  const totalVideos = propTotalVideos !== undefined ? propTotalVideos : hookData.totalVideos;
+  const activeDrive = propActiveDrive !== undefined ? propActiveDrive : hookData.activeDrive;
+
   const breadcrumbs = parseBreadcrumbs(currentPath, activeDrive);
   const navRef = useRef(null);
 

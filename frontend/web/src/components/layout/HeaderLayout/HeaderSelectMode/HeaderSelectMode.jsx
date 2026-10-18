@@ -1,18 +1,25 @@
 import { memo } from 'react';
 import { X, Copy, FolderInput, Trash2, CheckCircle2 } from 'lucide-react';
 import { RollingNumber } from '../../../common/RollingNumber';
-import './HeaderSelectMode.css';
+import { useHeaderSelectMode } from '../../../../hooks/header';
 
 /**
  * HeaderSelectBar — Full toolbar when multiple-select mode is active
  */
 export const HeaderSelectBar = memo(({
-  onExitSelectMode,
-  selectedCount = 0,
-  onBatchCopy,
-  onBatchMove,
-  onBatchDelete,
+  onExitSelectMode: propOnExitSelectMode,
+  selectedCount: propSelectedCount,
+  onBatchCopy: propOnBatchCopy,
+  onBatchMove: propOnBatchMove,
+  onBatchDelete: propOnBatchDelete,
 }) => {
+  const hookData = useHeaderSelectMode();
+  const onExitSelectMode = propOnExitSelectMode || hookData.onExitSelectMode;
+  const selectedCount = propSelectedCount !== undefined ? propSelectedCount : hookData.selectedCount;
+  const onBatchCopy = propOnBatchCopy || hookData.onBatchCopy;
+  const onBatchMove = propOnBatchMove || hookData.onBatchMove;
+  const onBatchDelete = propOnBatchDelete || hookData.onBatchDelete;
+
   return (
     <div className="flex-1 flex items-center justify-between gap-3 animate-fade-in">
       {/* Left: Button X to exit select mode + Count of selected items */}
@@ -77,7 +84,10 @@ HeaderSelectBar.displayName = 'HeaderSelectBar';
 /**
  * HeaderSelectButton — Trigger button to enter select mode (in normal mode header)
  */
-export const HeaderSelectButton = memo(({ onEnterSelectMode }) => {
+export const HeaderSelectButton = memo(({ onEnterSelectMode: propOnEnterSelectMode }) => {
+  const hookData = useHeaderSelectMode();
+  const onEnterSelectMode = propOnEnterSelectMode || hookData.onEnterSelectMode;
+
   return (
     <button
       type="button"
@@ -96,7 +106,10 @@ HeaderSelectButton.displayName = 'HeaderSelectButton';
  * HeaderSelectMode — Unified component handling both select mode bar and trigger button
  */
 export const HeaderSelectMode = memo((props) => {
-  if (props.isSelectMode) {
+  const hookData = useHeaderSelectMode();
+  const isSelectMode = props.isSelectMode !== undefined ? props.isSelectMode : hookData.isSelectMode;
+
+  if (isSelectMode) {
     return <HeaderSelectBar {...props} />;
   }
   return <HeaderSelectButton onEnterSelectMode={props.onEnterSelectMode} />;

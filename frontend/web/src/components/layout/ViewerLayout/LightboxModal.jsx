@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { 
   X, 
   ChevronLeft, 
@@ -17,17 +17,33 @@ import {
 } from 'lucide-react';
 import { formatDate, getPictureUrl } from '../../../utils/formatters';
 import { RollingNumber } from '../../common/RollingNumber';
+import { useLightboxModal } from '../../../hooks/viewer';
 
-export const LightboxModal = memo(({ 
-  pictures = [], 
-  currentIndex, 
-  onClose, 
-  onSelectIndex,
-  totalPictures,
-  hasMore,
-  isLoadingMore,
-  onLoadMore
+const EMPTY_PICTURES = [];
+
+const LightboxModalInner = memo(({
+  hookData = {},
+  pictures: propPictures,
+  currentIndex: propCurrentIndex,
+  onClose: propOnClose,
+  onSelectIndex: propOnSelectIndex,
+  totalPictures: propTotalPictures,
+  hasMore: propHasMore,
+  isLoadingMore: propIsLoadingMore,
+  onLoadMore: propOnLoadMore,
 }) => {
+  const hookPictures = hookData.pictures;
+  const pictures = useMemo(
+    () => (propPictures !== undefined ? propPictures : (hookPictures || EMPTY_PICTURES)),
+    [propPictures, hookPictures]
+  );
+  const currentIndex = propCurrentIndex !== undefined ? propCurrentIndex : (hookData.currentIndex ?? 0);
+  const onClose = propOnClose || hookData.onClose;
+  const onSelectIndex = propOnSelectIndex || hookData.onSelectIndex;
+  const totalPictures = propTotalPictures !== undefined ? propTotalPictures : (hookData.totalPictures || pictures.length);
+  const hasMore = propHasMore !== undefined ? propHasMore : (hookData.hasMore || false);
+  const isLoadingMore = propIsLoadingMore !== undefined ? propIsLoadingMore : (hookData.isLoadingMore || false);
+  const onLoadMore = propOnLoadMore || hookData.onLoadMore;
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -436,3 +452,17 @@ export const LightboxModal = memo(({
     </div>
   );
 });
+
+LightboxModalInner.displayName = 'LightboxModalInner';
+
+export const LightboxModal = memo((props) => {
+  const hookData = useLightboxModal();
+  const isOpen = props.currentIndex !== undefined && props.currentIndex !== null
+    ? true
+    : (props.isOpen !== undefined ? props.isOpen : hookData.isOpen);
+
+  if (!isOpen) return null;
+  return <LightboxModalInner {...props} hookData={hookData} />;
+});
+
+LightboxModal.displayName = 'LightboxModal';

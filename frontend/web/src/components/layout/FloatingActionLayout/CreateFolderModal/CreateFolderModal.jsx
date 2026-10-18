@@ -1,8 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { FolderPlus, X, Check, Loader2 } from 'lucide-react';
-import './CreateFolderModal.css';
+import { useCreateFolderModal } from '../../../../hooks/floatingAction';
 
-export const CreateFolderModal = ({ isOpen, onClose, onCreate }) => {
+export const CreateFolderModal = ({
+  isOpen: propIsOpen,
+  onClose: propOnClose,
+  onCreate: propOnCreate,
+}) => {
+  const hookData = useCreateFolderModal();
+  const isOpen = propIsOpen !== undefined ? propIsOpen : hookData.isOpen;
+  const onClose = propOnClose || hookData.onClose;
+  const onCreate = propOnCreate || hookData.onCreate;
   const [folderName, setFolderName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -1,6 +1,5 @@
 import { memo } from 'react';
 import { SettingsModal } from '../components/layout/SettingsLayout';
-import './SettingsLayout.css';
 
 /**
  * SettingsLayout — Area 5: Settings & Server Configuration Management
@@ -12,7 +11,7 @@ export const SettingsLayout = memo(({
   onRefresh,
   onServerConfigSaved,
   onServerConfigFailed,
-}) => {
+} = {}) => {
   return (
     <SettingsModal
       isOpen={showConfigModal}

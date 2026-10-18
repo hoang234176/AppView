@@ -1,7 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { Edit3, X, Check, Loader2 } from 'lucide-react';
+import { useRenameFolderModal } from '../../../hooks/fileOperation';
 
-export const RenameFolderModal = ({ isOpen, onClose, folder, onRename }) => {
+const RenameFolderModalInner = memo(({
+  hookData = {},
+  isOpen: propIsOpen,
+  onClose: propOnClose,
+  folder: propFolder,
+  onRename: propOnRename,
+}) => {
+  const isOpen = propIsOpen !== undefined ? propIsOpen : hookData.isOpen;
+  const onClose = propOnClose || hookData.onClose;
+  const folder = propFolder !== undefined ? propFolder : hookData.folder;
+  const onRename = propOnRename || hookData.onRename;
+
   const [newName, setNewName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -128,4 +140,13 @@ export const RenameFolderModal = ({ isOpen, onClose, folder, onRename }) => {
       </div>
     </div>
   );
-};
+});
+
+RenameFolderModalInner.displayName = 'RenameFolderModalInner';
+
+export const RenameFolderModal = memo((props) => {
+  const hookData = useRenameFolderModal();
+  return <RenameFolderModalInner hookData={hookData} {...props} />;
+});
+
+RenameFolderModal.displayName = 'RenameFolderModal';

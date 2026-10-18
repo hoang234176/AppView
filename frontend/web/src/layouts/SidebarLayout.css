@@ -1,41 +1,38 @@
 /* SidebarLayout.css — Area 1: Left Column Sidebar */
-.sidebar-layout-container {
-  display: contents;
+.folder-tree-sidebar-aside {
+  width: 18rem;
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0.5rem;
+  z-index: 20;
+  overflow: hidden;
+  height: calc(100vh - 16px);
+  padding: 16px;
+  box-sizing: border-box;
 }
 
-/* Tree branches stay mounted for 200ms when closing. Opening and closing use
-   separate keyframes: do not combine a CSS transition with an animation on
-   the same properties, otherwise they fight each other. */
-.tree-children {
-  display: grid;
-}
-.tree-children-opening {
-  animation: tree-children-open 0.2s ease-out both;
-}
-@keyframes tree-children-open {
-  from {
-    grid-template-rows: 0fr;
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    grid-template-rows: 1fr;
-    opacity: 1;
-    transform: translateY(0);
+@media (min-width: 768px) {
+  .folder-tree-sidebar-aside {
+    display: flex;
   }
 }
-.tree-children-closing {
-  animation: tree-children-close 0.2s ease-in both;
+
+.folder-tree-sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
 }
-@keyframes tree-children-close {
-  from {
-    grid-template-rows: 1fr;
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    grid-template-rows: 0fr;
-    opacity: 0;
-    transform: translateY(-6px);
-  }
+
+.folder-tree-sidebar-bottom {
+  padding-top: 0.625rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  user-select: none;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }

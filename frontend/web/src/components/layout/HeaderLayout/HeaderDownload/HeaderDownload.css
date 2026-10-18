@@ -1,20 +1,4 @@
 /* HeaderDownload.css */
-.download-header-btn {
-  position: relative;
-  display: flex;
-  height: 2.5rem;
-  width: 2.5rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  border: 1px solid #383c42;
-  background-color: #28292d;
-  transition: all 0.2s ease;
-}
-
-.download-header-btn:active {
-  transform: scale(0.95);
-}
 
 /* Header download: only the arrow travels down; the tray remains fixed. */
 @keyframes download-header-arrow-drop {

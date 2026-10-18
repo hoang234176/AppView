@@ -1,6 +1,5 @@
 import { memo } from 'react';
 import { Wifi, ChevronDown, RefreshCw, Check } from 'lucide-react';
-import './SettingsServer.css';
 
 /**
  * SettingsServer — Accordion section for Server Host IP/Port connection configuration
@@ -16,11 +15,11 @@ export const SettingsServer = memo(({
   onSubmit,
 }) => {
   return (
-    <div className="settings-server-accordion border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
+    <div className="border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
-        className="settings-server-header-btn w-full flex items-center justify-between p-4 text-xs font-bold text-gray-200 hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between p-4 text-xs font-bold text-gray-200 hover:bg-white/5 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
           <Wifi className="w-4 h-4 text-blue-400" />

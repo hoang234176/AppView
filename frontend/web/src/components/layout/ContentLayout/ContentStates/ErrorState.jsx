@@ -1,11 +1,16 @@
 import { memo } from 'react';
 import { AlertTriangle, RefreshCw, Terminal, Globe, HelpCircle } from 'lucide-react';
+import { useContentStatus } from '../../../../hooks/content';
 import './ErrorState.css';
 
 /**
  * ErrorState — Error feedback card with request details, troubleshooting tips, and retry action
  */
-export const ErrorState = memo(({ errorInfo, onRetry }) => {
+export const ErrorState = memo(({ errorInfo: propErrorInfo, onRetry: propOnRetry }) => {
+  const hookData = useContentStatus();
+  const errorInfo = propErrorInfo !== undefined ? propErrorInfo : hookData.errorInfo;
+  const onRetry = propOnRetry || hookData.onRetry;
+
   if (!errorInfo) return null;
 
   return (

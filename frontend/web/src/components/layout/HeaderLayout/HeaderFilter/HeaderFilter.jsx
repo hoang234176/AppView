@@ -14,7 +14,7 @@ import {
   TelegramIcon,
   XIcon,
 } from './SocialIcons';
-import './HeaderFilter.css';
+import { useHeaderFilter } from '../../../../hooks/header';
 
 const FILE_TYPE_OPTIONS = [
   { key: 'folder', label: 'Thư mục', icon: Folder, colorClass: 'text-amber-400' },
@@ -35,11 +35,17 @@ const MXH_OPTIONS = [
  * HeaderFilter — Filter button and popover dropdown for file types and social media
  */
 export const HeaderFilter = memo(({
-  fileTypeFilters = new Set(),
-  setFileTypeFilters,
-  mxhFilters = new Set(),
-  setMxhFilters,
+  fileTypeFilters: propFileTypeFilters,
+  setFileTypeFilters: propSetFileTypeFilters,
+  mxhFilters: propMxhFilters,
+  setMxhFilters: propSetMxhFilters,
 }) => {
+  const hookData = useHeaderFilter();
+  const fileTypeFilters = propFileTypeFilters !== undefined ? propFileTypeFilters : hookData.fileTypeFilters;
+  const setFileTypeFilters = propSetFileTypeFilters || hookData.setFileTypeFilters;
+  const mxhFilters = propMxhFilters !== undefined ? propMxhFilters : hookData.mxhFilters;
+  const setMxhFilters = propSetMxhFilters || hookData.setMxhFilters;
+
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const filterMenuRef = useRef(null);
 
@@ -86,7 +92,7 @@ export const HeaderFilter = memo(({
   }, [filterMenuOpen]);
 
   return (
-    <div className="header-filter-wrapper relative z-50" ref={filterMenuRef}>
+    <div className="relative z-50" ref={filterMenuRef}>
       <button
         type="button"
         onClick={() => setFilterMenuOpen((prev) => !prev)}

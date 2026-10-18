@@ -1,14 +1,22 @@
 import { memo } from 'react';
 import { FolderX } from 'lucide-react';
+import { useContentStatus } from '../../../../hooks/content';
 import './EmptyState.css';
 
 /**
  * EmptyState — Feedback state displayed when current folder or search has no items
  */
-export const EmptyState = memo(({ searchQuery, onClearSearch }) => {
+export const EmptyState = memo(({
+  searchQuery: propSearchQuery,
+  onClearSearch: propOnClearSearch,
+}) => {
+  const hookData = useContentStatus();
+  const searchQuery = propSearchQuery !== undefined ? propSearchQuery : hookData.searchQuery;
+  const onClearSearch = propOnClearSearch || hookData.onClearSearch;
+
   return (
-    <div className="content-empty-state-wrapper content-empty-state animate-fade-in space-y-4">
-      <div className="content-empty-state-icon content-empty-icon">
+    <div className="content-empty-state-wrapper animate-fade-in space-y-4">
+      <div className="content-empty-state-icon">
         <FolderX className="w-7 h-7" />
       </div>
       <div>

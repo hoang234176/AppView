@@ -5,7 +5,6 @@ import {
   DownloadMediafireModal,
   DownloadMediaModal,
 } from '../components/layout/FloatingActionLayout';
-import './FloatingActionLayout.css';
 
 /**
  * FloatingActionLayout — Area 4: Floating Action Button & Expanded Modals
@@ -41,7 +40,7 @@ export const FloatingActionLayout = memo(({
   currentPath,
   treeData,
   activeDrive,
-}) => {
+} = {}) => {
   return (
     <>
       {/* '+' SpeedDial Button */}
@@ -69,17 +68,16 @@ export const FloatingActionLayout = memo(({
       />
 
       {/* Option 3: Download Media Modal */}
-      {showDownloadMediaModal && (
-        <DownloadMediaModal
-          currentPath={currentPath}
-          treeData={treeData}
-          activeDrive={activeDrive}
-          downloadTasks={downloadTasks}
-          onClose={onCloseDownloadMediaModal}
-          onSuccess={onCoordinatorJobCreated}
-          onOpenSettings={onOpenSettings}
-        />
-      )}
+      <DownloadMediaModal
+        isOpen={showDownloadMediaModal}
+        currentPath={currentPath}
+        treeData={treeData}
+        activeDrive={activeDrive}
+        downloadTasks={downloadTasks}
+        onClose={onCloseDownloadMediaModal}
+        onSuccess={onCoordinatorJobCreated}
+        onOpenSettings={onOpenSettings}
+      />
     </>
   );
 });

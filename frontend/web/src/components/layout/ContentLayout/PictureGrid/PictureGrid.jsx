@@ -3,6 +3,7 @@ import { Image as ImageIcon, Calendar, HardDrive, MoreVertical, Info, FolderInpu
 import { formatDate, formatFileSize, getThumbnailUrl, getPictureUrl } from '../../../../utils/formatters';
 import { RollingNumber } from '../../../common/RollingNumber';
 import { useVirtualGrid } from '../../../../utils/useVirtualGrid';
+import { useContentPictureGrid } from '../../../../hooks/content';
 import './PictureGrid.css';
 
 const PictureCard = memo(({
@@ -158,18 +159,31 @@ const PictureCard = memo(({
 PictureCard.displayName = 'PictureCard';
 
 export const PictureGrid = memo(({
-  pictures = [],
-  totalCount,
-  onOpenLightbox,
-  onShowInfo,
-  onCopyItem,
-  onMoveItem,
-  onDeleteItem,
-  isSelectMode = false,
-  selectedItems = new Map(),
-  onToggleSelect,
-  onToggleSelectAll,
+  pictures: propPictures,
+  totalCount: propTotalCount,
+  onOpenLightbox: propOnOpenLightbox,
+  onShowInfo: propOnShowInfo,
+  onCopyItem: propOnCopyItem,
+  onMoveItem: propOnMoveItem,
+  onDeleteItem: propOnDeleteItem,
+  isSelectMode: propIsSelectMode,
+  selectedItems: propSelectedItems,
+  onToggleSelect: propOnToggleSelect,
+  onToggleSelectAll: propOnToggleSelectAll,
 }) => {
+  const hookData = useContentPictureGrid();
+  const pictures = propPictures !== undefined ? propPictures : hookData.pictures;
+  const totalCount = propTotalCount !== undefined ? propTotalCount : hookData.totalCount;
+  const onOpenLightbox = propOnOpenLightbox || hookData.onOpenLightbox;
+  const onShowInfo = propOnShowInfo || hookData.onShowInfo;
+  const onCopyItem = propOnCopyItem || hookData.onCopyItem;
+  const onMoveItem = propOnMoveItem || hookData.onMoveItem;
+  const onDeleteItem = propOnDeleteItem || hookData.onDeleteItem;
+  const isSelectMode = propIsSelectMode !== undefined ? propIsSelectMode : hookData.isSelectMode;
+  const selectedItems = propSelectedItems !== undefined ? propSelectedItems : hookData.selectedItems;
+  const onToggleSelect = propOnToggleSelect || hookData.onToggleSelect;
+  const onToggleSelectAll = propOnToggleSelectAll || hookData.onToggleSelectAll;
+
   const [failedImages, setFailedImages] = useState({});
   const [openMenuIndex, setOpenMenuIndex] = useState(null);
   const menuRef = useRef(null);

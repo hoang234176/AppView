@@ -1,9 +1,26 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Loader2, RotateCw, X } from 'lucide-react';
 import { getVideoStreamUrl, getVideoThumbnailUrl } from '../../../utils/formatters';
 import { RollingNumber } from '../../common/RollingNumber';
+import { useVideoPlayerModal } from '../../../hooks/viewer';
 
-export const VideoPlayerModal = memo(({ videos = [], currentIndex, onClose, onSelectIndex }) => {
+const EMPTY_VIDEOS = [];
+
+const VideoPlayerModalInner = memo(({
+  hookData = {},
+  videos: propVideos,
+  currentIndex: propCurrentIndex,
+  onClose: propOnClose,
+  onSelectIndex: propOnSelectIndex,
+}) => {
+  const hookVideos = hookData.videos;
+  const videos = useMemo(
+    () => (propVideos !== undefined ? propVideos : (hookVideos || EMPTY_VIDEOS)),
+    [propVideos, hookVideos]
+  );
+  const currentIndex = propCurrentIndex !== undefined ? propCurrentIndex : (hookData.currentIndex ?? 0);
+  const onClose = propOnClose || hookData.onClose;
+  const onSelectIndex = propOnSelectIndex || hookData.onSelectIndex;
   const videoRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const touchStartRef = useRef(null);
@@ -349,3 +366,17 @@ export const VideoPlayerModal = memo(({ videos = [], currentIndex, onClose, onSe
     </div>
   );
 });
+
+VideoPlayerModalInner.displayName = 'VideoPlayerModalInner';
+
+export const VideoPlayerModal = memo((props) => {
+  const hookData = useVideoPlayerModal();
+  const isOpen = props.currentIndex !== undefined && props.currentIndex !== null
+    ? true
+    : (props.isOpen !== undefined ? props.isOpen : hookData.isOpen);
+
+  if (!isOpen) return null;
+  return <VideoPlayerModalInner {...props} hookData={hookData} />;
+});
+
+VideoPlayerModal.displayName = 'VideoPlayerModal';

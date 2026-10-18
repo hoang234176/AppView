@@ -1,14 +1,24 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SidebarLayout } from './layouts/SidebarLayout';
+import { NavigationProvider } from './contexts/NavigationContext';
 import { HeaderLayout } from './layouts/HeaderLayout';
+import { HeaderProvider } from './contexts/HeaderContext';
 import { ContentLayout } from './layouts/ContentLayout';
+import { ContentProvider } from './contexts/ContentContext';
 import { FloatingActionLayout } from './layouts/FloatingActionLayout';
+import { FloatingActionProvider } from './contexts/FloatingActionContext';
 import { SettingsLayout } from './layouts/SettingsLayout';
+import { SettingsProvider } from './contexts/SettingsContext';
 import { DownloadLayout } from './layouts/DownloadLayout';
+import { DownloadProvider } from './contexts/DownloadContext';
 import { ContextMenuLayout } from './layouts/ContextMenuLayout';
+import { ContextMenuProvider } from './contexts/ContextMenuContext';
 import { NotificationLayout } from './layouts/NotificationLayout';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { ViewerLayout } from './layouts/ViewerLayout';
+import { ViewerProvider } from './contexts/ViewerContext';
 import { FileOperationLayout } from './layouts/FileOperationLayout';
+import { FileOperationProvider } from './contexts/FileOperationContext';
 import {
   useFolderNavigation,
   useRealtimeSync,
@@ -204,7 +214,7 @@ function App() {
   });
 
   // Server Config Handlers
-  const handleServerConfigSaved = () => {
+  const handleServerConfigSaved = useCallback(() => {
     const baseUrl = getApiBaseUrl();
     setApiBaseUrl(baseUrl);
     setConfigVersion((prev) => prev + 1);
@@ -212,7 +222,7 @@ function App() {
     setCurrentPath('');
     setSearchQuery('');
     setIsConnected(true);
-  };
+  }, [updateUrlPath, setCurrentPath, setSearchQuery]);
 
   const handleServerConfigFailed = useCallback((message) => {
     if (activeControllerRef.current) activeControllerRef.current.abort();
@@ -241,24 +251,45 @@ function App() {
   }, [configVersion, handleServerConfigFailed]);
 
   // Viewers & Modals Handlers
-  const handleShowMediaInfo = (item, type) => {
+  const handleShowMediaInfo = useCallback((item, type) => {
     setInfoModalData({ isOpen: true, item, type });
-  };
+  }, []);
 
-  const handleOpenDeleteItem = (item, isFolder = false) => {
+  const handleOpenDeleteItem = useCallback((item, isFolder = false) => {
     setDeleteModalData({ isOpen: true, item, isFolder });
-  };
+  }, []);
 
   const handleOpenVideo = useCallback((idx) => setVideoModalIndex(idx), []);
   const handleOpenLightbox = useCallback((idx) => setLightbox({ pictures: [...visiblePictures], index: idx }), [visiblePictures]);
-  const handleDeleteMediaItem = useCallback((item) => handleOpenDeleteItem(item, false), []);
+  const handleDeleteMediaItem = useCallback((item) => handleOpenDeleteItem(item, false), [handleOpenDeleteItem]);
+
+  const handleDeleteSuccess = useCallback((item, isFolder) => {
+    const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
+    if (isFolder) {
+      loadTreeData();
+      setFolders((prev) => prev.filter((f) => normalize(f.path) !== normalize(item?.path)));
+      setTotalFolders((c) => Math.max(0, c - 1));
+    } else {
+      const norm = normalize(item?.path || item?.name);
+      setPictures((prev) => {
+        const next = prev.filter((p) => normalize(p.path || p.name) !== norm);
+        if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
+        return next;
+      });
+      setVideos((prev) => {
+        const next = prev.filter((v) => normalize(v.path || v.name) !== norm);
+        if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
+        return next;
+      });
+    }
+  }, [loadTreeData, setFolders, setPictures, setTotalFolders, setTotalPictures, setTotalVideos, setVideos]);
 
   // Context Menu Handlers
-  const handleCloseContextMenu = () => {
+  const handleCloseContextMenu = useCallback(() => {
     setContextMenu({ isOpen: false, x: 0, y: 0, mode: 'empty', folder: null });
-  };
+  }, []);
 
-  const handleEmptyContextMenu = (e) => {
+  const handleEmptyContextMenu = useCallback((e) => {
     if (!isConnected) return;
     e.preventDefault();
     setContextMenu({
@@ -268,9 +299,9 @@ function App() {
       mode: 'empty',
       folder: null,
     });
-  };
+  }, [isConnected]);
 
-  const handleFolderContextMenu = (e, folder) => {
+  const handleFolderContextMenu = useCallback((e, folder) => {
     if (!isConnected) return;
     e.preventDefault();
     e.stopPropagation();
@@ -281,10 +312,10 @@ function App() {
       mode: 'folder',
       folder,
     });
-  };
+  }, [isConnected]);
 
   // Folder Mutation Handlers
-  const handleCreateFolderSubmit = async (arg1, arg2) => {
+  const handleCreateFolderSubmit = useCallback(async (arg1, arg2) => {
     if (!isConnected) return { success: false, message: 'Chưa kết nối máy chủ.' };
     let parentPath = currentPath;
     let folderName = arg1;
@@ -298,9 +329,9 @@ function App() {
       loadTreeData().catch(() => {});
     }
     return res;
-  };
+  }, [isConnected, currentPath, loadData, loadTreeData]);
 
-  const handleRenameFolderSubmit = async (folder, newName) => {
+  const handleRenameFolderSubmit = useCallback(async (folder, newName) => {
     if (!isConnected) return { success: false, message: 'Chưa kết nối máy chủ.' };
     const res = await renameFolder(folder.path, newName);
     if (res.success) {
@@ -308,235 +339,400 @@ function App() {
       loadTreeData().catch(() => {});
     }
     return res;
-  };
+  }, [isConnected, currentPath, loadData, loadTreeData]);
+
+  const navigationValue = useMemo(() => ({
+    currentPath,
+    treeData,
+    folders,
+    drives,
+    activeDrive,
+    handleNavigate,
+    handleSelectDrive,
+    handleFolderContextMenu,
+    handleEmptyContextMenu,
+    handleOpenConfig: () => setShowConfigModal(true),
+    onOpenConfig: () => setShowConfigModal(true),
+  }), [
+    currentPath,
+    treeData,
+    folders,
+    drives,
+    activeDrive,
+    handleNavigate,
+    handleSelectDrive,
+    handleFolderContextMenu,
+    handleEmptyContextMenu,
+    setShowConfigModal,
+  ]);
+
+
+  const handleOpenDownloadPanel = useCallback(() => setShowDownloadPanel(true), [setShowDownloadPanel]);
+
+  const headerValue = useMemo(() => ({
+    searchQuery,
+    setSearchQuery,
+    onOpenDownloadPanel: handleOpenDownloadPanel,
+    activeDownloadCount,
+    downloadProgressPercent,
+    isDownloadingMode,
+    hasPasswordError,
+    isScanning,
+    isConverting,
+    isSelectMode,
+    onEnterSelectMode: handleEnterSelectMode,
+    onExitSelectMode: handleExitSelectMode,
+    selectedCount: selectedItems.size,
+    onBatchCopy: handleBatchCopy,
+    onBatchMove: handleBatchMove,
+    onBatchDelete: handleBatchDelete,
+    fileTypeFilters,
+    setFileTypeFilters,
+    mxhFilters,
+    setMxhFilters,
+  }), [
+    searchQuery,
+    setSearchQuery,
+    handleOpenDownloadPanel,
+    activeDownloadCount,
+    downloadProgressPercent,
+    isDownloadingMode,
+    hasPasswordError,
+    isScanning,
+    isConverting,
+    isSelectMode,
+    handleEnterSelectMode,
+    handleExitSelectMode,
+    selectedItems.size,
+    handleBatchCopy,
+    handleBatchMove,
+    handleBatchDelete,
+    fileTypeFilters,
+    setFileTypeFilters,
+    mxhFilters,
+    setMxhFilters,
+  ]);
+
+  const handleClearSearch = useCallback(() => setSearchQuery(''), [setSearchQuery]);
+
+  const contentValue = useMemo(() => ({
+    currentPath,
+    onNavigate: handleNavigate,
+    totalFolders: searchQuery.trim() ? filteredFolders.length : totalFolders,
+    totalPictures: searchQuery.trim() ? filteredPictures.length : totalPictures,
+    totalVideos: searchQuery.trim() ? filteredVideos.length : totalVideos,
+    activeDrive,
+    onEmptyContextMenu: handleEmptyContextMenu,
+    loading,
+    errorInfo,
+    onRetry: handleRefreshAll,
+    hasContent,
+    searchQuery,
+    onClearSearch: handleClearSearch,
+    visibleFolders,
+    visibleVideos,
+    visiblePictures,
+    isSelectMode,
+    selectedItems,
+    onToggleSelectItem: handleToggleSelectItem,
+    onToggleSelectAllFolders: handleToggleSelectAllFolders,
+    onToggleSelectAllVideos: handleToggleSelectAllVideos,
+    onToggleSelectAllPictures: handleToggleSelectAllPictures,
+    onFolderContextMenu: handleFolderContextMenu,
+    onOpenVideo: handleOpenVideo,
+    onOpenLightbox: handleOpenLightbox,
+    onShowMediaInfo: handleShowMediaInfo,
+    onCopySingleItem: handleCopySingleItem,
+    onOpenMoveItem: handleOpenMoveItem,
+    onDeleteMediaItem: handleDeleteMediaItem,
+    hasMore,
+    isLoadingMore,
+    remainingCount,
+    onLoadMore: handleLoadMore,
+  }), [
+    currentPath,
+    handleNavigate,
+    searchQuery,
+    filteredFolders.length,
+    totalFolders,
+    filteredPictures.length,
+    totalPictures,
+    filteredVideos.length,
+    totalVideos,
+    activeDrive,
+    handleEmptyContextMenu,
+    loading,
+    errorInfo,
+    handleRefreshAll,
+    hasContent,
+    handleClearSearch,
+    visibleFolders,
+    visibleVideos,
+    visiblePictures,
+    isSelectMode,
+    selectedItems,
+    handleToggleSelectItem,
+    handleToggleSelectAllFolders,
+    handleToggleSelectAllVideos,
+    handleToggleSelectAllPictures,
+    handleFolderContextMenu,
+    handleOpenVideo,
+    handleOpenLightbox,
+    handleShowMediaInfo,
+    handleCopySingleItem,
+    handleOpenMoveItem,
+    handleDeleteMediaItem,
+    hasMore,
+    isLoadingMore,
+    remainingCount,
+    handleLoadMore,
+  ]);
+
+  const floatingActionValue = useMemo(() => ({
+    onCreateFolder: () => setShowCreateFolderModal(true),
+    onDownloadArchive: () => setShowDownloadMediafireModal(true),
+    onDownloadMedia: () => setShowDownloadMediaModal(true),
+    showCreateFolderModal,
+    onCloseCreateFolderModal: () => setShowCreateFolderModal(false),
+    onCreateFolderSubmit: handleCreateFolderSubmit,
+    showDownloadMediafireModal,
+    onCloseDownloadMediafireModal: () => setShowDownloadMediafireModal(false),
+    onDownloadMediafireSuccess: (job) => {
+      handleCoordinatorJobCreated(job);
+      setDownloadPanelTab('active');
+      setShowDownloadPanel(true);
+    },
+    showDownloadMediaModal,
+    onCloseDownloadMediaModal: () => setShowDownloadMediaModal(false),
+    downloadTasks,
+    onCoordinatorJobCreated: handleCoordinatorJobCreated,
+    onOpenSettings: () => setShowConfigModal(true),
+    currentPath,
+    treeData,
+    activeDrive,
+  }), [
+    showCreateFolderModal,
+    handleCreateFolderSubmit,
+    showDownloadMediafireModal,
+    setShowDownloadMediafireModal,
+    handleCoordinatorJobCreated,
+    setDownloadPanelTab,
+    setShowDownloadPanel,
+    showDownloadMediaModal,
+    setShowDownloadMediaModal,
+    downloadTasks,
+    setShowConfigModal,
+    currentPath,
+    treeData,
+    activeDrive,
+  ]);
+
+  const settingsValue = useMemo(() => ({
+    showConfigModal,
+    onCloseConfigModal: () => setShowConfigModal(false),
+    onRefresh: handleRefreshAll,
+    onServerConfigSaved: handleServerConfigSaved,
+    onServerConfigFailed: handleServerConfigFailed,
+  }), [
+    showConfigModal,
+    handleRefreshAll,
+    handleServerConfigSaved,
+    handleServerConfigFailed,
+  ]);
+
+  const downloadValue = useMemo(() => ({
+    showDownloadPanel,
+    onCloseDownloadPanel: () => setShowDownloadPanel(false),
+    downloadTasks,
+    downloadPanelTab,
+    onSelectedTabChange: setDownloadPanelTab,
+    onOpenAddModal: () => {
+      setShowDownloadPanel(false);
+      setShowDownloadMediafireModal(true);
+    },
+    onDeleteTask: (taskId) => {
+      setDownloadTasks((prev) => prev.filter((t) => t.task_id !== taskId));
+    },
+    transferTasks,
+    downloadSummary,
+    onOpenDownloadPanel: () => setShowDownloadPanel(true),
+  }), [
+    showDownloadPanel,
+    setShowDownloadPanel,
+    downloadTasks,
+    downloadPanelTab,
+    setDownloadPanelTab,
+    setShowDownloadMediafireModal,
+    setDownloadTasks,
+    transferTasks,
+    downloadSummary,
+  ]);
+
+  const contextMenuValue = useMemo(() => ({
+    contextMenu,
+    onClose: handleCloseContextMenu,
+    onCreateFolder: () => setShowCreateFolderModal(true),
+    onRenameFolder: (folder) => {
+      setTargetFolder(folder);
+      setShowRenameFolderModal(true);
+    },
+    onCopyFolder: (folder) => {
+      handleCopySingleItem(folder, 'folder');
+    },
+    onMoveFolder: (folder) => {
+      handleOpenMoveItem(folder, 'folder');
+    },
+    onDeleteFolder: (folder) => {
+      handleOpenDeleteItem(folder, true);
+    },
+    onRefresh: handleRefreshAll,
+  }), [
+    contextMenu,
+    handleCloseContextMenu,
+    setShowCreateFolderModal,
+    setTargetFolder,
+    setShowRenameFolderModal,
+    handleCopySingleItem,
+    handleOpenMoveItem,
+    handleOpenDeleteItem,
+    handleRefreshAll,
+  ]);
+
+  const notificationValue = useMemo(() => ({
+    isConnected,
+    showConfigModal,
+    onOpenConfig: () => setShowConfigModal(true),
+    conflictModalData,
+    onResolveConflicts: handleResolveConflicts,
+    onCloseConflictModal: () =>
+      setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null }),
+    deleteModalData,
+    onCloseDeleteModal: () => setDeleteModalData({ isOpen: false, item: null, isFolder: false }),
+    onDeleteSuccess: handleDeleteSuccess,
+    toastMessage,
+  }), [
+    isConnected,
+    showConfigModal,
+    setShowConfigModal,
+    conflictModalData,
+    handleResolveConflicts,
+    setConflictModalData,
+    deleteModalData,
+    setDeleteModalData,
+    handleDeleteSuccess,
+    toastMessage,
+  ]);
+
+  const viewerValue = useMemo(() => ({
+    lightbox,
+    onCloseLightbox: () => setLightbox(null),
+    onSelectLightboxIndex: (newIdx) =>
+      setLightbox((current) => (current ? { ...current, index: newIdx } : current)),
+    hasMore,
+    isLoadingMore,
+    onLoadMore: handleLoadMore,
+    videoModalIndex,
+    videos: filteredVideos,
+    onCloseVideoModal: () => setVideoModalIndex(null),
+    onSelectVideoIndex: (newIdx) => setVideoModalIndex(newIdx),
+    infoModalData,
+    onCloseInfoModal: () => setInfoModalData((prev) => ({ ...prev, isOpen: false })),
+  }), [
+    lightbox,
+    hasMore,
+    isLoadingMore,
+    handleLoadMore,
+    videoModalIndex,
+    filteredVideos,
+    infoModalData,
+  ]);
+
+  const fileOperationValue = useMemo(() => ({
+    showRenameFolderModal,
+    onCloseRenameFolderModal: () => setShowRenameFolderModal(false),
+    targetFolder,
+    onRenameFolderSubmit: handleRenameFolderSubmit,
+    batchModalState,
+    onCloseBatchModal: () => setBatchModalState({ isOpen: false, action: null, items: [] }),
+    selectedItems,
+    treeData,
+    currentPath,
+    drives,
+    activeDrive,
+    onConfirmBatch: handleExecuteBatch,
+  }), [
+    showRenameFolderModal,
+    setShowRenameFolderModal,
+    targetFolder,
+    handleRenameFolderSubmit,
+    batchModalState,
+    setBatchModalState,
+    selectedItems,
+    treeData,
+    currentPath,
+    drives,
+    activeDrive,
+    handleExecuteBatch,
+  ]);
 
   return (
-    <div className="tahoe-app-wrapper app-layout-wrapper overflow-hidden">
-      {/* Area 1: Left Column Sidebar */}
-      <SidebarLayout
-        currentPath={currentPath}
-        treeData={treeData}
-        folders={filteredFolders}
-        onNavigate={handleNavigate}
-        onFolderContextMenu={handleFolderContextMenu}
-        onEmptyContextMenu={handleEmptyContextMenu}
-        onOpenConfig={() => setShowConfigModal(true)}
-        drives={drives}
-        activeDrive={activeDrive}
-        onSelectDrive={handleSelectDrive}
-      />
+    <NavigationProvider value={navigationValue}>
+      <div className="tahoe-app-wrapper app-layout-wrapper overflow-hidden">
+        {/* Area 1: Left Column Sidebar */}
+        <SidebarLayout />
 
-      {/* Right Container: Header + Content Canvas */}
-      <div className="app-main-column">
-        {/* Area 2: Top Header Bar */}
-        <HeaderLayout
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          onRefresh={handleRefreshAll}
-          loading={loading}
-          isConnected={isConnected}
-          onOpenDownloadPanel={() => setShowDownloadPanel(true)}
-          activeDownloadCount={activeDownloadCount}
-          downloadProgressPercent={downloadProgressPercent}
-          isDownloadingMode={isDownloadingMode}
-          hasPasswordError={hasPasswordError}
-          isScanning={isScanning}
-          isConverting={isConverting}
-          isSelectMode={isSelectMode}
-          onEnterSelectMode={handleEnterSelectMode}
-          onExitSelectMode={handleExitSelectMode}
-          selectedCount={selectedItems.size}
-          onBatchCopy={handleBatchCopy}
-          onBatchMove={handleBatchMove}
-          onBatchDelete={handleBatchDelete}
-          fileTypeFilters={fileTypeFilters}
-          setFileTypeFilters={setFileTypeFilters}
-          mxhFilters={mxhFilters}
-          setMxhFilters={setMxhFilters}
-        />
+        {/* Right Container: Header + Content Canvas */}
+        <div className="app-main-column">
+          {/* Area 2: Top Header Bar */}
+          <HeaderProvider value={headerValue}>
+            <HeaderLayout />
+          </HeaderProvider>
 
-        {/* Area 3: Main Content Canvas */}
-        <ContentLayout
-          currentPath={currentPath}
-          onNavigate={handleNavigate}
-          totalFolders={searchQuery.trim() ? filteredFolders.length : totalFolders}
-          totalPictures={searchQuery.trim() ? filteredPictures.length : totalPictures}
-          totalVideos={searchQuery.trim() ? filteredVideos.length : totalVideos}
-          activeDrive={activeDrive}
-          onEmptyContextMenu={handleEmptyContextMenu}
-          loading={loading}
-          errorInfo={errorInfo}
-          onRetry={handleRefreshAll}
-          hasContent={hasContent}
-          searchQuery={searchQuery}
-          onClearSearch={() => setSearchQuery('')}
-          visibleFolders={visibleFolders}
-          visibleVideos={visibleVideos}
-          visiblePictures={visiblePictures}
-          isSelectMode={isSelectMode}
-          selectedItems={selectedItems}
-          onToggleSelectItem={handleToggleSelectItem}
-          onToggleSelectAllFolders={handleToggleSelectAllFolders}
-          onToggleSelectAllVideos={handleToggleSelectAllVideos}
-          onToggleSelectAllPictures={handleToggleSelectAllPictures}
-          onFolderContextMenu={handleFolderContextMenu}
-          onOpenVideo={handleOpenVideo}
-          onOpenLightbox={handleOpenLightbox}
-          onShowMediaInfo={handleShowMediaInfo}
-          onCopySingleItem={handleCopySingleItem}
-          onOpenMoveItem={handleOpenMoveItem}
-          onDeleteMediaItem={handleDeleteMediaItem}
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
-          remainingCount={remainingCount}
-          onLoadMore={handleLoadMore}
-        />
+          {/* Area 3: Main Content Canvas */}
+          <ContentProvider value={contentValue}>
+            <ContentLayout />
+          </ContentProvider>
+        </div>
+
+        {/* Area 4: Floating Action Button */}
+        <FloatingActionProvider value={floatingActionValue}>
+          <FloatingActionLayout />
+        </FloatingActionProvider>
+
+        {/* Area 5: Settings & Connection Management */}
+        <SettingsProvider value={settingsValue}>
+          <SettingsLayout />
+        </SettingsProvider>
+
+        {/* Area 6: Downloads & Notification */}
+        <DownloadProvider value={downloadValue}>
+          <DownloadLayout />
+        </DownloadProvider>
+
+        {/* Area 7: Context Menus */}
+        <ContextMenuProvider value={contextMenuValue}>
+          <ContextMenuLayout />
+        </ContextMenuProvider>
+
+        {/* Area 8: Notifications, System Alerts & Feedback */}
+        <NotificationProvider value={notificationValue}>
+          <NotificationLayout />
+        </NotificationProvider>
+
+        {/* Area 9: Media Viewers & Player Modals */}
+        <ViewerProvider value={viewerValue}>
+          <ViewerLayout />
+        </ViewerProvider>
+
+        {/* Area 10: File Operations & Batch Dialogs */}
+        <FileOperationProvider value={fileOperationValue}>
+          <FileOperationLayout />
+        </FileOperationProvider>
       </div>
-
-      {/* Area 4: Floating Action Button */}
-      <FloatingActionLayout
-        onCreateFolder={() => setShowCreateFolderModal(true)}
-        onDownloadArchive={() => setShowDownloadMediafireModal(true)}
-        onDownloadMedia={() => setShowDownloadMediaModal(true)}
-        showCreateFolderModal={showCreateFolderModal}
-        onCloseCreateFolderModal={() => setShowCreateFolderModal(false)}
-        onCreateFolderSubmit={handleCreateFolderSubmit}
-        showDownloadMediafireModal={showDownloadMediafireModal}
-        onCloseDownloadMediafireModal={() => setShowDownloadMediafireModal(false)}
-        onDownloadMediafireSuccess={(job) => {
-          handleCoordinatorJobCreated(job);
-          setDownloadPanelTab('active');
-          setShowDownloadPanel(true);
-        }}
-        showDownloadMediaModal={showDownloadMediaModal}
-        onCloseDownloadMediaModal={() => setShowDownloadMediaModal(false)}
-        downloadTasks={downloadTasks}
-        onCoordinatorJobCreated={handleCoordinatorJobCreated}
-        onOpenSettings={() => setShowConfigModal(true)}
-        currentPath={currentPath}
-        treeData={treeData}
-        activeDrive={activeDrive}
-      />
-
-      {/* Area 5: Settings & Connection Management */}
-      <SettingsLayout
-        showConfigModal={showConfigModal}
-        onCloseConfigModal={() => setShowConfigModal(false)}
-        onRefresh={handleRefreshAll}
-        onServerConfigSaved={handleServerConfigSaved}
-        onServerConfigFailed={handleServerConfigFailed}
-      />
-
-      {/* Area 6: Downloads & Notification */}
-      <DownloadLayout
-        showDownloadPanel={showDownloadPanel}
-        onCloseDownloadPanel={() => setShowDownloadPanel(false)}
-        downloadTasks={downloadTasks}
-        downloadPanelTab={downloadPanelTab}
-        onSelectedTabChange={setDownloadPanelTab}
-        onOpenAddModal={() => {
-          setShowDownloadPanel(false);
-          setShowDownloadMediafireModal(true);
-        }}
-        onDeleteTask={(taskId) => {
-          setDownloadTasks((prev) => prev.filter((t) => t.task_id !== taskId));
-        }}
-        transferTasks={transferTasks}
-        downloadSummary={downloadSummary}
-        onOpenDownloadPanel={() => setShowDownloadPanel(true)}
-      />
-
-      {/* Area 7: Context Menus */}
-      <ContextMenuLayout
-        contextMenu={contextMenu}
-        onClose={handleCloseContextMenu}
-        onCreateFolder={() => setShowCreateFolderModal(true)}
-        onRenameFolder={(folder) => {
-          setTargetFolder(folder);
-          setShowRenameFolderModal(true);
-        }}
-        onCopyFolder={(folder) => {
-          handleCopySingleItem(folder, 'folder');
-        }}
-        onMoveFolder={(folder) => {
-          handleOpenMoveItem(folder, 'folder');
-        }}
-        onDeleteFolder={(folder) => {
-          handleOpenDeleteItem(folder, true);
-        }}
-        onRefresh={handleRefreshAll}
-      />
-
-      {/* Area 8: Notifications, System Alerts & Feedback */}
-      <NotificationLayout
-        isConnected={isConnected}
-        showConfigModal={showConfigModal}
-        onOpenConfig={() => setShowConfigModal(true)}
-        conflictModalData={conflictModalData}
-        onResolveConflicts={handleResolveConflicts}
-        onCloseConflictModal={() =>
-          setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null })
-        }
-        deleteModalData={deleteModalData}
-        onCloseDeleteModal={() => setDeleteModalData({ isOpen: false, item: null, isFolder: false })}
-        onDeleteSuccess={(item, isFolder) => {
-          const normalize = (p) => (p || '').replace(/^\/+|\/+$/g, '');
-          if (isFolder) {
-            loadTreeData();
-            setFolders((prev) => prev.filter((f) => normalize(f.path) !== normalize(item?.path)));
-            setTotalFolders((c) => Math.max(0, c - 1));
-          } else {
-            const norm = normalize(item?.path || item?.name);
-            setPictures((prev) => {
-              const next = prev.filter((p) => normalize(p.path || p.name) !== norm);
-              if (next.length !== prev.length) setTotalPictures((c) => Math.max(0, c - 1));
-              return next;
-            });
-            setVideos((prev) => {
-              const next = prev.filter((v) => normalize(v.path || v.name) !== norm);
-              if (next.length !== prev.length) setTotalVideos((c) => Math.max(0, c - 1));
-              return next;
-            });
-          }
-        }}
-        toastMessage={toastMessage}
-      />
-
-      {/* Area 9: Media Viewers & Player Modals */}
-      <ViewerLayout
-        lightbox={lightbox}
-        onCloseLightbox={() => setLightbox(null)}
-        onSelectLightboxIndex={(newIdx) =>
-          setLightbox((current) => (current ? { ...current, index: newIdx } : current))
-        }
-        hasMore={hasMore}
-        isLoadingMore={isLoadingMore}
-        onLoadMore={handleLoadMore}
-        videoModalIndex={videoModalIndex}
-        videos={filteredVideos}
-        onCloseVideoModal={() => setVideoModalIndex(null)}
-        onSelectVideoIndex={(newIdx) => setVideoModalIndex(newIdx)}
-        infoModalData={infoModalData}
-        onCloseInfoModal={() => setInfoModalData((prev) => ({ ...prev, isOpen: false }))}
-      />
-
-      {/* Area 10: File Operations & Batch Dialogs */}
-      <FileOperationLayout
-        showRenameFolderModal={showRenameFolderModal}
-        onCloseRenameFolderModal={() => setShowRenameFolderModal(false)}
-        targetFolder={targetFolder}
-        onRenameFolderSubmit={handleRenameFolderSubmit}
-        batchModalState={batchModalState}
-        onCloseBatchModal={() => setBatchModalState({ isOpen: false, action: null, items: [] })}
-        selectedItems={selectedItems}
-        treeData={treeData}
-        currentPath={currentPath}
-        drives={drives}
-        activeDrive={activeDrive}
-        onConfirmBatch={handleExecuteBatch}
-      />
-    </div>
+    </NavigationProvider>
   );
+
+
 }
 
 export default App;

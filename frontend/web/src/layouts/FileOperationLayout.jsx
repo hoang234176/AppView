@@ -21,7 +21,7 @@ export const FileOperationLayout = memo(({
   drives,
   activeDrive,
   onConfirmBatch,
-}) => {
+} = {}) => {
   return (
     <>
       {/* Rename Folder Dialog Modal */}
@@ -33,23 +33,23 @@ export const FileOperationLayout = memo(({
       />
 
       {/* Batch Action Modal for Select Mode & Single Item Actions */}
-      {batchModalState && (
-        <BatchActionModal
-          isOpen={batchModalState.isOpen}
-          action={batchModalState.action}
-          onClose={onCloseBatchModal}
-          items={
-            batchModalState.items && batchModalState.items.length > 0
-              ? batchModalState.items
-              : Array.from(selectedItems ? selectedItems.values() : [])
-          }
-          treeData={treeData}
-          currentPath={currentPath}
-          drives={drives}
-          activeDrive={activeDrive}
-          onConfirm={onConfirmBatch}
-        />
-      )}
+      <BatchActionModal
+        isOpen={batchModalState?.isOpen}
+        action={batchModalState?.action}
+        onClose={onCloseBatchModal}
+        items={
+          batchModalState?.items && batchModalState.items.length > 0
+            ? batchModalState.items
+            : selectedItems
+            ? Array.from(selectedItems.values())
+            : undefined
+        }
+        treeData={treeData}
+        currentPath={currentPath}
+        drives={drives}
+        activeDrive={activeDrive}
+        onConfirm={onConfirmBatch}
+      />
     </>
   );
 });

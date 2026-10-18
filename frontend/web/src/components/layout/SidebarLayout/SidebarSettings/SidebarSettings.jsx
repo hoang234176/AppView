@@ -1,14 +1,18 @@
 import { memo } from 'react';
 import { Settings } from 'lucide-react';
+import { useSidebarSettings } from '../../../../hooks/sidebar';
 import './SidebarSettings.css';
 
 /**
  * SidebarSettings — Server settings launcher card at the bottom of the sidebar
  */
-export const SidebarSettings = memo(({ onOpenConfig }) => {
+export const SidebarSettings = memo(({ onOpenConfig: propOnOpenConfig }) => {
+  const { onOpenConfig: hookOnOpenConfig } = useSidebarSettings();
+  const handleClick = propOnOpenConfig || hookOnOpenConfig;
+
   return (
     <div
-      onClick={onOpenConfig}
+      onClick={handleClick}
       className="sidebar-settings-card group"
       title="Cài đặt máy chủ"
     >

@@ -19,7 +19,7 @@ import { previewMediaDownload, startMediaDownload, getProxiedImageUrl } from '..
 import { canonicalDownloadDestination } from '../../../../utils/downloadDestination';
 import { FolderPicker } from '../../../common/FolderPicker';
 import { CustomSelect } from '../../../common/CustomSelect';
-import './DownloadMediaModal.css';
+import { useDownloadMediaModal } from '../../../../hooks/floatingAction';
 
 const FacebookIcon = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={`${className} fill-current`} viewBox="0 0 24 24">
@@ -65,15 +65,23 @@ const formatDuration = (seconds) => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
-export const DownloadMediaModal = ({
-  currentPath = '',
-  treeData = [],
-  activeDrive = '',
-  downloadTasks = [],
-  onClose,
-  onSuccess,
-  onOpenSettings,
+const DownloadMediaModalInner = ({
+  hookData = {},
+  currentPath: propCurrentPath,
+  treeData: propTreeData,
+  activeDrive: propActiveDrive,
+  downloadTasks: propDownloadTasks,
+  onClose: propOnClose,
+  onSuccess: propOnSuccess,
+  onOpenSettings: propOnOpenSettings,
 }) => {
+  const currentPath = propCurrentPath !== undefined ? propCurrentPath : (hookData.currentPath || '');
+  const treeData = propTreeData !== undefined ? propTreeData : (hookData.treeData || []);
+  const activeDrive = propActiveDrive !== undefined ? propActiveDrive : (hookData.activeDrive || '');
+  const downloadTasks = propDownloadTasks !== undefined ? propDownloadTasks : (hookData.downloadTasks || []);
+  const onClose = propOnClose || hookData.onClose;
+  const onSuccess = propOnSuccess || hookData.onSuccess;
+  const onOpenSettings = propOnOpenSettings || hookData.onOpenSettings;
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState(null);
   const [mediaTypeTab, setMediaTypeTab] = useState('video');
@@ -1380,4 +1388,12 @@ export const DownloadMediaModal = ({
       })()}
     </div>
   );
+};
+
+export const DownloadMediaModal = (props) => {
+  const hookData = useDownloadMediaModal();
+  const isOpen = props.isOpen !== undefined ? props.isOpen : (hookData.isOpen ?? true);
+
+  if (!isOpen) return null;
+  return <DownloadMediaModalInner {...props} hookData={hookData} />;
 };

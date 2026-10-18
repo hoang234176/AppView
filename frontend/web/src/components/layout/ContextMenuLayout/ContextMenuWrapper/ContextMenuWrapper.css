@@ -1,5 +1,0 @@
-/* ContextMenuWrapper.css — Flyout positioning and backdrop styling */
-.context-menu-wrapper {
-  position: fixed;
-  z-index: 99999;
-}

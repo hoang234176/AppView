@@ -3,7 +3,6 @@ import {
   DownloadPanelModal,
   DownloadSnackbar,
 } from '../components/layout/DownloadLayout';
-import './DownloadLayout.css';
 
 /**
  * DownloadLayout — Area 6: Download Management & Notification Layout
@@ -23,7 +22,7 @@ export const DownloadLayout = memo(({
   transferTasks,
   downloadSummary,
   onOpenDownloadPanel,
-}) => {
+} = {}) => {
   return (
     <>
       {/* Download Manager Panel Modal */}

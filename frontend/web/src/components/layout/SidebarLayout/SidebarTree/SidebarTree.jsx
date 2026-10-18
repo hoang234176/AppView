@@ -1,45 +1,32 @@
-import { useState, useEffect, memo } from 'react';
+import { memo } from 'react';
 import { Folder, FolderOpen, ChevronsUp } from 'lucide-react';
 import { TreeNodeItem } from './TreeNodeItem';
+import { useSidebarTree } from '../../../../hooks/sidebar';
 import './SidebarTree.css';
 
 /**
  * SidebarTree — Recursive and fallback folder list in sidebar
  */
 export const SidebarTree = memo(({
-  currentPath,
-  treeData = [],
-  folders = [],
-  activeDrive = 'SSD',
-  onNavigate,
-  onFolderContextMenu,
-  onEmptyContextMenu,
+  currentPath: propCurrentPath,
+  treeData: propTreeData,
+  folders: propFolders,
+  activeDrive: propActiveDrive,
+  onNavigate: propOnNavigate,
+  onFolderContextMenu: propOnFolderContextMenu,
+  onEmptyContextMenu: propOnEmptyContextMenu,
 }) => {
-  const [expandedNodes, setExpandedNodes] = useState({});
+  const hookData = useSidebarTree();
 
-  const toggleExpand = (path, forceExpand = null) => {
-    setExpandedNodes((prev) => ({
-      ...prev,
-      [path]: forceExpand !== null ? forceExpand : !prev[path],
-    }));
-  };
+  const currentPath = propCurrentPath !== undefined ? propCurrentPath : hookData.currentPath;
+  const treeData = propTreeData !== undefined ? propTreeData : hookData.treeData;
+  const folders = propFolders !== undefined ? propFolders : hookData.folders;
+  const activeDrive = propActiveDrive !== undefined ? propActiveDrive : hookData.activeDrive;
+  const onNavigate = propOnNavigate || hookData.handleNavigate;
+  const onFolderContextMenu = propOnFolderContextMenu || hookData.handleFolderContextMenu;
+  const onEmptyContextMenu = propOnEmptyContextMenu || hookData.handleEmptyContextMenu;
+  const { expandedNodes, toggleExpand, collapseAll } = hookData;
 
-  const collapseAll = () => {
-    setExpandedNodes({});
-  };
-
-  useEffect(() => {
-    if (currentPath) {
-      const parts = currentPath.split('/');
-      let accPath = '';
-      const toExpand = {};
-      parts.forEach((part) => {
-        accPath = accPath ? `${accPath}/${part}` : part;
-        toExpand[accPath] = true;
-      });
-      setExpandedNodes((prev) => ({ ...prev, ...toExpand }));
-    }
-  }, [currentPath]);
 
   return (
     <>

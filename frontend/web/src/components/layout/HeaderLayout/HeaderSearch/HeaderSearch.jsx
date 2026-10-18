@@ -1,11 +1,19 @@
 import { memo } from 'react';
 import { Search, X, Image as ImageIcon } from 'lucide-react';
+import { useHeaderSearch } from '../../../../hooks/header';
 import './HeaderSearch.css';
 
 /**
  * HeaderSearch — Search bar with clear button and mobile brand logo
  */
-export const HeaderSearch = memo(({ searchQuery, setSearchQuery }) => {
+export const HeaderSearch = memo(({
+  searchQuery: propSearchQuery,
+  setSearchQuery: propSetSearchQuery,
+}) => {
+  const hookData = useHeaderSearch();
+  const searchQuery = propSearchQuery !== undefined ? propSearchQuery : hookData.searchQuery;
+  const setSearchQuery = propSetSearchQuery || hookData.setSearchQuery;
+
   return (
     <>
       {/* Brand Logo (Mobile only) */}

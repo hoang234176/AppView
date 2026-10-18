@@ -6,6 +6,7 @@ import { SettingsStorage } from './SettingsStorage/SettingsStorage';
 import { SettingsServer } from './SettingsServer/SettingsServer';
 import { SettingsCookies } from './SettingsCookies/SettingsCookies';
 import { SettingsCache } from './SettingsCache/SettingsCache';
+import { useSettingsModal } from '../../../../hooks/settings';
 import './SettingsModal.css';
 
 let hasAutoCheckedCookiesOnWeb = false;
@@ -13,7 +14,19 @@ let hasAutoCheckedCookiesOnWeb = false;
 /**
  * SettingsModal — Modal dialog containing server, storage, cookies, and cache settings
  */
-export const SettingsModal = memo(({ isOpen, onClose, onRefreshFolder, onServerConfigSaved, onServerConfigFailed }) => {
+export const SettingsModal = memo(({
+  isOpen: propIsOpen,
+  onClose: propOnClose,
+  onRefreshFolder: propOnRefreshFolder,
+  onServerConfigSaved: propOnServerConfigSaved,
+  onServerConfigFailed: propOnServerConfigFailed,
+}) => {
+  const hookData = useSettingsModal();
+  const isOpen = propIsOpen !== undefined ? propIsOpen : hookData.isOpen;
+  const onClose = propOnClose || hookData.onClose;
+  const onRefreshFolder = propOnRefreshFolder || hookData.onRefreshFolder;
+  const onServerConfigSaved = propOnServerConfigSaved || hookData.onServerConfigSaved;
+  const onServerConfigFailed = propOnServerConfigFailed || hookData.onServerConfigFailed;
   const [serverHost, setServerHost] = useState('');
   const [serverSavedMsg, setServerSavedMsg] = useState('');
   const [serverErrorMsg, setServerErrorMsg] = useState('');

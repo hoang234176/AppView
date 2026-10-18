@@ -1,6 +1,5 @@
 import { memo } from 'react';
 import { HardDrive, ChevronDown, CheckCircle2, RefreshCw } from 'lucide-react';
-import './SettingsCache.css';
 
 /**
  * SettingsCache — Accordion section for Browser Cache size inspection and cleanup
@@ -14,11 +13,11 @@ export const SettingsCache = memo(({
   onClearCache,
 }) => {
   return (
-    <div className="settings-cache-accordion border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
+    <div className="border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
-        className="settings-cache-header-btn w-full flex items-center justify-between p-4 text-xs font-bold text-gray-200 hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between p-4 text-xs font-bold text-gray-200 hover:bg-white/5 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
           <HardDrive className="w-4 h-4 text-amber-400" />

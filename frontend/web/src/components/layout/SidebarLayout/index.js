@@ -1,4 +1,3 @@
-export { FolderTreeSidebar } from './FolderTreeSidebar';
 export { SidebarBrand } from './SidebarBrand/SidebarBrand';
 export { SidebarTree } from './SidebarTree/SidebarTree';
 export { TreeNodeItem } from './SidebarTree/TreeNodeItem';

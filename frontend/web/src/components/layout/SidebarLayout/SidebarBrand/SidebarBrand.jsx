@@ -1,15 +1,20 @@
 import { memo } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
+import { useSidebarBrand } from '../../../../hooks/sidebar';
 import './SidebarBrand.css';
 
 /**
  * SidebarBrand — Logo and Brand Header of AppView
  */
 export const SidebarBrand = memo(({ onNavigate }) => {
+  const { handleNavigateHome } = useSidebarBrand();
+
+  const handleClick = onNavigate ? () => onNavigate('') : handleNavigateHome;
+
   return (
     <div
       className="sidebar-brand-container group"
-      onClick={() => onNavigate && onNavigate('')}
+      onClick={handleClick}
     >
       <div className="sidebar-brand-icon-wrap">
         <div className="sidebar-brand-icon-inner">

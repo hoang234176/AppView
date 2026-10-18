@@ -3,6 +3,7 @@ import { Play, Film, HardDrive, Calendar, MoreVertical, Info, FolderInput, Trash
 import { formatDate, formatFileSize, getVideoThumbnailUrl } from '../../../../utils/formatters';
 import { RollingNumber } from '../../../common/RollingNumber';
 import { useVirtualGrid } from '../../../../utils/useVirtualGrid';
+import { useContentVideoGrid } from '../../../../hooks/content';
 import './VideoGrid.css';
 
 const VideoCard = memo(({
@@ -163,18 +164,31 @@ const VideoCard = memo(({
 VideoCard.displayName = 'VideoCard';
 
 export const VideoGrid = memo(({
-  videos = [],
-  totalCount,
-  onOpenVideo,
-  onShowInfo,
-  onCopyItem,
-  onMoveItem,
-  onDeleteItem,
-  isSelectMode = false,
-  selectedItems = new Map(),
-  onToggleSelect,
-  onToggleSelectAll,
+  videos: propVideos,
+  totalCount: propTotalCount,
+  onOpenVideo: propOnOpenVideo,
+  onShowInfo: propOnShowInfo,
+  onCopyItem: propOnCopyItem,
+  onMoveItem: propOnMoveItem,
+  onDeleteItem: propOnDeleteItem,
+  isSelectMode: propIsSelectMode,
+  selectedItems: propSelectedItems,
+  onToggleSelect: propOnToggleSelect,
+  onToggleSelectAll: propOnToggleSelectAll,
 }) => {
+  const hookData = useContentVideoGrid();
+  const videos = propVideos !== undefined ? propVideos : hookData.videos;
+  const totalCount = propTotalCount !== undefined ? propTotalCount : hookData.totalCount;
+  const onOpenVideo = propOnOpenVideo || hookData.onOpenVideo;
+  const onShowInfo = propOnShowInfo || hookData.onShowInfo;
+  const onCopyItem = propOnCopyItem || hookData.onCopyItem;
+  const onMoveItem = propOnMoveItem || hookData.onMoveItem;
+  const onDeleteItem = propOnDeleteItem || hookData.onDeleteItem;
+  const isSelectMode = propIsSelectMode !== undefined ? propIsSelectMode : hookData.isSelectMode;
+  const selectedItems = propSelectedItems !== undefined ? propSelectedItems : hookData.selectedItems;
+  const onToggleSelect = propOnToggleSelect || hookData.onToggleSelect;
+  const onToggleSelectAll = propOnToggleSelectAll || hookData.onToggleSelectAll;
+
   const [openMenuIndex, setOpenMenuIndex] = useState(null);
   const menuRef = useRef(null);
 

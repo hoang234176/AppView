@@ -11,14 +11,23 @@ import {
   Square,
 } from 'lucide-react';
 import { FileTypeIcon } from '../../../icons/FileTypeIcon';
-import './ConflictResolutionModal.css';
+import { useConflictModal } from '../../../../hooks/notification';
 
 export const ConflictResolutionModal = ({
-  isOpen,
-  conflicts = [],
-  onResolve, // ({ resolutions, defaultResolution }) => void
-  onClose,
+  isOpen: propIsOpen,
+  conflicts: propConflicts,
+  action: propAction,
+  onResolve: propOnResolve,
+  onClose: propOnClose,
 }) => {
+  const hookData = useConflictModal();
+  const isOpen = propIsOpen !== undefined ? propIsOpen : hookData.isOpen;
+  const conflicts = propConflicts !== undefined ? propConflicts : (hookData.conflicts || []);
+  // eslint-disable-next-line no-unused-vars
+  const action = propAction !== undefined ? propAction : hookData.action;
+  const onResolve = propOnResolve || hookData.onResolve;
+  const onClose = propOnClose || hookData.onClose;
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [applyToAll, setApplyToAll] = useState(false);
   const [resolutions, setResolutions] = useState({}); // { [path or fileName]: 'keep_both' | 'overwrite' | 'skip' }

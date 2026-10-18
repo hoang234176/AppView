@@ -1,36 +1,33 @@
 import { memo } from 'react';
-import { FolderTreeSidebar } from '../components/layout/SidebarLayout';
+import {
+  SidebarBrand,
+  SidebarTree,
+  SidebarDrives,
+  SidebarSettings,
+} from '../components/layout/SidebarLayout';
 import './SidebarLayout.css';
 
 /**
  * SidebarLayout — Area 1: Left Column Sidebar
- * Wraps FolderTree, Drive selector, and Server Configuration trigger.
+ * Modular assembly of SidebarBrand, SidebarTree, SidebarDrives, and SidebarSettings.
  */
-export const SidebarLayout = memo(({
-  currentPath,
-  treeData,
-  folders,
-  onNavigate,
-  onFolderContextMenu,
-  onEmptyContextMenu,
-  onOpenConfig,
-  drives,
-  activeDrive,
-  onSelectDrive,
-}) => {
+export const SidebarLayout = memo(() => {
   return (
-    <FolderTreeSidebar
-      currentPath={currentPath}
-      treeData={treeData}
-      folders={folders}
-      onNavigate={onNavigate}
-      onFolderContextMenu={onFolderContextMenu}
-      onEmptyContextMenu={onEmptyContextMenu}
-      onOpenConfig={onOpenConfig}
-      drives={drives}
-      activeDrive={activeDrive}
-      onSelectDrive={onSelectDrive}
-    />
+    <aside className="folder-tree-sidebar-aside tahoe-block">
+      <div className="folder-tree-sidebar-inner">
+        {/* Block 1: Logo and Brand Header */}
+        <SidebarBrand />
+
+        {/* Block 2: Folder Tree Navigation */}
+        <SidebarTree />
+
+        {/* Bottom Section: Block 3 (Drives) + Block 4 (Settings) */}
+        <div className="folder-tree-sidebar-bottom">
+          <SidebarDrives />
+          <SidebarSettings />
+        </div>
+      </div>
+    </aside>
   );
 });
 

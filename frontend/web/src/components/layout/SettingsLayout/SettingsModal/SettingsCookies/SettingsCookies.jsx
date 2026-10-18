@@ -1,6 +1,5 @@
 import { memo } from 'react';
 import { Cookie, ChevronDown, Check, AlertCircle, RefreshCw } from 'lucide-react';
-import './SettingsCookies.css';
 
 /**
  * SettingsCookies — Accordion section for social media cookies status and verification
@@ -40,11 +39,11 @@ export const SettingsCookies = memo(({
   handleVerifyXCookie,
 }) => {
   return (
-    <div className="settings-cookies-accordion border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
+    <div className="border border-[#383c42] rounded-[20px] bg-[#202124]/60 overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
-        className="settings-cookies-header-btn w-full flex items-center justify-between p-4 text-xs font-bold text-gray-200 hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between p-4 text-xs font-bold text-gray-200 hover:bg-white/5 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
           <Cookie className="w-4 h-4 text-amber-400" />
@@ -65,7 +64,7 @@ export const SettingsCookies = memo(({
         <div className="overflow-hidden">
           <div className="p-4 pt-0 space-y-3 text-xs border-t border-[#383c42]/40">
             {/* YouTube Card */}
-            <div className="settings-cookies-card bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
+            <div className="bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
               <div
                 onClick={() => setIsYoutubeOpen(!isYoutubeOpen)}
                 className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
@@ -127,7 +126,7 @@ export const SettingsCookies = memo(({
             </div>
 
             {/* TikTok Card */}
-            <div className="settings-cookies-card bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
+            <div className="bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
               <div
                 onClick={() => setIsTiktokOpen(!isTiktokOpen)}
                 className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
@@ -189,7 +188,7 @@ export const SettingsCookies = memo(({
             </div>
 
             {/* Facebook Card */}
-            <div className="settings-cookies-card bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
+            <div className="bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
               <div
                 onClick={() => setIsFbOpen(!isFbOpen)}
                 className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
@@ -251,7 +250,7 @@ export const SettingsCookies = memo(({
             </div>
 
             {/* Instagram Card */}
-            <div className="settings-cookies-card bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
+            <div className="bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
               <div
                 onClick={() => setIsIgOpen(!isIgOpen)}
                 className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
@@ -313,7 +312,7 @@ export const SettingsCookies = memo(({
             </div>
 
             {/* X (Twitter) Card */}
-            <div className="settings-cookies-card bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
+            <div className="bg-[#18191c] border border-[#383c42]/60 rounded-xl overflow-hidden mt-3">
               <div
                 onClick={() => setIsXOpen(!isXOpen)}
                 className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/[0.03] transition-colors"

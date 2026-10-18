@@ -5,7 +5,6 @@ import {
   DeleteModal,
   ToastNotification,
 } from '../components/layout/NotificationLayout';
-import './NotificationLayout.css';
 
 /**
  * NotificationLayout — Global Feedback, Confirmation & System Alert Layout
@@ -33,9 +32,9 @@ export const NotificationLayout = memo(({
 
   // 4. Toast Feedback
   toastMessage,
-}) => {
+} = {}) => {
   return (
-    <div className="notification-layout-container">
+    <>
       {/* 1. System Disconnected Overlay */}
       <DisconnectedOverlay
         isConnected={isConnected}
@@ -63,7 +62,7 @@ export const NotificationLayout = memo(({
 
       {/* 4. Floating Toast Notification */}
       <ToastNotification message={toastMessage} />
-    </div>
+    </>
   );
 });
 

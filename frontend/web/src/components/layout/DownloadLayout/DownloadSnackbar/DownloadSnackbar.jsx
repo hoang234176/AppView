@@ -13,7 +13,7 @@ import { formatFileSize, formatSpeed, getFileCategory } from '../../../../utils/
 import { cancelDownloadTask, submitTaskPassword } from '../../../../api/downloadApi';
 import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from '../../../icons/FileTypeIcon';
 import { RollingNumber } from '../../../common/RollingNumber';
-import './DownloadSnackbar.css';
+import { useDownloadSnackbar } from '../../../../hooks/download';
 
 // Go báo `current` là số video đã hoàn tất. Khi đang convert, video hiển thị
 // phải là video kế tiếp đang chạy: 0 -> [1/N], 1 -> [2/N].
@@ -23,7 +23,18 @@ const displayConvertIndex = (task) => {
   return Math.min((Number(task?.convert_current) || 0) + 1, total);
 };
 
-export const DownloadSnackbar = ({ tasks = [], transferTasks = [], summary = null }) => {
+export const DownloadSnackbar = ({
+  tasks: propTasks,
+  transferTasks: propTransferTasks,
+  summary: propSummary,
+  onOpenPanel: propOnOpenPanel,
+}) => {
+  const hookData = useDownloadSnackbar();
+  const tasks = propTasks !== undefined ? propTasks : (hookData.tasks || []);
+  const transferTasks = propTransferTasks !== undefined ? propTransferTasks : (hookData.transferTasks || []);
+  const summary = propSummary !== undefined ? propSummary : hookData.summary;
+  // eslint-disable-next-line no-unused-vars
+  const onOpenPanel = propOnOpenPanel || hookData.onOpenPanel;
   const [isExpanded, setIsExpanded] = useState(false);
   const [detailsMounted, setDetailsMounted] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);

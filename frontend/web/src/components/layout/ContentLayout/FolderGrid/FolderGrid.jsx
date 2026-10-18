@@ -3,6 +3,7 @@ import { Folder, ArrowRight, Check, Image as ImageIcon, Film } from 'lucide-reac
 import { WindowsFolderIcon } from '../../../icons/WindowsFolderIcon';
 import { RollingNumber } from '../../../common/RollingNumber';
 import { useVirtualGrid } from '../../../../utils/useVirtualGrid';
+import { useContentFolderGrid } from '../../../../hooks/content';
 import './FolderGrid.css';
 
 const FolderCard = memo(({
@@ -119,15 +120,25 @@ const FolderCard = memo(({
 FolderCard.displayName = 'FolderCard';
 
 export const FolderGrid = memo(({
-  folders = [],
-  totalCount,
-  onNavigate,
-  onFolderContextMenu,
-  isSelectMode = false,
-  selectedItems = new Map(),
-  onToggleSelect,
-  onToggleSelectAll,
+  folders: propFolders,
+  totalCount: propTotalCount,
+  onNavigate: propOnNavigate,
+  onFolderContextMenu: propOnFolderContextMenu,
+  isSelectMode: propIsSelectMode,
+  selectedItems: propSelectedItems,
+  onToggleSelect: propOnToggleSelect,
+  onToggleSelectAll: propOnToggleSelectAll,
 }) => {
+  const hookData = useContentFolderGrid();
+  const folders = propFolders !== undefined ? propFolders : hookData.folders;
+  const totalCount = propTotalCount !== undefined ? propTotalCount : hookData.totalCount;
+  const onNavigate = propOnNavigate || hookData.onNavigate;
+  const onFolderContextMenu = propOnFolderContextMenu || hookData.onFolderContextMenu;
+  const isSelectMode = propIsSelectMode !== undefined ? propIsSelectMode : hookData.isSelectMode;
+  const selectedItems = propSelectedItems !== undefined ? propSelectedItems : hookData.selectedItems;
+  const onToggleSelect = propOnToggleSelect || hookData.onToggleSelect;
+  const onToggleSelectAll = propOnToggleSelectAll || hookData.onToggleSelectAll;
+
   const folderCount = folders ? folders.length : 0;
   const {
     containerRef,

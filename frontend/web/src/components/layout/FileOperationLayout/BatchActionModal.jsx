@@ -9,7 +9,6 @@ import {
   FolderInput,
   Trash2,
   AlertTriangle,
-  CheckCircle2,
   ChevronRight,
   ChevronDown,
   Search,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 import { fetchFolderTree } from '../../../api/folderApi';
 import { RollingNumber } from '../../common/RollingNumber';
+import { useBatchActionModal } from '../../../hooks/fileOperation';
 
 const BatchTreeNodeItem = memo(({
   node,
@@ -116,18 +116,34 @@ const BatchTreeNodeItem = memo(({
 
 BatchTreeNodeItem.displayName = 'BatchTreeNodeItem';
 
-export const BatchActionModal = ({
-  isOpen,
-  action, // 'copy' | 'move' | 'delete'
-  onClose,
-  items = [], // Array of { type: 'folder' | 'picture' | 'video', item }
-  treeData = [],
-  currentPath = '',
-  drives = [],
-  activeDrive = 'HDD',
-  onConfirm,
-  onSuccess,
+const EMPTY_ITEMS = [];
+
+const BatchActionModalInner = memo(({
+  hookData = {},
+  isOpen: propIsOpen,
+  action: propAction, // 'copy' | 'move' | 'delete'
+  onClose: propOnClose,
+  items: propItems, // Array of { type: 'folder' | 'picture' | 'video', item }
+  treeData: propTreeData,
+  currentPath: propCurrentPath,
+  drives: propDrives,
+  activeDrive: propActiveDrive,
+  onConfirm: propOnConfirm,
 }) => {
+  const isOpen = propIsOpen !== undefined ? propIsOpen : hookData.isOpen;
+  const action = propAction !== undefined ? propAction : hookData.action;
+  const onClose = propOnClose || hookData.onClose;
+  const hookItems = hookData.items;
+  const items = useMemo(
+    () => (propItems !== undefined ? propItems : (hookItems || EMPTY_ITEMS)),
+    [propItems, hookItems]
+  );
+  const treeData = propTreeData !== undefined ? propTreeData : hookData.treeData;
+  const currentPath = propCurrentPath !== undefined ? propCurrentPath : hookData.currentPath;
+  const drives = propDrives !== undefined ? propDrives : hookData.drives;
+  const activeDrive = propActiveDrive !== undefined ? propActiveDrive : hookData.activeDrive;
+  const onConfirm = propOnConfirm || hookData.onConfirm;
+
   const [selectedFolder, setSelectedFolder] = useState(currentPath || '');
   const [targetDrive, setTargetDrive] = useState(activeDrive || 'HDD');
   const [modalTreeData, setModalTreeData] = useState(treeData || []);
@@ -491,4 +507,13 @@ export const BatchActionModal = ({
       </div>
     </div>
   );
-};
+});
+
+BatchActionModalInner.displayName = 'BatchActionModalInner';
+
+export const BatchActionModal = memo((props) => {
+  const hookData = useBatchActionModal();
+  return <BatchActionModalInner hookData={hookData} {...props} />;
+});
+
+BatchActionModal.displayName = 'BatchActionModal';

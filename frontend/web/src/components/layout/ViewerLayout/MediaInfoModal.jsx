@@ -8,8 +8,20 @@ import {
   Film
 } from 'lucide-react';
 import { formatDate, formatFileSize, getThumbnailUrl, getVideoThumbnailUrl } from '../../../utils/formatters';
+import { useMediaInfoModal } from '../../../hooks/viewer';
 
-export const MediaInfoModal = ({ isOpen, onClose, item, type = 'picture' }) => {
+export const MediaInfoModal = ({
+  isOpen: propIsOpen,
+  onClose: propOnClose,
+  item: propItem,
+  type: propType,
+}) => {
+  const hookData = useMediaInfoModal();
+  const isOpen = propIsOpen !== undefined ? propIsOpen : hookData.isOpen;
+  const onClose = propOnClose || hookData.onClose;
+  const item = propItem !== undefined ? propItem : hookData.item;
+  const type = propType !== undefined ? propType : (hookData.type || 'picture');
+
   if (!isOpen || !item) return null;
 
   const isVideo = type === 'video' || item.type === 'video';

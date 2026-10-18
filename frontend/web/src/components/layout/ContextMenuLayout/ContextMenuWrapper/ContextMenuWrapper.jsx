@@ -1,5 +1,4 @@
 import { memo, useEffect, useRef } from 'react';
-import './ContextMenuWrapper.css';
 
 /**
  * ContextMenuWrapper — Floating boundary container
@@ -45,7 +44,7 @@ export const ContextMenuWrapper = memo(({
     <div
       ref={menuRef}
       style={{ top: `${adjustedY}px`, left: `${adjustedX}px` }}
-      className="context-menu-wrapper bg-[#1c1d21] border border-[#383c42] rounded-[18px] p-1.5 shadow-2xl w-56 animate-fade-in space-y-1 select-none"
+      className="fixed z-[99999] bg-[#1c1d21] border border-[#383c42] rounded-[18px] p-1.5 shadow-2xl w-56 animate-fade-in space-y-1 select-none"
     >
       {children}
     </div>

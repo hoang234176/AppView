@@ -10,16 +10,23 @@ import {
 import { startArchiveDownload } from '../../../../api/downloadApi';
 import { canonicalDownloadDestination } from '../../../../utils/downloadDestination';
 import { FolderPicker } from '../../../common/FolderPicker';
-import './DownloadMediafireModal.css';
+import { useDownloadMediafireModal } from '../../../../hooks/floatingAction';
 
 export const DownloadMediafireModal = ({
-  isOpen,
-  onClose,
-  currentPath = '',
-  treeData = [],
-  activeDrive = '',
-  onSuccess
+  isOpen: propIsOpen,
+  onClose: propOnClose,
+  currentPath: propCurrentPath,
+  treeData: propTreeData,
+  activeDrive: propActiveDrive,
+  onSuccess: propOnSuccess,
 }) => {
+  const hookData = useDownloadMediafireModal();
+  const isOpen = propIsOpen !== undefined ? propIsOpen : hookData.isOpen;
+  const onClose = propOnClose || hookData.onClose;
+  const currentPath = propCurrentPath !== undefined ? propCurrentPath : (hookData.currentPath || '');
+  const treeData = propTreeData !== undefined ? propTreeData : (hookData.treeData || []);
+  const activeDrive = propActiveDrive !== undefined ? propActiveDrive : (hookData.activeDrive || '');
+  const onSuccess = propOnSuccess || hookData.onSuccess;
   const [url, setUrl] = useState('');
   const [destination, setDestination] = useState(currentPath);
   const [isSubmitting, setIsSubmitting] = useState(false);

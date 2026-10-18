@@ -1,10 +1,20 @@
 import { memo } from 'react';
+import { useDisconnectedOverlay } from '../../../../hooks/notification';
 import './DisconnectedOverlay.css';
 
 /**
  * DisconnectedOverlay — Modal backdrop displayed when connection to backend server is lost
  */
-export const DisconnectedOverlay = memo(({ isConnected, showConfigModal, onOpenConfig }) => {
+export const DisconnectedOverlay = memo(({
+  isConnected: propIsConnected,
+  showConfigModal: propShowConfigModal,
+  onOpenConfig: propOnOpenConfig,
+}) => {
+  const hookData = useDisconnectedOverlay();
+  const isConnected = propIsConnected !== undefined ? propIsConnected : hookData.isConnected;
+  const showConfigModal = propShowConfigModal !== undefined ? propShowConfigModal : hookData.showConfigModal;
+  const onOpenConfig = propOnOpenConfig || hookData.onOpenConfig;
+
   if (isConnected || showConfigModal) return null;
 
   return (

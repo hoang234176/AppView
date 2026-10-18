@@ -1,9 +1,22 @@
 import { useState } from 'react';
 import { AlertTriangle, Trash2, X, Loader2 } from 'lucide-react';
 import { deleteFolder, deleteFile } from '../../../../api/folderApi';
-import './DeleteModal.css';
+import { useDeleteConfirmModal } from '../../../../hooks/notification';
 
-export const DeleteModal = ({ isOpen, onClose, targetItem, isFolder = false, onSuccess }) => {
+export const DeleteModal = ({
+  isOpen: propIsOpen,
+  onClose: propOnClose,
+  targetItem: propTargetItem,
+  isFolder: propIsFolder,
+  onSuccess: propOnSuccess,
+}) => {
+  const hookData = useDeleteConfirmModal();
+  const isOpen = propIsOpen !== undefined ? propIsOpen : hookData.isOpen;
+  const onClose = propOnClose || hookData.onClose;
+  const targetItem = propTargetItem !== undefined ? propTargetItem : hookData.targetItem;
+  const isFolder = propIsFolder !== undefined ? propIsFolder : hookData.isFolder;
+  const onSuccess = propOnSuccess || hookData.onSuccess;
+
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
