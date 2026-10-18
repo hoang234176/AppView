@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SidebarLayout } from './layouts/SidebarLayout';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { HeaderLayout } from './layouts/HeaderLayout';
-import { HeaderProvider } from './contexts/HeaderContext';
 import { ContentLayout } from './layouts/ContentLayout';
 import { ContentProvider } from './contexts/ContentContext';
 import { FloatingActionLayout } from './layouts/FloatingActionLayout';
@@ -342,6 +341,7 @@ function App() {
   }, [isConnected, currentPath, loadData, loadTreeData]);
 
   const navigationValue = useMemo(() => ({
+    // Navigation & Sidebar
     currentPath,
     treeData,
     folders,
@@ -353,26 +353,11 @@ function App() {
     handleEmptyContextMenu,
     handleOpenConfig: () => setShowConfigModal(true),
     onOpenConfig: () => setShowConfigModal(true),
-  }), [
-    currentPath,
-    treeData,
-    folders,
-    drives,
-    activeDrive,
-    handleNavigate,
-    handleSelectDrive,
-    handleFolderContextMenu,
-    handleEmptyContextMenu,
-    setShowConfigModal,
-  ]);
 
-
-  const handleOpenDownloadPanel = useCallback(() => setShowDownloadPanel(true), [setShowDownloadPanel]);
-
-  const headerValue = useMemo(() => ({
+    // Header Search, Filter, Download & Select Mode
     searchQuery,
     setSearchQuery,
-    onOpenDownloadPanel: handleOpenDownloadPanel,
+    onOpenDownloadPanel: () => setShowDownloadPanel(true),
     activeDownloadCount,
     downloadProgressPercent,
     isDownloadingMode,
@@ -391,9 +376,19 @@ function App() {
     mxhFilters,
     setMxhFilters,
   }), [
+    currentPath,
+    treeData,
+    folders,
+    drives,
+    activeDrive,
+    handleNavigate,
+    handleSelectDrive,
+    handleFolderContextMenu,
+    handleEmptyContextMenu,
+    setShowConfigModal,
     searchQuery,
     setSearchQuery,
-    handleOpenDownloadPanel,
+    setShowDownloadPanel,
     activeDownloadCount,
     downloadProgressPercent,
     isDownloadingMode,
@@ -412,6 +407,7 @@ function App() {
     mxhFilters,
     setMxhFilters,
   ]);
+
 
   const handleClearSearch = useCallback(() => setSearchQuery(''), [setSearchQuery]);
 
@@ -684,9 +680,8 @@ function App() {
         {/* Right Container: Header + Content Canvas */}
         <div className="app-main-column">
           {/* Area 2: Top Header Bar */}
-          <HeaderProvider value={headerValue}>
-            <HeaderLayout />
-          </HeaderProvider>
+          <HeaderLayout />
+
 
           {/* Area 3: Main Content Canvas */}
           <ContentProvider value={contentValue}>
