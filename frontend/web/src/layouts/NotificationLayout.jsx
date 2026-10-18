@@ -5,6 +5,7 @@ import {
   DeleteModal,
   ToastNotification,
 } from '../components/layout/NotificationLayout';
+import { useNotificationContext } from '../contexts/NotificationContext';
 
 /**
  * NotificationLayout — Global Feedback, Confirmation & System Alert Layout
@@ -16,23 +17,38 @@ import {
  */
 export const NotificationLayout = memo(({
   // 1. Connection Overlay
-  isConnected,
-  showConfigModal,
-  onOpenConfig,
+  isConnected: propIsConnected,
+  showConfigModal: propShowConfigModal,
+  onOpenConfig: propOnOpenConfig,
 
   // 2. Conflict Resolution
-  conflictModalData,
-  onResolveConflicts,
-  onCloseConflictModal,
+  conflictModalData: propConflictModalData,
+  onResolveConflicts: propOnResolveConflicts,
+  onCloseConflictModal: propOnCloseConflictModal,
 
   // 3. Delete Confirmation
-  deleteModalData,
-  onCloseDeleteModal,
-  onDeleteSuccess,
+  deleteModalData: propDeleteModalData,
+  onCloseDeleteModal: propOnCloseDeleteModal,
+  onDeleteSuccess: propOnDeleteSuccess,
 
   // 4. Toast Feedback
-  toastMessage,
+  toastMessage: propToastMessage,
 } = {}) => {
+  const context = useNotificationContext();
+
+  const isConnected = propIsConnected !== undefined ? propIsConnected : context.isConnected;
+  const showConfigModal = propShowConfigModal !== undefined ? propShowConfigModal : context.showConfigModal;
+  const onOpenConfig = propOnOpenConfig || context.onOpenConfig;
+
+  const conflictModalData = propConflictModalData !== undefined ? propConflictModalData : context.conflictModalData;
+  const onResolveConflicts = propOnResolveConflicts || context.onResolveConflicts;
+  const onCloseConflictModal = propOnCloseConflictModal || context.onCloseConflictModal;
+
+  const deleteModalData = propDeleteModalData !== undefined ? propDeleteModalData : context.deleteModalData;
+  const onCloseDeleteModal = propOnCloseDeleteModal || context.onCloseDeleteModal;
+  const onDeleteSuccess = propOnDeleteSuccess || context.onDeleteSuccess;
+
+  const toastMessage = propToastMessage !== undefined ? propToastMessage : context.toastMessage;
   return (
     <>
       {/* 1. System Disconnected Overlay */}

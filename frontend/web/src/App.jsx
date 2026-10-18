@@ -8,7 +8,6 @@ import { SettingsLayout } from './layouts/SettingsLayout';
 import { DownloadLayout } from './layouts/DownloadLayout';
 import { ContextMenuLayout } from './layouts/ContextMenuLayout';
 import { NotificationLayout } from './layouts/NotificationLayout';
-import { NotificationProvider } from './contexts/NotificationContext';
 import { ViewerLayout } from './layouts/ViewerLayout';
 import { ViewerProvider } from './contexts/ViewerContext';
 import { FileOperationLayout } from './layouts/FileOperationLayout';
@@ -458,6 +457,17 @@ function App() {
     onDeleteFolder: (folder) => {
       handleOpenDeleteItem(folder, true);
     },
+
+    // Notifications, System Alerts & Feedback
+    isConnected,
+    conflictModalData,
+    onResolveConflicts: handleResolveConflicts,
+    onCloseConflictModal: () =>
+      setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null }),
+    deleteModalData,
+    onCloseDeleteModal: () => setDeleteModalData({ isOpen: false, item: null, isFolder: false }),
+    onDeleteSuccess: handleDeleteSuccess,
+    toastMessage,
   }), [
     currentPath,
     treeData,
@@ -538,24 +548,7 @@ function App() {
     setTargetFolder,
     setShowRenameFolderModal,
     handleOpenDeleteItem,
-  ]);
-
-  const notificationValue = useMemo(() => ({
     isConnected,
-    showConfigModal,
-    onOpenConfig: () => setShowConfigModal(true),
-    conflictModalData,
-    onResolveConflicts: handleResolveConflicts,
-    onCloseConflictModal: () =>
-      setConflictModalData({ isOpen: false, conflicts: [], action: 'copy', pendingBatch: null }),
-    deleteModalData,
-    onCloseDeleteModal: () => setDeleteModalData({ isOpen: false, item: null, isFolder: false }),
-    onDeleteSuccess: handleDeleteSuccess,
-    toastMessage,
-  }), [
-    isConnected,
-    showConfigModal,
-    setShowConfigModal,
     conflictModalData,
     handleResolveConflicts,
     setConflictModalData,
@@ -648,9 +641,7 @@ function App() {
         <ContextMenuLayout />
 
         {/* Area 8: Notifications, System Alerts & Feedback */}
-        <NotificationProvider value={notificationValue}>
-          <NotificationLayout />
-        </NotificationProvider>
+        <NotificationLayout />
 
         {/* Area 9: Media Viewers & Player Modals */}
         <ViewerProvider value={viewerValue}>
