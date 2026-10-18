@@ -6,7 +6,6 @@ import { ContentLayout } from './layouts/ContentLayout';
 import { FloatingActionLayout } from './layouts/FloatingActionLayout';
 import { SettingsLayout } from './layouts/SettingsLayout';
 import { DownloadLayout } from './layouts/DownloadLayout';
-import { DownloadProvider } from './contexts/DownloadContext';
 import { ContextMenuLayout } from './layouts/ContextMenuLayout';
 import { ContextMenuProvider } from './contexts/ContextMenuContext';
 import { NotificationLayout } from './layouts/NotificationLayout';
@@ -427,6 +426,21 @@ function App() {
     onRefresh: handleRefreshAll,
     onServerConfigSaved: handleServerConfigSaved,
     onServerConfigFailed: handleServerConfigFailed,
+
+    // Download Management & Notification Layout
+    showDownloadPanel,
+    onCloseDownloadPanel: () => setShowDownloadPanel(false),
+    downloadPanelTab,
+    onSelectedTabChange: setDownloadPanelTab,
+    onOpenAddModal: () => {
+      setShowDownloadPanel(false);
+      setShowDownloadMediafireModal(true);
+    },
+    onDeleteTask: (taskId) => {
+      setDownloadTasks((prev) => prev.filter((t) => t.task_id !== taskId));
+    },
+    transferTasks,
+    downloadSummary,
   }), [
     currentPath,
     treeData,
@@ -497,31 +511,8 @@ function App() {
     showConfigModal,
     handleServerConfigSaved,
     handleServerConfigFailed,
-  ]);
-
-  const downloadValue = useMemo(() => ({
     showDownloadPanel,
-    onCloseDownloadPanel: () => setShowDownloadPanel(false),
-    downloadTasks,
     downloadPanelTab,
-    onSelectedTabChange: setDownloadPanelTab,
-    onOpenAddModal: () => {
-      setShowDownloadPanel(false);
-      setShowDownloadMediafireModal(true);
-    },
-    onDeleteTask: (taskId) => {
-      setDownloadTasks((prev) => prev.filter((t) => t.task_id !== taskId));
-    },
-    transferTasks,
-    downloadSummary,
-    onOpenDownloadPanel: () => setShowDownloadPanel(true),
-  }), [
-    showDownloadPanel,
-    setShowDownloadPanel,
-    downloadTasks,
-    downloadPanelTab,
-    setDownloadPanelTab,
-    setShowDownloadMediafireModal,
     setDownloadTasks,
     transferTasks,
     downloadSummary,
@@ -659,9 +650,7 @@ function App() {
         <SettingsLayout />
 
         {/* Area 6: Downloads & Notification */}
-        <DownloadProvider value={downloadValue}>
-          <DownloadLayout />
-        </DownloadProvider>
+        <DownloadLayout />
 
         {/* Area 7: Context Menus */}
         <ContextMenuProvider value={contextMenuValue}>
