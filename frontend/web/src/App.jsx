@@ -7,7 +7,6 @@ import { FloatingActionLayout } from './layouts/FloatingActionLayout';
 import { SettingsLayout } from './layouts/SettingsLayout';
 import { DownloadLayout } from './layouts/DownloadLayout';
 import { ContextMenuLayout } from './layouts/ContextMenuLayout';
-import { ContextMenuProvider } from './contexts/ContextMenuContext';
 import { NotificationLayout } from './layouts/NotificationLayout';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ViewerLayout } from './layouts/ViewerLayout';
@@ -441,6 +440,24 @@ function App() {
     },
     transferTasks,
     downloadSummary,
+
+    // Context Menus
+    contextMenu,
+    onClose: handleCloseContextMenu,
+    onCloseContextMenu: handleCloseContextMenu,
+    onRenameFolder: (folder) => {
+      setTargetFolder(folder);
+      setShowRenameFolderModal(true);
+    },
+    onCopyFolder: (folder) => {
+      handleCopySingleItem(folder, 'folder');
+    },
+    onMoveFolder: (folder) => {
+      handleOpenMoveItem(folder, 'folder');
+    },
+    onDeleteFolder: (folder) => {
+      handleOpenDeleteItem(folder, true);
+    },
   }), [
     currentPath,
     treeData,
@@ -516,36 +533,11 @@ function App() {
     setDownloadTasks,
     transferTasks,
     downloadSummary,
-  ]);
-
-  const contextMenuValue = useMemo(() => ({
-    contextMenu,
-    onClose: handleCloseContextMenu,
-    onCreateFolder: () => setShowCreateFolderModal(true),
-    onRenameFolder: (folder) => {
-      setTargetFolder(folder);
-      setShowRenameFolderModal(true);
-    },
-    onCopyFolder: (folder) => {
-      handleCopySingleItem(folder, 'folder');
-    },
-    onMoveFolder: (folder) => {
-      handleOpenMoveItem(folder, 'folder');
-    },
-    onDeleteFolder: (folder) => {
-      handleOpenDeleteItem(folder, true);
-    },
-    onRefresh: handleRefreshAll,
-  }), [
     contextMenu,
     handleCloseContextMenu,
-    setShowCreateFolderModal,
     setTargetFolder,
     setShowRenameFolderModal,
-    handleCopySingleItem,
-    handleOpenMoveItem,
     handleOpenDeleteItem,
-    handleRefreshAll,
   ]);
 
   const notificationValue = useMemo(() => ({
@@ -653,9 +645,7 @@ function App() {
         <DownloadLayout />
 
         {/* Area 7: Context Menus */}
-        <ContextMenuProvider value={contextMenuValue}>
-          <ContextMenuLayout />
-        </ContextMenuProvider>
+        <ContextMenuLayout />
 
         {/* Area 8: Notifications, System Alerts & Feedback */}
         <NotificationProvider value={notificationValue}>

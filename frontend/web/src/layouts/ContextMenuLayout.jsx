@@ -4,7 +4,7 @@ import {
   EmptyContextMenu,
   FolderContextMenu,
 } from '../components/layout/ContextMenuLayout';
-import { useContextMenu } from '../hooks/contextMenu';
+import { useContextMenuContext } from '../contexts/ContextMenuContext';
 
 /**
  * ContextMenuLayout — Right-Click Flyout Management Layout
@@ -13,16 +13,22 @@ import { useContextMenu } from '../hooks/contextMenu';
 export const ContextMenuLayout = memo(({
   contextMenu: propContextMenu,
   onClose: propOnClose,
-  onCreateFolder,
-  onRenameFolder,
-  onCopyFolder,
-  onMoveFolder,
-  onDeleteFolder,
-  onRefresh,
+  onCreateFolder: propOnCreateFolder,
+  onRenameFolder: propOnRenameFolder,
+  onCopyFolder: propOnCopyFolder,
+  onMoveFolder: propOnMoveFolder,
+  onDeleteFolder: propOnDeleteFolder,
+  onRefresh: propOnRefresh,
 } = {}) => {
-  const hookData = useContextMenu();
-  const contextMenu = propContextMenu !== undefined ? propContextMenu : hookData;
-  const onClose = propOnClose || hookData.onClose;
+  const context = useContextMenuContext();
+  const contextMenu = propContextMenu !== undefined ? propContextMenu : context.contextMenu;
+  const onClose = propOnClose || context.onClose;
+  const onCreateFolder = propOnCreateFolder || context.onCreateFolder;
+  const onRenameFolder = propOnRenameFolder || context.onRenameFolder;
+  const onCopyFolder = propOnCopyFolder || context.onCopyFolder;
+  const onMoveFolder = propOnMoveFolder || context.onMoveFolder;
+  const onDeleteFolder = propOnDeleteFolder || context.onDeleteFolder;
+  const onRefresh = propOnRefresh || context.onRefresh;
 
   if (!contextMenu?.isOpen) return null;
 
