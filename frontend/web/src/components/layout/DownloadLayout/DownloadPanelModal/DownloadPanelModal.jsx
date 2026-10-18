@@ -4,7 +4,7 @@ import { formatFileSize, formatSpeed, getFileCategory } from '../../../../utils/
 import { submitTaskPassword, cancelDownloadTask, deleteDownloadTask, retryDownloadTask, retryCoordinatorArchive, submitCoordinatorArchivePassword, cancelCoordinatorArchive, applyCoordinatorVideoDecisions } from '../../../../api/downloadApi';
 import { FileTypeIcon, MultipartArchiveIcon, MultipartBadge, isMultipartArchive } from '../../../icons/FileTypeIcon';
 import { isActiveDownload, isRetryableDownload, needsDownloadAttention, needsPassword, canCancelDownload, isCancelledOptimization } from '../../../../utils/downloadPresentation';
-import { CustomSelect } from '../../../CustomSelect';
+import { CustomSelect } from '../../../common/CustomSelect';
 import './DownloadPanelModal.css';
 
 const isRetryableDownloadError = isRetryableDownload;

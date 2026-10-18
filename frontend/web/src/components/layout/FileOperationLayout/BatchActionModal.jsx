@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, memo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import {
   X,
   Folder,
@@ -16,8 +16,8 @@ import {
   Loader2,
   HardDrive
 } from 'lucide-react';
-import { fetchFolderTree } from '../api/folderApi';
-import { RollingNumber } from './common/RollingNumber';
+import { fetchFolderTree } from '../../../api/folderApi';
+import { RollingNumber } from '../../common/RollingNumber';
 
 const BatchTreeNodeItem = memo(({
   node,
@@ -255,7 +255,6 @@ export const BatchActionModal = ({
 
   const isDelete = action === 'delete';
   const isCopy = action === 'copy';
-  const isMove = action === 'move';
 
   return (
     <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/75 animate-fade-in select-none">

@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   X, 
   HardDrive, 
@@ -8,7 +7,7 @@ import {
   Image as ImageIcon,
   Film
 } from 'lucide-react';
-import { formatDate, formatFileSize, getThumbnailUrl, getVideoThumbnailUrl } from '../utils/formatters';
+import { formatDate, formatFileSize, getThumbnailUrl, getVideoThumbnailUrl } from '../../../utils/formatters';
 
 export const MediaInfoModal = ({ isOpen, onClose, item, type = 'picture' }) => {
   if (!isOpen || !item) return null;

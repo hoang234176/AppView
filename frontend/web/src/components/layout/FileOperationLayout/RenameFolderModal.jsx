@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Edit3, X, Check, Loader2 } from 'lucide-react';
 
 export const RenameFolderModal = ({ isOpen, onClose, folder, onRename }) => {
@@ -37,7 +37,7 @@ export const RenameFolderModal = ({ isOpen, onClose, folder, onRename }) => {
       return;
     }
 
-    if (/[/\:*?"<>|]/.test(cleanName) || cleanName.includes('..')) {
+    if (/[/:*?"<>|\\]/.test(cleanName) || cleanName.includes('..')) {
       setErrorMsg('Tên thư mục chứa ký tự không hợp lệ (/ \\ : * ? " < > |).');
       return;
     }

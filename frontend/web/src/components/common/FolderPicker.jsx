@@ -10,7 +10,7 @@ import {
   FolderPlus,
   Check
 } from 'lucide-react';
-import { createNewFolder } from '../api/folderApi';
+import { createNewFolder } from '../../api/folderApi';
 
 const TreeNodeItem = memo(({
   node,

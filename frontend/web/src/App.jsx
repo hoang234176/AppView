@@ -8,7 +8,8 @@ import { SettingsLayout } from './layouts/SettingsLayout';
 import { DownloadLayout } from './layouts/DownloadLayout';
 import { ContextMenuLayout } from './layouts/ContextMenuLayout';
 import { NotificationLayout } from './layouts/NotificationLayout';
-import { AppModals } from './components/AppModals';
+import { ViewerLayout } from './layouts/ViewerLayout';
+import { FileOperationLayout } from './layouts/FileOperationLayout';
 import { fetchFolderContents, fetchFolderTree, createNewFolder, renameFolder, fetchDrives, executeBatchItems, checkBatchConflicts, fetchBatchJobStatus, normalizeMediaItem } from './api/folderApi';
 import { fetchCoordinatorDownloads } from './api/downloadApi';
 import {
@@ -64,7 +65,6 @@ function App() {
   const [apiBaseUrl, setApiBaseUrl] = useState(getApiBaseUrl());
   const [configVersion, setConfigVersion] = useState(0);
   const [showConfigModal, setShowConfigModal] = useState(!isServerConfigured());
-  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [showRenameFolderModal, setShowRenameFolderModal] = useState(false);
@@ -1351,7 +1351,6 @@ function App() {
           onRefresh={handleRefreshAll}
           loading={loading}
           isConnected={isConnected}
-          onOpenMobileTree={() => setIsMobileDrawerOpen(true)}
           onOpenDownloadPanel={() => setShowDownloadPanel(true)}
           activeDownloadCount={activeDownloadCount}
           downloadProgressPercent={downloadProgressPercent}
@@ -1434,8 +1433,8 @@ function App() {
           activeDrive={activeDrive}
         />
       }
-      modals={
-        <AppModals
+      viewer={
+        <ViewerLayout
           lightbox={lightbox}
           onCloseLightbox={() => setLightbox(null)}
           onSelectLightboxIndex={(newIdx) =>
@@ -1448,25 +1447,23 @@ function App() {
           videos={filteredVideos}
           onCloseVideoModal={() => setVideoModalIndex(null)}
           onSelectVideoIndex={(newIdx) => setVideoModalIndex(newIdx)}
-          isMobileDrawerOpen={isMobileDrawerOpen}
-          onCloseMobileDrawer={() => setIsMobileDrawerOpen(false)}
-          currentPath={currentPath}
-          treeData={treeData}
-          folders={filteredFolders}
-          onNavigate={handleNavigate}
-          onOpenConfig={() => setShowConfigModal(true)}
-          drives={drives}
-          activeDrive={activeDrive}
-          onSelectDrive={handleSelectDrive}
+          infoModalData={infoModalData}
+          onCloseInfoModal={() => setInfoModalData((prev) => ({ ...prev, isOpen: false }))}
+        />
+      }
+      fileOperations={
+        <FileOperationLayout
           showRenameFolderModal={showRenameFolderModal}
           onCloseRenameFolderModal={() => setShowRenameFolderModal(false)}
           targetFolder={targetFolder}
           onRenameFolderSubmit={handleRenameFolderSubmit}
-          infoModalData={infoModalData}
-          onCloseInfoModal={() => setInfoModalData((prev) => ({ ...prev, isOpen: false }))}
           batchModalState={batchModalState}
           onCloseBatchModal={() => setBatchModalState({ isOpen: false, action: null, items: [] })}
           selectedItems={selectedItems}
+          treeData={treeData}
+          currentPath={currentPath}
+          drives={drives}
+          activeDrive={activeDrive}
           onConfirmBatch={handleExecuteBatch}
         />
       }

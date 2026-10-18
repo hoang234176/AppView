@@ -12,7 +12,6 @@ export const HeaderLayout = memo(({
   onRefresh,
   loading,
   isConnected,
-  onOpenMobileTree,
   onOpenDownloadPanel,
   activeDownloadCount,
   downloadProgressPercent,
@@ -39,7 +38,6 @@ export const HeaderLayout = memo(({
       onRefresh={onRefresh}
       loading={loading}
       isConnected={isConnected}
-      onOpenMobileTree={onOpenMobileTree}
       onOpenDownloadPanel={onOpenDownloadPanel}
       activeDownloadCount={activeDownloadCount}
       downloadProgressPercent={downloadProgressPercent}

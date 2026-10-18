@@ -11,9 +11,22 @@ import './AppLayout.css';
  * 6. downloads (Download modals, panel, & progress snackbar)
  * 7. contextMenu (Right-click context flyout menu)
  * 8. notifications (Global alerts, system overlays, delete confirmation & toasts)
- * Plus background modals.
+ * 9. viewer (Media Viewers & Player Modals)
+ * 10. fileOperations (File Operations & Batch Dialogs)
  */
-export function AppLayout({ sidebar, header, content, fab, modals, settings, downloads, contextMenu, notifications }) {
+export function AppLayout({
+  sidebar,
+  header,
+  content,
+  fab,
+  settings,
+  downloads,
+  contextMenu,
+  notifications,
+  viewer,
+  fileOperations,
+  modals,
+}) {
   return (
     <div className="tahoe-app-wrapper app-layout-wrapper overflow-hidden">
       {/* Area 1: Left Column Sidebar */}
@@ -43,7 +56,13 @@ export function AppLayout({ sidebar, header, content, fab, modals, settings, dow
       {/* Area 8: Notifications, System Alerts & Feedback */}
       {notifications}
 
-      {/* Popups, Dialogs & Modals */}
+      {/* Area 9: Media Viewers & Player Modals */}
+      {viewer}
+
+      {/* Area 10: File Operations & Batch Dialogs */}
+      {fileOperations}
+
+      {/* Legacy / optional modals */}
       {modals}
     </div>
   );

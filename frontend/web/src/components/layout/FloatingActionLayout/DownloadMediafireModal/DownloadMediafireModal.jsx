@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { startArchiveDownload } from '../../../../api/downloadApi';
 import { canonicalDownloadDestination } from '../../../../utils/downloadDestination';
-import { FolderPicker } from '../../../FolderPicker';
+import { FolderPicker } from '../../../common/FolderPicker';
 import './DownloadMediafireModal.css';
 
 export const DownloadMediafireModal = ({

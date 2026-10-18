@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { 
   X, 
   ChevronLeft, 
@@ -15,8 +15,8 @@ import {
   Minimize2,
   RotateCcw
 } from 'lucide-react';
-import { formatDate, getPictureUrl } from '../utils/formatters';
-import { RollingNumber } from './common/RollingNumber';
+import { formatDate, getPictureUrl } from '../../../utils/formatters';
+import { RollingNumber } from '../../common/RollingNumber';
 
 export const LightboxModal = memo(({ 
   pictures = [], 
@@ -157,26 +157,6 @@ export const LightboxModal = memo(({
     return () => clearInterval(interval);
   }, [isPlaying, isFullscreen, handleNext]);
 
-  if (!currentPic) return null;
-
-  // Zoom limit 6.0 (600%)
-  const handleZoomIn = () => setZoom((z) => Math.min(z + 0.35, 6.0));
-  const handleZoomOut = () => {
-    setZoom((z) => {
-      const newZoom = Math.max(z - 0.35, 1);
-      if (newZoom === 1) setPosition({ x: 0, y: 0 });
-      return newZoom;
-    });
-  };
-
-  const handleRotate = () => setRotation((r) => (r + 90) % 360);
-  
-  const handleResetZoom = () => {
-    setZoom(1);
-    setRotation(0);
-    setPosition({ x: 0, y: 0 });
-  };
-
   // Non-passive wheel event listener for smooth zooming without console warnings
   useEffect(() => {
     const container = containerRef.current;
@@ -201,6 +181,26 @@ export const LightboxModal = memo(({
       container.removeEventListener('wheel', handleWheel);
     };
   }, []);
+
+  if (!currentPic) return null;
+
+  // Zoom limit 6.0 (600%)
+  const handleZoomIn = () => setZoom((z) => Math.min(z + 0.35, 6.0));
+  const handleZoomOut = () => {
+    setZoom((z) => {
+      const newZoom = Math.max(z - 0.35, 1);
+      if (newZoom === 1) setPosition({ x: 0, y: 0 });
+      return newZoom;
+    });
+  };
+
+  const handleRotate = () => setRotation((r) => (r + 90) % 360);
+  
+  const handleResetZoom = () => {
+    setZoom(1);
+    setRotation(0);
+    setPosition({ x: 0, y: 0 });
+  };
 
   // Interactive Image Pan Dragging when Zoomed
   const handleMouseDown = (e) => {

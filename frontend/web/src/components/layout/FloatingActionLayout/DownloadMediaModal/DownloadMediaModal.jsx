@@ -17,8 +17,8 @@ import {
 } from 'lucide-react';
 import { previewMediaDownload, startMediaDownload, getProxiedImageUrl } from '../../../../api/downloadApi';
 import { canonicalDownloadDestination } from '../../../../utils/downloadDestination';
-import { FolderPicker } from '../../../FolderPicker';
-import { CustomSelect } from '../../../CustomSelect';
+import { FolderPicker } from '../../../common/FolderPicker';
+import { CustomSelect } from '../../../common/CustomSelect';
 import './DownloadMediaModal.css';
 
 const FacebookIcon = ({ className = 'w-3.5 h-3.5' }) => (

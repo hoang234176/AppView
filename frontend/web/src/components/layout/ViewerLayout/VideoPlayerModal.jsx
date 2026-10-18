@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, RotateCw, X } from 'lucide-react';
-import { getVideoStreamUrl, getVideoThumbnailUrl } from '../utils/formatters';
-import { RollingNumber } from './common/RollingNumber';
+import { getVideoStreamUrl, getVideoThumbnailUrl } from '../../../utils/formatters';
+import { RollingNumber } from '../../common/RollingNumber';
 
 export const VideoPlayerModal = memo(({ videos = [], currentIndex, onClose, onSelectIndex }) => {
   const videoRef = useRef(null);
