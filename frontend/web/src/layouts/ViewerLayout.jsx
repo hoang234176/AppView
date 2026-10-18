@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { LightboxModal, VideoPlayerModal, MediaInfoModal } from '../components/layout/ViewerLayout';
+import { useViewerContext } from '../contexts/ViewerContext';
 
 /**
  * ViewerLayout — Area 9: Media Viewers & Player Modals
@@ -7,23 +8,39 @@ import { LightboxModal, VideoPlayerModal, MediaInfoModal } from '../components/l
  */
 export const ViewerLayout = memo(({
   // Lightbox
-  lightbox,
-  onCloseLightbox,
-  onSelectLightboxIndex,
-  hasMore,
-  isLoadingMore,
-  onLoadMore,
+  lightbox: propLightbox,
+  onCloseLightbox: propOnCloseLightbox,
+  onSelectLightboxIndex: propOnSelectLightboxIndex,
+  hasMore: propHasMore,
+  isLoadingMore: propIsLoadingMore,
+  onLoadMore: propOnLoadMore,
 
   // Video Player
-  videoModalIndex,
-  videos,
-  onCloseVideoModal,
-  onSelectVideoIndex,
+  videoModalIndex: propVideoModalIndex,
+  videos: propVideos,
+  onCloseVideoModal: propOnCloseVideoModal,
+  onSelectVideoIndex: propOnSelectVideoIndex,
 
   // Media Info
-  infoModalData,
-  onCloseInfoModal,
+  infoModalData: propInfoModalData,
+  onCloseInfoModal: propOnCloseInfoModal,
 } = {}) => {
+  const context = useViewerContext();
+
+  const lightbox = propLightbox !== undefined ? propLightbox : context.lightbox;
+  const onCloseLightbox = propOnCloseLightbox || context.onCloseLightbox;
+  const onSelectLightboxIndex = propOnSelectLightboxIndex || context.onSelectLightboxIndex;
+  const hasMore = propHasMore !== undefined ? propHasMore : context.hasMore;
+  const isLoadingMore = propIsLoadingMore !== undefined ? propIsLoadingMore : context.isLoadingMore;
+  const onLoadMore = propOnLoadMore || context.onLoadMore;
+
+  const videoModalIndex = propVideoModalIndex !== undefined ? propVideoModalIndex : context.videoModalIndex;
+  const videos = propVideos || context.videos;
+  const onCloseVideoModal = propOnCloseVideoModal || context.onCloseVideoModal;
+  const onSelectVideoIndex = propOnSelectVideoIndex || context.onSelectVideoIndex;
+
+  const infoModalData = propInfoModalData !== undefined ? propInfoModalData : context.infoModalData;
+  const onCloseInfoModal = propOnCloseInfoModal || context.onCloseInfoModal;
   return (
     <>
       {/* Lightbox Modal */}

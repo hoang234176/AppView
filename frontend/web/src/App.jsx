@@ -9,7 +9,6 @@ import { DownloadLayout } from './layouts/DownloadLayout';
 import { ContextMenuLayout } from './layouts/ContextMenuLayout';
 import { NotificationLayout } from './layouts/NotificationLayout';
 import { ViewerLayout } from './layouts/ViewerLayout';
-import { ViewerProvider } from './contexts/ViewerContext';
 import { FileOperationLayout } from './layouts/FileOperationLayout';
 import { FileOperationProvider } from './contexts/FileOperationContext';
 import {
@@ -468,6 +467,18 @@ function App() {
     onCloseDeleteModal: () => setDeleteModalData({ isOpen: false, item: null, isFolder: false }),
     onDeleteSuccess: handleDeleteSuccess,
     toastMessage,
+
+    // Media Viewers & Player Modals
+    lightbox,
+    onCloseLightbox: () => setLightbox(null),
+    onSelectLightboxIndex: (newIdx) =>
+      setLightbox((current) => (current ? { ...current, index: newIdx } : current)),
+    videoModalIndex,
+    videos: filteredVideos,
+    onCloseVideoModal: () => setVideoModalIndex(null),
+    onSelectVideoIndex: (newIdx) => setVideoModalIndex(newIdx),
+    infoModalData,
+    onCloseInfoModal: () => setInfoModalData((prev) => ({ ...prev, isOpen: false })),
   }), [
     currentPath,
     treeData,
@@ -503,7 +514,6 @@ function App() {
     totalFolders,
     filteredPictures.length,
     totalPictures,
-    filteredVideos.length,
     totalVideos,
     loading,
     errorInfo,
@@ -556,27 +566,7 @@ function App() {
     setDeleteModalData,
     handleDeleteSuccess,
     toastMessage,
-  ]);
-
-  const viewerValue = useMemo(() => ({
     lightbox,
-    onCloseLightbox: () => setLightbox(null),
-    onSelectLightboxIndex: (newIdx) =>
-      setLightbox((current) => (current ? { ...current, index: newIdx } : current)),
-    hasMore,
-    isLoadingMore,
-    onLoadMore: handleLoadMore,
-    videoModalIndex,
-    videos: filteredVideos,
-    onCloseVideoModal: () => setVideoModalIndex(null),
-    onSelectVideoIndex: (newIdx) => setVideoModalIndex(newIdx),
-    infoModalData,
-    onCloseInfoModal: () => setInfoModalData((prev) => ({ ...prev, isOpen: false })),
-  }), [
-    lightbox,
-    hasMore,
-    isLoadingMore,
-    handleLoadMore,
     videoModalIndex,
     filteredVideos,
     infoModalData,
@@ -644,9 +634,7 @@ function App() {
         <NotificationLayout />
 
         {/* Area 9: Media Viewers & Player Modals */}
-        <ViewerProvider value={viewerValue}>
-          <ViewerLayout />
-        </ViewerProvider>
+        <ViewerLayout />
 
         {/* Area 10: File Operations & Batch Dialogs */}
         <FileOperationProvider value={fileOperationValue}>
