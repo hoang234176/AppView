@@ -3,7 +3,6 @@ import { SidebarLayout } from './layouts/SidebarLayout';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { HeaderLayout } from './layouts/HeaderLayout';
 import { ContentLayout } from './layouts/ContentLayout';
-import { ContentProvider } from './contexts/ContentContext';
 import { FloatingActionLayout } from './layouts/FloatingActionLayout';
 import { FloatingActionProvider } from './contexts/FloatingActionContext';
 import { SettingsLayout } from './layouts/SettingsLayout';
@@ -375,6 +374,34 @@ function App() {
     setFileTypeFilters,
     mxhFilters,
     setMxhFilters,
+
+    // Content Canvas
+    totalFolders: searchQuery.trim() ? filteredFolders.length : totalFolders,
+    totalPictures: searchQuery.trim() ? filteredPictures.length : totalPictures,
+    totalVideos: searchQuery.trim() ? filteredVideos.length : totalVideos,
+    loading,
+    errorInfo,
+    onRetry: handleRefreshAll,
+    hasContent,
+    onClearSearch: () => setSearchQuery(''),
+    visibleFolders,
+    visibleVideos,
+    visiblePictures,
+    selectedItems,
+    onToggleSelectItem: handleToggleSelectItem,
+    onToggleSelectAllFolders: handleToggleSelectAllFolders,
+    onToggleSelectAllVideos: handleToggleSelectAllVideos,
+    onToggleSelectAllPictures: handleToggleSelectAllPictures,
+    onOpenVideo: handleOpenVideo,
+    onOpenLightbox: handleOpenLightbox,
+    onShowMediaInfo: handleShowMediaInfo,
+    onCopySingleItem: handleCopySingleItem,
+    onOpenMoveItem: handleOpenMoveItem,
+    onDeleteMediaItem: handleDeleteMediaItem,
+    hasMore,
+    isLoadingMore,
+    remainingCount,
+    onLoadMore: handleLoadMore,
   }), [
     currentPath,
     treeData,
@@ -398,7 +425,7 @@ function App() {
     isSelectMode,
     handleEnterSelectMode,
     handleExitSelectMode,
-    selectedItems.size,
+    selectedItems,
     handleBatchCopy,
     handleBatchMove,
     handleBatchDelete,
@@ -406,72 +433,23 @@ function App() {
     setFileTypeFilters,
     mxhFilters,
     setMxhFilters,
-  ]);
-
-
-  const handleClearSearch = useCallback(() => setSearchQuery(''), [setSearchQuery]);
-
-  const contentValue = useMemo(() => ({
-    currentPath,
-    onNavigate: handleNavigate,
-    totalFolders: searchQuery.trim() ? filteredFolders.length : totalFolders,
-    totalPictures: searchQuery.trim() ? filteredPictures.length : totalPictures,
-    totalVideos: searchQuery.trim() ? filteredVideos.length : totalVideos,
-    activeDrive,
-    onEmptyContextMenu: handleEmptyContextMenu,
-    loading,
-    errorInfo,
-    onRetry: handleRefreshAll,
-    hasContent,
-    searchQuery,
-    onClearSearch: handleClearSearch,
-    visibleFolders,
-    visibleVideos,
-    visiblePictures,
-    isSelectMode,
-    selectedItems,
-    onToggleSelectItem: handleToggleSelectItem,
-    onToggleSelectAllFolders: handleToggleSelectAllFolders,
-    onToggleSelectAllVideos: handleToggleSelectAllVideos,
-    onToggleSelectAllPictures: handleToggleSelectAllPictures,
-    onFolderContextMenu: handleFolderContextMenu,
-    onOpenVideo: handleOpenVideo,
-    onOpenLightbox: handleOpenLightbox,
-    onShowMediaInfo: handleShowMediaInfo,
-    onCopySingleItem: handleCopySingleItem,
-    onOpenMoveItem: handleOpenMoveItem,
-    onDeleteMediaItem: handleDeleteMediaItem,
-    hasMore,
-    isLoadingMore,
-    remainingCount,
-    onLoadMore: handleLoadMore,
-  }), [
-    currentPath,
-    handleNavigate,
-    searchQuery,
     filteredFolders.length,
     totalFolders,
     filteredPictures.length,
     totalPictures,
     filteredVideos.length,
     totalVideos,
-    activeDrive,
-    handleEmptyContextMenu,
     loading,
     errorInfo,
     handleRefreshAll,
     hasContent,
-    handleClearSearch,
     visibleFolders,
     visibleVideos,
     visiblePictures,
-    isSelectMode,
-    selectedItems,
     handleToggleSelectItem,
     handleToggleSelectAllFolders,
     handleToggleSelectAllVideos,
     handleToggleSelectAllPictures,
-    handleFolderContextMenu,
     handleOpenVideo,
     handleOpenLightbox,
     handleShowMediaInfo,
@@ -483,6 +461,7 @@ function App() {
     remainingCount,
     handleLoadMore,
   ]);
+
 
   const floatingActionValue = useMemo(() => ({
     onCreateFolder: () => setShowCreateFolderModal(true),
@@ -684,9 +663,8 @@ function App() {
 
 
           {/* Area 3: Main Content Canvas */}
-          <ContentProvider value={contentValue}>
-            <ContentLayout />
-          </ContentProvider>
+          <ContentLayout />
+
         </div>
 
         {/* Area 4: Floating Action Button */}
