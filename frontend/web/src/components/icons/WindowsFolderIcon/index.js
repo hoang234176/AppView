@@ -1,1 +1,0 @@
-export { WindowsFolderIcon } from './WindowsFolderIcon';

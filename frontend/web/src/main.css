@@ -1,55 +1,74 @@
 @import "tailwindcss";
 
-:root {
-  --bg-app: #0b0c0e;
-  --bg-tahoe-block: #1c1d21;
-  --border-color: #383c42;
-  --google-blue: #8ab4f8;
-  --google-blue-hover: #aecbfa;
-  --radius-global: 24px;
+@custom-variant dark (&:where(.dark, .dark *));
+
+html {
+  background-color: #f9fafb;
+  color: #111827;
 }
 
-html, body {
+html.dark {
+  background-color: #0b0c0e;
+  color: #f9fafb;
+}
+
+html {
+  height: 100%;
+  height: 100dvh;
+  width: 100%;
   margin: 0;
   padding: 0;
-  width: 100%;
-  height: 100vh;
-  height: 100dvh; /* Dynamic Viewport Height: Automatically fits mobile browser bottom address bar */
   overflow: hidden;
-  background-color: var(--bg-app);
-  color: #e8eaed;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 15px;
-  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Guarantee MAXIMUM Original High-Quality Crisp Image Rendering */
-img {
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: high-quality;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
+body {
+  height: 100%;
+  height: 100dvh;
+  width: 100%;
+  margin: 0;
+  padding: 1vw;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-/* Force global 24px border radius theme override across project components */
-.rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-lg, .rounded-md {
-  border-radius: 24px !important;
+@media (max-width: 767px) {
+  body {
+    padding: 0;
+  }
 }
 
-/* Completely Hide Scrollbars Globally while keeping scrolling active */
-*::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
-* {
-  -ms-overflow-style: none !important;  /* IE and Edge */
-  scrollbar-width: none !important;  /* Firefox */
+/* Custom sleek scrollbar for Windows / Chrome / Edge */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-/* Hide Edge native password reveal buttons */
-input[type="password"]::-ms-reveal,
-input[type="password"]::-ms-clear {
-  display: none;
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.7);
+}
+
+:is(.dark, :root.dark) ::-webkit-scrollbar-thumb {
+  background: rgba(75, 85, 99, 0.5);
+}
+
+:is(.dark, :root.dark) ::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.8);
 }
