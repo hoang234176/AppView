@@ -3,12 +3,12 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 html {
-  background-color: #f9fafb;
+  background-color: #ffffff;
   color: #111827;
 }
 
 html.dark {
-  background-color: #0b0c0e;
+  background-color: #1f1f1f;
   color: #f9fafb;
 }
 
@@ -30,6 +30,11 @@ body {
   padding: 1vw;
   box-sizing: border-box;
   overflow: hidden;
+  background-color: #ffffff;
+}
+
+:is(.dark, :root.dark) body {
+  background-color: #1f1f1f;
 }
 
 @media (max-width: 767px) {

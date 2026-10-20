@@ -9,7 +9,7 @@
 }
 
 :is(.dark, :root.dark) .main-layout {
-  background-color: #0b0c0e;
+  background-color: #1f1f1f;
 }
 
 .main-layout-header {
@@ -27,7 +27,7 @@
 
 :is(.dark, :root.dark) .main-layout-header {
   border-bottom-color: #23272f;
-  background-color: #0b0c0e;
+  background-color: #1f1f1f;
 }
 
 .main-layout-content {

@@ -23,7 +23,7 @@
 
 ## 4. Quy tắc Responsive & Đa Nền Tảng (Mobile, Tablet, Windows)
 - **Quản lý trạng thái Provider tại Root**: Toàn bộ Root Providers (`ThemeProvider`, `LayoutProvider`) được đặt tại [main.jsx](file:///Users/hoang/Projects/AppView/frontend/web/src/main.jsx) bọc ngoài `<App />`, giữ cho [App.jsx](file:///Users/hoang/Projects/AppView/frontend/web/src/App.jsx) thuần khiết làm Application Shell.
-- **Desktop (>= 768px)**: Sidebar hiển thị cố định bên trái (`width: 260px`).
+- **Desktop (>= 768px)**: Sidebar mặc định chiếm `22%` chiều ngang khung app (cho phép kéo giãn tùy chỉnh từ tối thiểu `10%` đến tối đa `60%`, nhấp đúp vào thanh phân cách để khôi phục về `22%`).
 - **Mobile & Tablet (< 768px)**:
   - Sidebar tự động chuyển thành Drawer trượt từ cạnh trái với hiệu ứng animation mượt mà.
   - Khi mở Drawer, hiển thị lớp phủ mờ (`.sidebar-overlay`) phía sau; nhấp vào overlay hoặc nút đóng sẽ thu Sidebar lại.

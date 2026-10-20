@@ -2,7 +2,23 @@ import './SidebarLayout.css';
 import useLayout from '../../../hooks/useLayout';
 
 function SidebarLayout() {
-  const { isSidebarOpen, isMobile, closeSidebar } = useLayout();
+  const {
+    isSidebarOpen,
+    isMobile,
+    closeSidebar,
+    sidebarWidth,
+    isResizing,
+    startResizing,
+    resetSidebarWidth,
+  } = useLayout();
+
+  const sidebarStyle = isMobile
+    ? undefined
+    : {
+        width: `${sidebarWidth}%`,
+        minWidth: '10%',
+        maxWidth: '60%',
+      };
 
   return (
     <>
@@ -14,7 +30,12 @@ function SidebarLayout() {
         />
       )}
 
-      <aside className={`sidebar-layout ${isMobile && isSidebarOpen ? 'sidebar-layout--open' : ''}`}>
+      <aside
+        className={`sidebar-layout ${isMobile && isSidebarOpen ? 'sidebar-layout--open' : ''} ${
+          isResizing ? 'sidebar-layout--resizing' : ''
+        }`}
+        style={sidebarStyle}
+      >
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 md:border-b-0">
           <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Sidebar</span>
           {isMobile && (
@@ -30,6 +51,18 @@ function SidebarLayout() {
             </button>
           )}
         </div>
+
+        {/* Resizer Handle (Desktop only) */}
+        {!isMobile && (
+          <div
+            className={`sidebar-resizer ${isResizing ? 'sidebar-resizer--active' : ''}`}
+            onMouseDown={startResizing}
+            onDoubleClick={resetSidebarWidth}
+            title="Kéo để chỉnh độ rộng (nhấp đúp để đặt lại 22%)"
+            role="separator"
+            aria-orientation="vertical"
+          />
+        )}
       </aside>
     </>
   );

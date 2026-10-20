@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 export const LayoutContext = createContext(null);
 
@@ -11,6 +11,21 @@ export function LayoutProvider({ children }) {
     }
     return false;
   });
+
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('appview_sidebar_width');
+      if (saved) {
+        const val = parseFloat(saved);
+        if (!isNaN(val) && val >= 10 && val <= 60) {
+          return val;
+        }
+      }
+    }
+    return 22;
+  });
+
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -40,20 +55,103 @@ export function LayoutProvider({ children }) {
     };
   }, []);
 
-  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
-  const openSidebar = () => setIsSidebarOpen(true);
-  const closeSidebar = () => setIsSidebarOpen(false);
+  const toggleSidebar = useCallback(() => setIsSidebarOpen((prev) => !prev), []);
+  const openSidebar = useCallback(() => setIsSidebarOpen(true), []);
+  const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
+
+  const startResizing = useCallback((e) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const resetSidebarWidth = useCallback(() => {
+    setSidebarWidth(22);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('appview_sidebar_width', '22');
+    }
+  }, []);
+
+  // 60 FPS Throttled Drag Handler (~16.6ms per frame)
+  useEffect(() => {
+    if (!isResizing) return;
+
+    let lastTime = 0;
+    const FRAME_DURATION = 1000 / 60; // 60 FPS cap (~16.67ms)
+    let latestPercentage = sidebarWidth;
+
+    const calculatePercentage = (clientX) => {
+      const appLeft = window.innerWidth * 0.01;
+      const appWidth = window.innerWidth * 0.98;
+      const currentX = clientX - appLeft;
+      let percentage = (currentX / appWidth) * 100;
+
+      if (percentage < 10) percentage = 10;
+      if (percentage > 60) percentage = 60;
+
+      return percentage;
+    };
+
+    const handleMouseMove = (e) => {
+      const percentage = calculatePercentage(e.clientX);
+      latestPercentage = percentage;
+
+      const now = performance.now();
+      if (now - lastTime < FRAME_DURATION) {
+        return; // Skip intermediate events, maintaining 60 FPS cap
+      }
+      lastTime = now;
+      setSidebarWidth(percentage);
+    };
+
+    const handleMouseUp = () => {
+      // Ensure the exact final position is committed on release
+      setSidebarWidth(latestPercentage);
+      setIsResizing(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, sidebarWidth]);
+
+  useEffect(() => {
+    if (!isResizing && typeof window !== 'undefined') {
+      localStorage.setItem('appview_sidebar_width', sidebarWidth.toFixed(2));
+    }
+  }, [isResizing, sidebarWidth]);
+
+  const contextValue = useMemo(() => ({
+    isSidebarOpen,
+    isMobile,
+    toggleSidebar,
+    openSidebar,
+    closeSidebar,
+    sidebarWidth,
+    isResizing,
+    startResizing,
+    resetSidebarWidth,
+  }), [
+    isSidebarOpen,
+    isMobile,
+    toggleSidebar,
+    openSidebar,
+    closeSidebar,
+    sidebarWidth,
+    isResizing,
+    startResizing,
+    resetSidebarWidth,
+  ]);
 
   return (
-    <LayoutContext.Provider
-      value={{
-        isSidebarOpen,
-        isMobile,
-        toggleSidebar,
-        openSidebar,
-        closeSidebar,
-      }}
-    >
+    <LayoutContext.Provider value={contextValue}>
       {children}
     </LayoutContext.Provider>
   );
