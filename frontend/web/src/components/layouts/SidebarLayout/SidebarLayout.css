@@ -3,10 +3,10 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #f8fafc;
+  background-color: #fafafa;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
-  margin-right: 0.5vw;
+  margin-right: 1vw;
   overflow: hidden;
   user-select: none;
   flex-shrink: 0;
@@ -19,7 +19,7 @@
 }
 
 :is(.dark, :root.dark) .sidebar-layout {
-  background-color: #181818;
+  background-color: #1c1c1c;
   border-color: #2e2e2e;
 }
 
@@ -27,8 +27,8 @@
 .sidebar-resizer {
   position: absolute;
   top: 0;
-  right: calc(-0.25vw - 4px);
-  width: calc(0.5vw + 8px);
+  right: calc(-0.5vw - 4px);
+  width: calc(1vw + 8px);
   height: 100%;
   cursor: col-resize;
   z-index: 20;

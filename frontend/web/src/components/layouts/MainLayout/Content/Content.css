@@ -1,0 +1,24 @@
+.main-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-left: 0;
+  padding-bottom: calc(0.5vw + env(safe-area-inset-bottom, 0));
+  box-sizing: border-box;
+}
+
+/* Thẻ xanh nhạt dài giả lập nội dung cuộn */
+.content-scroll-tester {
+  width: 100%;
+  height: 2000px;
+  border-radius: 12px;
+  background-color: #e0f2fe;
+  border: 1px dashed #93c5fd;
+  box-sizing: border-box;
+}
+
+:is(.dark, :root.dark) .content-scroll-tester {
+  background-color: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.3);
+}

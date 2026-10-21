@@ -1,0 +1,58 @@
+/* Khung viên thuốc chiếm 100% chiều cao của Header, dùng màu của sidebar */
+.header-nav-pill {
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  overflow: hidden;
+  background-color: #fafafa;
+  border: 1px solid #e2e8f0;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-sizing: border-box;
+  user-select: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+:is(.dark, :root.dark) .header-nav-pill {
+  background-color: #1c1c1c;
+  border-color: #2e2e2e;
+  box-shadow: inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.14), 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* 2 khối hình vuông ghép lại (chiều rộng = đúng chiều cao) */
+.header-nav-square {
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: default;
+  color: #9ca3af;
+  outline: none;
+}
+
+.header-nav-square svg {
+  width: 75%;
+  height: 75%;
+}
+
+:is(.dark, :root.dark) .header-nav-square {
+  color: #6b7280;
+}
+
+/* Đường phân cách mảnh SVG giữa 2 nút */
+.header-nav-divider {
+  width: 1px;
+  height: 45%;
+  flex-shrink: 0;
+  color: #e2e8f0;
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+:is(.dark, :root.dark) .header-nav-divider {
+  color: #2e2e2e;
+}

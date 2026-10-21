@@ -1,0 +1,107 @@
+/* Nút Tìm kiếm mở rộng thành thanh search trên Desktop Web */
+.header-search-pill {
+  height: 100%;
+  width: calc(44px - 0.5vw);
+  aspect-ratio: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid #e2e8f0;
+  background-color: #fafafa;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-sizing: border-box;
+  padding: 0;
+  cursor: default;
+  color: #1f2937;
+  outline: none;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+:is(.dark, :root.dark) .header-search-pill {
+  background-color: #262626;
+  border-color: #383838;
+  box-shadow: inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.25);
+  color: #f3f4f6;
+}
+
+.header-search-pill:not(.header-search-pill--open):hover {
+  background-color: #f0f0f0;
+}
+
+:is(.dark, :root.dark) .header-search-pill:not(.header-search-pill--open):hover {
+  background-color: #333333;
+}
+
+.header-search-pill .header-search-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin: auto;
+  color: #1f2937;
+  transition: margin 0.2s ease, color 0.2s ease;
+}
+
+:is(.dark, :root.dark) .header-search-pill .header-search-icon {
+  color: #f3f4f6;
+}
+
+.header-search-pill .header-search-input {
+  width: 0;
+  opacity: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: #111827;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.header-search-pill .header-search-input::placeholder {
+  color: #9ca3af;
+}
+
+:is(.dark, :root.dark) .header-search-pill .header-search-input {
+  color: #f9fafb;
+}
+
+:is(.dark, :root.dark) .header-search-pill .header-search-input::placeholder {
+  color: #6b7280;
+}
+
+/* Khi mở rộng trên Desktop Web */
+.header-search-pill--open {
+  width: 220px;
+  aspect-ratio: auto;
+  padding-left: 10px;
+  padding-right: 12px;
+  border-color: #007aff;
+  box-shadow: inset 0 0 0 1px #007aff, inset 0 1px 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(0, 0, 0, 0.03);
+  cursor: text;
+}
+
+:is(.dark, :root.dark) .header-search-pill--open {
+  border-color: #0a84ff;
+  box-shadow: inset 0 0 0 1px #0a84ff, inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.25);
+  background-color: #1a1a1a;
+}
+
+.header-search-pill--open .header-search-icon {
+  margin: 0;
+  margin-right: 8px;
+  color: #6b7280;
+}
+
+:is(.dark, :root.dark) .header-search-pill--open .header-search-icon {
+  color: #9ca3af;
+}
+
+.header-search-pill--open .header-search-input {
+  width: 100%;
+  opacity: 1;
+  pointer-events: auto;
+}

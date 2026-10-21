@@ -1,0 +1,38 @@
+.main-header {
+  height: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 0;
+  padding-bottom: 0.5vw;
+  padding-top: env(safe-area-inset-top, 0);
+  box-sizing: border-box;
+  background-color: #ffffff;
+  transition: background-color 0.2s ease;
+}
+
+:is(.dark, :root.dark) .main-header {
+  background-color: #1f1f1f;
+}
+
+/* Khu vực bên trái (tối đa 40% chiều rộng) */
+.header-left-zone {
+  max-width: 40%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Khu vực bên phải (tối đa 60% chiều rộng, dồn sát về bên phải) */
+.header-right-zone {
+  max-width: 60%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
