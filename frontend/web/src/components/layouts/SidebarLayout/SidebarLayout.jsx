@@ -1,5 +1,6 @@
 import './SidebarLayout.css';
 import useLayout from '../../../hooks/useLayout';
+import SidebarBrand from './SidebarBrand';
 
 function SidebarLayout() {
   const {
@@ -36,13 +37,13 @@ function SidebarLayout() {
         }`}
         style={sidebarStyle}
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 md:border-b-0">
-          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Sidebar</span>
+        <div className="sidebar-header border-b border-gray-200 dark:border-gray-800 md:border-b-0">
+          <SidebarBrand />
           {isMobile && (
             <button
               type="button"
               onClick={closeSidebar}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors shrink-0"
               aria-label="Đóng thanh điều hướng"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

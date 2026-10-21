@@ -35,8 +35,25 @@
   background-color: transparent;
 }
 
+/* Sidebar Header */
+.sidebar-header {
+  container-type: inline-size;
+  container-name: sidebar-header;
+  padding: 1vw;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 /* Mobile & Tablet Drawer (< 768px) */
 @media (max-width: 767px) {
+  .sidebar-header {
+    padding: 1rem;
+  }
+
   .sidebar-layout {
     position: fixed;
     top: 0;
