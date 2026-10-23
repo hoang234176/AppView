@@ -42,7 +42,7 @@ function Content() {
     >
       {isContentLoading ? (
         <div className="content-loading-container">
-          <Loading />
+          <Loading text="" size="md" />
         </div>
       ) : (
         <Outlet />

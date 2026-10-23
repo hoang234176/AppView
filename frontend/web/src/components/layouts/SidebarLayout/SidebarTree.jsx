@@ -1,5 +1,6 @@
 import { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import './SidebarTree.css';
+import Loading from '../../common/Loading/Loading';
 
 // Hàm sinh 20 thư mục cấp 1, mỗi thư mục ngẫu nhiên 1 -> 20 thư mục con
 function generateMockFolders() {
@@ -139,7 +140,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
   );
 }
 
-function SidebarTree({ activeDriveId = 'drive-1' }) {
+function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
   const folders = useMemo(() => generateMockFolders(), []);
   const scrollContainerRef = useRef(null);
   const [floatingDirection, setFloatingDirection] = useState(null); // 'above' | 'below' | null
@@ -326,19 +327,25 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
         ref={scrollContainerRef}
         onScroll={checkVisibility}
       >
-        <div className="sidebar-tree__list">
-          {activeDrive.folders.map(folder => (
-            <TreeItem
-              key={folder.id}
-              item={folder}
-              level={1}
-              expandedIds={expandedIds}
-              selectedId={selectedId}
-              onToggle={toggleExpand}
-              onSelect={handleSelect}
-            />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="sidebar-tree__loading">
+            <Loading text="" size="md" />
+          </div>
+        ) : (
+          <div className="sidebar-tree__list">
+            {activeDrive.folders.map(folder => (
+              <TreeItem
+                key={folder.id}
+                item={folder}
+                level={1}
+                expandedIds={expandedIds}
+                selectedId={selectedId}
+                onToggle={toggleExpand}
+                onSelect={handleSelect}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

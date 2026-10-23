@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import './SidebarLayout.css';
 import useLayout from '../../../hooks/useLayout';
 import SidebarBrand from './SidebarBrand';
@@ -7,6 +7,9 @@ import SidebarDrives from './SidebarDrives';
 
 function SidebarLayout() {
   const [activeDriveId, setActiveDriveId] = useState('drive-1');
+  const [isTreeLoading, setIsTreeLoading] = useState(false);
+  const driveTimeoutRef = useRef(null);
+
   const {
     isSidebarOpen,
     isMobile,
@@ -15,7 +18,38 @@ function SidebarLayout() {
     isResizing,
     startResizing,
     resetSidebarWidth,
+    showContentLoading,
+    hideContentLoading,
   } = useLayout();
+
+  // Dọn dẹp timer khi component unmount
+  useEffect(() => {
+    return () => {
+      if (driveTimeoutRef.current) {
+        clearTimeout(driveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Xử lý chuyển đổi ổ đĩa thuần UI (tối thiểu 400ms)
+  const handleSelectDrive = useCallback((newDriveId) => {
+    // Nếu click vào ổ đang mở: không làm gì
+    if (newDriveId === activeDriveId) return;
+
+    // Bật loading đồng thời cho cả SidebarTree và main-content
+    setIsTreeLoading(true);
+    showContentLoading();
+
+    if (driveTimeoutRef.current) {
+      clearTimeout(driveTimeoutRef.current);
+    }
+
+    driveTimeoutRef.current = setTimeout(() => {
+      setActiveDriveId(newDriveId);
+      setIsTreeLoading(false);
+      hideContentLoading();
+    }, 400);
+  }, [activeDriveId, showContentLoading, hideContentLoading]);
 
   const sidebarStyle = isMobile
     ? undefined
@@ -58,10 +92,10 @@ function SidebarLayout() {
         </div>
 
         {/* Khối cây thư mục phân cấp */}
-        <SidebarTree activeDriveId={activeDriveId} />
+        <SidebarTree activeDriveId={activeDriveId} isLoading={isTreeLoading} />
 
         {/* Khối ổ cứng ở đáy Sidebar */}
-        <SidebarDrives activeDriveId={activeDriveId} onSelectDrive={setActiveDriveId} />
+        <SidebarDrives activeDriveId={activeDriveId} onSelectDrive={handleSelectDrive} />
 
         {/* Resizer Handle (Desktop only) */}
         {!isMobile && (
