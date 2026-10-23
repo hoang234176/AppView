@@ -33,15 +33,14 @@ function generateMockFolders() {
   });
 }
 
-// Helper tìm đường dẫn từ gốc đến thư mục đang chọn
-function findFolderBreadcrumb(items, targetId, currentPath = []) {
+// Helper tìm tên của thư mục đang chọn (chỉ trả về tên thư mục được chọn)
+function findFolderName(items, targetId) {
   for (const item of items) {
-    const newPath = [...currentPath, item.name];
     if (item.id === targetId) {
-      return newPath;
+      return item.name;
     }
     if (item.children && item.children.length > 0) {
-      const found = findFolderBreadcrumb(item.children, targetId, newPath);
+      const found = findFolderName(item.children, targetId);
       if (found) return found;
     }
   }
@@ -66,7 +65,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
         onClick={() => onSelect(item.id)}
         title={item.name}
       >
-        {/* Nếu có con: nút chevron xoay; nếu không có con: spacer 18px giữ chỗ để thẳng hàng icon */}
+        {/* Nút mũi tên -> xoay thành chỉ xuống khi mở */}
         {hasChildren ? (
           <button
             type="button"
@@ -77,7 +76,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
             <svg viewBox="0 0 20 20" fill="currentColor">
               <path
                 fillRule="evenodd"
-                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
                 clipRule="evenodd"
               />
             </svg>
@@ -156,10 +155,10 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
   const [expandedIds, setExpandedIds] = useState(() => new Set(['3', '3.1']));
   const [selectedId, setSelectedId] = useState('3.1');
 
-  // Tính toán đường dẫn của thư mục đang chọn
-  const breadcrumb = useMemo(() => {
+  // Lấy đúng tên thư mục đang chọn (chỉ tên thư mục con hoặc gốc, không nối >)
+  const selectedFolderName = useMemo(() => {
     if (!selectedId) return null;
-    return findFolderBreadcrumb(activeDrive.folders, selectedId);
+    return findFolderName(activeDrive.folders, selectedId);
   }, [activeDrive.folders, selectedId]);
 
   // Kiểm tra xem mục đang chọn có bị cuộn khuất khỏi tầm mắt hay không
@@ -188,9 +187,39 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
     }
   }, [selectedId]);
 
+  // Tự động kiểm tra tức thì khi:
+  // 1. Mục đang chọn thay đổi
+  // 2. Chuyển đổi ổ đĩa
+  // 3. Bất kỳ thư mục nào được mở rộng/thu gọn (expandedIds thay đổi làm đẩy/kéo vị trí mục)
   useEffect(() => {
     checkVisibility();
-  }, [selectedId, activeDriveId, checkVisibility]);
+
+    // Kiểm tra lại sau khi animation mở/đóng hoàn tất (180ms)
+    const timer = setTimeout(checkVisibility, 200);
+
+    const container = scrollContainerRef.current;
+    if (!container || !selectedId) return () => clearTimeout(timer);
+
+    const selectedEl = container.querySelector(`[data-tree-id="${selectedId}"]`);
+    if (!selectedEl) return () => clearTimeout(timer);
+
+    const observer = new IntersectionObserver(
+      () => {
+        checkVisibility();
+      },
+      {
+        root: container,
+        threshold: [0, 1],
+      }
+    );
+
+    observer.observe(selectedEl);
+
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [selectedId, activeDriveId, expandedIds, checkVisibility]);
 
   // Cuộn mượt đưa thư mục đang chọn quay trở lại giữa màn hình khi bấm nút nổi
   const handleJumpToSelected = () => {
@@ -226,7 +255,7 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
       </div>
 
       {/* Nút nổi định vị khi thư mục đang chọn bị cuộn khuất khỏi màn hình */}
-      {floatingDirection && breadcrumb && (
+      {floatingDirection && selectedFolderName && (
         <button
           type="button"
           className={`sidebar-tree-floating-pill sidebar-tree-floating-pill--${floatingDirection}`}
@@ -253,9 +282,7 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
             )}
           </span>
           <span className="sidebar-tree-floating-pill__text">
-            {breadcrumb.length > 1
-              ? `${breadcrumb[0]} > ${breadcrumb[breadcrumb.length - 1]}`
-              : breadcrumb[0]}
+            {selectedFolderName}
           </span>
         </button>
       )}
