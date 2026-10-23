@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import './SidebarDrives.css';
 
 function SidebarDrives({ activeDriveId = 'drive-1', onSelectDrive }) {
@@ -19,4 +20,4 @@ function SidebarDrives({ activeDriveId = 'drive-1', onSelectDrive }) {
   );
 }
 
-export default SidebarDrives;
+export default memo(SidebarDrives);

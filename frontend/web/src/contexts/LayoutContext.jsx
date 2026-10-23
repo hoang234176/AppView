@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { createContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 export const LayoutContext = createContext(null);
 
@@ -24,6 +24,13 @@ export function LayoutProvider({ children }) {
     }
     return 22;
   });
+
+  const sidebarWidthRef = useRef(sidebarWidth);
+
+  useEffect(() => {
+    sidebarWidthRef.current = sidebarWidth;
+    document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}%`);
+  }, [sidebarWidth]);
 
   const [isResizing, setIsResizing] = useState(false);
   const [activeView, setActiveView] = useState('contents');
@@ -71,6 +78,7 @@ export function LayoutProvider({ children }) {
   }, []);
 
   const resetSidebarWidth = useCallback(() => {
+    document.documentElement.style.setProperty('--sidebar-width', '22%');
     setSidebarWidth(22);
     if (typeof window !== 'undefined') {
       localStorage.setItem('appview_sidebar_width', '22');
@@ -104,13 +112,12 @@ export function LayoutProvider({ children }) {
     }, 180);
   }, [showHeaderRight]);
 
-  // 60 FPS Throttled Drag Handler (~16.6ms per frame)
+  // 60-120 FPS Hardware-Accelerated Zero-Render Drag Handler
   useEffect(() => {
     if (!isResizing) return;
 
-    let lastTime = 0;
-    const FRAME_DURATION = 1000 / 60; // 60 FPS cap (~16.67ms)
-    let latestPercentage = sidebarWidth;
+    let rafId = null;
+    let latestPercentage = sidebarWidthRef.current;
 
     const calculatePercentage = (clientX) => {
       const appLeft = window.innerWidth * 0.01;
@@ -128,38 +135,41 @@ export function LayoutProvider({ children }) {
       const percentage = calculatePercentage(e.clientX);
       latestPercentage = percentage;
 
-      const now = performance.now();
-      if (now - lastTime < FRAME_DURATION) {
-        return; // Skip intermediate events, maintaining 60 FPS cap
-      }
-      lastTime = now;
-      setSidebarWidth(percentage);
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        document.documentElement.style.setProperty('--sidebar-width', `${latestPercentage}%`);
+        rafId = null;
+      });
     };
 
     const handleMouseUp = () => {
-      // Ensure the exact final position is committed on release
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      document.documentElement.style.setProperty('--sidebar-width', `${latestPercentage}%`);
       setSidebarWidth(latestPercentage);
       setIsResizing(false);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('appview_sidebar_width', latestPercentage.toFixed(2));
+      }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     window.addEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
 
     return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isResizing, sidebarWidth]);
-
-  useEffect(() => {
-    if (!isResizing && typeof window !== 'undefined') {
-      localStorage.setItem('appview_sidebar_width', sidebarWidth.toFixed(2));
-    }
-  }, [isResizing, sidebarWidth]);
+  }, [isResizing]);
 
   const contextValue = useMemo(() => ({
     isSidebarOpen,

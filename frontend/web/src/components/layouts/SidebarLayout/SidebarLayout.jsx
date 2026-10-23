@@ -20,7 +20,7 @@ function SidebarLayout() {
   const sidebarStyle = isMobile
     ? undefined
     : {
-        width: `${sidebarWidth}%`,
+        width: `var(--sidebar-width, ${sidebarWidth}%)`,
         minWidth: '10%',
         maxWidth: '60%',
       };

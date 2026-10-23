@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, memo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './SidebarBrand.css';
 import SettingsIcon from '../../../assets/icons/SettingsIcon';
@@ -87,4 +87,4 @@ function SidebarBrand() {
   );
 }
 
-export default SidebarBrand;
+export default memo(SidebarBrand);

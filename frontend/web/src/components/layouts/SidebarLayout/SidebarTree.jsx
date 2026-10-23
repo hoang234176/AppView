@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, memo } from 'react';
 import './SidebarTree.css';
 
 // Hàm sinh 20 thư mục cấp 1, mỗi thư mục ngẫu nhiên 1 -> 20 thư mục con
@@ -182,4 +182,4 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
   );
 }
 
-export default SidebarTree;
+export default memo(SidebarTree);
