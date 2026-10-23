@@ -6,9 +6,6 @@
   width: 100%;
   height: 12%;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: row;
-  gap: 0.5rem;
   user-select: none;
   flex-shrink: 0;
 }
@@ -17,11 +14,16 @@
   border-top-color: #2e2e2e;
 }
 
+/* Track định vị toạ độ cho 2 khối ổ cứng */
+.sidebar-drives-track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
 /* Từng khối ổ cứng (Màu đậm đầm nét, mặc định khi rộng: 2 khối nằm ngang nhau) */
 .sidebar-drive-card {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
+  position: absolute;
   border-radius: 10px;
   background-color: #f1f5f9;
   border: 1px solid #cbd5e1;
@@ -29,7 +31,28 @@
   padding: 0;
   outline: none;
   cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: top 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.2s ease,
+              border-color 0.2s ease,
+              box-shadow 0.2s ease;
+}
+
+/* Trạng thái mặc định (> 17vw): 2 khối nằm ngang song song */
+.sidebar-drive-card:first-child {
+  top: 0;
+  left: 0;
+  width: calc(50% - 0.25rem);
+  height: 100%;
+}
+
+.sidebar-drive-card:last-child {
+  top: 0;
+  left: calc(50% + 0.25rem);
+  width: calc(50% - 0.25rem);
+  height: 100%;
 }
 
 .sidebar-drive-card:hover {
@@ -57,15 +80,17 @@
 
 /* Khi Sidebar đạt giới hạn <= 17% chiều ngang màn hình: chuyển thành dạng 2 thanh xếp chồng lên nhau */
 @container sidebar-layout (max-width: 17vw) {
-  .sidebar-drives {
-    flex-direction: column;
-    gap: 0.5rem;
+  .sidebar-drive-card:first-child {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: calc(50% - 0.25rem);
   }
 
-  .sidebar-drive-card {
+  .sidebar-drive-card:last-child {
+    top: calc(50% + 0.25rem);
+    left: 0;
     width: 100%;
-    flex: 1;
-    min-height: 0;
-    height: auto;
+    height: calc(50% - 0.25rem);
   }
 }
