@@ -34,7 +34,7 @@
   - Thêm padding `env(safe-area-inset-top)` và `env(safe-area-inset-bottom)` cho Header và Content.
 
 ## 5. Quy tắc Header & Nút Điều Hướng
-- **Thanh Header**: Nằm trong luồng bố cục bình thường (`height: 44px; flex-shrink: 0;`), nền màu phẳng thuần nhất (`background-color: #ffffff` cho Light Mode, `#1f1f1f` cho Dark Mode). Không đè lên `main-content`, cách `main-content` một khoảng `gap: 0.5rem`.
+- **Thanh Header**: Nằm trong luồng bố cục bình thường (`height: calc(44px + 1vw); flex-shrink: 0; padding-bottom: 1vw;`), nền màu phẳng thuần nhất (`background-color: #ffffff` cho Light Mode, `#1f1f1f` cho Dark Mode). Không đè lên `main-content`, cách `main-content` một khoảng đệm chuẩn `1vw` (`MainLayout` giữ `gap: 0`).
 - **Phân chia khu vực Header**:
   - `.header-left-zone`: Tối đa `40%` (`max-width: 40%`), chứa nút mobile (nếu có), viên thuốc `< >` và vùng dành cho tên thư mục sau này.
   - `.header-right-zone`: Tối đa `60%` (`max-width: 60%`), dồn sát về bên phải (`margin-left: auto`), chứa các nút thao tác độc lập (Tìm kiếm, Lọc, Tùy chọn, Download). Các nút chỉ chiếm kích thước thực, không bị kéo giãn.

@@ -1,6 +1,7 @@
 import './SidebarLayout.css';
 import useLayout from '../../../hooks/useLayout';
 import SidebarBrand from './SidebarBrand';
+import SidebarDrives from './SidebarDrives';
 
 function SidebarLayout() {
   const {
@@ -37,7 +38,7 @@ function SidebarLayout() {
         }`}
         style={sidebarStyle}
       >
-        <div className="sidebar-header border-b border-gray-200 dark:border-gray-800 md:border-b-0">
+        <div className="sidebar-header">
           <SidebarBrand />
           {isMobile && (
             <button
@@ -52,6 +53,9 @@ function SidebarLayout() {
             </button>
           )}
         </div>
+
+        {/* Khối ổ cứng ở đáy Sidebar */}
+        <SidebarDrives />
 
         {/* Resizer Handle (Desktop only) */}
         {!isMobile && (
