@@ -1,0 +1,335 @@
+/* Khung Card kết nối Server phong cách macOS dạng Grouped Row */
+.server-connection-card {
+  display: flex;
+  flex-direction: column;
+  background-color: #fafafa;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+:is(.dark, :root.dark) .server-connection-card {
+  background-color: #1c1c1c;
+  border-color: #2e2e2e;
+}
+
+/* Thanh Header của thẻ (nút bấm mở/đóng) */
+.server-connection-header {
+  width: 100%;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  border-radius: 12px;
+  transition: background-color 0.15s ease;
+}
+
+.server-connection-card--expanded .server-connection-header {
+  border-radius: 12px 12px 0 0;
+}
+
+.server-connection-header:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+:is(.dark, :root.dark) .server-connection-header:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.server-connection-header__left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Icon squircle bo góc chuẩn macOS */
+.server-connection-icon-wrapper {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: 7px;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.25);
+  flex-shrink: 0;
+}
+
+:is(.dark, :root.dark) .server-connection-icon-wrapper {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.server-connection-icon {
+  width: 16px;
+  height: 16px;
+  color: #ffffff;
+}
+
+.server-connection-title {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+:is(.dark, :root.dark) .server-connection-title {
+  color: #f3f4f6;
+}
+
+/* Mũi tên Chevron xoay mượt mà */
+.server-connection-chevron {
+  width: 16px;
+  height: 16px;
+  color: #9ca3af;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease;
+}
+
+.server-connection-header:hover .server-connection-chevron {
+  color: #6b7280;
+}
+
+:is(.dark, :root.dark) .server-connection-header:hover .server-connection-chevron {
+  color: #d1d5db;
+}
+
+.server-connection-chevron--expanded {
+  transform: rotate(90deg);
+}
+
+/* Khung trượt mở/đóng mượt mà chuẩn CSS Grid (Zero-Leak) */
+.server-connection-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+}
+
+.server-connection-collapse--expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.server-connection-collapse-inner {
+  overflow: hidden;
+}
+
+/* Khối thân danh sách */
+.server-connection-body {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #e5e7eb;
+  background-color: rgba(0, 0, 0, 0.015);
+  box-sizing: border-box;
+}
+
+:is(.dark, :root.dark) .server-connection-body {
+  border-top-color: #2e2e2e;
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+/* Hàng từng thuộc tính kết nối (thụt lề trái 56px thẳng hàng với chữ C của Connect Server) */
+.server-connection-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1rem 0.625rem calc(1.75rem + 28px);
+  gap: 1rem;
+  box-sizing: border-box;
+  transition: background-color 0.12s ease;
+}
+
+.server-connection-row + .server-connection-row {
+  border-top: 1px solid #f3f4f6;
+}
+
+:is(.dark, :root.dark) .server-connection-row + .server-connection-row {
+  border-top-color: #262626;
+}
+
+.server-connection-row:hover {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+:is(.dark, :root.dark) .server-connection-row:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Cột trái: Icon và nhãn */
+.server-connection-row__left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+/* Icon squircle nhận diện từng thuộc tính */
+.server-connection-item-icon-box {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.server-connection-item-icon-box--host {
+  background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+}
+
+:is(.dark, :root.dark) .server-connection-item-icon-box--host {
+  background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+}
+
+.server-connection-item-icon-box--port {
+  background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+}
+
+:is(.dark, :root.dark) .server-connection-item-icon-box--port {
+  background: linear-gradient(180deg, #ea580c 0%, #c2410c 100%);
+}
+
+.server-connection-item-icon {
+  width: 13px;
+  height: 13px;
+  color: #ffffff;
+}
+
+.server-connection-label {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #1f2937;
+  user-select: none;
+  cursor: pointer;
+}
+
+:is(.dark, :root.dark) .server-connection-label {
+  color: #f3f4f6;
+}
+
+/* Cột phải: Ô nhập liệu và nút Connect */
+.server-connection-row__right {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.server-connection-input {
+  height: 32px;
+  padding: 0 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #111827;
+  outline: none;
+  box-sizing: border-box;
+  width: 240px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.server-connection-input--port {
+  width: 120px;
+}
+
+:is(.dark, :root.dark) .server-connection-input {
+  background-color: #262626;
+  border-color: #404040;
+  color: #f3f4f6;
+}
+
+.server-connection-input:focus {
+  border-color: #007aff;
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.15);
+}
+
+/* Nút Connect chuẩn phong cách macOS */
+.server-connection-btn {
+  height: 32px;
+  min-width: 110px;
+  padding: 0 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 8px;
+  background-color: #2563eb;
+  border: 1px solid #1d4ed8;
+  color: #ffffff;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+
+.server-connection-btn__text {
+  display: inline-block;
+  pointer-events: none;
+  transition: transform 0.08s ease;
+}
+
+.server-connection-btn:hover {
+  background-color: #1d4ed8;
+  border-color: #1e40af;
+}
+
+.server-connection-btn:active {
+  transform: translateY(1px);
+}
+
+.server-connection-btn:active .server-connection-btn__text {
+  transform: translateY(-1px);
+}
+
+:is(.dark, :root.dark) .server-connection-btn {
+  background-color: #3b82f6;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+:is(.dark, :root.dark) .server-connection-btn:hover {
+  background-color: #2563eb;
+}
+
+/* Tối ưu hiển thị responsive màn hình nhỏ */
+@media (max-width: 560px) {
+  .server-connection-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .server-connection-row__right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .server-connection-input {
+    flex: 1;
+    width: 100%;
+  }
+
+  .server-connection-input--port {
+    flex: 1;
+  }
+}

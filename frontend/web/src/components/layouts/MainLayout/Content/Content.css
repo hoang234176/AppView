@@ -3,22 +3,24 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-left: 0;
-  padding-bottom: calc(0.5vw + env(safe-area-inset-bottom, 0));
+  padding: 0;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Thẻ xanh nhạt dài giả lập nội dung cuộn */
-.content-scroll-tester {
+/* Khi ở trang Settings, khóa tuyệt đối khung ngoài để không sinh thanh cuộn kép hoặc giật nháy */
+.main-content--settings {
+  overflow: hidden !important;
+}
+
+/* Khung căn giữa Loading trong main-content */
+.content-loading-container {
   width: 100%;
-  height: 2000px;
-  border-radius: 12px;
-  background-color: #e0f2fe;
-  border: 1px dashed #93c5fd;
-  box-sizing: border-box;
-}
-
-:is(.dark, :root.dark) .content-scroll-tester {
-  background-color: rgba(56, 189, 248, 0.12);
-  border-color: rgba(56, 189, 248, 0.3);
+  height: 100%;
+  min-height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
 }

@@ -1,0 +1,126 @@
+.settings-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  padding: 0.5rem 1vw 0 0;
+  margin: 0;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+:is(.dark, :root.dark) .settings-actions {
+  border-top-color: #2e2e2e;
+}
+
+.settings-actions__right {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+/* Nút bấm chuẩn phong cách viên thuốc macOS & đồng bộ dự án */
+.settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 18px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  cursor: default;
+  outline: none;
+  user-select: none;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+
+.settings-btn__text {
+  display: inline-block;
+  pointer-events: none;
+  transition: transform 0.08s ease;
+}
+
+/* Nút lún nhẹ 1px khi nhấn */
+.settings-btn:active {
+  transform: translateY(1px);
+}
+
+/* Chữ bên trong bù trừ ngược 1px để đứng yên hoàn toàn trên màn hình */
+.settings-btn:active .settings-btn__text {
+  transform: translateY(-1px);
+}
+
+/* Nút Close (Secondary) */
+.settings-btn--close {
+  background-color: transparent;
+  border: 1px solid #d1d5db;
+  color: #4b5563;
+}
+
+.settings-btn--close:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+  color: #111827;
+}
+
+:is(.dark, :root.dark) .settings-btn--close {
+  border-color: #404040;
+  color: #9ca3af;
+}
+
+:is(.dark, :root.dark) .settings-btn--close:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #f3f4f6;
+}
+
+/* Nút Save (Standard) */
+.settings-btn--save {
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #1f2937;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.settings-btn--save:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+:is(.dark, :root.dark) .settings-btn--save {
+  background-color: #262626;
+  border-color: #404040;
+  color: #e5e7eb;
+}
+
+:is(.dark, :root.dark) .settings-btn--save:hover {
+  background-color: #333333;
+  border-color: #525252;
+}
+
+/* Nút Save & Close (Primary Accent) */
+.settings-btn--save-close {
+  background-color: #2563eb;
+  border: 1px solid #1d4ed8;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+.settings-btn--save-close:hover {
+  background-color: #1d4ed8;
+  border-color: #1e40af;
+}
+
+:is(.dark, :root.dark) .settings-btn--save-close {
+  background-color: #3b82f6;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+:is(.dark, :root.dark) .settings-btn--save-close:hover {
+  background-color: #2563eb;
+}

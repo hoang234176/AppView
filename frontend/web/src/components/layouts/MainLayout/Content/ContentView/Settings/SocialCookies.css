@@ -1,0 +1,353 @@
+/* Khung Card Cookies mạng xã hội phong cách macOS Grouped Row */
+.social-cookies-card {
+  display: flex;
+  flex-direction: column;
+  background-color: #fafafa;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+:is(.dark, :root.dark) .social-cookies-card {
+  background-color: #1c1c1c;
+  border-color: #2e2e2e;
+}
+
+/* Thanh Header của thẻ (nút bấm mở/đóng) */
+.social-cookies-header {
+  width: 100%;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  border-radius: 12px;
+  transition: background-color 0.15s ease;
+}
+
+.social-cookies-card--expanded .social-cookies-header {
+  border-radius: 12px 12px 0 0;
+}
+
+.social-cookies-header:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+:is(.dark, :root.dark) .social-cookies-header:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.social-cookies-header__left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Icon squircle Cookie bo góc chuẩn macOS */
+.social-cookies-icon-wrapper {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+  border-radius: 7px;
+  box-shadow: 0 1px 2px rgba(217, 119, 6, 0.25);
+  flex-shrink: 0;
+}
+
+:is(.dark, :root.dark) .social-cookies-icon-wrapper {
+  background: linear-gradient(180deg, #d97706 0%, #b45309 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.social-cookies-icon {
+  width: 16px;
+  height: 16px;
+  color: #ffffff;
+}
+
+.social-cookies-title {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+:is(.dark, :root.dark) .social-cookies-title {
+  color: #f3f4f6;
+}
+
+/* Mũi tên Chevron xoay mượt mà */
+.social-cookies-chevron {
+  width: 16px;
+  height: 16px;
+  color: #9ca3af;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease;
+}
+
+.social-cookies-header:hover .social-cookies-chevron {
+  color: #6b7280;
+}
+
+:is(.dark, :root.dark) .social-cookies-header:hover .social-cookies-chevron {
+  color: #d1d5db;
+}
+
+.social-cookies-chevron--expanded {
+  transform: rotate(90deg);
+}
+
+/* Khung trượt mở/đóng mượt mà chuẩn CSS Grid (Zero-Leak) */
+.social-cookies-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+}
+
+.social-cookies-collapse--expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.social-cookies-collapse-inner {
+  overflow: hidden;
+}
+
+/* Khối thân danh sách */
+.social-cookies-body {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #e5e7eb;
+  background-color: rgba(0, 0, 0, 0.015);
+  box-sizing: border-box;
+}
+
+:is(.dark, :root.dark) .social-cookies-body {
+  border-top-color: #2e2e2e;
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+/* Hàng từng mạng xã hội (thụt lề trái 56px thẳng hàng với chữ S của Social) */
+.social-cookies-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1rem 0.625rem calc(1.75rem + 28px);
+  gap: 1rem;
+  box-sizing: border-box;
+  transition: background-color 0.12s ease;
+}
+
+.social-cookies-row + .social-cookies-row {
+  border-top: 1px solid #f3f4f6;
+}
+
+:is(.dark, :root.dark) .social-cookies-row + .social-cookies-row {
+  border-top-color: #262626;
+}
+
+.social-cookies-row:hover {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+:is(.dark, :root.dark) .social-cookies-row:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Cột trái */
+.social-cookies-row__left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 140px;
+}
+
+/* Icon squircle nhận diện từng thương hiệu */
+.social-platform-icon-box {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.social-platform-icon-box--facebook {
+  background-color: #1877f2;
+}
+
+.social-platform-icon-box--instagram {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+}
+
+.social-platform-icon-box--tiktok {
+  background-color: #000000;
+}
+
+.social-platform-icon-box--x {
+  background-color: #000000;
+}
+
+:is(.dark, :root.dark) .social-platform-icon-box--x {
+  border: 1px solid #333333;
+}
+
+.social-platform-icon-box--youtube {
+  background-color: #ff0000;
+}
+
+.social-platform-icon {
+  width: 13px;
+  height: 13px;
+  color: #ffffff;
+}
+
+.social-platform-name {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #1f2937;
+  user-select: none;
+}
+
+:is(.dark, :root.dark) .social-platform-name {
+  color: #f3f4f6;
+}
+
+/* Cột giữa: Huy hiệu trạng thái */
+.social-cookies-row__status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.social-status-badge {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  user-select: none;
+  line-height: 1.2;
+}
+
+.social-status-badge--empty {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+}
+
+:is(.dark, :root.dark) .social-status-badge--empty {
+  background-color: #262626;
+  color: #9ca3af;
+  border-color: #383838;
+}
+
+/* Cột phải: Các nút hành động Import & Check */
+.social-cookies-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.social-cookies-btn {
+  height: 28px;
+  padding: 0 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 7px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+
+.social-cookies-btn__text {
+  display: inline-block;
+  pointer-events: none;
+  transition: transform 0.08s ease;
+}
+
+.social-cookies-btn:active {
+  transform: translateY(1px);
+}
+
+.social-cookies-btn:active .social-cookies-btn__text {
+  transform: translateY(-1px);
+}
+
+/* Nút Import */
+.social-cookies-btn--import {
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #1f2937;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.social-cookies-btn--import:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+:is(.dark, :root.dark) .social-cookies-btn--import {
+  background-color: #262626;
+  border-color: #404040;
+  color: #e5e7eb;
+}
+
+:is(.dark, :root.dark) .social-cookies-btn--import:hover {
+  background-color: #333333;
+  border-color: #525252;
+}
+
+/* Nút Check */
+.social-cookies-btn--check {
+  background-color: transparent;
+  border: 1px solid #d1d5db;
+  color: #4b5563;
+}
+
+.social-cookies-btn--check:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+  color: #111827;
+}
+
+:is(.dark, :root.dark) .social-cookies-btn--check {
+  border-color: #404040;
+  color: #9ca3af;
+}
+
+:is(.dark, :root.dark) .social-cookies-btn--check:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #f3f4f6;
+}
+
+/* Tối ưu hiển thị responsive màn hình nhỏ */
+@media (max-width: 480px) {
+  .social-cookies-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .social-cookies-row__left {
+    min-width: auto;
+  }
+}

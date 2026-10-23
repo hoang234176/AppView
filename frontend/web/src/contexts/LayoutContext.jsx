@@ -26,6 +26,12 @@ export function LayoutProvider({ children }) {
   });
 
   const [isResizing, setIsResizing] = useState(false);
+  const [activeView, setActiveView] = useState('contents');
+  const [isContentLoading, setIsContentLoading] = useState(false);
+  const [isHeaderRightVisible, setIsHeaderRightVisible] = useState(true);
+  const [isHeaderRightExiting, setIsHeaderRightExiting] = useState(false);
+  const [isHeaderTitleVisible, setIsHeaderTitleVisible] = useState(false);
+  const [isSettingsClosing, setIsSettingsClosing] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -70,6 +76,33 @@ export function LayoutProvider({ children }) {
       localStorage.setItem('appview_sidebar_width', '22');
     }
   }, []);
+
+  const showContentLoading = useCallback(() => setIsContentLoading(true), []);
+  const hideContentLoading = useCallback(() => setIsContentLoading(false), []);
+
+  const showHeaderRight = useCallback(() => {
+    setIsHeaderRightExiting(false);
+    setIsHeaderRightVisible(true);
+  }, []);
+
+  const hideHeaderRight = useCallback(() => {
+    setIsHeaderRightExiting(true);
+    setTimeout(() => {
+      setIsHeaderRightVisible(false);
+      setIsHeaderRightExiting(false);
+    }, 240);
+  }, []);
+
+  const closeSettings = useCallback((onComplete) => {
+    setIsSettingsClosing(true);
+    setTimeout(() => {
+      setIsSettingsClosing(false);
+      showHeaderRight();
+      if (onComplete) {
+        onComplete();
+      }
+    }, 180);
+  }, [showHeaderRight]);
 
   // 60 FPS Throttled Drag Handler (~16.6ms per frame)
   useEffect(() => {
@@ -138,6 +171,19 @@ export function LayoutProvider({ children }) {
     isResizing,
     startResizing,
     resetSidebarWidth,
+    activeView,
+    setActiveView,
+    isContentLoading,
+    showContentLoading,
+    hideContentLoading,
+    isHeaderRightVisible,
+    isHeaderRightExiting,
+    showHeaderRight,
+    hideHeaderRight,
+    isHeaderTitleVisible,
+    setHeaderTitleVisible: setIsHeaderTitleVisible,
+    isSettingsClosing,
+    closeSettings,
   }), [
     isSidebarOpen,
     isMobile,
@@ -148,6 +194,17 @@ export function LayoutProvider({ children }) {
     isResizing,
     startResizing,
     resetSidebarWidth,
+    activeView,
+    isContentLoading,
+    showContentLoading,
+    hideContentLoading,
+    isHeaderRightVisible,
+    isHeaderRightExiting,
+    showHeaderRight,
+    hideHeaderRight,
+    isHeaderTitleVisible,
+    isSettingsClosing,
+    closeSettings,
   ]);
 
   return (

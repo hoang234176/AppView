@@ -5,11 +5,13 @@
   display: flex;
   align-items: center;
   padding-left: 0;
+  padding-right: 1vw;
   padding-bottom: 0.5vw;
   padding-top: env(safe-area-inset-top, 0);
   box-sizing: border-box;
   background-color: #ffffff;
   transition: background-color 0.2s ease;
+  overflow: hidden;
 }
 
 :is(.dark, :root.dark) .main-header {
@@ -26,6 +28,37 @@
   flex-shrink: 0;
 }
 
+/* Tiêu đề trang trượt mờ sau nút < > (phong cách macOS đồng bộ SidebarBrand) */
+.header-left-title {
+  display: inline-block;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111827;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity 0.25s ease, transform 0.25s ease, max-width 0.25s ease;
+  pointer-events: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:is(.dark, :root.dark) .header-left-title {
+  color: #ffffff;
+}
+
+.header-left-title--visible {
+  opacity: 1;
+  transform: translateX(0);
+  max-width: 150px;
+  pointer-events: auto;
+}
+
 /* Khu vực bên phải (tối đa 60% chiều rộng, dồn sát về bên phải) */
 .header-right-zone {
   max-width: 60%;
@@ -35,4 +68,32 @@
   justify-content: flex-end;
   gap: 8px;
   margin-left: auto;
+  animation: headerSlideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.header-right-zone--exiting {
+  animation: headerSlideOutRight 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes headerSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(36px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes headerSlideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(36px);
+  }
 }
