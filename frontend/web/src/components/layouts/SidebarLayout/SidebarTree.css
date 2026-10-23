@@ -19,7 +19,7 @@
   padding: 0 0 0.5rem 0;
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
@@ -232,8 +232,8 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 36px;
+  gap: 8px;
+  height: 40px;
   padding: 0 6px;
   border-radius: 8px;
   cursor: pointer;
@@ -278,8 +278,8 @@
 
 /* Nút chevron xoay */
 .sidebar-tree__chevron {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -304,26 +304,26 @@
 }
 
 .sidebar-tree__chevron svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .sidebar-tree__chevron--expanded {
   transform: rotate(90deg);
 }
 
-/* Khoảng trống giữ chỗ cố định 18px cho thư mục không có con để icon luôn thẳng hàng */
+/* Khoảng trống giữ chỗ cố định 20px cho thư mục không có con để icon luôn thẳng hàng */
 .sidebar-tree__chevron-spacer {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   display: inline-block;
 }
 
 /* Icon thư mục */
 .sidebar-tree__icon {
-  width: 18px;
-  height: 18px;
+  width: 21px;
+  height: 21px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -342,8 +342,8 @@
 }
 
 .sidebar-tree__icon--sub {
-  width: 18px;
-  height: 18px;
+  width: 21px;
+  height: 21px;
   color: #64748b;
 }
 
@@ -364,7 +364,7 @@
 .sidebar-tree__name {
   flex: 1;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.9375rem;
   font-weight: 500;
   color: #334155;
   white-space: nowrap;
@@ -382,9 +382,9 @@
 /* Huy hiệu số lượng thư mục con */
 .sidebar-tree__badge {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 9999px;
   background-color: #e2e8f0;
   color: #64748b;
@@ -411,11 +411,11 @@
 
 /* Thư mục con */
 .sidebar-tree__item--sub {
-  height: 36px;
+  height: 40px;
 }
 
 .sidebar-tree__item--sub .sidebar-tree__name {
-  font-size: 0.85rem;
+  font-size: 0.9375rem;
   font-weight: 500;
   color: #334155;
 }
