@@ -232,15 +232,38 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
 
   const toggleExpand = (id, e) => {
     e.stopPropagation();
-    setExpandedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+    const isExpanding = !expandedIds.has(id);
+
+    if (isExpanding) {
+      // 1. Cuộn thư mục lên đầu danh sách trước
+      const container = scrollContainerRef.current;
+      const targetEl = container?.querySelector(`[data-tree-id="${id}"]`);
+
+      if (container && targetEl) {
+        const containerRect = container.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+        const targetScrollTop = targetRect.top - containerRect.top + container.scrollTop;
+
+        // Nếu thư mục chưa ở đỉnh, cuộn mượt lên đỉnh
+        const isAlreadyAtTop = Math.abs(container.scrollTop - targetScrollTop) < 4;
+        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+
+        // 2. Chờ cuộn lên đầu rồi bung hiệu ứng nội dung con
+        const delay = isAlreadyAtTop ? 0 : 150;
+        setTimeout(() => {
+          setExpandedIds(prev => new Set(prev).add(id));
+        }, delay);
       } else {
-        next.add(id);
+        setExpandedIds(prev => new Set(prev).add(id));
       }
-      return next;
-    });
+    } else {
+      // Khi thu gọn lại thì đóng ngay lập tức
+      setExpandedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const handleSelect = (id) => {
