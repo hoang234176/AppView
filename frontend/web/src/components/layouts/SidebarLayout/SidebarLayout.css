@@ -40,18 +40,13 @@
 .sidebar-header {
   container-type: inline-size;
   container-name: sidebar-header;
-  padding: 0 0 0.75rem 0;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 0 0 3vw 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   box-sizing: border-box;
   gap: 0.5rem;
   flex-shrink: 0;
-}
-
-:is(.dark, :root.dark) .sidebar-header {
-  border-bottom-color: #2e2e2e;
 }
 
 /* Mobile & Tablet Drawer (< 768px) */

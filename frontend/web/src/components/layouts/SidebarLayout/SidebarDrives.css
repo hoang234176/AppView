@@ -28,12 +28,33 @@
   background-color: #f1f5f9;
   border: 1px solid #cbd5e1;
   box-sizing: border-box;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  padding: 0;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sidebar-drive-card:hover {
+  background-color: #e2e8f0;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card {
   background-color: #141414;
   border-color: #2e2e2e;
+}
+
+:is(.dark, :root.dark) .sidebar-drive-card:hover {
+  background-color: #1f1f1f;
+}
+
+.sidebar-drive-card--active {
+  border-color: #007aff;
+  box-shadow: 0 0 0 1px #007aff;
+}
+
+:is(.dark, :root.dark) .sidebar-drive-card--active {
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 1px #0a84ff;
 }
 
 /* Khi Sidebar bị kéo ép nhỏ (<= 190px): chuyển thành 2 hàng ngang nằm trên dưới */

@@ -13,6 +13,7 @@ If docs and implementation disagree, inspect the relevant code and report the di
 
 - Make the smallest required change.
 - Do not perform unrelated refactors.
+- Không tự ý thêm hoặc tăng `padding` hay `margin` vào bất kỳ thành phần nào nếu người dùng không yêu cầu hoặc chưa cho phép rõ ràng.
 - Preserve public API contracts unless explicitly asked for a breaking change.
 - Prefer backward-compatible changes.
 - Avoid unnecessary dependencies.

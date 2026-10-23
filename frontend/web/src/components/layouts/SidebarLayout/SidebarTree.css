@@ -1,0 +1,277 @@
+/* Container bao bọc toàn bộ khối cây thư mục và tiêu đề cố định */
+.sidebar-tree-container {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  gap: 0.5rem;
+}
+
+/* Tiêu đề cố định trên đỉnh của SidebarTree, không bị trôi khi cuộn */
+.sidebar-tree-header {
+  flex-shrink: 0;
+  padding: 0 0 0.5rem 0;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  user-select: none;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+:is(.dark, :root.dark) .sidebar-tree-header {
+  color: #94a3b8;
+  border-bottom-color: #2e2e2e;
+}
+
+/* Container cuộn danh sách thư mục (mở rộng chạm sát mép phải Sidebar) */
+.sidebar-tree {
+  flex: 1;
+  min-height: 0;
+  width: calc(100% + 1vw);
+  margin-right: -1vw;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+:is(.dark, :root.dark) .sidebar-tree {
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.sidebar-tree::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-tree::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+
+:is(.dark, :root.dark) .sidebar-tree::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar-tree__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 1vw;
+  box-sizing: border-box;
+}
+
+.sidebar-tree__branch {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Từng hàng thư mục (chiếm trọn 100% chiều ngang hàng) */
+.sidebar-tree__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-tree__item:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+:is(.dark, :root.dark) .sidebar-tree__item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Thư mục được chọn */
+.sidebar-tree__item--selected {
+  background-color: rgba(0, 122, 255, 0.1) !important;
+}
+
+:is(.dark, :root.dark) .sidebar-tree__item--selected {
+  background-color: rgba(10, 132, 255, 0.18) !important;
+}
+
+.sidebar-tree__item--selected .sidebar-tree__name {
+  color: #007aff;
+  font-weight: 600;
+}
+
+:is(.dark, :root.dark) .sidebar-tree__item--selected .sidebar-tree__name {
+  color: #0a84ff;
+}
+
+.sidebar-tree__item--selected .sidebar-tree__icon {
+  color: #007aff;
+}
+
+:is(.dark, :root.dark) .sidebar-tree__item--selected .sidebar-tree__icon {
+  color: #0a84ff;
+}
+
+/* Nút chevron xoay */
+.sidebar-tree__chevron {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 4px;
+  color: #9ca3af;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+}
+
+.sidebar-tree__chevron:hover {
+  color: #4b5563;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+:is(.dark, :root.dark) .sidebar-tree__chevron:hover {
+  color: #d1d5db;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-tree__chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sidebar-tree__chevron--expanded {
+  transform: rotate(90deg);
+}
+
+/* Khoảng trống giữ chỗ cố định 18px cho thư mục không có con để icon luôn thẳng hàng */
+.sidebar-tree__chevron-spacer {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+/* Icon thư mục */
+.sidebar-tree__icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #64748b;
+  transition: color 0.15s ease;
+}
+
+:is(.dark, :root.dark) .sidebar-tree__icon {
+  color: #94a3b8;
+}
+
+.sidebar-tree__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sidebar-tree__icon--sub {
+  width: 18px;
+  height: 18px;
+  color: #64748b;
+}
+
+:is(.dark, :root.dark) .sidebar-tree__icon--sub {
+  color: #94a3b8;
+}
+
+/* Tên thư mục */
+.sidebar-tree__name {
+  flex: 1;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+:is(.dark, :root.dark) .sidebar-tree__name {
+  color: #cbd5e1;
+}
+
+/* Huy hiệu số lượng thư mục con */
+.sidebar-tree__badge {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background-color: #e2e8f0;
+  color: #64748b;
+  flex-shrink: 0;
+  margin-left: auto;
+  line-height: 1.2;
+}
+
+:is(.dark, :root.dark) .sidebar-tree__badge {
+  background-color: #27272a;
+  color: #a1a1aa;
+}
+
+/* Danh sách con phẳng 100% chiều ngang, thụt lề bằng paddingLeft từng hàng */
+.sidebar-tree__sub-list {
+  margin-left: 0;
+  padding-left: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: treeSlideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Thư mục con */
+.sidebar-tree__item--sub {
+  height: 36px;
+}
+
+.sidebar-tree__item--sub .sidebar-tree__name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+:is(.dark, :root.dark) .sidebar-tree__item--sub .sidebar-tree__name {
+  color: #cbd5e1;
+}
+
+@keyframes treeSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

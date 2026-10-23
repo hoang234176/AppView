@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import './SidebarLayout.css';
 import useLayout from '../../../hooks/useLayout';
 import SidebarBrand from './SidebarBrand';
+import SidebarTree from './SidebarTree';
 import SidebarDrives from './SidebarDrives';
 
 function SidebarLayout() {
+  const [activeDriveId, setActiveDriveId] = useState('drive-1');
   const {
     isSidebarOpen,
     isMobile,
@@ -54,8 +57,11 @@ function SidebarLayout() {
           )}
         </div>
 
+        {/* Khối cây thư mục phân cấp */}
+        <SidebarTree activeDriveId={activeDriveId} />
+
         {/* Khối ổ cứng ở đáy Sidebar */}
-        <SidebarDrives />
+        <SidebarDrives activeDriveId={activeDriveId} onSelectDrive={setActiveDriveId} />
 
         {/* Resizer Handle (Desktop only) */}
         {!isMobile && (

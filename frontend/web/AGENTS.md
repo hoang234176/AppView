@@ -5,6 +5,9 @@
 - **Không lấn ranh giới (Boundary Isolation)**:
   - Tuyệt đối không viết CSS tác động hoặc áp đặt thuộc tính lên các **component con**.
   - Tuyệt đối không viết CSS vượt rào can thiệp lên các **component cha hoặc bậc cao hơn**.
+- **Quy tắc Padding & Margin tuyệt đối (User Mandatory Rule)**:
+  - TUYỆT ĐỐI KHÔNG tự ý thêm hoặc tăng `padding` hay `margin` vào bất kỳ thành phần nào (container, layout, thẻ mục, nút bấm, khối nội dung, v.v.) nếu người dùng không yêu cầu hoặc chưa cho phép rõ ràng.
+  - Luôn giữ padding/margin ở mức 0 hoặc đúng chính xác theo chỉ định của người dùng.
 
 ## 2. Quy tắc Dark / Light Mode Tự động
 - **Tự động theo hệ thống**: Ứng dụng tự động chuyển đổi giao diện sáng/tối theo cài đặt của hệ điều hành thông qua script chống chớp trắng (anti-FOUT) trong `index.html` và `ThemeProvider` tại `main.jsx`.

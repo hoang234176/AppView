@@ -1,7 +1,7 @@
 /* Nút Tìm kiếm mở rộng thành thanh search trên Desktop Web */
 .header-search-pill {
   height: 100%;
-  width: calc(44px - 0.5vw);
+  width: 44px;
   aspect-ratio: 1 / 1;
   display: inline-flex;
   align-items: center;
