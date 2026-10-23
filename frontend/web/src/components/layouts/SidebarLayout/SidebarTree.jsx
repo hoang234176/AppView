@@ -65,7 +65,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
         onClick={() => onSelect(item.id)}
         title={item.name}
       >
-        {/* Nút mũi tên -> xoay thành chỉ xuống khi mở */}
+        {/* Nếu có con: nút chevron xoay; nếu không có con: spacer 18px giữ chỗ để thẳng hàng icon */}
         {hasChildren ? (
           <button
             type="button"
@@ -76,7 +76,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
             <svg viewBox="0 0 20 20" fill="currentColor">
               <path
                 fillRule="evenodd"
-                d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
+                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
                 clipRule="evenodd"
               />
             </svg>
