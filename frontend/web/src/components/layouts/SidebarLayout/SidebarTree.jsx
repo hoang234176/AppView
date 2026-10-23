@@ -38,7 +38,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
   const hasChildren = item.children && item.children.length > 0;
   const isExpanded = expandedIds.has(item.id);
   const isSelected = selectedId === item.id;
-  const itemStyle = level > 1 ? { paddingLeft: `${6 + (level - 1) * 16}px` } : undefined;
+  const itemStyle = level > 1 ? { paddingLeft: `${6 + (level - 1) * 24}px` } : undefined;
 
   return (
     <div className="sidebar-tree__branch">
