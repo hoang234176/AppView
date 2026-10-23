@@ -106,7 +106,7 @@ function MoreButton() {
       {/* Menu thả xuống chuẩn phong cách macOS Finder */}
       {isOpen && (
         <div className="header-more-menu" role="menu">
-          {/* Lựa chọn 1: New Folder */}
+          {/* Lựa chọn 1: New Folder (chuẩn macOS folder.badge.plus) */}
           <button
             type="button"
             className="header-more-menu__item"
@@ -115,7 +115,11 @@ function MoreButton() {
           >
             <span className="header-more-menu__icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m-3-3h6m-9-7h4.382a1.5 1.5 0 011.06.44l1.118 1.12a1.5 1.5 0 001.06.44H20a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2 7.5V5a1.5 1.5 0 011.5-1.5h4a1.5 1.5 0 011.2.6L10 6h3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2 7.5v10A1.5 1.5 0 003.5 19h15a1.5 1.5 0 001.5-1.5v-6.5" />
+                <circle cx="18" cy="7.5" r="3.75" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 5.75v3.5" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.25 7.5h3.5" />
               </svg>
             </span>
             <span className="header-more-menu__label">New Folder</span>
