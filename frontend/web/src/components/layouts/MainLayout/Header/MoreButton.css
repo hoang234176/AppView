@@ -64,7 +64,7 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  z-index: 100;
+  z-index: 20;
   user-select: none;
   animation: macMenuFadeIn 0.12s ease-out;
 }
@@ -179,7 +179,7 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  z-index: 110;
+  z-index: 21;
   animation: macMenuFadeIn 0.12s ease-out;
 }
 

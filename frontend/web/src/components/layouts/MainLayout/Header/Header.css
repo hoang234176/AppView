@@ -11,7 +11,9 @@
   box-sizing: border-box;
   background-color: #ffffff;
   transition: background-color 0.2s ease;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 20;
 }
 
 :is(.dark, :root.dark) .main-header {
