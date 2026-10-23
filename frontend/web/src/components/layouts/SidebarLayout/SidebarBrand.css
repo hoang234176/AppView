@@ -14,17 +14,7 @@
   gap: 0.625rem;
   min-width: 0;
   overflow: hidden;
-  cursor: pointer;
   border-radius: 8px;
-  transition: opacity 0.15s ease, transform 0.1s ease;
-}
-
-.sidebar-brand__left:hover {
-  opacity: 0.85;
-}
-
-.sidebar-brand__left:active {
-  transform: scale(0.98);
 }
 
 .sidebar-brand__logo {

@@ -351,14 +351,6 @@
   color: #94a3b8;
 }
 
-/* Khi thư mục đang mở: icon sáng màu xanh chủ đạo */
-.sidebar-tree__icon--expanded {
-  color: #007aff !important;
-}
-
-:is(.dark, :root.dark) .sidebar-tree__icon--expanded {
-  color: #0a84ff !important;
-}
 
 /* Tên thư mục */
 .sidebar-tree__name {

@@ -11,17 +11,6 @@ function SidebarBrand() {
   const isSettings = location.pathname === '/settings';
   const timeoutRef = useRef(null);
 
-  const handleHomeClick = () => {
-    if (location.pathname === '/' || location.pathname === '/contents') return;
-    if (isSettings) {
-      closeSettings(() => {
-        navigate('/');
-      });
-      return;
-    }
-    navigate('/');
-  };
-
   const handleSettingClick = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -59,13 +48,7 @@ function SidebarBrand() {
 
   return (
     <div className="sidebar-brand">
-      <div
-        className="sidebar-brand__left"
-        onClick={handleHomeClick}
-        role="button"
-        tabIndex={0}
-        aria-label="Về trang chủ"
-      >
+      <div className="sidebar-brand__left">
         <img
           src="/app_icon.png"
           alt="AppView Logo"

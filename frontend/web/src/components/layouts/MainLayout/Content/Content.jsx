@@ -25,6 +25,7 @@ function Content() {
   }, [location.pathname]);
 
   const handleScroll = () => {
+    window.dispatchEvent(new CustomEvent('close-more-menu'));
     if (location.pathname === '/' || location.pathname === '/contents') {
       if (mainRef.current) {
         scrollPosRef.current = mainRef.current.scrollTop;
@@ -34,11 +35,29 @@ function Content() {
 
   const isSettings = location.pathname === '/settings';
 
+  const handleContextMenu = (e) => {
+    // Không kích hoạt khi đang ở trang cài đặt
+    if (isSettings) return;
+    // Không kích hoạt lại nếu click chuột phải vào bên trong menu
+    if (e.target.closest('.header-more-menu')) return;
+
+    // Chặn menu chuột phải mặc định của trình duyệt
+    e.preventDefault();
+
+    // Phát sự kiện mở menu tại vị trí chuột click phải
+    window.dispatchEvent(
+      new CustomEvent('open-more-menu', {
+        detail: { clientX: e.clientX, clientY: e.clientY },
+      })
+    );
+  };
+
   return (
     <main
       ref={mainRef}
       className={`main-content ${isSettings ? 'main-content--settings' : ''}`}
       onScroll={handleScroll}
+      onContextMenu={handleContextMenu}
     >
       {isContentLoading ? (
         <div className="content-loading-container">

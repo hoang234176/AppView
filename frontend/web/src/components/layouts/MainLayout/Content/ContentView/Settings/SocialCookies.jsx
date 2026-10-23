@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import CookieIcon from '../../../../../../assets/icons/CookieIcon';
 import ChevronRight from '../../../../../../assets/icons/ChevronRight';
 import FacebookIcon from '../../../../../../assets/icons/FacebookIcon';
@@ -41,15 +41,27 @@ const SOCIAL_PLATFORMS = [
   },
 ];
 
-function SocialCookies() {
+function SocialCookies({ onExpand }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const cardRef = useRef(null);
+
+  const handleToggle = () => {
+    const nextState = !isExpanded;
+    setIsExpanded(nextState);
+    if (nextState && onExpand && cardRef.current) {
+      onExpand(cardRef.current);
+    }
+  };
 
   return (
-    <div className={`social-cookies-card ${isExpanded ? 'social-cookies-card--expanded' : ''}`}>
+    <div
+      ref={cardRef}
+      className={`social-cookies-card ${isExpanded ? 'social-cookies-card--expanded' : ''}`}
+    >
       <button
         type="button"
         className="social-cookies-header"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={handleToggle}
         aria-expanded={isExpanded}
       >
         <div className="social-cookies-header__left">

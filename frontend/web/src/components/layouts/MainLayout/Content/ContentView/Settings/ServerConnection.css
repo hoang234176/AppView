@@ -260,6 +260,18 @@
   box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.15);
 }
 
+.server-connection-input--error,
+.server-connection-input--error:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2) !important;
+}
+
+:is(.dark, :root.dark) .server-connection-input--error,
+:is(.dark, :root.dark) .server-connection-input--error:focus {
+  border-color: #f87171 !important;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25) !important;
+}
+
 /* Nút Connect chuẩn phong cách macOS */
 .server-connection-btn {
   height: 32px;
@@ -310,6 +322,12 @@
 
 :is(.dark, :root.dark) .server-connection-btn:hover {
   background-color: #2563eb;
+}
+
+.server-connection-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Tối ưu hiển thị responsive màn hình nhỏ */

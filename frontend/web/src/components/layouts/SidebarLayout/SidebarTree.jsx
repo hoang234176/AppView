@@ -1,6 +1,8 @@
 import { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import './SidebarTree.css';
 import Loading from '../../common/Loading/Loading';
+import FolderIcon from '../../../assets/icons/FolderIcon';
+import FolderOpenIcon from '../../../assets/icons/FolderOpenIcon';
 
 // Hàm sinh 20 thư mục cấp 1, mỗi thư mục ngẫu nhiên 1 -> 20 thư mục con
 function generateMockFolders() {
@@ -63,7 +65,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
         }`}
         style={itemStyle}
         data-tree-id={item.id}
-        onClick={() => onSelect(item.id)}
+        onClick={() => onSelect(item.id, hasChildren)}
         title={item.name}
       >
         {/* Nếu có con: nút chevron xoay; nếu không có con: spacer 18px giữ chỗ để thẳng hàng icon */}
@@ -86,28 +88,14 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
           <span className="sidebar-tree__chevron-spacer" aria-hidden="true" />
         )}
 
-        {/* Icon Thư mục (đổi sang icon hé mở và sáng xanh khi mở) */}
+        {/* Icon Thư mục */}
         <div
-          className={`sidebar-tree__icon ${level > 1 ? 'sidebar-tree__icon--sub' : ''} ${
-            isExpanded ? 'sidebar-tree__icon--expanded' : ''
-          }`}
+          className={`sidebar-tree__icon ${level > 1 ? 'sidebar-tree__icon--sub' : ''}`}
         >
           {isExpanded ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"
-              />
-            </svg>
+            <FolderOpenIcon />
           ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-              />
-            </svg>
+            <FolderIcon />
           )}
         </div>
 
@@ -260,6 +248,21 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
     }
   };
 
+  // Cuộn mượt đưa thư mục lên đỉnh (hoặc cách đỉnh một khoảng offset nếu bị nút nổi che)
+  const scrollToFolder = useCallback((id, offset = 0) => {
+    requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      const targetEl = container?.querySelector(`[data-tree-id="${id}"]`);
+
+      if (container && targetEl) {
+        const containerRect = container.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+        const targetScrollTop = Math.max(0, targetRect.top - containerRect.top + container.scrollTop - offset);
+        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+      }
+    });
+  }, []);
+
   const toggleExpand = (id, e) => {
     e.stopPropagation();
     const isExpanding = !expandedIds.has(id);
@@ -268,18 +271,10 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
       // 1. Bung mở thư mục vào DOM để scrollHeight mở rộng đủ chiều cao
       setExpandedIds(prev => new Set(prev).add(id));
 
-      // 2. Ngay sau khi DOM render con, cuộn mượt thư mục lên sát đỉnh
-      requestAnimationFrame(() => {
-        const container = scrollContainerRef.current;
-        const targetEl = container?.querySelector(`[data-tree-id="${id}"]`);
-
-        if (container && targetEl) {
-          const containerRect = container.getBoundingClientRect();
-          const targetRect = targetEl.getBoundingClientRect();
-          const targetScrollTop = targetRect.top - containerRect.top + container.scrollTop;
-          container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-        }
-      });
+      // 2. Ngay sau khi DOM render con, cuộn mượt thư mục lên
+      // Nếu có thư mục đã được chọn trước đó (khác id hiện tại), đẩy xuống 36px để không bị nút nổi che mất
+      const offset = (selectedId && selectedId !== id) ? 36 : 0;
+      scrollToFolder(id, offset);
     } else {
       // Khi thu gọn lại thì đóng ngay lập tức
       setExpandedIds(prev => {
@@ -290,8 +285,14 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
     }
   };
 
-  const handleSelect = (id) => {
+  const handleSelect = (id, hasChildren) => {
     setSelectedId(id);
+    if (hasChildren) {
+      // Đồng thời xổ thư mục con bên trong
+      setExpandedIds(prev => new Set(prev).add(id));
+      // Đưa lên trên cùng (không cần đẩy xuống vì chính nó là thư mục đang chọn trong khung nhìn)
+      scrollToFolder(id, 0);
+    }
   };
 
   return (

@@ -69,6 +69,33 @@
   animation: macMenuFadeIn 0.12s ease-out;
 }
 
+.header-more-menu--portal {
+  position: fixed !important;
+  right: auto !important;
+  z-index: 9999 !important;
+}
+
+/* Mũi tên ^ trỏ lên nút 3 chấm ở header (cách lề phải 22px) */
+.header-more-menu__caret {
+  position: absolute;
+  top: -6px;
+  right: 22px;
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  background-color: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  border-left: 1px solid rgba(0, 0, 0, 0.12);
+  border-top-left-radius: 2px;
+  z-index: 22;
+  pointer-events: none;
+}
+
+:is(.dark, :root.dark) .header-more-menu__caret {
+  background-color: rgba(34, 34, 34, 0.96);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
 :is(.dark, :root.dark) .header-more-menu {
   background-color: rgba(34, 34, 34, 0.85);
   border-color: rgba(255, 255, 255, 0.14);

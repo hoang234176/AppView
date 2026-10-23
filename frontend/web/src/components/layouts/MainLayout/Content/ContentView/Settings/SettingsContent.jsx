@@ -6,11 +6,25 @@ import SocialCookies from './SocialCookies';
 import CacheSettings from './CacheSettings';
 import './SettingsContent.css';
 
-function SettingsContent() {
+function SettingsContent({ host, setHost, port, setPort }) {
   const { setHeaderTitleVisible } = useLayout();
   const isTitleVisibleRef = useRef(false);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimerRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+
+  // Cuộn mượt đưa thẻ lên sát mép đỉnh khi mở rộng
+  const handleCardExpand = (cardEl) => {
+    requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      if (container && cardEl) {
+        const containerRect = container.getBoundingClientRect();
+        const cardRect = cardEl.getBoundingClientRect();
+        const targetScrollTop = Math.max(0, cardRect.top - containerRect.top + container.scrollTop);
+        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+      }
+    });
+  };
 
   // Đảm bảo reset trạng thái tiêu đề Header và timer khi rời trang Settings
   useEffect(() => {
@@ -43,6 +57,7 @@ function SettingsContent() {
 
   return (
     <div
+      ref={scrollContainerRef}
       className={`settings-content ${isScrolling ? 'is-scrolling' : ''}`}
       onScroll={handleScroll}
     >
@@ -58,13 +73,19 @@ function SettingsContent() {
       </div>
 
       {/* Khối cấu hình kết nối Server */}
-      <ServerConnection />
+      <ServerConnection
+        host={host}
+        setHost={setHost}
+        port={port}
+        setPort={setPort}
+        onExpand={handleCardExpand}
+      />
 
       {/* Khối quản lý Cookies mạng xã hội */}
-      <SocialCookies />
+      <SocialCookies onExpand={handleCardExpand} />
 
       {/* Khối quản lý Cache trên web */}
-      <CacheSettings />
+      <CacheSettings onExpand={handleCardExpand} />
 
       {/* Khoảng trống đệm đáy không dùng padding/margin */}
       <div className="settings-content-spacer" aria-hidden="true" />

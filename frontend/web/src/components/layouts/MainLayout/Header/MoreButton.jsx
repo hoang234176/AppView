@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
 import './MoreButton.css';
 import MoreIcon from '../../../../assets/icons/MoreIcon';
 
@@ -16,22 +18,63 @@ const SORT_OPTIONS = [
 
 function MoreButton() {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState(null);
+  const [triggerType, setTriggerType] = useState('button'); // 'button' | 'contextmenu'
   const [isSortSubmenuOpen, setIsSortSubmenuOpen] = useState(false);
   const [activeSort, setActiveSort] = useState('name');
   const [submenuSide, setSubmenuSide] = useState('right'); // 'right' | 'left'
 
-  const containerRef = useRef(null);
+  const location = useLocation();
+  const [prevPathname, setPrevPathname] = useState(location.pathname);
+  if (prevPathname !== location.pathname) {
+    setPrevPathname(location.pathname);
+    setIsOpen(false);
+    setIsSortSubmenuOpen(false);
+  }
+
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
   const sortItemRef = useRef(null);
 
-  // Đóng menu khi click ra ngoài hoặc bấm Escape
+  // Lắng nghe sự kiện mở menu từ click chuột trái trong main-content hoặc yêu cầu đóng
+  useEffect(() => {
+    const handleOpenContextMenu = (e) => {
+      const { clientX, clientY } = e.detail;
+      const menuWidth = 240;
+      const approxHeight = 150;
+
+      const x = Math.min(clientX, window.innerWidth - menuWidth - 12);
+      const y = Math.min(clientY, window.innerHeight - approxHeight - 12);
+
+      setTriggerType('contextmenu');
+      setMenuPos({ x: Math.max(12, x), y: Math.max(12, y) });
+      setIsOpen(true);
+      setIsSortSubmenuOpen(false);
+    };
+
+    const handleCloseContextMenu = () => {
+      setIsOpen(false);
+      setIsSortSubmenuOpen(false);
+    };
+
+    window.addEventListener('open-more-menu', handleOpenContextMenu);
+    window.addEventListener('close-more-menu', handleCloseContextMenu);
+    return () => {
+      window.removeEventListener('open-more-menu', handleOpenContextMenu);
+      window.removeEventListener('close-more-menu', handleCloseContextMenu);
+    };
+  }, []);
+
+  // Đóng menu khi click ra ngoài, cuộn trang hoặc bấm Escape
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false);
-        setIsSortSubmenuOpen(false);
-      }
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      if (buttonRef.current && buttonRef.current.contains(e.target)) return;
+
+      setIsOpen(false);
+      setIsSortSubmenuOpen(false);
     };
 
     const handleKeyDown = (e) => {
@@ -41,21 +84,44 @@ function MoreButton() {
       }
     };
 
+    const handleScroll = () => {
+      setIsOpen(false);
+      setIsSortSubmenuOpen(false);
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScroll, true);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScroll, true);
     };
   }, [isOpen]);
 
   const handleToggle = () => {
     setIsOpen(prev => {
-      if (prev) {
+      if (!prev) {
+        if (buttonRef.current) {
+          const rect = buttonRef.current.getBoundingClientRect();
+          const menuWidth = 240;
+          // Tâm của nút 3 chấm
+          const buttonCenterX = rect.left + rect.width / 2;
+          // Mũi tên nằm cách lề phải 22px, rộng 12px (tâm mũi tên cách lề phải 28px)
+          // Để tâm mũi tên trỏ đúng vào tâm nút 3 chấm:
+          let targetX = buttonCenterX - menuWidth + 28;
+          targetX = Math.min(targetX, window.innerWidth - menuWidth - 12);
+          targetX = Math.max(12, targetX);
+          const y = rect.bottom + 8;
+          setMenuPos({ x: targetX, y });
+        }
+        setTriggerType('button');
         setIsSortSubmenuOpen(false);
+        return true;
       }
-      return !prev;
+      setIsSortSubmenuOpen(false);
+      return false;
     });
   };
 
@@ -91,8 +157,9 @@ function MoreButton() {
   };
 
   return (
-    <div className="header-more-wrapper" ref={containerRef}>
+    <div className="header-more-wrapper">
       <button
+        ref={buttonRef}
         type="button"
         className={`header-more-btn ${isOpen ? 'header-more-btn--active' : ''}`}
         aria-label="Tùy chọn khác"
@@ -103,9 +170,23 @@ function MoreButton() {
         <MoreIcon />
       </button>
 
-      {/* Menu thả xuống chuẩn phong cách macOS Finder */}
-      {isOpen && (
-        <div className="header-more-menu" role="menu">
+      {/* Menu thả xuống chuẩn phong cách macOS Finder qua Portal */}
+      {isOpen && menuPos && createPortal(
+        <div
+          ref={menuRef}
+          className="header-more-menu header-more-menu--portal"
+          role="menu"
+          style={{
+            left: `${menuPos.x}px`,
+            top: `${menuPos.y}px`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Mũi tên ^ chỉ vào nút 3 chấm khi mở từ Header (cách lề phải 22px) */}
+          {triggerType === 'button' && (
+            <div className="header-more-menu__caret" aria-hidden="true" />
+          )}
+
           {/* Lựa chọn 1: New Folder (chuẩn macOS folder.badge.plus) */}
           <button
             type="button"
@@ -204,7 +285,8 @@ function MoreButton() {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

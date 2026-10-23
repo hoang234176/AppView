@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import CacheIcon from '../../../../../../assets/icons/CacheIcon';
 import ChevronRight from '../../../../../../assets/icons/ChevronRight';
 import ThumbnailIcon from '../../../../../../assets/icons/ThumbnailIcon';
@@ -22,15 +22,27 @@ const CACHE_ITEMS = [
   },
 ];
 
-function CacheSettings() {
+function CacheSettings({ onExpand }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const cardRef = useRef(null);
+
+  const handleToggle = () => {
+    const nextState = !isExpanded;
+    setIsExpanded(nextState);
+    if (nextState && onExpand && cardRef.current) {
+      onExpand(cardRef.current);
+    }
+  };
 
   return (
-    <div className={`cache-settings-card ${isExpanded ? 'cache-settings-card--expanded' : ''}`}>
+    <div
+      ref={cardRef}
+      className={`cache-settings-card ${isExpanded ? 'cache-settings-card--expanded' : ''}`}
+    >
       <button
         type="button"
         className="cache-settings-header"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={handleToggle}
         aria-expanded={isExpanded}
       >
         <div className="cache-settings-header__left">

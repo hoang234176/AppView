@@ -1,27 +1,13 @@
-import { useNavigate } from 'react-router-dom';
-import useLayout from '../../../../../../hooks/useLayout';
 import './SettingsActions.css';
 
-function SettingsActions() {
-  const { closeSettings } = useLayout();
-  const navigate = useNavigate();
-
-  const handleClose = () => {
-    closeSettings(() => {
-      if (window.history.length > 1) {
-        navigate(-1);
-      } else {
-        navigate('/');
-      }
-    });
-  };
-
+function SettingsActions({ onClose, onSave, onSaveAndClose, isSaving = false }) {
   return (
     <div className="settings-actions">
       <button
         type="button"
         className="settings-btn settings-btn--close"
-        onClick={handleClose}
+        onClick={onClose}
+        disabled={isSaving}
       >
         <span className="settings-btn__text">Close</span>
       </button>
@@ -30,6 +16,8 @@ function SettingsActions() {
         <button
           type="button"
           className="settings-btn settings-btn--save"
+          onClick={onSave}
+          disabled={isSaving}
         >
           <span className="settings-btn__text">Save</span>
         </button>
@@ -37,7 +25,8 @@ function SettingsActions() {
         <button
           type="button"
           className="settings-btn settings-btn--save-close"
-          onClick={handleClose}
+          onClick={onSaveAndClose}
+          disabled={isSaving}
         >
           <span className="settings-btn__text">Save & Close</span>
         </button>
