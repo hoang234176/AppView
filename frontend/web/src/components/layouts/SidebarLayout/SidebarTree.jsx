@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from 'react';
+import { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import './SidebarTree.css';
 
 // Hàm sinh 20 thư mục cấp 1, mỗi thư mục ngẫu nhiên 1 -> 20 thư mục con
@@ -33,6 +33,21 @@ function generateMockFolders() {
   });
 }
 
+// Helper tìm đường dẫn từ gốc đến thư mục đang chọn
+function findFolderBreadcrumb(items, targetId, currentPath = []) {
+  for (const item of items) {
+    const newPath = [...currentPath, item.name];
+    if (item.id === targetId) {
+      return newPath;
+    }
+    if (item.children && item.children.length > 0) {
+      const found = findFolderBreadcrumb(item.children, targetId, newPath);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 // Component đệ quy hiển thị từng mục thư mục ở mọi cấp
 function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect }) {
   const hasChildren = item.children && item.children.length > 0;
@@ -47,6 +62,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
           isSelected ? 'sidebar-tree__item--selected' : ''
         }`}
         style={itemStyle}
+        data-tree-id={item.id}
         onClick={() => onSelect(item.id)}
         title={item.name}
       >
@@ -112,6 +128,8 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
 
 function SidebarTree({ activeDriveId = 'drive-1' }) {
   const folders = useMemo(() => generateMockFolders(), []);
+  const scrollContainerRef = useRef(null);
+  const [floatingDirection, setFloatingDirection] = useState(null); // 'above' | 'below' | null
 
   // Chia thành 2 khối tương ứng với 2 ổ cứng
   const driveGroups = useMemo(() => {
@@ -138,6 +156,51 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
   const [expandedIds, setExpandedIds] = useState(() => new Set(['3', '3.1']));
   const [selectedId, setSelectedId] = useState('3.1');
 
+  // Tính toán đường dẫn của thư mục đang chọn
+  const breadcrumb = useMemo(() => {
+    if (!selectedId) return null;
+    return findFolderBreadcrumb(activeDrive.folders, selectedId);
+  }, [activeDrive.folders, selectedId]);
+
+  // Kiểm tra xem mục đang chọn có bị cuộn khuất khỏi tầm mắt hay không
+  const checkVisibility = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !selectedId) {
+      setFloatingDirection(null);
+      return;
+    }
+
+    const selectedEl = container.querySelector(`[data-tree-id="${selectedId}"]`);
+    if (!selectedEl) {
+      setFloatingDirection(null);
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const itemRect = selectedEl.getBoundingClientRect();
+
+    if (itemRect.bottom < containerRect.top) {
+      setFloatingDirection('above');
+    } else if (itemRect.top > containerRect.bottom) {
+      setFloatingDirection('below');
+    } else {
+      setFloatingDirection(null);
+    }
+  }, [selectedId]);
+
+  useEffect(() => {
+    checkVisibility();
+  }, [selectedId, activeDriveId, checkVisibility]);
+
+  // Cuộn mượt đưa thư mục đang chọn quay trở lại giữa màn hình khi bấm nút nổi
+  const handleJumpToSelected = () => {
+    const container = scrollContainerRef.current;
+    const selectedEl = container?.querySelector(`[data-tree-id="${selectedId}"]`);
+    if (selectedEl) {
+      selectedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   const toggleExpand = (id, e) => {
     e.stopPropagation();
     setExpandedIds(prev => {
@@ -162,8 +225,47 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
         Folder Tree of {activeDrive.driveName}
       </div>
 
+      {/* Nút nổi định vị khi thư mục đang chọn bị cuộn khuất khỏi màn hình */}
+      {floatingDirection && breadcrumb && (
+        <button
+          type="button"
+          className={`sidebar-tree-floating-pill sidebar-tree-floating-pill--${floatingDirection}`}
+          onClick={handleJumpToSelected}
+          title="Nhấp để cuộn tới thư mục đang chọn"
+        >
+          <span className="sidebar-tree-floating-pill__arrow">
+            {floatingDirection === 'above' ? (
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </span>
+          <span className="sidebar-tree-floating-pill__text">
+            {breadcrumb.length > 1
+              ? `${breadcrumb[0]} > ${breadcrumb[breadcrumb.length - 1]}`
+              : breadcrumb[0]}
+          </span>
+        </button>
+      )}
+
       {/* Vùng cuộn danh sách cây thư mục của ổ cứng tương ứng */}
-      <div className="sidebar-tree">
+      <div
+        className="sidebar-tree"
+        ref={scrollContainerRef}
+        onScroll={checkVisibility}
+      >
         <div className="sidebar-tree__list">
           {activeDrive.folders.map(folder => (
             <TreeItem

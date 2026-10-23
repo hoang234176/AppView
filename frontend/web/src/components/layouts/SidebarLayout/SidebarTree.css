@@ -1,5 +1,6 @@
 /* Container bao bọc toàn bộ khối cây thư mục và tiêu đề cố định */
 .sidebar-tree-container {
+  position: relative;
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -31,6 +32,89 @@
 :is(.dark, :root.dark) .sidebar-tree-header {
   color: #94a3b8;
   border-bottom-color: #2e2e2e;
+}
+
+/* Nút nổi định vị khi thư mục đang chọn bị cuộn khuất khỏi tầm mắt */
+.sidebar-tree-floating-pill {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  max-width: 90%;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: none;
+  background-color: #007aff;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35), 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  outline: none;
+  z-index: 30;
+  user-select: none;
+  white-space: nowrap;
+  animation: floatingPillPop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+:is(.dark, :root.dark) .sidebar-tree-floating-pill {
+  background-color: #0a84ff;
+  box-shadow: 0 4px 14px rgba(10, 132, 255, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-tree-floating-pill:hover {
+  background-color: #0066d6;
+  transform: translateX(-50%) scale(1.02);
+}
+
+:is(.dark, :root.dark) .sidebar-tree-floating-pill:hover {
+  background-color: #0077ed;
+  transform: translateX(-50%) scale(1.02);
+}
+
+.sidebar-tree-floating-pill--above {
+  top: calc(0.5rem + 26px);
+}
+
+.sidebar-tree-floating-pill--below {
+  bottom: 0.5rem;
+}
+
+.sidebar-tree-floating-pill__arrow {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-tree-floating-pill__arrow svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sidebar-tree-floating-pill__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+@keyframes floatingPillPop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
 }
 
 /* Container cuộn danh sách thư mục (mở rộng chạm sát mép phải Sidebar) */
