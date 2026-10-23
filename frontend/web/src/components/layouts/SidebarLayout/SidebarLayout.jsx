@@ -7,6 +7,7 @@ import SidebarDrives from './SidebarDrives';
 
 function SidebarLayout() {
   const [activeDriveId, setActiveDriveId] = useState('drive-1');
+  const [treeDriveId, setTreeDriveId] = useState('drive-1');
   const [isTreeLoading, setIsTreeLoading] = useState(false);
   const driveTimeoutRef = useRef(null);
 
@@ -36,7 +37,10 @@ function SidebarLayout() {
     // Nếu click vào ổ đang mở: không làm gì
     if (newDriveId === activeDriveId) return;
 
-    // Bật loading đồng thời cho cả SidebarTree và main-content
+    // 1. Nhảy viền xanh active ngay lập tức trên nút ổ đĩa
+    setActiveDriveId(newDriveId);
+
+    // 2. Bật loading overlay phủ lên SidebarTree và main-content
     setIsTreeLoading(true);
     showContentLoading();
 
@@ -45,7 +49,8 @@ function SidebarLayout() {
     }
 
     driveTimeoutRef.current = setTimeout(() => {
-      setActiveDriveId(newDriveId);
+      // 3. Sau 400ms: cập nhật dữ liệu cây thư mục sang ổ mới và tắt overlay
+      setTreeDriveId(newDriveId);
       setIsTreeLoading(false);
       hideContentLoading();
     }, 400);
@@ -92,7 +97,7 @@ function SidebarLayout() {
         </div>
 
         {/* Khối cây thư mục phân cấp */}
-        <SidebarTree activeDriveId={activeDriveId} isLoading={isTreeLoading} />
+        <SidebarTree activeDriveId={treeDriveId} isLoading={isTreeLoading} />
 
         {/* Khối ổ cứng ở đáy Sidebar */}
         <SidebarDrives activeDriveId={activeDriveId} onSelectDrive={handleSelectDrive} />

@@ -327,26 +327,27 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
         ref={scrollContainerRef}
         onScroll={checkVisibility}
       >
-        {isLoading ? (
-          <div className="sidebar-tree__loading">
-            <Loading text="" size="md" />
-          </div>
-        ) : (
-          <div className="sidebar-tree__list">
-            {activeDrive.folders.map(folder => (
-              <TreeItem
-                key={folder.id}
-                item={folder}
-                level={1}
-                expandedIds={expandedIds}
-                selectedId={selectedId}
-                onToggle={toggleExpand}
-                onSelect={handleSelect}
-              />
-            ))}
-          </div>
-        )}
+        <div className="sidebar-tree__list">
+          {activeDrive.folders.map(folder => (
+            <TreeItem
+              key={folder.id}
+              item={folder}
+              level={1}
+              expandedIds={expandedIds}
+              selectedId={selectedId}
+              onToggle={toggleExpand}
+              onSelect={handleSelect}
+            />
+          ))}
+        </div>
       </div>
+
+      {/* Lớp phủ Loading che trọn toàn bộ SidebarTree (cả tiêu đề lẫn danh sách thư mục) */}
+      {isLoading && (
+        <div className="sidebar-tree-overlay" aria-live="polite">
+          <Loading text="" size="md" />
+        </div>
+      )}
     </div>
   );
 }
