@@ -4,7 +4,6 @@ import MoreIcon from '../../../../assets/icons/MoreIcon';
 
 const SORT_OPTIONS = [
   { id: 'none', label: 'None' },
-  { id: 'snap_to_grid', label: 'Snap to Grid' },
   { divider: true },
   { id: 'name', label: 'Name' },
   { id: 'kind', label: 'Kind' },
@@ -13,7 +12,6 @@ const SORT_OPTIONS = [
   { id: 'date_modified', label: 'Date Modified' },
   { id: 'date_created', label: 'Date Created' },
   { id: 'size', label: 'Size' },
-  { id: 'tags', label: 'Tags' },
 ];
 
 function MoreButton() {
@@ -116,9 +114,8 @@ function MoreButton() {
             onClick={handleNewFolder}
           >
             <span className="header-more-menu__icon" aria-hidden="true">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 5.5v9a1.5 1.5 0 001.5 1.5h12a1.5 1.5 0 001.5-1.5V7.5a1.5 1.5 0 00-1.5-1.5h-5.5l-1.5-2H4a1.5 1.5 0 00-1.5 1.5z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 9.5v5m-2.5-2.5h5" />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m-3-3h6m-9-7h4.382a1.5 1.5 0 011.06.44l1.118 1.12a1.5 1.5 0 001.06.44H20a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2z" />
               </svg>
             </span>
             <span className="header-more-menu__label">New Folder</span>
@@ -132,9 +129,9 @@ function MoreButton() {
             onClick={handleGetInfo}
           >
             <span className="header-more-menu__icon" aria-hidden="true">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <circle cx="10" cy="10" r="7.5" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 9v5m0-8h.01" />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                <circle cx="12" cy="12" r="9" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v5m0-8h.01" />
               </svg>
             </span>
             <span className="header-more-menu__label">Get Info</span>
@@ -154,8 +151,8 @@ function MoreButton() {
             aria-expanded={isSortSubmenuOpen}
           >
             <span className="header-more-menu__icon" aria-hidden="true">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 13.5V4.5m0 0l-2.5 2.5M6 4.5L8.5 7M14 6.5v9m0 0l-2.5-2.5m2.5 2.5l2.5-2.5" />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
               </svg>
             </span>
             <span className="header-more-menu__label">Sort By</span>
