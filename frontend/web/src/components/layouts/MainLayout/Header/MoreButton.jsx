@@ -63,7 +63,7 @@ function MoreButton() {
   const handleSortMouseEnter = useCallback(() => {
     if (sortItemRef.current) {
       const rect = sortItemRef.current.getBoundingClientRect();
-      const submenuWidth = 190;
+      const submenuWidth = 220;
       // Nếu mở sang phải bị tràn mép màn hình thì mở sang trái
       if (rect.right + submenuWidth > window.innerWidth - 12) {
         setSubmenuSide('left');

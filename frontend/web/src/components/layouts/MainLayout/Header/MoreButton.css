@@ -53,14 +53,14 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 200px;
+  min-width: 240px;
   background-color: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
   border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 9px;
+  border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.06);
-  padding: 4px;
+  padding: 6px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -91,14 +91,14 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
+  gap: 12px;
+  padding: 8px 12px;
   border: none;
-  border-radius: 5px;
+  border-radius: 7px;
   background: transparent;
   color: #1e293b;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 450;
   line-height: 1.2;
   text-align: left;
@@ -119,8 +119,8 @@
 }
 
 .header-more-menu__icon {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -139,8 +139,8 @@
 }
 
 .header-more-menu__chevron {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -167,15 +167,15 @@
 
 .header-more-submenu {
   position: absolute;
-  top: -4px;
-  min-width: 185px;
+  top: -6px;
+  min-width: 220px;
   background-color: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
   border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 9px;
+  border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.06);
-  padding: 4px;
+  padding: 6px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -202,14 +202,14 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
+  gap: 8px;
+  padding: 7px 10px;
   border: none;
-  border-radius: 5px;
+  border-radius: 7px;
   background: transparent;
   color: #1e293b;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 450;
   line-height: 1.2;
   text-align: left;
@@ -229,8 +229,8 @@
 }
 
 .header-more-submenu__check {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -251,7 +251,7 @@
 /* Đường gạch ngang phân cách nhóm */
 .header-more-menu__divider {
   height: 1px;
-  margin: 4px 6px;
+  margin: 5px 8px;
   background-color: rgba(0, 0, 0, 0.08);
 }
 
