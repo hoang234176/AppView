@@ -266,9 +266,11 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
 
   return (
     <div className="sidebar-tree-container">
-      {/* Tiêu đề cố định ở đỉnh, không bị trôi khi cuộn danh sách */}
-      <div className="sidebar-tree-header">
-        Folder Tree of {activeDrive.driveName}
+      {/* Tiêu đề cố định ở đỉnh, tự động rút gọn theo độ rộng khung chứa */}
+      <div className="sidebar-tree-header" title={`Folder Tree of ${activeDrive.driveName}`}>
+        <span className="sidebar-tree-header__prefix-full">Folder Tree of </span>
+        <span className="sidebar-tree-header__prefix-short">Folder of </span>
+        <span className="sidebar-tree-header__name">{activeDrive.driveName}</span>
       </div>
 
       {/* Nút nổi định vị khi thư mục đang chọn bị cuộn khuất khỏi màn hình */}

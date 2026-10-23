@@ -27,11 +27,49 @@
   line-height: 1.4;
   user-select: none;
   border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  container-type: inline-size;
+  container-name: tree-header;
 }
 
 :is(.dark, :root.dark) .sidebar-tree-header {
   color: #94a3b8;
   border-bottom-color: #2e2e2e;
+}
+
+/* Các trạng thái rút gọn tiền tố tiêu đề */
+.sidebar-tree-header__prefix-full {
+  display: inline;
+}
+
+.sidebar-tree-header__prefix-short {
+  display: none;
+}
+
+.sidebar-tree-header__name {
+  display: inline;
+}
+
+/* Mức 2: Khi bị ép hẹp xuống (<= 220px) -> Folder of ... */
+@container tree-header (max-width: 220px) {
+  .sidebar-tree-header__prefix-full {
+    display: none;
+  }
+  .sidebar-tree-header__prefix-short {
+    display: inline;
+  }
+}
+
+/* Mức 3: Khi bị ép hẹp tối đa (<= 155px) -> ... (chỉ hiện tên ổ cứng) */
+@container tree-header (max-width: 155px) {
+  .sidebar-tree-header__prefix-full {
+    display: none;
+  }
+  .sidebar-tree-header__prefix-short {
+    display: none;
+  }
 }
 
 /* Nút nổi định vị khi thư mục đang chọn bị cuộn khuất khỏi tầm mắt */
