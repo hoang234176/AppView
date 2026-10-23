@@ -93,12 +93,12 @@
 
 .sidebar-drive-card--active {
   border-color: #007aff;
-  box-shadow: 0 0 0 1px #007aff;
+  box-shadow: inset 0 0 0 1px #007aff;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card--active {
   border-color: #0a84ff;
-  box-shadow: 0 0 0 1px #0a84ff;
+  box-shadow: inset 0 0 0 1px #0a84ff;
 }
 
 /* Khi Sidebar đạt giới hạn <= 17% chiều ngang màn hình:
