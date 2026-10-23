@@ -55,8 +55,8 @@
   box-shadow: 0 0 0 1px #0a84ff;
 }
 
-/* Khi Sidebar đạt giới hạn <= 15% chiều ngang màn hình: chuyển thành dạng 2 thanh xếp chồng lên nhau */
-@container sidebar-layout (max-width: 15vw) {
+/* Khi Sidebar đạt giới hạn <= 17% chiều ngang màn hình: chuyển thành dạng 2 thanh xếp chồng lên nhau */
+@container sidebar-layout (max-width: 17vw) {
   .sidebar-drives {
     flex-direction: column;
     gap: 0.5rem;
