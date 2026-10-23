@@ -235,27 +235,21 @@ function SidebarTree({ activeDriveId = 'drive-1' }) {
     const isExpanding = !expandedIds.has(id);
 
     if (isExpanding) {
-      // 1. Cuộn thư mục lên đầu danh sách trước
-      const container = scrollContainerRef.current;
-      const targetEl = container?.querySelector(`[data-tree-id="${id}"]`);
+      // 1. Bung mở thư mục vào DOM để scrollHeight mở rộng đủ chiều cao
+      setExpandedIds(prev => new Set(prev).add(id));
 
-      if (container && targetEl) {
-        const containerRect = container.getBoundingClientRect();
-        const targetRect = targetEl.getBoundingClientRect();
-        const targetScrollTop = targetRect.top - containerRect.top + container.scrollTop;
+      // 2. Ngay sau khi DOM render con, cuộn mượt thư mục lên sát đỉnh
+      requestAnimationFrame(() => {
+        const container = scrollContainerRef.current;
+        const targetEl = container?.querySelector(`[data-tree-id="${id}"]`);
 
-        // Nếu thư mục chưa ở đỉnh, cuộn mượt lên đỉnh
-        const isAlreadyAtTop = Math.abs(container.scrollTop - targetScrollTop) < 4;
-        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-
-        // 2. Chờ cuộn lên đầu rồi bung hiệu ứng nội dung con
-        const delay = isAlreadyAtTop ? 0 : 150;
-        setTimeout(() => {
-          setExpandedIds(prev => new Set(prev).add(id));
-        }, delay);
-      } else {
-        setExpandedIds(prev => new Set(prev).add(id));
-      }
+        if (container && targetEl) {
+          const containerRect = container.getBoundingClientRect();
+          const targetRect = targetEl.getBoundingClientRect();
+          const targetScrollTop = targetRect.top - containerRect.top + container.scrollTop;
+          container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+        }
+      });
     } else {
       // Khi thu gọn lại thì đóng ngay lập tức
       setExpandedIds(prev => {
