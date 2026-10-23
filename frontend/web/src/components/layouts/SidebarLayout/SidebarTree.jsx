@@ -166,9 +166,24 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
     return driveGroups.find(d => d.id === activeDriveId) || driveGroups[0];
   }, [driveGroups, activeDriveId]);
 
-  // Mở sẵn Thư mục 3 và 3.1 để người dùng quan sát
+  // Mở sẵn Thư mục 3 và 3.1 để người dùng quan sát ban đầu
   const [expandedIds, setExpandedIds] = useState(() => new Set(['3', '3.1']));
   const [selectedId, setSelectedId] = useState('3.1');
+
+  // Khi chuyển sang ổ đĩa khác: xóa trắng trạng thái trỏ/mở của ổ cũ và cuộn về đầu
+  const isFirstMountRef = useRef(true);
+  useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      return;
+    }
+    setExpandedIds(new Set());
+    setSelectedId(null);
+    setFloatingDirection(null);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [activeDriveId]);
 
   // Lấy đúng tên thư mục đang chọn (chỉ tên thư mục con hoặc gốc, không nối >)
   const selectedFolderName = useMemo(() => {
