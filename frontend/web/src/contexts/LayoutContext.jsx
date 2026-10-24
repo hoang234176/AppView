@@ -39,6 +39,33 @@ export function LayoutProvider({ children }) {
   const [isHeaderRightExiting, setIsHeaderRightExiting] = useState(false);
   const [isHeaderTitleVisible, setIsHeaderTitleVisible] = useState(false);
   const [isSettingsClosing, setIsSettingsClosing] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+
+  const dismissNotification = useCallback((id) => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, isExiting: true } : item))
+    );
+  }, []);
+
+  const removeNotification = useCallback((id) => {
+    setNotifications((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const triggerNotification = useCallback(() => {
+    const newId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setNotifications((prev) => {
+      const active = prev.filter((item) => !item.isExiting);
+      const updated = [{ id: newId, isExiting: false }, ...prev];
+      // Nếu số lượng thẻ đang hiển thị >= 4, tự động trượt tắt thẻ ở dưới cùng
+      if (active.length >= 4) {
+        const bottomActive = active[active.length - 1];
+        return updated.map((item) =>
+          item.id === bottomActive.id ? { ...item, isExiting: true } : item
+        );
+      }
+      return updated;
+    });
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -194,6 +221,10 @@ export function LayoutProvider({ children }) {
     setHeaderTitleVisible: setIsHeaderTitleVisible,
     isSettingsClosing,
     closeSettings,
+    notifications,
+    triggerNotification,
+    dismissNotification,
+    removeNotification,
   }), [
     isSidebarOpen,
     isMobile,
@@ -215,6 +246,10 @@ export function LayoutProvider({ children }) {
     isHeaderTitleVisible,
     isSettingsClosing,
     closeSettings,
+    notifications,
+    triggerNotification,
+    dismissNotification,
+    removeNotification,
   ]);
 
   return (

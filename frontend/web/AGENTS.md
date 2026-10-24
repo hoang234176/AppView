@@ -64,3 +64,10 @@
 - **Tuyệt đối không dùng icon hệ thống / thư viện ngoài**: Nghiêm cấm sử dụng icon của hệ điều hành, emoji hệ thống, hoặc cài đặt/import thư viện icon bên ngoài (như Lucide, Heroicons, FontAwesome, SF Symbols).
 - **100% Vector SVG tự vẽ tay thuần**: Mọi icon trong dự án đều phải được viết bằng mã thẻ SVG thuần (`<svg>`, `<path>`, `<circle>`, `<rect>`) với `viewBox`, hỗ trợ kế thừa `className` và `{...props}`.
 - **Tách file độc lập tại `src/assets/icons/`**: Mỗi icon bắt buộc là một component React riêng biệt lưu trong `frontend/web/src/assets/icons/` (ví dụ: `ServerIcon.jsx`, `CookieIcon.jsx`, `FacebookIcon.jsx`...), tuyệt đối không viết mã SVG trực tiếp bên trong component giao diện.
+
+## 8. Quy tắc Xử lý Bất đồng bộ (Async / Await Error Handling)
+- **Luôn sử dụng cấu trúc `try...catch...finally` đầy đủ cho mọi tác vụ bất đồng bộ**: Mọi hàm, hành động hoặc luồng xử lý bất đồng bộ (`async`/`await`, gọi API mạng, Network Request, Coordinator RPC, v.v.) trong `frontend/web` bắt buộc phải được bọc trong cấu trúc đầy đủ `try...catch...finally`.
+- **Trách nhiệm cụ thể của từng khối**:
+  - `try`: Chứa logic gọi bất đồng bộ chính.
+  - `catch`: Bắt và xử lý toàn bộ lỗi/ngoại lệ phát sinh, thông báo trạng thái lỗi rõ ràng (alert, thông báo UI), tuyệt đối không để sót unhandled rejection.
+  - `finally`: Bắt buộc giải phóng, hoàn nguyên hoặc làm sạch các cờ trạng thái xử lý (như tắt loading `setLoading(false)`, `setIsConnecting(false)`, `setIsSaving(false)`, v.v.), đảm bảo giao diện luôn được mở khóa và không bao giờ bị treo cứng ở trạng thái chờ kể cả khi xảy ra lỗi.

@@ -1,0 +1,132 @@
+/* Khung container xếp chồng thông báo (góc trên bên phải) */
+.notification-layout {
+  position: fixed;
+  top: 1vw;
+  right: 1vw;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: none;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* Khung slot bao bọc để xử lý chuyển động trượt mượt trên trục Y (FLIP) */
+.notification-slot {
+  display: block;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  will-change: transform;
+}
+
+/* Từng thẻ thông báo hình chữ nhật bo góc phong cách macOS */
+.notification-card {
+  position: relative;
+  width: 360px;
+  max-width: calc(100vw - 2vw);
+  min-height: 80px;
+  border-radius: 12px;
+  background-color: #fafafa;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  pointer-events: auto;
+  animation: notificationSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+
+:is(.dark, :root.dark) .notification-card {
+  background-color: #1c1c1c;
+  border-color: #2e2e2e;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 4px 10px -2px rgba(0, 0, 0, 0.4);
+}
+
+.notification-card--exiting {
+  animation: notificationSlideOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  pointer-events: none !important;
+}
+
+/* Nút tròn x nổi đè ngay đỉnh góc trên bên trái chuẩn macOS, chỉ hiện khi hover thẻ */
+.notification-card__close-btn {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  z-index: 10;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  padding: 0;
+  margin: 0;
+  color: #4b5563;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.notification-card:hover .notification-card__close-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.notification-card__close-btn:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.notification-card__close-btn:active {
+  transform: scale(0.9);
+}
+
+:is(.dark, :root.dark) .notification-card__close-btn {
+  background-color: #262626;
+  border-color: #383838;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  color: #9ca3af;
+}
+
+:is(.dark, :root.dark) .notification-card__close-btn:hover {
+  background-color: #333333;
+  color: #ffffff;
+}
+
+.notification-card__close-icon {
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+
+@keyframes notificationSlideIn {
+  from {
+    transform: translateX(calc(100% + 2vw));
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes notificationSlideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(calc(100% + 2vw));
+    opacity: 0;
+  }
+}

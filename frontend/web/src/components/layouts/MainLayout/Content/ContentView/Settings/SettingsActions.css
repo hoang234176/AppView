@@ -21,36 +21,42 @@
   gap: 0.625rem;
 }
 
-/* Nút bấm chuẩn phong cách viên thuốc macOS & đồng bộ dự án */
+/* Nút bấm hình chữ nhật bo góc phong cách macOS đồng bộ với ServerConnection */
 .settings-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 36px;
+  height: 32px;
   padding: 0 18px;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 8px;
   cursor: pointer;
   outline: none;
   user-select: none;
   box-sizing: border-box;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, transform 0.1s ease;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease, transform 0.08s ease;
 }
 
 .settings-btn__text {
   display: inline-block;
   pointer-events: none;
+  transition: transform 0.08s ease;
 }
 
-/* Hiệu ứng co nhẹ khi nhấn đồng bộ với toàn hệ thống */
+/* Hiệu ứng nhấn chuẩn tactile macOS đồng bộ với nút Connect */
 .settings-btn:active {
-  transform: scale(0.97);
+  transform: translateY(1px);
+}
+
+.settings-btn:active .settings-btn__text {
+  transform: translateY(-1px);
 }
 
 .settings-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.65;
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -59,24 +65,27 @@
 .settings-btn--close {
   background-color: #fafafa;
   border: 1px solid #e2e8f0;
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   color: #4b5563;
+  font-weight: 500;
 }
 
 .settings-btn--close:hover {
   background-color: #f0f0f0;
+  border-color: #cbd5e1;
   color: #111827;
 }
 
 :is(.dark, :root.dark) .settings-btn--close {
   background-color: #262626;
   border-color: #383838;
-  box-shadow: inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   color: #9ca3af;
 }
 
 :is(.dark, :root.dark) .settings-btn--close:hover {
   background-color: #333333;
+  border-color: #4b5563;
   color: #f3f4f6;
 }
 
@@ -84,47 +93,49 @@
 .settings-btn--save {
   background-color: #fafafa;
   border: 1px solid #e2e8f0;
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   color: #1f2937;
+  font-weight: 600;
 }
 
 .settings-btn--save:hover {
   background-color: #f0f0f0;
+  border-color: #cbd5e1;
+  color: #111827;
 }
 
 :is(.dark, :root.dark) .settings-btn--save {
   background-color: #262626;
   border-color: #383838;
-  box-shadow: inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   color: #f3f4f6;
 }
 
 :is(.dark, :root.dark) .settings-btn--save:hover {
   background-color: #333333;
+  border-color: #4b5563;
 }
 
-/* Nút Save & Close (Primary Accent) */
+/* Nút Save & Close (Primary Accent - kiểu nút Connect) */
 .settings-btn--save-close {
-  background-color: #007aff;
-  border: 1px solid #0066d6;
+  background-color: #2563eb;
+  border: 1px solid #1d4ed8;
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(0, 122, 255, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
 }
 
 .settings-btn--save-close:hover {
-  background-color: #0066d6;
-  border-color: #0051a8;
+  background-color: #1d4ed8;
+  border-color: #1e40af;
 }
 
 :is(.dark, :root.dark) .settings-btn--save-close {
-  background-color: #0a84ff;
-  border-color: #0077ed;
+  background-color: #3b82f6;
+  border-color: #2563eb;
   color: #ffffff;
-  box-shadow: 0 1px 2px rgba(10, 132, 255, 0.4);
 }
 
 :is(.dark, :root.dark) .settings-btn--save-close:hover {
-  background-color: #0077ed;
-  border-color: #0066d6;
+  background-color: #2563eb;
 }

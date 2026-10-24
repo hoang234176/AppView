@@ -76,53 +76,48 @@ function SocialCookies({ onExpand }) {
         />
       </button>
 
-      {/* Khối trượt đóng/mở mượt mà chuẩn Zero-Leak */}
-      <div
-        className={`social-cookies-collapse ${isExpanded ? 'social-cookies-collapse--expanded' : ''}`}
-        inert={!isExpanded}
-      >
-        <div className="social-cookies-collapse-inner">
-          <div className="social-cookies-body">
-            {SOCIAL_PLATFORMS.map((platform) => {
-              const PlatformIcon = platform.Icon;
-              return (
-                <div key={platform.id} className="social-cookies-row">
-                  {/* Cột trái: Icon thương hiệu và tên mạng xã hội */}
-                  <div className="social-cookies-row__left">
-                    <div className={`social-platform-icon-box social-platform-icon-box--${platform.iconModifier}`}>
-                      <PlatformIcon className="social-platform-icon" />
-                    </div>
-                    <span className="social-platform-name">{platform.name}</span>
+      {/* Khối thân danh sách xổ ra giống cây thư mục */}
+      {isExpanded && (
+        <div className="social-cookies-body">
+          {SOCIAL_PLATFORMS.map((platform) => {
+            const PlatformIcon = platform.Icon;
+            return (
+              <div key={platform.id} className="social-cookies-row">
+                {/* Cột trái: Icon thương hiệu và tên mạng xã hội */}
+                <div className="social-cookies-row__left">
+                  <div className={`social-platform-icon-box social-platform-icon-box--${platform.iconModifier}`}>
+                    <PlatformIcon className="social-platform-icon" />
                   </div>
-
-                  {/* Cột giữa: Huy hiệu trạng thái */}
-                  <div className="social-cookies-row__status">
-                    <span className="social-status-badge social-status-badge--empty">
-                      Not Set
-                    </span>
-                  </div>
-
-                  {/* Cột phải: Các nút thao tác Import và Check */}
-                  <div className="social-cookies-row__actions">
-                    <button
-                      type="button"
-                      className="social-cookies-btn social-cookies-btn--import"
-                    >
-                      <span className="social-cookies-btn__text">Import</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="social-cookies-btn social-cookies-btn--check"
-                    >
-                      <span className="social-cookies-btn__text">Check</span>
-                    </button>
-                  </div>
+                  <span className="social-platform-name">{platform.name}</span>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Cột giữa: Huy hiệu trạng thái */}
+                <div className="social-cookies-row__status">
+                  <span className="social-status-badge social-status-badge--empty">
+                    Not Set
+                  </span>
+                </div>
+
+                {/* Cột phải: Các nút thao tác Import và Check */}
+                <div className="social-cookies-row__actions">
+                  <button
+                    type="button"
+                    className="social-cookies-btn social-cookies-btn--import"
+                  >
+                    <span className="social-cookies-btn__text">Import</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="social-cookies-btn social-cookies-btn--check"
+                  >
+                    <span className="social-cookies-btn__text">Check</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 }

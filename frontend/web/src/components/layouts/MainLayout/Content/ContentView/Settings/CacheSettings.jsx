@@ -57,41 +57,36 @@ function CacheSettings({ onExpand }) {
         />
       </button>
 
-      {/* Khối trượt đóng/mở mượt mà chuẩn Zero-Leak */}
-      <div
-        className={`cache-settings-collapse ${isExpanded ? 'cache-settings-collapse--expanded' : ''}`}
-        inert={!isExpanded}
-      >
-        <div className="cache-settings-collapse-inner">
-          <div className="cache-settings-body">
-            {CACHE_ITEMS.map((item) => {
-              const ItemIcon = item.Icon;
-              return (
-                <div key={item.id} className="cache-settings-row">
-                  {/* Cột trái: Icon và tên loại Cache */}
-                  <div className="cache-settings-row__left">
-                    <div className={`cache-item-icon-box cache-item-icon-box--${item.iconModifier}`}>
-                      <ItemIcon className="cache-item-icon" />
-                    </div>
-                    <span className="cache-settings-name">{item.name}</span>
+      {/* Khối thân danh sách xổ ra giống cây thư mục */}
+      {isExpanded && (
+        <div className="cache-settings-body">
+          {CACHE_ITEMS.map((item) => {
+            const ItemIcon = item.Icon;
+            return (
+              <div key={item.id} className="cache-settings-row">
+                {/* Cột trái: Icon và tên loại Cache */}
+                <div className="cache-settings-row__left">
+                  <div className={`cache-item-icon-box cache-item-icon-box--${item.iconModifier}`}>
+                    <ItemIcon className="cache-item-icon" />
                   </div>
-
-                  {/* Khu vực bên phải: Dung lượng và nút Clear */}
-                  <div className="cache-settings-row__right">
-                    <span className="cache-settings-size">{item.size}</span>
-                    <button
-                      type="button"
-                      className="cache-settings-btn"
-                    >
-                      <span className="cache-settings-btn__text">Clear</span>
-                    </button>
-                  </div>
+                  <span className="cache-settings-name">{item.name}</span>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Khu vực bên phải: Dung lượng và nút Clear */}
+                <div className="cache-settings-row__right">
+                  <span className="cache-settings-size">{item.size}</span>
+                  <button
+                    type="button"
+                    className="cache-settings-btn"
+                  >
+                    <span className="cache-settings-btn__text">Clear</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -26,8 +26,6 @@ export async function checkCoordinatorHealth(host = '127.0.0.1', port = '8090', 
       signal: controller.signal,
     });
 
-    clearTimeout(timer);
-
     if (!response.ok) {
       return {
         ok: false,
@@ -41,8 +39,6 @@ export async function checkCoordinatorHealth(host = '127.0.0.1', port = '8090', 
       data,
     };
   } catch (err) {
-    clearTimeout(timer);
-
     if (err.name === 'AbortError') {
       return {
         ok: false,
@@ -54,6 +50,8 @@ export async function checkCoordinatorHealth(host = '127.0.0.1', port = '8090', 
       ok: false,
       error: err.message || 'Không thể kết nối đến máy chủ. Hãy chắc chắn server đang chạy và không bị chặn bởi tường lửa.',
     };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
