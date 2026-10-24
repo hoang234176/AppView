@@ -29,7 +29,7 @@ export async function checkCoordinatorHealth(host = '127.0.0.1', port = '8090', 
     if (!response.ok) {
       return {
         ok: false,
-        error: `Server phản hồi mã lỗi HTTP ${response.status} (${response.statusText || 'Error'})`,
+        error: `Server responded with HTTP error ${response.status} (${response.statusText || 'Error'})`,
       };
     }
 
@@ -42,13 +42,13 @@ export async function checkCoordinatorHealth(host = '127.0.0.1', port = '8090', 
     if (err.name === 'AbortError') {
       return {
         ok: false,
-        error: `Kết nối quá thời gian chờ (${Math.round(timeoutMs / 1000)}s). Vui lòng kiểm tra lại server.`,
+        error: `Connection timed out (${Math.round(timeoutMs / 1000)}s). Please check your server.`,
       };
     }
 
     return {
       ok: false,
-      error: err.message || 'Không thể kết nối đến máy chủ. Hãy chắc chắn server đang chạy và không bị chặn bởi tường lửa.',
+      error: err.message || 'Unable to connect to server. Please ensure Coordinator is running.',
     };
   } finally {
     clearTimeout(timer);

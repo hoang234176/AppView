@@ -1,0 +1,387 @@
+/* Lớp phủ làm tối mặc định cơ bản cho modal kết nối server */
+.server-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+/* Khung Card modal bo góc chuẩn phong cách macOS */
+.server-modal-card {
+  width: 100%;
+  max-width: 400px;
+  background-color: #fafafa;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  padding: 1.5rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  animation: serverModalZoomIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+:is(.dark, :root.dark) .server-modal-card {
+  background-color: #1c1c1c;
+  border-color: #2e2e2e;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* Header modal */
+.server-modal-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.server-modal-icon-box {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: 11px;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+  margin-bottom: 0.25rem;
+}
+
+:is(.dark, :root.dark) .server-modal-icon-box {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.server-modal-icon {
+  width: 22px;
+  height: 22px;
+  color: #ffffff;
+}
+
+.server-modal-title {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.02em;
+  margin: 0;
+  padding: 0;
+}
+
+:is(.dark, :root.dark) .server-modal-title {
+  color: #f3f4f6;
+}
+
+.server-modal-desc {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin: 0;
+  padding: 0;
+  line-height: 1.4;
+}
+
+:is(.dark, :root.dark) .server-modal-desc {
+  color: #9ca3af;
+}
+
+/* Khối thông báo lỗi */
+.server-modal-alert {
+  padding: 0.625rem 0.875rem;
+  border-radius: 8px;
+  background-color: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  box-sizing: border-box;
+}
+
+:is(.dark, :root.dark) .server-modal-alert {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.server-modal-alert-text {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: #dc2626;
+  line-height: 1.35;
+  display: block;
+  text-align: center;
+}
+
+:is(.dark, :root.dark) .server-modal-alert-text {
+  color: #f87171;
+}
+
+/* Form nhập liệu */
+.server-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.server-modal-row {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.server-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.server-modal-field--host {
+  flex: 2;
+}
+
+.server-modal-field--port {
+  flex: 1;
+}
+
+.server-modal-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  width: fit-content;
+}
+
+/* Visually hidden native checkbox for accessibility & keyboard navigation */
+.server-modal-checkbox-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+/* Custom styled checkbox box */
+.server-modal-checkbox-custom {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  box-sizing: border-box;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  flex-shrink: 0;
+}
+
+:is(.dark, :root.dark) .server-modal-checkbox-custom {
+  background-color: #262626;
+  border-color: #383838;
+}
+
+.server-modal-checkbox-row:hover .server-modal-checkbox-custom {
+  border-color: #9ca3af;
+}
+
+:is(.dark, :root.dark) .server-modal-checkbox-row:hover .server-modal-checkbox-custom {
+  border-color: #525252;
+}
+
+/* Focus ring on keyboard focus */
+.server-modal-checkbox-input:focus-visible + .server-modal-checkbox-custom {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+:is(.dark, :root.dark) .server-modal-checkbox-input:focus-visible + .server-modal-checkbox-custom {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+/* Checked state */
+.server-modal-checkbox-custom--checked {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  border-color: #1d4ed8;
+}
+
+:is(.dark, :root.dark) .server-modal-checkbox-custom--checked {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  border-color: #2563eb;
+}
+
+.server-modal-checkbox-row:hover .server-modal-checkbox-custom--checked {
+  border-color: #1e40af;
+}
+
+:is(.dark, :root.dark) .server-modal-checkbox-row:hover .server-modal-checkbox-custom--checked {
+  border-color: #3b82f6;
+}
+
+.server-modal-check-icon {
+  width: 10px;
+  height: 10px;
+  color: #ffffff;
+}
+
+.server-modal-checkbox-label {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: #4b5563;
+  line-height: 1;
+}
+
+:is(.dark, :root.dark) .server-modal-checkbox-label {
+  color: #9ca3af;
+}
+
+.server-modal-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+:is(.dark, :root.dark) .server-modal-label {
+  color: #d1d5db;
+}
+
+.server-modal-field-icon {
+  width: 14px;
+  height: 14px;
+  color: #6b7280;
+}
+
+:is(.dark, :root.dark) .server-modal-field-icon {
+  color: #9ca3af;
+}
+
+.server-modal-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
+  font-size: 0.875rem;
+  color: #111827;
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+:is(.dark, :root.dark) .server-modal-input {
+  background-color: #262626;
+  border-color: #383838;
+  color: #f3f4f6;
+}
+
+.server-modal-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+:is(.dark, :root.dark) .server-modal-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.server-modal-input--error,
+.server-modal-input--error:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2) !important;
+}
+
+:is(.dark, :root.dark) .server-modal-input--error,
+:is(.dark, :root.dark) .server-modal-input--error:focus {
+  border-color: #f87171 !important;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25) !important;
+}
+
+/* Nút Connect */
+.server-modal-actions {
+  display: flex;
+  margin-top: 0.25rem;
+}
+
+.server-modal-btn {
+  width: 100%;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background-color: #2563eb;
+  border: 1px solid #1d4ed8;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+
+.server-modal-btn:hover {
+  background-color: #1d4ed8;
+  border-color: #1e40af;
+}
+
+.server-modal-btn:active {
+  transform: translateY(1px);
+}
+
+:is(.dark, :root.dark) .server-modal-btn {
+  background-color: #3b82f6;
+  border-color: #2563eb;
+}
+
+:is(.dark, :root.dark) .server-modal-btn:hover {
+  background-color: #2563eb;
+}
+
+.server-modal-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.server-modal-btn__text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.server-modal-loading {
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+.server-modal-loading .common-loading__spinner {
+  width: 18px;
+  height: 18px;
+  color: #ffffff !important;
+}
+
+@keyframes serverModalZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

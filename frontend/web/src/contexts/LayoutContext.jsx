@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { checkCoordinatorHealth } from '../api/coordinatorApi';
 
 export const LayoutContext = createContext(null);
 
@@ -39,7 +40,69 @@ export function LayoutProvider({ children }) {
   const [isHeaderRightExiting, setIsHeaderRightExiting] = useState(false);
   const [isHeaderTitleVisible, setIsHeaderTitleVisible] = useState(false);
   const [isSettingsClosing, setIsSettingsClosing] = useState(false);
+  const [hasServerConnection, setHasServerConnection] = useState(false);
+  const [isInitialCheckDone, setIsInitialCheckDone] = useState(false);
+  const [initialConnectionError, setInitialConnectionError] = useState('');
+  const [initialServerValues, setInitialServerValues] = useState({ host: '', port: '' });
   const [notifications, setNotifications] = useState([]);
+
+  // Kiểm tra kết nối server ngầm khi khởi động App
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkSavedServer() {
+      let savedHost = '';
+      let savedPort = '';
+
+      try {
+        const raw = localStorage.getItem('setting');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          savedHost = parsed?.['connect-server']?.host ? String(parsed['connect-server'].host).trim() : '';
+          savedPort = parsed?.['connect-server']?.port ? String(parsed['connect-server'].port).trim() : '';
+        }
+      } catch (e) {
+        console.error('Failed to parse setting from localStorage', e);
+      }
+
+      if (!savedHost || !savedPort) {
+        if (isMounted) {
+          setHasServerConnection(false);
+          setIsInitialCheckDone(true);
+        }
+        return;
+      }
+
+      try {
+        const result = await checkCoordinatorHealth(savedHost, savedPort);
+        if (isMounted) {
+          if (result.ok) {
+            setHasServerConnection(true);
+          } else {
+            setHasServerConnection(false);
+            setInitialConnectionError(result.error || `Failed to connect to Coordinator Server at http://${savedHost}:${savedPort}`);
+            setInitialServerValues({ host: savedHost, port: savedPort });
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          setHasServerConnection(false);
+          setInitialConnectionError(err.message || 'Error connecting to saved server.');
+          setInitialServerValues({ host: savedHost, port: savedPort });
+        }
+      } finally {
+        if (isMounted) {
+          setIsInitialCheckDone(true);
+        }
+      }
+    }
+
+    checkSavedServer();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const dismissNotification = useCallback((id) => {
     setNotifications((prev) =>
@@ -51,11 +114,15 @@ export function LayoutProvider({ children }) {
     setNotifications((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
-  const triggerNotification = useCallback(() => {
+  const triggerNotification = useCallback((options = {}) => {
     const newId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const type = options?.type === 'error' ? 'error' : 'success';
+    const title = options?.title || (type === 'error' ? 'Error' : 'Success');
+    const message = typeof options?.message === 'string' ? options.message : '';
+
     setNotifications((prev) => {
       const active = prev.filter((item) => !item.isExiting);
-      const updated = [{ id: newId, isExiting: false }, ...prev];
+      const updated = [{ id: newId, type, title, message, isExiting: false }, ...prev];
       // Nếu số lượng thẻ đang hiển thị >= 4, tự động trượt tắt thẻ ở dưới cùng
       if (active.length >= 4) {
         const bottomActive = active[active.length - 1];
@@ -221,6 +288,11 @@ export function LayoutProvider({ children }) {
     setHeaderTitleVisible: setIsHeaderTitleVisible,
     isSettingsClosing,
     closeSettings,
+    hasServerConnection,
+    setHasServerConnection,
+    isInitialCheckDone,
+    initialConnectionError,
+    initialServerValues,
     notifications,
     triggerNotification,
     dismissNotification,
@@ -246,6 +318,10 @@ export function LayoutProvider({ children }) {
     isHeaderTitleVisible,
     isSettingsClosing,
     closeSettings,
+    hasServerConnection,
+    isInitialCheckDone,
+    initialConnectionError,
+    initialServerValues,
     notifications,
     triggerNotification,
     dismissNotification,

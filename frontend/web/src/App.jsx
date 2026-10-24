@@ -2,6 +2,7 @@ import './App.css';
 import SidebarLayout from './components/layouts/SidebarLayout/SidebarLayout';
 import MainLayout from './components/layouts/MainLayout/MainLayout';
 import NotificationLayout from './components/layouts/NotificationLayout/NotificationLayout';
+import ServerConnectionModal from './components/layouts/ServerConnectionModal/ServerConnectionModal';
 
 function App() {
   return (
@@ -9,6 +10,7 @@ function App() {
       <SidebarLayout />
       <MainLayout />
       <NotificationLayout />
+      <ServerConnectionModal />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import './SidebarLayout.css';
 import useLayout from '../../../hooks/useLayout';
+import Loading from '../../common/Loading/Loading';
 import SidebarBrand from './SidebarBrand';
 import SidebarTree from './SidebarTree';
 import SidebarDrives from './SidebarDrives';
@@ -21,6 +22,7 @@ function SidebarLayout() {
     resetSidebarWidth,
     showContentLoading,
     hideContentLoading,
+    hasServerConnection,
   } = useLayout();
 
   // Dọn dẹp timer khi component unmount
@@ -96,11 +98,20 @@ function SidebarLayout() {
           )}
         </div>
 
-        {/* Khối cây thư mục phân cấp */}
-        <SidebarTree activeDriveId={treeDriveId} isLoading={isTreeLoading} />
+        {!hasServerConnection ? (
+          /* Khi chưa có cấu hình server: ẩn toàn bộ cây thư mục và ổ cứng, thay bằng component Loading trực tiếp */
+          <div className="sidebar-loading-container">
+            <Loading text="" size="md" />
+          </div>
+        ) : (
+          <>
+            {/* Khối cây thư mục phân cấp */}
+            <SidebarTree activeDriveId={treeDriveId} isLoading={isTreeLoading} />
 
-        {/* Khối ổ cứng ở đáy Sidebar */}
-        <SidebarDrives activeDriveId={activeDriveId} onSelectDrive={handleSelectDrive} />
+            {/* Khối ổ cứng ở đáy Sidebar */}
+            <SidebarDrives activeDriveId={activeDriveId} onSelectDrive={handleSelectDrive} />
+          </>
+        )}
 
         {/* Resizer Handle (Desktop only) */}
         {!isMobile && (

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import useLayout from '../../../hooks/useLayout';
+import CheckCircleIcon from '../../../assets/icons/CheckCircleIcon';
+import AlertCircleIcon from '../../../assets/icons/AlertCircleIcon';
 import './NotificationLayout.css';
 
 function NotificationItem({
@@ -10,7 +12,7 @@ function NotificationItem({
   onMouseEnter,
   onMouseLeave,
 }) {
-  const { id, isExiting } = item;
+  const { id, type = 'success', title = 'Success', message = '', isExiting } = item;
   const remainingTimeRef = useRef(3000);
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
@@ -77,7 +79,7 @@ function NotificationItem({
 
   return (
     <div
-      className={`notification-card ${isExiting ? 'notification-card--exiting' : ''}`}
+      className={`notification-card notification-card--${type} ${isExiting ? 'notification-card--exiting' : ''}`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -102,6 +104,21 @@ function NotificationItem({
           <path d="M4 4l8 8M12 4L4 12" />
         </svg>
       </button>
+
+      {/* Khối bên trái: Icon lỗi hoặc thành công */}
+      <div className={`notification-card__icon-box notification-card__icon-box--${type}`}>
+        {type === 'error' ? (
+          <AlertCircleIcon className="notification-card__icon" />
+        ) : (
+          <CheckCircleIcon className="notification-card__icon" />
+        )}
+      </div>
+
+      {/* Khối bên phải: Chia 2 tầng trên (in đậm) và dưới (tối đa 2 hàng xám) */}
+      <div className="notification-card__content">
+        <span className="notification-card__title">{title}</span>
+        {message && <span className="notification-card__message">{message}</span>}
+      </div>
     </div>
   );
 }

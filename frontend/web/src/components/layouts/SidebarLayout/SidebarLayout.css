@@ -38,6 +38,15 @@
   background-color: transparent;
 }
 
+/* Khung căn giữa Loading thay thế nội dung Sidebar khi chưa có kết nối server */
+.sidebar-loading-container {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Sidebar Header */
 .sidebar-header {
   container-type: inline-size;
