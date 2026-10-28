@@ -2,8 +2,10 @@
 # ==============================================================================
 # AppView - Trình khởi chạy hệ thống (Menu lựa chọn):
 # 1. Khởi động Backend
-# 2. Khởi động Backend + Frontend
-# 3. Thoát (Quit)
+# 2. Khởi động Backend + Frontend (Dev: npm run dev)
+# 3. Khởi động Backend + Frontend (Production: build + preview)
+# 4. Chỉ Build Frontend (npm run build)
+# 5. Thoát (Quit)
 # ==============================================================================
 
 # Đảm bảo đường dẫn môi trường chuẩn trên macOS
@@ -45,25 +47,52 @@ echo "======================================================================"
 echo " Thư mục dự án: $ROOT_DIR"
 echo "----------------------------------------------------------------------"
 echo "  [1] Khởi động Backend"
-echo "  [2] Khởi động Backend + Frontend"
-echo "  [3] Thoát (Quit)"
+echo "  [2] Khởi động Backend + Frontend (Dev: npm run dev)"
+echo "  [3] Khởi động Backend + Frontend (Production: build + preview)"
+echo "  [4] Chỉ Build Frontend (npm run build)"
+echo "  [5] Thoát (Quit)"
 echo "======================================================================"
-read -p " Nhập lựa chọn của bạn [1, 2 hoặc 3]: " choice
+read -p " Nhập lựa chọn của bạn [1, 2, 3, 4 hoặc 5]: " choice
 
 case "$choice" in
     1)
         START_FRONTEND=0
+        FRONTEND_MODE="none"
         ;;
     2)
         START_FRONTEND=1
+        FRONTEND_MODE="dev"
         ;;
     3)
+        START_FRONTEND=1
+        FRONTEND_MODE="prod"
+        ;;
+    4)
+        echo ""
+        echo "======================================================================"
+        echo " [BUILD] Đang tiến hành biên dịch Frontend Web (Production Build)..."
+        echo "======================================================================"
+        (cd "$ROOT_DIR/frontend/web" && npm run build)
+        BUILD_STATUS=$?
+        echo ""
+        if [ $BUILD_STATUS -eq 0 ]; then
+            echo " ✅ ĐÃ BUILD FRONTEND THÀNH CÔNG (dist/)!"
+        else
+            echo " ❌ BUILD FRONTEND THẤT BẠI!"
+        fi
+        echo "======================================================================"
+        read -n 1 -s -r -p " Nhấn phím bất kỳ để đóng cửa sổ..."
+        echo ""
+        close_terminal_window
+        exit $BUILD_STATUS
+        ;;
+    5)
         echo " [THOÁT] Đang đóng cửa sổ..."
         close_terminal_window
         exit 0
         ;;
     *)
-        echo " [LỖI] Lựa chọn không hợp lệ. Vui lòng chạy lại script và chọn 1, 2 hoặc 3."
+        echo " [LỖI] Lựa chọn không hợp lệ. Vui lòng chạy lại script và chọn từ 1 đến 5."
         sleep 2
         close_terminal_window
         exit 1
@@ -172,18 +201,28 @@ fi
 (cd "$ROOT_DIR/backend/download" && source .venv/bin/activate && "$PYTHON_CMD" -u main.py) &
 PIDS+=($!)
 
-# 4. Khởi chạy Frontend Web (:5173 - host LAN) nếu chọn option 2
+# 4. Khởi chạy Frontend Web (:5173 - host LAN) nếu chọn option 2 hoặc 3
 if [ "$START_FRONTEND" -eq 1 ]; then
     sleep 1
-    echo " [4/4] Đang khởi chạy Frontend Web (:5173 --host)..."
-    (cd "$ROOT_DIR/frontend/web" && npm run dev -- --host) &
-    PIDS+=($!)
+    if [ "$FRONTEND_MODE" = "prod" ]; then
+        echo " [4/4] Đang biên dịch và chạy Frontend Web Production (:5173 preview)..."
+        (cd "$ROOT_DIR/frontend/web" && npm run build && npm run preview -- --host 0.0.0.0 --port 5173) &
+        PIDS+=($!)
+    else
+        echo " [4/4] Đang khởi chạy Frontend Web Dev (:5173 --host)..."
+        (cd "$ROOT_DIR/frontend/web" && npm run dev -- --host) &
+        PIDS+=($!)
+    fi
 fi
 
 echo ""
 echo "======================================================================"
 if [ "$START_FRONTEND" -eq 1 ]; then
-    echo " ✅ TOÀN BỘ HỆ THỐNG APPVIEW (BACKEND + FRONTEND) ĐÃ CHẠY THÀNH CÔNG!"
+    if [ "$FRONTEND_MODE" = "prod" ]; then
+        echo " ✅ TOÀN BỘ HỆ THỐNG APPVIEW (BACKEND + FRONTEND PRODUCTION) ĐÃ CHẠY THÀNH CÔNG!"
+    else
+        echo " ✅ TOÀN BỘ HỆ THỐNG APPVIEW (BACKEND + FRONTEND DEV) ĐÃ CHẠY THÀNH CÔNG!"
+    fi
 else
     echo " ✅ 3 BACKEND SERVICE APPVIEW ĐÃ KHỞI CHẠY THÀNH CÔNG!"
 fi
@@ -192,7 +231,11 @@ echo "  • Coordinator   : http://localhost:8090 (WS: /ws/workers, /ws/events)"
 echo "  • Storage       : http://localhost:8080 (Media & Filesystem)"
 echo "  • Download      : http://localhost:5002 (Python Resolver)"
 if [ "$START_FRONTEND" -eq 1 ]; then
-    echo "  • Frontend Web  : http://localhost:5173 (mở mạng LAN qua IP máy)"
+    if [ "$FRONTEND_MODE" = "prod" ]; then
+        echo "  • Frontend Web  : http://localhost:5173 (Production Preview - mở mạng LAN)"
+    else
+        echo "  • Frontend Web  : http://localhost:5173 (Dev Mode - mở mạng LAN)"
+    fi
 fi
 echo "======================================================================"
 echo ""

@@ -16,7 +16,7 @@ function ContentsView() {
     triggerNotification({
       type: 'error',
       title: 'Download Failed',
-      message: 'Cannot connect to Coordinator server at 127.0.0.1:8090. Please verify your network and check coordinator service status.',
+      message: 'Cannot connect to server at 127.0.0.1:8090. Please verify your network and check server status.',
     });
   };
 

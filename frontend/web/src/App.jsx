@@ -9,8 +9,8 @@ function App() {
     <div className="w-full h-full flex overflow-hidden bg-white text-gray-900 dark:bg-[#1f1f1f] dark:text-white">
       <SidebarLayout />
       <MainLayout />
-      <NotificationLayout />
       <ServerConnectionModal />
+      <NotificationLayout />
     </div>
   );
 }

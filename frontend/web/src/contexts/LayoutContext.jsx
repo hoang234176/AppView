@@ -18,7 +18,7 @@ export function LayoutProvider({ children }) {
       const saved = localStorage.getItem('appview_sidebar_width');
       if (saved) {
         const val = parseFloat(saved);
-        if (!isNaN(val) && val >= 10 && val <= 60) {
+        if (!isNaN(val) && val >= 12 && val <= 60) {
           return val;
         }
       }
@@ -44,7 +44,48 @@ export function LayoutProvider({ children }) {
   const [isInitialCheckDone, setIsInitialCheckDone] = useState(false);
   const [initialConnectionError, setInitialConnectionError] = useState('');
   const [initialServerValues, setInitialServerValues] = useState({ host: '', port: '' });
+  const [serverConfig, setServerConfig] = useState({
+    coordinator: { host: '', port: '' },
+    download: { host: '', port: '' },
+    storage: { host: '', port: '' },
+  });
   const [notifications, setNotifications] = useState([]);
+
+  const dismissNotification = useCallback((id) => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, isExiting: true } : item))
+    );
+  }, []);
+
+  const removeNotification = useCallback((id) => {
+    setNotifications((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const triggerNotification = useCallback((options = {}) => {
+    const newId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    let type = 'success';
+    if (options?.type === 'error') {
+      type = 'error';
+    } else if (options?.type === 'warning') {
+      type = 'warning';
+    }
+    const defaultTitle = type === 'error' ? 'Error' : type === 'warning' ? 'Warning' : 'Success';
+    const title = options?.title || defaultTitle;
+    const message = typeof options?.message === 'string' ? options.message : '';
+
+    setNotifications((prev) => {
+      const active = prev.filter((item) => !item.isExiting);
+      const updated = [{ id: newId, type, title, message, isExiting: false }, ...prev];
+      // Nếu số lượng thẻ đang hiển thị >= 4, tự động trượt tắt thẻ ở dưới cùng
+      if (active.length >= 4) {
+        const bottomActive = active[active.length - 1];
+        return updated.map((item) =>
+          item.id === bottomActive.id ? { ...item, isExiting: true } : item
+        );
+      }
+      return updated;
+    });
+  }, []);
 
   // Kiểm tra kết nối server ngầm khi khởi động App
   useEffect(() => {
@@ -58,8 +99,9 @@ export function LayoutProvider({ children }) {
         const raw = localStorage.getItem('setting');
         if (raw) {
           const parsed = JSON.parse(raw);
-          savedHost = parsed?.['connect-server']?.host ? String(parsed['connect-server'].host).trim() : '';
-          savedPort = parsed?.['connect-server']?.port ? String(parsed['connect-server'].port).trim() : '';
+          const coordSetting = parsed?.['connect-server']?.coordinator || parsed?.['connect-server'];
+          savedHost = coordSetting?.host ? String(coordSetting.host).trim() : '';
+          savedPort = coordSetting?.port ? String(coordSetting.port).trim() : '';
         }
       } catch (e) {
         console.error('Failed to parse setting from localStorage', e);
@@ -78,17 +120,33 @@ export function LayoutProvider({ children }) {
         if (isMounted) {
           if (result.ok) {
             setHasServerConnection(true);
+            setServerConfig((prev) => ({
+              ...prev,
+              coordinator: { host: savedHost, port: savedPort },
+            }));
           } else {
+            const errMsg = result.error || `Failed to connect to server at http://${savedHost}:${savedPort}`;
             setHasServerConnection(false);
-            setInitialConnectionError(result.error || `Failed to connect to Coordinator Server at http://${savedHost}:${savedPort}`);
+            setInitialConnectionError(errMsg);
             setInitialServerValues({ host: savedHost, port: savedPort });
+            triggerNotification({
+              type: 'error',
+              title: 'Connection Failed',
+              message: errMsg,
+            });
           }
         }
       } catch (err) {
         if (isMounted) {
+          const errMsg = err.message || 'Error connecting to saved server.';
           setHasServerConnection(false);
-          setInitialConnectionError(err.message || 'Error connecting to saved server.');
+          setInitialConnectionError(errMsg);
           setInitialServerValues({ host: savedHost, port: savedPort });
+          triggerNotification({
+            type: 'error',
+            title: 'Connection Error',
+            message: errMsg,
+          });
         }
       } finally {
         if (isMounted) {
@@ -102,37 +160,7 @@ export function LayoutProvider({ children }) {
     return () => {
       isMounted = false;
     };
-  }, []);
-
-  const dismissNotification = useCallback((id) => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, isExiting: true } : item))
-    );
-  }, []);
-
-  const removeNotification = useCallback((id) => {
-    setNotifications((prev) => prev.filter((item) => item.id !== id));
-  }, []);
-
-  const triggerNotification = useCallback((options = {}) => {
-    const newId = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const type = options?.type === 'error' ? 'error' : 'success';
-    const title = options?.title || (type === 'error' ? 'Error' : 'Success');
-    const message = typeof options?.message === 'string' ? options.message : '';
-
-    setNotifications((prev) => {
-      const active = prev.filter((item) => !item.isExiting);
-      const updated = [{ id: newId, type, title, message, isExiting: false }, ...prev];
-      // Nếu số lượng thẻ đang hiển thị >= 4, tự động trượt tắt thẻ ở dưới cùng
-      if (active.length >= 4) {
-        const bottomActive = active[active.length - 1];
-        return updated.map((item) =>
-          item.id === bottomActive.id ? { ...item, isExiting: true } : item
-        );
-      }
-      return updated;
-    });
-  }, []);
+  }, [triggerNotification]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -219,7 +247,7 @@ export function LayoutProvider({ children }) {
       const currentX = clientX - appLeft;
       let percentage = (currentX / appWidth) * 100;
 
-      if (percentage < 10) percentage = 10;
+      if (percentage < 12) percentage = 12;
       if (percentage > 60) percentage = 60;
 
       return percentage;
@@ -293,6 +321,8 @@ export function LayoutProvider({ children }) {
     isInitialCheckDone,
     initialConnectionError,
     initialServerValues,
+    serverConfig,
+    setServerConfig,
     notifications,
     triggerNotification,
     dismissNotification,
@@ -322,6 +352,7 @@ export function LayoutProvider({ children }) {
     isInitialCheckDone,
     initialConnectionError,
     initialServerValues,
+    serverConfig,
     notifications,
     triggerNotification,
     dismissNotification,

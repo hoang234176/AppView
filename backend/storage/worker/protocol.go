@@ -95,8 +95,9 @@ type ErrorPayload struct {
 }
 
 type CookieRequestPayload struct {
-	Platform string `json:"platform"`
-	Cookies  string `json:"cookies,omitempty"`
+	Platform  string `json:"platform"`
+	Cookies   string `json:"cookies,omitempty"`
+	Overwrite bool   `json:"overwrite,omitempty"`
 }
 
 type CookieSaveResult struct {

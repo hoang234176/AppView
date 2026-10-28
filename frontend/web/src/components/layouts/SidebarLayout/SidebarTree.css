@@ -195,8 +195,6 @@
   align-items: center;
   justify-content: center;
   background-color: rgba(250, 250, 250, 0.7);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
   user-select: none;
   animation: fadeInTreeOverlay 0.15s ease;
 }

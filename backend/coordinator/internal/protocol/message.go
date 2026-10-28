@@ -182,13 +182,16 @@ func NewError(code, message string) Message {
 }
 
 type CookieRequestPayload struct {
-	Platform string            `json:"platform"`
-	Cookies  string            `json:"cookies,omitempty"`
-	Fields   map[string]string `json:"fields,omitempty"`
+	Platform  string            `json:"platform"`
+	Cookies   string            `json:"cookies,omitempty"`
+	AutoSave  bool              `json:"autoSave,omitempty"`
+	Overwrite bool              `json:"overwrite,omitempty"`
+	Fields    map[string]string `json:"fields,omitempty"`
 }
 
 type CookieSaveResult struct {
 	Success   bool      `json:"success"`
+	Message   string    `json:"message,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 

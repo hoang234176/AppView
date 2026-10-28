@@ -33,6 +33,27 @@ from worker.protocol import (
 )
 
 
+async def _verify_platform_cookies(platform: str, raw_cookies: str, auto_save: bool = False) -> tuple[bool, str]:
+    """Dispatch cookie verification to specific platform auth service."""
+    platform_key = (platform or "").lower().strip()
+    if platform_key == "youtube":
+        from services.youtube.auth import verify_youtube_cookies
+        return await verify_youtube_cookies(raw_cookies, auto_save=auto_save)
+    elif platform_key == "tiktok":
+        from services.tiktok.auth import verify_tiktok_cookies
+        return await verify_tiktok_cookies(raw_cookies)
+    elif platform_key == "facebook":
+        from services.facebook.auth import verify_facebook_cookies
+        return await verify_facebook_cookies(raw_cookies)
+    elif platform_key == "instagram":
+        from services.instagram.auth import verify_instagram_cookies
+        return await verify_instagram_cookies(raw_cookies)
+    elif platform_key in ("x", "twitter"):
+        from services.x.auth import verify_x_cookies
+        return await verify_x_cookies(raw_cookies)
+    return False, "Nền tảng không được hỗ trợ."
+
+
 class CoordinatorWorkerClient:
     """Keep a single outbound worker session alive without blocking FastAPI."""
 
@@ -231,29 +252,32 @@ class CoordinatorWorkerClient:
         payload = envelope.get("payload") or {}
         platform = payload.get("platform")
         raw_cookies = payload.get("cookies") or ""
+        auto_save = bool(payload.get("autoSave", payload.get("auto_save", False)))
 
-        valid, message_str = False, "Nền tảng không được hỗ trợ."
-        if platform == "youtube":
-            from services.youtube.auth import verify_youtube_cookies
-            valid, message_str = await verify_youtube_cookies(raw_cookies)
-        elif platform == "tiktok":
-            from services.tiktok.auth import verify_tiktok_cookies
-            valid, message_str = await verify_tiktok_cookies(raw_cookies)
-        elif platform == "facebook":
-            from services.facebook.auth import verify_facebook_cookies
-            valid, message_str = await verify_facebook_cookies(raw_cookies)
-        elif platform == "instagram":
-            from services.instagram.auth import verify_instagram_cookies
-            valid, message_str = await verify_instagram_cookies(raw_cookies)
-        elif platform in ("x", "twitter"):
-            from services.x.auth import verify_x_cookies
-            valid, message_str = await verify_x_cookies(raw_cookies)
+        valid = False
+        platform_names = {
+            "youtube": "YouTube",
+            "tiktok": "TikTok",
+            "facebook": "Facebook",
+            "instagram": "Instagram",
+            "x": "X",
+            "twitter": "X",
+        }
+        display_name = platform_names.get(str(platform).lower(), str(platform).capitalize())
+        clean_message = f"{display_name} cookies are invalid or expired."
 
-        level = "INFO" if valid else "WARN"
-        log_event(level, "cookie verification completed", "COOKIE_VERIFY", platform=platform, valid=valid, detail=message_str)
-
-        with suppress(Exception):
-            await self.send(message(COOKIE_VERIFY, taskId=task_id, result={"valid": valid, "message": message_str}))
+        try:
+            valid, _ = await _verify_platform_cookies(platform, raw_cookies, auto_save=auto_save)
+            clean_message = f"{display_name} cookies are valid and active." if valid else f"{display_name} cookies are invalid or expired."
+        except Exception as err:
+            valid = False
+            clean_message = f"{display_name} cookies verification failed: {err}"
+            log_error("COOKIE_VERIFY", f"Lỗi ngoại lệ khi kiểm tra {platform}: {err}")
+        finally:
+            level = "INFO" if valid else "WARN"
+            log_event(level, "cookie verification completed", "COOKIE_VERIFY", platform=platform, valid=valid, detail=clean_message)
+            with suppress(Exception):
+                await self.send(message(COOKIE_VERIFY, taskId=task_id, result={"valid": valid, "message": clean_message}))
 
     @staticmethod
     def _get_coordinator_http_base() -> str:

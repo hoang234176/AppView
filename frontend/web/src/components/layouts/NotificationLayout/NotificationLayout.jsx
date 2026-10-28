@@ -105,9 +105,9 @@ function NotificationItem({
         </svg>
       </button>
 
-      {/* Khối bên trái: Icon lỗi hoặc thành công */}
+      {/* Khối bên trái: Icon lỗi, cảnh báo hoặc thành công */}
       <div className={`notification-card__icon-box notification-card__icon-box--${type}`}>
-        {type === 'error' ? (
+        {type === 'error' || type === 'warning' ? (
           <AlertCircleIcon className="notification-card__icon" />
         ) : (
           <CheckCircleIcon className="notification-card__icon" />

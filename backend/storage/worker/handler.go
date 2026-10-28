@@ -1852,7 +1852,13 @@ func (h *Handler) HandleCookieMessage(msg Message, send SendFunc) {
 			})
 			return
 		}
-		modTime, err := cookies.Save(req.Platform, req.Cookies)
+		var modTime time.Time
+		var err error
+		if req.Overwrite {
+			modTime, err = cookies.Overwrite(req.Platform, req.Cookies)
+		} else {
+			modTime, err = cookies.Save(req.Platform, req.Cookies)
+		}
 		if err != nil {
 			_ = send(Message{
 				Type:   CookieSave,

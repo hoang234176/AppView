@@ -470,6 +470,22 @@ func detectChangedCookieFields(oldContent, newContent string) []string {
 	return all
 }
 
+// writeSecureCookieFile writes content to path with 0600 permissions and returns the modification time.
+func writeSecureCookieFile(path string, content string) (time.Time, error) {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		return time.Time{}, fmt.Errorf("failed to write cookie file: %w", err)
+	}
+	// Explicitly enforce 0600 in case umask altered it
+	if err := os.Chmod(path, 0600); err != nil {
+		return time.Time{}, fmt.Errorf("failed to set 0600 permissions: %w", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Now().UTC(), nil
+	}
+	return info.ModTime().UTC(), nil
+}
+
 // Save writes or merges cookie content to ~/.tmp-appview/cookies/<platform>.txt with 0600 permissions.
 // Existing cookie attributes and lines are preserved; incoming cookies only add new keys or update existing values.
 func Save(platform string, content string) (time.Time, error) {
@@ -518,19 +534,42 @@ func Save(platform string, content string) (time.Time, error) {
 		}
 	}
 
-	// Write with 0600 permissions
-	if err := os.WriteFile(path, []byte(finalContent), 0600); err != nil {
-		return time.Time{}, fmt.Errorf("failed to write cookie file: %w", err)
-	}
-	// Explicitly enforce 0600 in case umask altered it
-	if err := os.Chmod(path, 0600); err != nil {
-		return time.Time{}, fmt.Errorf("failed to set 0600 permissions: %w", err)
-	}
-	info, err := os.Stat(path)
+	return writeSecureCookieFile(path, finalContent)
+}
+
+// Overwrite deletes/replaces the previous cookie file and writes newly formatted Netscape cookies
+// for platform to ~/.tmp-appview/cookies/<platform>.txt with 0600 permissions without merging old lines.
+func Overwrite(platform string, content string) (time.Time, error) {
+	path, err := GetCookieFilePath(platform)
 	if err != nil {
-		return time.Now().UTC(), nil
+		return time.Time{}, err
 	}
-	return info.ModTime().UTC(), nil
+	safePlatform, _ := SanitizePlatform(platform)
+	defaultDomain := defaultDomainForPlatform(safePlatform)
+
+	var existingContent string
+	if existingBytes, err := os.ReadFile(path); err == nil && len(existingBytes) > 0 {
+		existingContent = string(existingBytes)
+	}
+
+	finalContent := formatNetscapeCookies(content, defaultDomain)
+
+	// Log updated vs newly added or replaced cookie field names
+	updatedFields, addedFields := detectCookieDiff(existingContent, finalContent)
+	if len(updatedFields) > 0 || len(addedFields) > 0 {
+		utils.LogInfo("[COOKIE] [%s] Khởi tạo và ghi mới file cookie vào storage (xóa cookie cũ):", safePlatform)
+		if len(updatedFields) > 0 {
+			utils.LogInfo("[COOKIE]   • Các trường cập nhật (%d): %s", len(updatedFields), strings.Join(updatedFields, ", "))
+		}
+		if len(addedFields) > 0 {
+			utils.LogInfo("[COOKIE]   • Các trường mới (%d): %s", len(addedFields), strings.Join(addedFields, ", "))
+		}
+	} else {
+		fieldNames := extractCookieFieldNames(finalContent)
+		utils.LogInfo("[COOKIE] [%s] Đã ghi mới file cookie vào storage (%d trường): %s", safePlatform, len(fieldNames), strings.Join(fieldNames, ", "))
+	}
+
+	return writeSecureCookieFile(path, finalContent)
 }
 
 // Read returns the raw cookie content from ~/.tmp-appview/cookies/<platform>.txt.

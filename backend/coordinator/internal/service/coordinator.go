@@ -787,7 +787,7 @@ func (c *Coordinator) ResolveRPC(taskID string, resp protocol.Message) bool {
 }
 
 
-func (c *Coordinator) SaveCookies(ctx context.Context, platform, cookies string) (protocol.CookieSaveResult, error) {
+func (c *Coordinator) SaveCookies(ctx context.Context, platform, cookies string, overwrite ...bool) (protocol.CookieSaveResult, error) {
 	platform = strings.TrimSpace(platform)
 	if platform == "" {
 		return protocol.CookieSaveResult{}, fmt.Errorf("platform is required")
@@ -799,7 +799,12 @@ func (c *Coordinator) SaveCookies(ctx context.Context, platform, cookies string)
 	if !ok {
 		return protocol.CookieSaveResult{}, fmt.Errorf("storage worker is unavailable")
 	}
-	payload := mustJSON(protocol.CookieRequestPayload{Platform: platform, Cookies: cookies})
+	isOverwrite := len(overwrite) > 0 && overwrite[0]
+	payload := mustJSON(protocol.CookieRequestPayload{
+		Platform:  platform,
+		Cookies:   cookies,
+		Overwrite: isOverwrite,
+	})
 	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
 		Type:    protocol.CookieSave,
 		Payload: payload,
@@ -844,7 +849,7 @@ func (c *Coordinator) GetCookieContent(ctx context.Context, platform string) (pr
 	return res, nil
 }
 
-func (c *Coordinator) VerifyCookies(ctx context.Context, platform, cookies string) (protocol.CookieVerifyResult, error) {
+func (c *Coordinator) VerifyCookies(ctx context.Context, platform, cookies string, autoSave ...bool) (protocol.CookieVerifyResult, error) {
 	platform = strings.TrimSpace(platform)
 	if platform == "" {
 		return protocol.CookieVerifyResult{}, fmt.Errorf("platform is required")
@@ -856,7 +861,15 @@ func (c *Coordinator) VerifyCookies(ctx context.Context, platform, cookies strin
 	if !ok {
 		return protocol.CookieVerifyResult{}, fmt.Errorf("download worker is unavailable")
 	}
-	payload := mustJSON(protocol.CookieRequestPayload{Platform: platform, Cookies: cookies})
+	shouldAutoSave := false
+	if len(autoSave) > 0 {
+		shouldAutoSave = autoSave[0]
+	}
+	payload := mustJSON(protocol.CookieRequestPayload{
+		Platform: platform,
+		Cookies:  cookies,
+		AutoSave: shouldAutoSave,
+	})
 	resp, err := c.CallWorkerRPC(ctx, downloadWorker.ID, protocol.Message{
 		Type:    protocol.CookieVerify,
 		Payload: payload,

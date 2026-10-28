@@ -6,33 +6,70 @@ import SocialCookies from './SocialCookies';
 import CacheSettings from './CacheSettings';
 import './SettingsContent.css';
 
-function SettingsContent({ host, setHost, port, setPort }) {
+function SettingsContent({
+  host,
+  setHost,
+  port,
+  setPort,
+  hostError,
+  portError,
+  isConnecting,
+  onConnect,
+}) {
   const { setHeaderTitleVisible } = useLayout();
   const isTitleVisibleRef = useRef(false);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimerRef = useRef(null);
   const scrollContainerRef = useRef(null);
+  const scrollAnimRef = useRef(null);
 
-  // Cuộn mượt đưa thẻ lên sát mép đỉnh khi mở rộng
+  // Cuộn mượt đưa thẻ lên sát mép đỉnh đồng bộ nhịp nhàng với chuyển động mở rộng 500ms của CSS Grid
   const handleCardExpand = (cardEl) => {
-    requestAnimationFrame(() => {
-      const container = scrollContainerRef.current;
-      if (container && cardEl) {
-        const containerRect = container.getBoundingClientRect();
-        const cardRect = cardEl.getBoundingClientRect();
-        const targetScrollTop = Math.max(0, cardRect.top - containerRect.top + container.scrollTop);
-        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+    if (scrollAnimRef.current) {
+      cancelAnimationFrame(scrollAnimRef.current);
+    }
+
+    const container = scrollContainerRef.current;
+    if (!container || !cardEl) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const cardRect = cardEl.getBoundingClientRect();
+    const startScrollTop = container.scrollTop;
+    const targetScrollTop = Math.max(0, cardRect.top - containerRect.top + startScrollTop);
+
+    if (Math.abs(targetScrollTop - startScrollTop) < 1) return;
+
+    const startTime = performance.now();
+    const duration = 520; // Đồng bộ với transition 500ms của CSS Grid
+
+    const step = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Easing cubic-bezier(0.16, 1, 0.3, 1) tương đương easeOutQuart
+      const ease = 1 - Math.pow(1 - progress, 4);
+
+      container.scrollTop = startScrollTop + (targetScrollTop - startScrollTop) * ease;
+
+      if (progress < 1) {
+        scrollAnimRef.current = requestAnimationFrame(step);
+      } else {
+        scrollAnimRef.current = null;
       }
-    });
+    };
+
+    scrollAnimRef.current = requestAnimationFrame(step);
   };
 
-  // Đảm bảo reset trạng thái tiêu đề Header và timer khi rời trang Settings
+  // Đảm bảo reset trạng thái tiêu đề Header, animation và timer khi rời trang Settings
   useEffect(() => {
     return () => {
       setHeaderTitleVisible(false);
       isTitleVisibleRef.current = false;
       if (scrollTimerRef.current) {
         clearTimeout(scrollTimerRef.current);
+      }
+      if (scrollAnimRef.current) {
+        cancelAnimationFrame(scrollAnimRef.current);
       }
     };
   }, [setHeaderTitleVisible]);
@@ -78,6 +115,10 @@ function SettingsContent({ host, setHost, port, setPort }) {
         setHost={setHost}
         port={port}
         setPort={setPort}
+        hostError={hostError}
+        portError={portError}
+        isConnecting={isConnecting}
+        onConnect={onConnect}
         onExpand={handleCardExpand}
       />
 

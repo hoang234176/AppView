@@ -92,7 +92,7 @@
   height: 16px;
   color: #9ca3af;
   flex-shrink: 0;
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
 }
 
 .cache-settings-header:hover .cache-settings-chevron {
@@ -107,30 +107,37 @@
   transform: rotate(90deg);
 }
 
-/* Khối thân danh sách trượt xuống chuẩn cây thư mục */
+/* Khung bao bọc chuyển động mở/đóng 2 chiều mượt mà 500ms */
+.cache-settings-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: grid-template-rows;
+}
+
+.cache-settings-collapse--expanded {
+  grid-template-rows: 1fr;
+}
+
+/* Lớp đệm triệt tiêu hoàn toàn kích thước khi 0fr (Zero-Leak) */
+.cache-settings-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Khối thân danh sách */
 .cache-settings-body {
   display: flex;
   flex-direction: column;
   border-top: 1px solid #e5e7eb;
   background-color: rgba(0, 0, 0, 0.015);
   box-sizing: border-box;
-  animation: settingsSlideDown 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 :is(.dark, :root.dark) .cache-settings-body {
   border-top-color: #2e2e2e;
   background-color: rgba(255, 255, 255, 0.015);
-}
-
-@keyframes settingsSlideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* Hàng từng loại Cache (thụt lề trái 56px thẳng hàng với chữ C của Caches) */
@@ -236,6 +243,7 @@
 /* Nút Clear */
 .cache-settings-btn {
   height: 28px;
+  min-width: 58px;
   padding: 0 14px;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-size: 0.75rem;
@@ -255,10 +263,32 @@
   transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
 }
 
+/* Spinner Loading thu nhỏ vừa vặn trong nút Clear */
+.cache-settings-loading {
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+.cache-settings-loading .common-loading__spinner {
+  width: 14px;
+  height: 14px;
+  color: currentColor !important;
+}
+
 .cache-settings-btn__text {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
   transition: transform 0.08s ease;
+}
+
+.cache-settings-btn__icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  display: inline-block;
+  margin-right: 5px;
 }
 
 .cache-settings-btn:hover {

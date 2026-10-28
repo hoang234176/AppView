@@ -92,33 +92,6 @@
   color: #9ca3af;
 }
 
-/* Khối thông báo lỗi */
-.server-modal-alert {
-  padding: 0.625rem 0.875rem;
-  border-radius: 8px;
-  background-color: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  box-sizing: border-box;
-}
-
-:is(.dark, :root.dark) .server-modal-alert {
-  background-color: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.35);
-}
-
-.server-modal-alert-text {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.8125rem;
-  color: #dc2626;
-  line-height: 1.35;
-  display: block;
-  text-align: center;
-}
-
-:is(.dark, :root.dark) .server-modal-alert-text {
-  color: #f87171;
-}
-
 /* Form nhập liệu */
 .server-modal-form {
   display: flex;
@@ -362,6 +335,14 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
+}
+
+.server-modal-btn__icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  display: inline-block;
+  margin-right: 6px;
 }
 
 .server-modal-loading {

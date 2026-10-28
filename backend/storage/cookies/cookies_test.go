@@ -325,3 +325,34 @@ func TestDetectCookieDiff(t *testing.T) {
 		t.Fatalf("expected added=3 on empty old, got %v", addedEmpty)
 	}
 }
+
+func TestOverwriteReplacesEntireFileWithoutMerging(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("APPVIEW_STATE_DIR", tempDir)
+
+	initial := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tOLD_KEY\told_val\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tEXPIRED_KEY\texpired_val\n"
+	if _, err := Save("youtube", initial); err != nil {
+		t.Fatalf("initial save failed: %v", err)
+	}
+
+	// Overwrite with brand new cookies that do NOT contain OLD_KEY or EXPIRED_KEY
+	freshCookies := "# Netscape HTTP Cookie File\n" +
+		".youtube.com\tTRUE\t/\tTRUE\t2147483647\tNEW_KEY\tnew_val\n"
+	if _, err := Overwrite("youtube", freshCookies); err != nil {
+		t.Fatalf("overwrite failed: %v", err)
+	}
+
+	content, exists, err := Read("youtube")
+	if err != nil || !exists {
+		t.Fatalf("read failed: %v, exists: %v", err, exists)
+	}
+
+	if strings.Contains(content, "OLD_KEY") || strings.Contains(content, "EXPIRED_KEY") {
+		t.Fatalf("expected old keys to be completely removed, but got content:\n%s", content)
+	}
+	if !strings.Contains(content, "NEW_KEY") || !strings.Contains(content, "new_val") {
+		t.Fatalf("expected new key to exist, but got content:\n%s", content)
+	}
+}

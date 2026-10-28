@@ -1,4 +1,6 @@
 import './SettingsActions.css';
+import CheckIcon from '../../../../../../assets/icons/CheckIcon';
+import XCloseIcon from '../../../../../../assets/icons/XCloseIcon';
 
 function SettingsActions({ onClose, onSave, onSaveAndClose, isSaving = false }) {
   return (
@@ -9,6 +11,7 @@ function SettingsActions({ onClose, onSave, onSaveAndClose, isSaving = false }) 
         onClick={onClose}
         disabled={isSaving}
       >
+        <XCloseIcon className="settings-btn__icon" />
         <span className="settings-btn__text">Close</span>
       </button>
 
@@ -19,6 +22,7 @@ function SettingsActions({ onClose, onSave, onSaveAndClose, isSaving = false }) 
           onClick={onSave}
           disabled={isSaving}
         >
+          <CheckIcon className="settings-btn__icon" strokeWidth="2.4" />
           <span className="settings-btn__text">Save</span>
         </button>
 
@@ -28,6 +32,7 @@ function SettingsActions({ onClose, onSave, onSaveAndClose, isSaving = false }) 
           onClick={onSaveAndClose}
           disabled={isSaving}
         >
+          <CheckIcon className="settings-btn__icon" strokeWidth="2.4" />
           <span className="settings-btn__text">Save & Close</span>
         </button>
       </div>

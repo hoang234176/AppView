@@ -13,13 +13,14 @@ function ServerConnectionModalContent() {
     setHasServerConnection,
     initialConnectionError,
     initialServerValues,
+    setServerConfig,
+    triggerNotification,
   } = useLayout();
 
   const [host, setHost] = useState(initialServerValues?.host || '');
   const [port, setPort] = useState(initialServerValues?.port || '');
-  const [hostError, setHostError] = useState(false);
-  const [portError, setPortError] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(initialConnectionError || '');
+  const [hostError, setHostError] = useState(Boolean(initialConnectionError));
+  const [portError, setPortError] = useState(Boolean(initialConnectionError));
   const [rememberConnection, setRememberConnection] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
@@ -44,7 +45,11 @@ function ServerConnectionModalContent() {
     }
 
     if (hasEmptyError) {
-      setErrorMessage('Please enter both Host and Port.');
+      triggerNotification({
+        type: 'error',
+        title: 'Missing Input',
+        message: 'Please enter both Host and Port.',
+      });
       return;
     }
 
@@ -54,31 +59,46 @@ function ServerConnectionModalContent() {
       const parts = targetHost.split('.').map(Number);
       if (parts.some((p) => p < 0 || p > 255)) {
         setHostError(true);
-        setErrorMessage('Invalid IP address! Each octet must be between 0 and 255.');
+        triggerNotification({
+          type: 'error',
+          title: 'Invalid Input',
+          message: 'Invalid IP address! Each octet must be between 0 and 255.',
+        });
         return;
       }
     } else if (!/^[a-zA-Z0-9.-]+$/.test(targetHost)) {
       setHostError(true);
-      setErrorMessage('Invalid Host address! Please enter a valid IP (e.g. 127.0.0.1) or hostname.');
+      triggerNotification({
+        type: 'error',
+        title: 'Invalid Input',
+        message: 'Invalid Host address! Please enter a valid IP (e.g. 127.0.0.1) or hostname.',
+      });
       return;
     }
 
     // 2. Validate Port format
     if (!/^\d+$/.test(targetPort)) {
       setPortError(true);
-      setErrorMessage('Invalid Port! Please enter numbers from 1 to 65535.');
+      triggerNotification({
+        type: 'error',
+        title: 'Invalid Input',
+        message: 'Invalid Port! Please enter numbers from 1 to 65535.',
+      });
       return;
     }
 
     const portNum = parseInt(targetPort, 10);
     if (portNum < 1 || portNum > 65535) {
       setPortError(true);
-      setErrorMessage('Port must be between 1 and 65535.');
+      triggerNotification({
+        type: 'error',
+        title: 'Invalid Input',
+        message: 'Port must be between 1 and 65535.',
+      });
       return;
     }
 
     setIsConnecting(true);
-    setErrorMessage('');
 
     try {
       const [result] = await Promise.all([
@@ -87,6 +107,11 @@ function ServerConnectionModalContent() {
       ]);
 
       if (result.ok) {
+        setServerConfig((prev) => ({
+          ...prev,
+          coordinator: { host: targetHost, port: targetPort },
+        }));
+
         if (rememberConnection) {
           try {
             let currentSetting = {};
@@ -95,8 +120,12 @@ function ServerConnectionModalContent() {
               currentSetting = JSON.parse(raw) || {};
             }
             currentSetting['connect-server'] = {
-              host: targetHost,
-              port: targetPort,
+              coordinator: {
+                host: targetHost,
+                port: targetPort,
+              },
+              download: { host: '', port: '' },
+              storage: { host: '', port: '' },
             };
             localStorage.setItem('setting', JSON.stringify(currentSetting));
           } catch (e) {
@@ -104,12 +133,29 @@ function ServerConnectionModalContent() {
           }
         }
 
+        triggerNotification({
+          type: 'success',
+          title: 'Connected',
+          message: `Connected to server at http://${targetHost}:${targetPort}`,
+        });
         setHasServerConnection(true);
       } else {
-        setErrorMessage(result.error || `Unable to connect to Coordinator Server at http://${targetHost}:${targetPort}`);
+        setHostError(true);
+        setPortError(true);
+        triggerNotification({
+          type: 'error',
+          title: 'Connection Failed',
+          message: result.error || `Unable to connect to server at http://${targetHost}:${targetPort}`,
+        });
       }
     } catch (err) {
-      setErrorMessage(err.message || 'An unexpected error occurred while connecting.');
+      setHostError(true);
+      setPortError(true);
+      triggerNotification({
+        type: 'error',
+        title: 'Connection Error',
+        message: err.message || 'An unexpected error occurred while connecting.',
+      });
     } finally {
       setIsConnecting(false);
     }
@@ -138,16 +184,9 @@ function ServerConnectionModalContent() {
             Connect Server
           </h2>
           <p className="server-modal-desc">
-            Enter Host and Port to connect to the Coordinator Server.
+            Enter Host and Port to connect to the server.
           </p>
         </div>
-
-        {/* Error notification alert */}
-        {errorMessage && (
-          <div className="server-modal-alert">
-            <span className="server-modal-alert-text">{errorMessage}</span>
-          </div>
-        )}
 
         {/* Form fields */}
         <div className="server-modal-form">
@@ -165,8 +204,10 @@ function ServerConnectionModalContent() {
                 value={host}
                 onChange={(e) => {
                   setHost(e.target.value);
-                  if (hostError) setHostError(false);
-                  if (errorMessage) setErrorMessage('');
+                  if (hostError || portError) {
+                    setHostError(false);
+                    setPortError(false);
+                  }
                 }}
                 onKeyDown={handleKeyDown}
                 spellCheck={false}
@@ -187,8 +228,10 @@ function ServerConnectionModalContent() {
                 value={port}
                 onChange={(e) => {
                   setPort(e.target.value);
-                  if (portError) setPortError(false);
-                  if (errorMessage) setErrorMessage('');
+                  if (hostError || portError) {
+                    setHostError(false);
+                    setPortError(false);
+                  }
                 }}
                 onKeyDown={handleKeyDown}
                 spellCheck={false}
@@ -227,7 +270,10 @@ function ServerConnectionModalContent() {
               {isConnecting ? (
                 <Loading text="" size="sm" className="server-modal-loading" />
               ) : (
-                'Connect'
+                <>
+                  <PlugIcon className="server-modal-btn__icon" />
+                  Connect
+                </>
               )}
             </span>
           </button>

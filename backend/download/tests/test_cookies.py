@@ -164,3 +164,44 @@ class TestSocialCookies(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(args[0], "youtube")
             self.assertIn("sidts_NEW", args[1])
             self.assertIn("sid_123", args[1])
+
+    @patch("worker.client.coordinator_worker_client.dispatch_save_cookies")
+    def test_update_youtube_session_cookies_separated(self, mock_dispatch):
+        from services.youtube.auth import (
+            _test_youtube_cookies_sync,
+            update_youtube_session_cookies,
+            create_cookiejar_from_netscape,
+        )
+
+        old_raw = (
+            "# Netscape HTTP Cookie File\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_123\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tsidts_old\n"
+        )
+        new_raw = (
+            "# Netscape HTTP Cookie File\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsid_123\n"
+            ".youtube.com\tTRUE\t/\tTRUE\t2147483647\t__Secure-1PSIDTS\tsidts_NEW\n"
+        )
+        jar = create_cookiejar_from_netscape(new_raw)
+
+        # 1. Direct update call saves
+        updated = update_youtube_session_cookies(old_raw, jar)
+        self.assertTrue(updated)
+        mock_dispatch.assert_called_once()
+        mock_dispatch.reset_mock()
+
+        # 2. When auto_save=False, no dispatch_save_cookies
+        with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
+            mock_ydl = mock_ydl_cls.return_value
+            mock_resp = mock_ydl.urlopen.return_value
+            mock_resp.read.return_value = b'"LOGGED_IN": true'
+
+            valid, _ = _test_youtube_cookies_sync(jar, raw_cookies=old_raw, auto_save=False)
+            self.assertTrue(valid)
+            mock_dispatch.assert_not_called()
+
+            # 3. When auto_save=True, dispatch_save_cookies is called
+            valid, _ = _test_youtube_cookies_sync(jar, raw_cookies=old_raw, auto_save=True)
+            self.assertTrue(valid)
+            mock_dispatch.assert_called_once()

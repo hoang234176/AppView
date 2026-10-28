@@ -27,7 +27,7 @@
 
 ## 4. Quy tắc Responsive & Đa Nền Tảng (Mobile, Tablet, Windows)
 - **Quản lý trạng thái Provider tại Root**: Toàn bộ Root Providers (`ThemeProvider`, `LayoutProvider`) được đặt tại [main.jsx](file:///Users/hoang/Projects/AppView/frontend/web/src/main.jsx) bọc ngoài `<App />`, giữ cho [App.jsx](file:///Users/hoang/Projects/AppView/frontend/web/src/App.jsx) thuần khiết làm Application Shell.
-- **Desktop (>= 768px)**: Sidebar mặc định chiếm `22%` chiều ngang khung app (cho phép kéo giãn tùy chỉnh từ tối thiểu `10%` đến tối đa `60%`, nhấp đúp vào thanh phân cách để khôi phục về `22%`).
+- **Desktop (>= 768px)**: Sidebar mặc định chiếm `22%` chiều ngang khung app (cho phép kéo giãn tùy chỉnh từ tối thiểu `12%` đến tối đa `60%`, nhấp đúp vào thanh phân cách để khôi phục về `22%`).
 - **Mobile & Tablet (< 768px)**:
   - Sidebar tự động chuyển thành Drawer trượt từ cạnh trái với hiệu ứng animation mượt mà.
   - Khi mở Drawer, hiển thị lớp phủ mờ (`.sidebar-overlay`) phía sau; nhấp vào overlay hoặc nút đóng sẽ thu Sidebar lại.
@@ -71,3 +71,44 @@
   - `try`: Chứa logic gọi bất đồng bộ chính.
   - `catch`: Bắt và xử lý toàn bộ lỗi/ngoại lệ phát sinh, thông báo trạng thái lỗi rõ ràng (alert, thông báo UI), tuyệt đối không để sót unhandled rejection.
   - `finally`: Bắt buộc giải phóng, hoàn nguyên hoặc làm sạch các cờ trạng thái xử lý (như tắt loading `setLoading(false)`, `setIsConnecting(false)`, `setIsSaving(false)`, v.v.), đảm bảo giao diện luôn được mở khóa và không bao giờ bị treo cứng ở trạng thái chờ kể cả khi xảy ra lỗi.
+
+## 9. Quy tắc Thông báo Lỗi & Kết nối Server (Server Connection & Notification Rules)
+- **Bắt buộc kích hoạt thông báo lỗi trong khối `catch`**:
+  - Mọi tác vụ bất đồng bộ, gọi API mạng hoặc kiểm tra kết nối khi có lỗi phát sinh trong khối `catch` **bắt buộc phải kích hoạt thẻ thông báo lỗi** thông qua `triggerNotification({ type: 'error', title: ..., message: ... })`. Tuyệt đối không chỉ ghi log console hoặc nuốt lỗi âm thầm.
+  - Luôn đảm bảo khối `finally` giải phóng các cờ trạng thái (như tắt `isConnecting`, `isLoading`).
+- **Xử lý kiểm tra kết nối khi khởi động (Initial Server Check)**:
+  - Khi mở ứng dụng, nếu kết nối tới server đã lưu bị lỗi/thất bại: kích hoạt ngay thẻ thông báo lỗi tức thì (`triggerNotification`), đồng thời mở bảng `ServerConnectionModal` và tự động điền lại giá trị Host & Port cũ.
+- **Xác thực dữ liệu đầu vào (Validation & Missing Inputs)**:
+  - Khi người dùng nhập thiếu dữ liệu (để trống Host hoặc Port) hoặc sai định dạng: kích hoạt ngay thẻ thông báo lỗi tương ứng (`type: 'error'`) để phản hồi trực quan cho người dùng, ngăn chặn gửi request rác lên server.
+- **Quy tắc Trạng thái Phiên Làm việc (Session State & 3 Services Config)**:
+  - Cấu trúc cấu hình server trong phiên (`serverConfig`) được tạo sẵn 3 cặp key: `coordinator`, `download`, `storage`.
+  - Mọi thao tác gọi server trong suốt phiên làm việc phải thông qua trạng thái phiên (`serverConfig`), không đọc trực tiếp từ `localStorage`.
+  - Chỉ khi kết nối thành công (`result.ok === true`), giá trị input mới được phép cập nhật vào `serverConfig` của phiên và lưu vào `localStorage` (nếu có yêu cầu lưu).
+  - Khi kết nối thất bại (nhập sai / lỗi mạng): tuyệt đối không cập nhật `serverConfig`, không lưu vào `localStorage`, giữ nguyên input cho người dùng và kích hoạt thông báo lỗi tức thì.
+- **Quy tắc Từ ngữ Hiển thị (UI Terminology Invariant)**:
+  - Từ ngữ "Coordinator" chỉ được sử dụng trong mã logic, tên biến/hàm (`checkCoordinatorHealth`, `coordinatorApi.js`) hoặc tài liệu kỹ thuật nội bộ.
+  - Tuyệt đối không để từ "Coordinator" xuất hiện trên bất kỳ thành phần giao diện người dùng nào (tiêu đề, nhãn, thông báo popup, modal, placeholder); luôn sử dụng từ "Server" cho các chuỗi hiển thị ra UI.
+
+## 10. Quy tắc Tách biệt Logic vào `src/hooks/` (Logic & Presentation Isolation)
+- **File `.jsx` thuần túy hiển thị giao diện**:
+  - Các file component `.jsx` chỉ chịu trách nhiệm render cây DOM/JSX và gắn kết các sự kiện/props.
+  - Tuyệt đối không viết logic nghiệp vụ phức tạp, thuật toán tính toán, xử lý bất đồng bộ, hiệu ứng đo đạc DOM hay quản lý state nặng trực tiếp bên trong thân hàm component `.jsx`.
+- **Tập trung hóa logic trong `src/hooks/`**:
+  - Toàn bộ logic tính toán dữ liệu, API calls, effect và state tương tác phải được trừu tượng hóa và đóng gói thành các **Custom Hook** đặt trong thư mục `src/hooks/` (tạo file hoặc thư mục con tương ứng với tính năng).
+- **Quy ước Component**:
+  - Component `.jsx` chỉ import và gọi custom hook tương ứng để nhận về dữ liệu (`state`) và các hàm hành động (`handlers`) đã được xử lý hoàn chỉnh sẵn sàng để hiển thị.
+
+## 11. Quy chuẩn Loading Overlay & Tuyệt đối Cấm Dùng Blur (No-Blur Invariant)
+- **Độ phủ màu nền thống nhất (Overlay Background Opacity)**:
+  - Mọi lớp phủ loading che khu vực/card trong ứng dụng (như khi đổi Drive trong Sidebar, hay khi bấm Save trong Settings) bắt buộc thống nhất sử dụng màu nền phẳng với độ phủ `0.7` (70% opacity):
+    - Light mode: `rgba(250, 250, 250, 0.7)`
+    - Dark mode: `rgba(28, 28, 28, 0.7)`
+- **Tuyệt đối không bao giờ sử dụng hiệu ứng làm mờ (Never Use Blur / Backdrop-Filter)**:
+  - Nghiêm cấm hoàn toàn việc sử dụng `backdrop-filter: blur(...)` hoặc `filter: blur(...)` cho các lớp phủ loading.
+  - Lý do: Hiệu ứng blur buộc GPU phải rasterize và tính toán lại ma trận điểm ảnh liên tục trên diện rộng, gây tụt khung hình (tụt FPS), giật lag và hao tổn tài nguyên phần cứng. Mọi overlay loading chỉ được phép sử dụng màu nền bán trong suốt đơn thuần (`rgba`).
+
+## 12. Quy tắc Bảo mật Cookies (Never Store Cookies in LocalStorage)
+- **Tuyệt đối không lưu trữ dữ liệu Cookie mạng xã hội trong `localStorage` hay bất kỳ bộ nhớ client-side lâu dài nào**:
+  - Dữ liệu Cookie đăng nhập (Netscape Cookie, session token của Facebook, YouTube, TikTok, v.v.) là thông tin định danh nhạy cảm cao, có nguy cơ bị rò rỉ nếu lưu trong `localStorage`.
+  - Trên giao diện Frontend Web, dữ liệu Cookie chỉ được lưu tạm thời trong bộ nhớ phiên làm việc (in-memory React state) để phục vụ nhập liệu và kiểm tra hợp lệ.
+  - Mọi thao tác lưu trữ vĩnh viễn Cookie chỉ được phép thực hiện trên máy chủ (Backend Storage Worker tại `~/.tmp-appview/cookies/` thông qua RPC Server được bảo vệ).

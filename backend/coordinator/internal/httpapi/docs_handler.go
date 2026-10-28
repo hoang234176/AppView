@@ -224,6 +224,56 @@ const OpenAPISpecJSON = `{
         }
       }
     },
+    "/api/v1/cookies/save": {
+      "post": {
+        "tags": ["Coordinator • Cookies"],
+        "summary": "[Coordinator] Save and Overwrite Cookie File",
+        "description": "Recreates the cookie file and writes newly submitted Netscape cookie attributes without merging old lines.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["platform", "cookies"],
+                "properties": {
+                  "platform": { "type": "string", "example": "youtube" },
+                  "cookies": { "type": "string", "example": "# Netscape HTTP Cookie File\n..." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Cookie save result" },
+          "400": { "description": "Invalid platform or empty cookies" },
+          "503": { "description": "Storage worker unavailable" }
+        }
+      }
+    },
+    "/api/v1/cookies/update": {
+      "post": {
+        "tags": ["Coordinator • Cookies"],
+        "summary": "[Coordinator] Update and Refresh Saved Cookies",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["platform"],
+                "properties": {
+                  "platform": { "type": "string", "example": "youtube" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Update and verification result" }
+        }
+      }
+    },
     "/api/v1/cookies/verify": {
       "post": {
         "tags": ["Coordinator • Cookies"],

@@ -26,8 +26,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   height: 32px;
-  padding: 0 18px;
+  padding: 0 16px;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-size: 0.8125rem;
   font-weight: 600;
@@ -38,6 +39,13 @@
   box-sizing: border-box;
   flex-shrink: 0;
   transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease, transform 0.08s ease;
+}
+
+.settings-btn__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: inline-block;
 }
 
 .settings-btn__text {
