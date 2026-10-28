@@ -62,7 +62,7 @@ function SidebarLayout() {
     ? undefined
     : {
         width: `var(--sidebar-width, ${sidebarWidth}%)`,
-        minWidth: '10%',
+        minWidth: '15%',
         maxWidth: '60%',
       };
 
@@ -119,7 +119,7 @@ function SidebarLayout() {
             className={`sidebar-resizer ${isResizing ? 'sidebar-resizer--active' : ''}`}
             onMouseDown={startResizing}
             onDoubleClick={resetSidebarWidth}
-            title="Kéo để chỉnh độ rộng (nhấp đúp để đặt lại 22%)"
+            title="Kéo để chỉnh độ rộng (nhấp đúp để đặt lại 25%)"
             role="separator"
             aria-orientation="vertical"
           />

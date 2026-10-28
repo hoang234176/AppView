@@ -18,12 +18,12 @@ export function LayoutProvider({ children }) {
       const saved = localStorage.getItem('appview_sidebar_width');
       if (saved) {
         const val = parseFloat(saved);
-        if (!isNaN(val) && val >= 12 && val <= 60) {
+        if (!isNaN(val) && val >= 15 && val <= 60) {
           return val;
         }
       }
     }
-    return 22;
+    return 25;
   });
 
   const sidebarWidthRef = useRef(sidebarWidth);
@@ -200,10 +200,10 @@ export function LayoutProvider({ children }) {
   }, []);
 
   const resetSidebarWidth = useCallback(() => {
-    document.documentElement.style.setProperty('--sidebar-width', '22%');
-    setSidebarWidth(22);
+    document.documentElement.style.setProperty('--sidebar-width', '25%');
+    setSidebarWidth(25);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('appview_sidebar_width', '22');
+      localStorage.setItem('appview_sidebar_width', '25');
     }
   }, []);
 
@@ -247,7 +247,7 @@ export function LayoutProvider({ children }) {
       const currentX = clientX - appLeft;
       let percentage = (currentX / appWidth) * 100;
 
-      if (percentage < 12) percentage = 12;
+      if (percentage < 15) percentage = 15;
       if (percentage > 60) percentage = 60;
 
       return percentage;

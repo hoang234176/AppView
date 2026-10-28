@@ -9,6 +9,8 @@
   overflow: hidden;
   box-sizing: border-box;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  container-type: inline-size;
+  container-name: social-cookies-card;
 }
 
 :is(.dark, :root.dark) .social-cookies-card {
@@ -232,7 +234,10 @@
   align-items: center;
   gap: 0.625rem;
   min-width: 0;
-  flex: 1;
+  width: 150px;
+  flex-shrink: 0;
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              gap 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .social-cookies-row__center {
@@ -261,7 +266,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
-  flex: 1;
+  width: 150px;
+  flex-shrink: 0;
 }
 
 /* Icon squircle đại diện cho mạng xã hội */
@@ -318,6 +324,15 @@
   font-weight: 500;
   color: #1f2937;
   user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  opacity: 1;
+  transform: translateX(0);
+  transition: max-width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :is(.dark, :root.dark) .social-platform-name {
@@ -906,5 +921,27 @@
 
   .social-cookie-drawer-body {
     padding-left: calc(1rem + 24px + 0.625rem);
+  }
+}
+
+/* Container query: Khi Sidebar mở rộng ép hẹp khung hiển thị Social Cookies (<= 520px)
+   Đồng loạt ẩn tên của các MXH để nhường toàn bộ không gian cho Icon, Badge trạng thái và Nút bấm,
+   ngăn chặn hoàn toàn hiện tượng xếp chồng hoặc tràn vỡ hàng */
+@container social-cookies-card (max-width: 520px) {
+  .social-platform-name {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(-6px);
+    pointer-events: none;
+  }
+
+  .social-cookies-row__left {
+    width: 24px;
+    gap: 0;
+  }
+
+  .social-cookies-row__right {
+    width: 150px;
+    flex-shrink: 0;
   }
 }
