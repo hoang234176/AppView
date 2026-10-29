@@ -17,6 +17,10 @@ import {
 // Tái xuất (re-export) để đảm bảo 100% tương thích ngược với các component đang import
 export { SOCIAL_PLATFORMS, SAMPLE_MOCK_COOKIES, parseNetscapeCookies };
 
+// Trạng thái lưu trữ Cookies theo phiên làm việc (Session) trong bộ nhớ RAM
+let hasCheckedSessionCookies = false;
+let sessionCookiesData = null;
+
 /**
  * Custom Hook quản lý dữ liệu và tương tác Cookie của các mạng xã hội
  */
@@ -24,7 +28,7 @@ export default function useSocialCookies() {
   const { triggerNotification, serverConfig, hasServerConnection } = useLayout();
 
   // Khởi tạo trạng thái cookie hoàn toàn trong bộ nhớ RAM (không bao giờ lưu cookies trong localStorage)
-  const [cookiesData, setCookiesData] = useState(() => {
+  const [cookiesData, setCookiesDataState] = useState(() => {
     try {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('appview_social_cookies');
@@ -33,12 +37,26 @@ export default function useSocialCookies() {
       // Bỏ qua lỗi trình duyệt nếu có
     }
 
+    if (sessionCookiesData) {
+      return sessionCookiesData;
+    }
+
     const defaultState = {};
     SOCIAL_PLATFORMS.forEach((p) => {
       defaultState[p.id] = { raw: '', status: 'empty' };
     });
+    sessionCookiesData = defaultState;
     return defaultState;
   });
+
+  // Đồng bộ cập nhật trạng thái vào cả React State và bộ nhớ Session
+  const setCookiesData = useCallback((updater) => {
+    setCookiesDataState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      sessionCookiesData = next;
+      return next;
+    });
+  }, []);
 
   // Lấy host và port Coordinator từ session
   const getCoordinatorHostPort = useCallback(() => {
@@ -72,8 +90,10 @@ export default function useSocialCookies() {
   // ID của platform đang trong quá trình Save vào Coordinator
   const [savingPlatformId, setSavingPlatformId] = useState(null);
 
-  // Trạng thái đang kiểm tra khởi tạo toàn bộ cookie khi vừa vào Settings
-  const [isInitialChecking, setIsInitialChecking] = useState(() => Boolean(hasServerConnection));
+  // Trạng thái đang kiểm tra khởi tạo toàn bộ cookie khi vừa vào Settings (chỉ kích hoạt 1 lần trong phiên)
+  const [isInitialChecking, setIsInitialChecking] = useState(
+    () => Boolean(hasServerConnection) && !hasCheckedSessionCookies
+  );
 
   // Trạng thái lỗi (cảnh báo viền đỏ) của từng platform trong drawer
   const [draftErrors, setDraftErrors] = useState(() => {
@@ -136,12 +156,12 @@ export default function useSocialCookies() {
         }
       }
     },
-    [getCoordinatorHostPort, triggerNotification]
+    [getCoordinatorHostPort, setCookiesData, triggerNotification]
   );
 
-  // Tự động kiểm tra/cập nhật trạng thái cookies cho các mạng xã hội khi Server đã kết nối
+  // Tự động kiểm tra/cập nhật trạng thái cookies cho các mạng xã hội khi Server đã kết nối (duy nhất 1 lần trong phiên)
   useEffect(() => {
-    if (!hasServerConnection) return;
+    if (!hasServerConnection || hasCheckedSessionCookies) return;
 
     let isMounted = true;
 
@@ -150,6 +170,7 @@ export default function useSocialCookies() {
         await Promise.allSettled(
           SOCIAL_PLATFORMS.map((platform) => updatePlatformCookie(platform.id, false))
         );
+        hasCheckedSessionCookies = true;
       } catch (err) {
         if (isMounted) {
           triggerNotification({
@@ -420,7 +441,7 @@ export default function useSocialCookies() {
         setSavingPlatformId(null);
       }
     },
-    [draftCookies, getCoordinatorHostPort, triggerNotification, savingPlatformId]
+    [draftCookies, getCoordinatorHostPort, setCookiesData, triggerNotification, savingPlatformId]
   );
 
   const handleClear = useCallback((platformId) => {
@@ -431,7 +452,7 @@ export default function useSocialCookies() {
       ...prev,
       [platformId]: { raw: '', status: 'empty' },
     }));
-  }, []);
+  }, [setCookiesData]);
 
   const handleUpdate = useCallback(
     (platformId) => {

@@ -63,12 +63,7 @@ type DriveInfo struct {
 }
 
 type StorageInfo struct {
-	DisplayName    string      `json:"displayName"`
-	TotalBytes     int64       `json:"totalBytes"`
-	UsedBytes      int64       `json:"usedBytes"`
-	AvailableBytes int64       `json:"availableBytes"`
-	UsedPercent    float64     `json:"usedPercent"`
-	Drives         []DriveInfo `json:"drives,omitempty"`
+	Drives []DriveInfo `json:"drives"`
 }
 
 // StorageHistoryPayload is metadata-only durable state sent by one identified

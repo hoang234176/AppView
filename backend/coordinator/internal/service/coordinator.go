@@ -156,7 +156,7 @@ func (c *Coordinator) CreateDownload(request DownloadRequest) (downloadjob.Job, 
 func (c *Coordinator) GetDownload(id string) (downloadjob.Job, bool) { return c.downloads.Get(id) }
 func (c *Coordinator) ListDownloads() []downloadjob.Job              { return c.downloads.List() }
 func (c *Coordinator) StorageInfo(workerID string, info *protocol.StorageInfo) error {
-	if info == nil || strings.TrimSpace(info.DisplayName) == "" || info.TotalBytes < 0 || info.UsedBytes < 0 || info.AvailableBytes < 0 {
+	if info == nil || len(info.Drives) == 0 {
 		return fmt.Errorf("invalid storage info")
 	}
 	if _, ok := c.workers.Get(workerID); !ok {
