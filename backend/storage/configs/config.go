@@ -80,6 +80,41 @@ func init() {
 	InitDefaultRootPath()
 }
 
+// isPathMounted verifies whether path is a real mounted volume rather than an unmounted ghost folder on the host disk.
+func isPathMounted(path string) bool {
+	cleanPath := filepath.Clean(path)
+	fi, err := os.Lstat(cleanPath)
+	if err != nil {
+		return false
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return false
+	}
+
+	parent := filepath.Dir(cleanPath)
+	pfi, err := os.Lstat(parent)
+	if err != nil {
+		return false
+	}
+
+	stat, ok1 := fi.Sys().(*syscall.Stat_t)
+	pstat, ok2 := pfi.Sys().(*syscall.Stat_t)
+	if !ok1 || !ok2 {
+		return false
+	}
+
+	// For macOS /Volumes/<Name> or Linux /media/<Name> /mnt/<Name>:
+	// If the directory is under a system mount root, its device ID MUST differ from parent.
+	parentClean := filepath.Clean(parent)
+	if parentClean == "/Volumes" || strings.HasPrefix(parentClean, "/Volumes/") ||
+		parentClean == "/media" || strings.HasPrefix(parentClean, "/media/") ||
+		parentClean == "/mnt" || strings.HasPrefix(parentClean, "/mnt/") {
+		return stat.Dev != pstat.Dev
+	}
+
+	return true
+}
+
 // GetDrivesWithStats returns all configured drives with their current disk usage stats.
 func GetDrivesWithStats() []StorageDrive {
 	drives := make([]StorageDrive, len(STORAGE_DRIVES))
@@ -88,7 +123,7 @@ func GetDrivesWithStats() []StorageDrive {
 	for i := range drives {
 		cleanPath := filepath.Clean(drives[i].Path)
 		var stat syscall.Statfs_t
-		if err := syscall.Statfs(cleanPath, &stat); err == nil && int64(stat.Blocks) > 0 {
+		if isPathMounted(cleanPath) && syscall.Statfs(cleanPath, &stat) == nil && int64(stat.Blocks) > 0 {
 			block := int64(stat.Bsize)
 			total := int64(stat.Blocks) * block
 			avail := int64(stat.Bavail) * block

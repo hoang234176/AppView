@@ -13,6 +13,10 @@ export const router = createBrowserRouter([
         element: <ContentsView />,
       },
       {
+        path: 'drives/:driveId',
+        element: <ContentsView />,
+      },
+      {
         path: 'contents',
         element: <ContentsView />,
       },

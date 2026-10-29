@@ -18,15 +18,65 @@ export function formatStorageBytes(bytes) {
   return `${val >= 100 || idx === 0 ? Math.round(val) : val.toFixed(1)} ${units[idx]}`;
 }
 
+// Bộ nhớ chia sẻ dữ liệu ổ đĩa giữa các component
+let cachedDrives = [];
+const driveListeners = new Set();
+
+function updateSharedDrives(nextDrives) {
+  if (!Array.isArray(nextDrives)) return;
+  cachedDrives = nextDrives;
+  driveListeners.forEach((listener) => {
+    try {
+      listener(nextDrives);
+    } catch {
+      // Bỏ qua lỗi nếu component đã unmount
+    }
+  });
+}
+
+/**
+ * Chọn ổ đĩa khả dụng ưu tiên HDD > SSD > Ổ đầu tiên đang mount
+ * @param {Array} drivesList
+ * @returns {string|null}
+ */
+export function getPreferredActiveDriveId(drivesList) {
+  if (!Array.isArray(drivesList) || drivesList.length === 0) return null;
+
+  const isMounted = (d) => d && d.available !== false && (d.totalBytes > 0 || d.usedPercent > 0);
+
+  const hdd = drivesList.find((d) => d.id?.toUpperCase() === 'HDD' || d.displayName?.toUpperCase() === 'HDD');
+  const ssd = drivesList.find((d) => d.id?.toUpperCase() === 'SSD' || d.displayName?.toUpperCase() === 'SSD');
+
+  if (hdd && isMounted(hdd)) {
+    return hdd.id;
+  }
+  if (ssd && isMounted(ssd)) {
+    return ssd.id;
+  }
+  const anyMounted = drivesList.find(isMounted);
+  if (anyMounted) {
+    return anyMounted.id;
+  }
+  return drivesList[0]?.id || 'SSD';
+}
+
 /**
  * Custom Hook kết nối Coordinator API & Real-time WebSocket để lấy thông số ổ đĩa
  */
 export default function useStorageDrives() {
   const { serverConfig, hasServerConnection, triggerNotification } = useLayout();
-  const [drives, setDrives] = useState([]);
+  const [drives, setDrives] = useState(cachedDrives);
   const [isLoading, setIsLoading] = useState(false);
   const reconnectTimerRef = useRef(null);
   const wsRef = useRef(null);
+
+  // Đăng ký listener lắng nghe cập nhật danh sách ổ đĩa dùng chung
+  useEffect(() => {
+    driveListeners.add(setDrives);
+    return () => {
+      driveListeners.delete(setDrives);
+    };
+  }, []);
 
   // Phân giải host và port của Coordinator
   const getCoordinatorHostPort = useCallback(() => {
@@ -67,6 +117,7 @@ export default function useStorageDrives() {
 
       const data = await response.json();
       if (Array.isArray(data?.drives)) {
+        updateSharedDrives(data.drives);
         setDrives(data.drives);
       }
     } catch (err) {
@@ -103,6 +154,7 @@ export default function useStorageDrives() {
           try {
             const message = JSON.parse(event.data);
             if (message?.type === 'storage.info' && Array.isArray(message?.storageInfo?.drives)) {
+              updateSharedDrives(message.storageInfo.drives);
               setDrives(message.storageInfo.drives);
             }
           } catch {
@@ -134,6 +186,7 @@ export default function useStorageDrives() {
         }
         const data = await response.json();
         if (isMounted && Array.isArray(data?.drives)) {
+          updateSharedDrives(data.drives);
           setDrives(data.drives);
         }
       } catch (err) {

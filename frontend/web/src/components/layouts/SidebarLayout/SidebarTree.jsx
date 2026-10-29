@@ -133,17 +133,19 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
   const scrollContainerRef = useRef(null);
   const [floatingDirection, setFloatingDirection] = useState(null); // 'above' | 'below' | null
 
-  // Chia thành 2 khối tương ứng với 2 ổ cứng
+  // Chia thành 2 khối tương ứng với 2 ổ cứng (hỗ trợ cả ID HDD/SSD và legacy drive-1/drive-2)
   const driveGroups = useMemo(() => {
     return [
       {
-        id: 'drive-1',
-        driveName: 'Drive 1',
+        id: 'HDD',
+        legacyId: 'drive-1',
+        driveName: 'HDD',
         folders: folders.slice(0, 10),
       },
       {
-        id: 'drive-2',
-        driveName: 'Drive 2',
+        id: 'SSD',
+        legacyId: 'drive-2',
+        driveName: 'SSD',
         folders: folders.slice(10, 20),
       },
     ];
@@ -151,7 +153,10 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
 
   // Lấy dữ liệu của ổ cứng đang được chọn
   const activeDrive = useMemo(() => {
-    return driveGroups.find(d => d.id === activeDriveId) || driveGroups[0];
+    return (
+      driveGroups.find((d) => d.id === activeDriveId || d.legacyId === activeDriveId) ||
+      driveGroups[0]
+    );
   }, [driveGroups, activeDriveId]);
 
   // Mở sẵn Thư mục 3 và 3.1 để người dùng quan sát ban đầu

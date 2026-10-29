@@ -77,7 +77,7 @@
   outline: none;
   cursor: pointer;
   overflow: hidden;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: background-color 0.25s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
 }
 
 .sidebar-drive-card:hover:not(.sidebar-drive-card--offline) {
@@ -106,17 +106,17 @@
   box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.4) !important;
 }
 
-/* Trạng thái Offline / Không mount: Viền nét đứt chìm, icon mờ xám, không có viền xanh active */
+/* Trạng thái Offline / Không mount: Viền đỏ nét đứt, icon mờ xám, không có viền xanh active */
 .sidebar-drive-card--offline {
-  opacity: 0.45;
+  opacity: 0.8;
   cursor: not-allowed;
   border-style: dashed !important;
-  border-color: #cbd5e1 !important;
+  border-color: #ef4444 !important;
   box-shadow: none !important;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card--offline {
-  border-color: #383838 !important;
+  border-color: #f87171 !important;
 }
 
 .sidebar-drive-card--offline .sidebar-drive-card__icon {
@@ -125,6 +125,56 @@
 
 :is(.dark, :root.dark) .sidebar-drive-card--offline .sidebar-drive-card__icon {
   color: #52525b !important;
+}
+
+/* Hiệu ứng viền phát sáng nhẹ khi vừa Mount thành công (Pulse Glow chuẩn macOS) */
+@keyframes drive-mount-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.75);
+    border-color: #007aff !important;
+  }
+  40% {
+    box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(0, 122, 255, 0);
+  }
+}
+
+@keyframes drive-mount-pulse-dark {
+  0% {
+    box-shadow: 0 0 0 0 rgba(10, 132, 255, 0.85);
+    border-color: #0a84ff !important;
+  }
+  40% {
+    box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(10, 132, 255, 0);
+  }
+}
+
+.sidebar-drive-card--just-mounted {
+  animation: drive-mount-pulse 0.7s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+:is(.dark, :root.dark) .sidebar-drive-card--just-mounted {
+  animation-name: drive-mount-pulse-dark;
+}
+
+/* Hiệu ứng chớp cảnh báo 1 nhịp khi vừa Unmount */
+@keyframes drive-unmount-flash {
+  0% {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.45);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+.sidebar-drive-card--just-unmounted {
+  animation: drive-unmount-flash 0.6s ease-out forwards;
 }
 
 /* Khung nội dung 2 cột: Cột trái là Icon độc lập, Cột phải là toàn bộ thông tin */
@@ -305,11 +355,11 @@
 
 .sidebar-drive-card__stats--offline {
   font-style: italic;
-  color: #94a3b8;
+  color: #ef4444;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card__stats--offline {
-  color: #64748b;
+  color: #f87171;
 }
 
 /* ========================================================

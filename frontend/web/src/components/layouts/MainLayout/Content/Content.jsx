@@ -10,30 +10,31 @@ function Content() {
   const mainRef = useRef(null);
   const scrollPosRef = useRef(0);
 
+  const isSettings = location.pathname === '/settings';
+  const isContentsPage = location.pathname === '/' || location.pathname === '/contents' || location.pathname.startsWith('/drives');
+
   // Lắng nghe và khôi phục vị trí cuộn khi quay lại trang nội dung
   useEffect(() => {
     const mainEl = mainRef.current;
     if (!mainEl) return;
 
-    if (location.pathname === '/' || location.pathname === '/contents') {
+    if (isContentsPage) {
       if (scrollPosRef.current > 0) {
         requestAnimationFrame(() => {
           mainEl.scrollTop = scrollPosRef.current;
         });
       }
     }
-  }, [location.pathname]);
+  }, [location.pathname, isContentsPage]);
 
   const handleScroll = () => {
     window.dispatchEvent(new CustomEvent('close-more-menu'));
-    if (location.pathname === '/' || location.pathname === '/contents') {
+    if (isContentsPage) {
       if (mainRef.current) {
         scrollPosRef.current = mainRef.current.scrollTop;
       }
     }
   };
-
-  const isSettings = location.pathname === '/settings';
 
   const handleContextMenu = (e) => {
     // Không kích hoạt khi đang ở trang cài đặt
