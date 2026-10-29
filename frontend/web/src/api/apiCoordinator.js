@@ -10,6 +10,7 @@ export const VERIFY_COOKIES_API = '/api/v1/cookies/verify';
 export const UPDATE_COOKIES_API = '/api/v1/cookies/update';
 export const SAVE_COOKIES_API = '/api/v1/cookies/save';
 export const GET_COOKIE_CONTENT_API = '/api/v1/cookies/content';
+export const GET_TREE_FOLDER_API = '/api/v1/tree-folder';
 
 // 2. HTTP METHODS VIẾT HOA
 export const HTTP_METHOD_GET = 'GET';
@@ -18,6 +19,7 @@ export const HTTP_METHOD_POST = 'POST';
 // 3. TIMEOUTS VIẾT HOA (Facebook & MXH timeout dài 65s)
 export const DEFAULT_HEALTH_TIMEOUT_MS = 5000;
 export const DEFAULT_VERIFY_TIMEOUT_MS = 65000;
+export const DEFAULT_TREE_FOLDER_TIMEOUT_MS = 10000;
 
 /**
  * Kiểm tra kết nối tới dịch vụ Coordinator qua endpoint GET /health
@@ -415,17 +417,81 @@ export async function getCookieContentApi(
   }
 }
 
+/**
+ * Lấy cây thư mục đệ quy của một ổ cứng qua Coordinator (GET /api/v1/tree-folder?drive=...)
+ * @param {string} host - Host từ session
+ * @param {string|number} port - Port từ session
+ * @param {string} drive - Tên/ID ổ cứng (HDD, SSD...)
+ * @param {number} timeoutMs - Thời gian chờ tối đa (mặc định: 10000ms)
+ * @returns {Promise<{ ok: boolean, data?: Array, error?: string }>}
+ */
+export async function getFolderTreeApi(host, port, drive = '', timeoutMs = DEFAULT_TREE_FOLDER_TIMEOUT_MS) {
+  const targetHost = String(host || '').trim();
+  const targetPort = String(port || '').trim();
+
+  if (!targetHost || !targetPort) {
+    return {
+      ok: false,
+      error: 'Thiếu host hoặc port của Coordinator.',
+    };
+  }
+
+  const query = drive ? `?drive=${encodeURIComponent(drive)}` : '';
+  const url = `http://${targetHost}:${targetPort}${GET_TREE_FOLDER_API}${query}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: HTTP_METHOD_GET,
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: `Server phản hồi lỗi HTTP ${response.status}`,
+      };
+    }
+
+    const json = await response.json();
+    return {
+      ok: true,
+      data: Array.isArray(json?.data) ? json.data : [],
+    };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return {
+        ok: false,
+        error: `Hết thời gian tải cây thư mục (${Math.round(timeoutMs / 1000)}s).`,
+      };
+    }
+    return {
+      ok: false,
+      error: err.message || 'Không thể lấy cây thư mục từ Coordinator.',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default {
   HEALTH_CHECK_API,
   VERIFY_COOKIES_API,
   UPDATE_COOKIES_API,
   GET_COOKIE_CONTENT_API,
+  GET_TREE_FOLDER_API,
   HTTP_METHOD_GET,
   HTTP_METHOD_POST,
   DEFAULT_HEALTH_TIMEOUT_MS,
   DEFAULT_VERIFY_TIMEOUT_MS,
+  DEFAULT_TREE_FOLDER_TIMEOUT_MS,
   checkCoordinatorHealth,
   verifyCookiesApi,
   updateCookiesApi,
   getCookieContentApi,
+  getFolderTreeApi,
 };

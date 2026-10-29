@@ -1,45 +1,16 @@
 import { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import './SidebarTree.css';
+import useFolderTree from '../../../hooks/useFolderTree';
 import Loading from '../../common/Loading/Loading';
 import FolderIcon from '../../../assets/icons/FolderIcon';
 import FolderOpenIcon from '../../../assets/icons/FolderOpenIcon';
 
-// Hàm sinh 20 thư mục cấp 1, mỗi thư mục ngẫu nhiên 1 -> 20 thư mục con
-function generateMockFolders() {
-  return Array.from({ length: 20 }, (_, i) => {
-    const parentNum = i + 1;
-    const childCount = Math.floor(Math.random() * 20) + 1; // 1 đến 20
-    const children = Array.from({ length: childCount }, (_, j) => {
-      const childNum = j + 1;
-      const childId = `${parentNum}.${childNum}`;
-      // Thêm các thư mục con cho Thư mục 3.1 theo yêu cầu test
-      let grandChildren = [];
-      if (childId === '3.1') {
-        grandChildren = [
-          { id: '3.1.1', name: 'Thư mục 3.1.1' },
-          { id: '3.1.2', name: 'Thư mục 3.1.2' },
-          { id: '3.1.3', name: 'Thư mục 3.1.3' },
-          { id: '3.1.4', name: 'Thư mục 3.1.4' },
-        ];
-      }
-      return {
-        id: childId,
-        name: `Thư mục ${childId}`,
-        children: grandChildren,
-      };
-    });
-    return {
-      id: `${parentNum}`,
-      name: `Thư mục ${parentNum}`,
-      children,
-    };
-  });
-}
-
 // Helper tìm tên của thư mục đang chọn (chỉ trả về tên thư mục được chọn)
 function findFolderName(items, targetId) {
+  if (!Array.isArray(items)) return null;
   for (const item of items) {
-    if (item.id === targetId) {
+    const itemId = item.id || item.path;
+    if (itemId === targetId) {
       return item.name;
     }
     if (item.children && item.children.length > 0) {
@@ -53,8 +24,9 @@ function findFolderName(items, targetId) {
 // Component đệ quy hiển thị từng mục thư mục ở mọi cấp
 function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect }) {
   const hasChildren = item.children && item.children.length > 0;
-  const isExpanded = expandedIds.has(item.id);
-  const isSelected = selectedId === item.id;
+  const itemId = item.id || item.path;
+  const isExpanded = expandedIds.has(itemId);
+  const isSelected = selectedId === itemId;
   const itemStyle = level > 1 ? { paddingLeft: `${6 + (level - 1) * 28}px` } : undefined;
 
   return (
@@ -64,8 +36,8 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
           isSelected ? 'sidebar-tree__item--selected' : ''
         }`}
         style={itemStyle}
-        data-tree-id={item.id}
-        onClick={() => onSelect(item.id, hasChildren)}
+        data-tree-id={itemId}
+        onClick={() => onSelect(itemId, hasChildren)}
         title={item.name}
       >
         {/* Nếu có con: nút chevron xoay; nếu không có con: spacer 18px giữ chỗ để thẳng hàng icon */}
@@ -73,7 +45,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
           <button
             type="button"
             className={`sidebar-tree__chevron ${isExpanded ? 'sidebar-tree__chevron--expanded' : ''}`}
-            onClick={(e) => onToggle(item.id, e)}
+            onClick={(e) => onToggle(itemId, e)}
             aria-label={isExpanded ? 'Thu gọn' : 'Mở rộng'}
           >
             <svg viewBox="0 0 20 20" fill="currentColor">
@@ -113,7 +85,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
         <div className="sidebar-tree__sub-list">
           {item.children.map(child => (
             <TreeItem
-              key={child.id}
+              key={child.id || child.path}
               item={child}
               level={level + 1}
               expandedIds={expandedIds}
@@ -129,39 +101,13 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
 }
 
 function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
-  const folders = useMemo(() => generateMockFolders(), []);
+  const { folders, normalizedDriveId, isFetchingTree } = useFolderTree(activeDriveId);
   const scrollContainerRef = useRef(null);
   const [floatingDirection, setFloatingDirection] = useState(null); // 'above' | 'below' | null
 
-  // Chia thành 2 khối tương ứng với 2 ổ cứng (hỗ trợ cả ID HDD/SSD và legacy drive-1/drive-2)
-  const driveGroups = useMemo(() => {
-    return [
-      {
-        id: 'HDD',
-        legacyId: 'drive-1',
-        driveName: 'HDD',
-        folders: folders.slice(0, 10),
-      },
-      {
-        id: 'SSD',
-        legacyId: 'drive-2',
-        driveName: 'SSD',
-        folders: folders.slice(10, 20),
-      },
-    ];
-  }, [folders]);
-
-  // Lấy dữ liệu của ổ cứng đang được chọn
-  const activeDrive = useMemo(() => {
-    return (
-      driveGroups.find((d) => d.id === activeDriveId || d.legacyId === activeDriveId) ||
-      driveGroups[0]
-    );
-  }, [driveGroups, activeDriveId]);
-
-  // Mở sẵn Thư mục 3 và 3.1 để người dùng quan sát ban đầu
-  const [expandedIds, setExpandedIds] = useState(() => new Set(['3', '3.1']));
-  const [selectedId, setSelectedId] = useState('3.1');
+  // Trạng thái mở rộng và chọn thư mục
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [selectedId, setSelectedId] = useState(null);
 
   // Khi chuyển sang ổ đĩa khác: xóa trắng trạng thái trỏ/mở của ổ cũ và cuộn về đầu
   const isFirstMountRef = useRef(true);
@@ -176,13 +122,13 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
-  }, [activeDriveId]);
+  }, [normalizedDriveId]);
 
   // Lấy đúng tên thư mục đang chọn (chỉ tên thư mục con hoặc gốc, không nối >)
   const selectedFolderName = useMemo(() => {
     if (!selectedId) return null;
-    return findFolderName(activeDrive.folders, selectedId);
-  }, [activeDrive.folders, selectedId]);
+    return findFolderName(folders, selectedId);
+  }, [folders, selectedId]);
 
   // Kiểm tra xem mục đang chọn có bị cuộn khuất khỏi tầm mắt hay không
   const checkVisibility = useCallback(() => {
@@ -303,10 +249,10 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
   return (
     <div className="sidebar-tree-container">
       {/* Tiêu đề cố định ở đỉnh, tự động rút gọn theo độ rộng khung chứa */}
-      <div className="sidebar-tree-header" title={`Folder Tree of ${activeDrive.driveName}`}>
+      <div className="sidebar-tree-header" title={`Folder Tree of ${normalizedDriveId}`}>
         <span className="sidebar-tree-header__prefix-full">Folder Tree of </span>
         <span className="sidebar-tree-header__prefix-short">Folder of </span>
-        <span className="sidebar-tree-header__name">{activeDrive.driveName}</span>
+        <span className="sidebar-tree-header__name">{normalizedDriveId}</span>
       </div>
 
       {/* Nút nổi định vị khi thư mục đang chọn bị cuộn khuất khỏi màn hình */}
@@ -349,9 +295,9 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
         onScroll={checkVisibility}
       >
         <div className="sidebar-tree__list">
-          {activeDrive.folders.map(folder => (
+          {folders.map(folder => (
             <TreeItem
-              key={folder.id}
+              key={folder.id || folder.path}
               item={folder}
               level={1}
               expandedIds={expandedIds}
@@ -364,7 +310,7 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
       </div>
 
       {/* Lớp phủ Loading che trọn toàn bộ SidebarTree (cả tiêu đề lẫn danh sách thư mục) */}
-      {isLoading && (
+      {(isLoading || isFetchingTree) && (
         <div className="sidebar-tree-overlay" aria-live="polite">
           <Loading text="" size="md" />
         </div>

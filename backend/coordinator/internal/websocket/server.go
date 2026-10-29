@@ -133,6 +133,11 @@ func (s *Server) handleMessage(connection *Connection, currentWorkerID string, m
 		}
 		go s.handleWorkerSessionGet(currentWorkerID, message)
 		return "", nil
+	case protocol.FolderTreeGet:
+		if s.coordinator.ResolveRPC(message.TaskID, message) {
+			return "", nil
+		}
+		return "", nil
 	default:
 		return "", fmtError("unsupported message type")
 	}

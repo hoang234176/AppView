@@ -27,6 +27,7 @@ const (
 	SessionStatus          MessageType = "session.status"
 	SessionSave            MessageType = "session.save"
 	SessionGet             MessageType = "session.get"
+	FolderTreeGet          MessageType = "folder.tree"
 	BatchJobProgressMessage MessageType = "batch_job_progress"
 	Error                  MessageType = "error"
 )
@@ -221,4 +222,19 @@ type SessionGetResult struct {
 	Platform string `json:"platform"`
 	Exists   bool   `json:"exists"`
 	Session  string `json:"session,omitempty"`
+}
+
+type FolderTreeRequestPayload struct {
+	Drive string `json:"drive,omitempty"`
+}
+
+type FolderNode struct {
+	Type     string        `json:"type"`
+	Name     string        `json:"name"`
+	Path     string        `json:"path"`
+	Children []*FolderNode `json:"children,omitempty"`
+}
+
+type FolderTreeResult struct {
+	Data []*FolderNode `json:"data"`
 }

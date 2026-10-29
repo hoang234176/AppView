@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	pythonapi "backend/api/python"
+	"backend/configs"
 	"backend/media_download/facebook"
 	"backend/media_download/instagram"
 	"backend/media_download/x"
@@ -566,5 +569,37 @@ func TestHandlerRoutesToX(t *testing.T) {
 	}
 	if len(sent) < 3 || sent[0].Type != TaskAccepted || sent[len(sent)-1].Type != TaskCompleted {
 		t.Fatalf("expected TaskAccepted and TaskCompleted, got %+v", sent)
+	}
+}
+
+func TestHandlerFolderTreeMessage(t *testing.T) {
+	tempDir := t.TempDir()
+	subDir := filepath.Join(tempDir, "TestFolder")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatalf("failed to create temp test folder: %v", err)
+	}
+
+	oldRoot := configs.DEFAULT_ROOT_PATH
+	configs.DEFAULT_ROOT_PATH = tempDir
+	defer func() { configs.DEFAULT_ROOT_PATH = oldRoot }()
+
+	handler := NewHandler(nil, nil)
+	var sent []Message
+	handler.HandleFolderTreeMessage(Message{
+		Type:   FolderTreeGet,
+		TaskID: "tree-task-1",
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Type != FolderTreeGet {
+		t.Fatalf("expected 1 FolderTreeGet message, got %+v", sent)
+	}
+
+	res, ok := sent[0].Result.(FolderTreeResult)
+	if !ok {
+		t.Fatalf("expected FolderTreeResult, got %T", sent[0].Result)
+	}
+
+	if len(res.Data) != 1 || res.Data[0].Name != "TestFolder" {
+		t.Fatalf("expected folder TestFolder, got %+v", res.Data)
 	}
 }

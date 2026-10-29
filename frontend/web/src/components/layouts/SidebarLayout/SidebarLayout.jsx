@@ -23,6 +23,13 @@ function SidebarLayout() {
 
   const [pendingDriveId, setPendingDriveId] = useState(null);
   const [previousRouteDriveId, setPreviousRouteDriveId] = useState(currentRouteDriveId);
+  const [prevRouteDriveId, setPrevRouteDriveId] = useState(routeDriveId);
+  if (routeDriveId !== prevRouteDriveId) {
+    setPrevRouteDriveId(routeDriveId);
+    if (pendingDriveId) {
+      setPendingDriveId(null);
+    }
+  }
   const [isTreeLoading, setIsTreeLoading] = useState(false);
   const driveTimeoutRef = useRef(null);
 
@@ -106,7 +113,6 @@ function SidebarLayout() {
 
     driveTimeoutRef.current = setTimeout(() => {
       // 3. Sau 400ms: cập nhật dữ liệu cây thư mục sang ổ mới, tắt overlay và chuyển route URL
-      setPendingDriveId(null);
       setIsTreeLoading(false);
       hideContentLoading();
       navigate(`/drives/${newDriveId}`);

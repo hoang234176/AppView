@@ -175,6 +175,8 @@ func (c *Client) connectOnce(ctx context.Context) error {
 			go c.handler.HandleCookieMessage(incoming, safeConn.Send)
 		case SessionStatus, SessionSave, SessionGet:
 			go c.handler.HandleSessionMessage(incoming, safeConn.Send)
+		case FolderTreeGet:
+			go c.handler.HandleFolderTreeMessage(incoming, safeConn.Send)
 		case ProtocolError:
 			if incoming.Error != nil {
 				utils.LogEvent("WARN", "storage worker coordinator protocol error", map[string]any{"workerId": c.config.WorkerID, "error": incoming.Error.Message})

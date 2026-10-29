@@ -5,6 +5,7 @@ package worker
 import (
 	pythonapi "backend/api/python"
 	"backend/events"
+	"backend/models"
 	"encoding/json"
 	"time"
 )
@@ -27,6 +28,7 @@ const (
 	SessionStatus      = "session.status"
 	SessionSave        = "session.save"
 	SessionGet         = "session.get"
+	FolderTreeGet      = "folder.tree"
 	BatchJobProgressMessage = "batch_job_progress"
 
 	CapabilityDownloadFile = "download_file"
@@ -131,4 +133,12 @@ type SessionGetResult struct {
 	Platform string `json:"platform"`
 	Exists   bool   `json:"exists"`
 	Session  string `json:"session,omitempty"`
+}
+
+type FolderTreeRequestPayload struct {
+	Drive string `json:"drive,omitempty"`
+}
+
+type FolderTreeResult struct {
+	Data []*models.FolderNode `json:"data"`
 }

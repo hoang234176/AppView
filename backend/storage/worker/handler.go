@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pythonapi "backend/api/python"
+	"backend/configs"
 	"backend/cookies"
 	"backend/media_download/facebook"
 	"backend/media_download/instagram"
@@ -16,6 +17,7 @@ import (
 	"backend/media_download/tiktok"
 	"backend/media_download/x"
 	"backend/media_download/youtube"
+	"backend/models"
 	"backend/session"
 	"backend/utils"
 )
@@ -1968,4 +1970,34 @@ func (h *Handler) HandleSessionMessage(msg Message, send SendFunc) {
 			},
 		})
 	}
+}
+
+func (h *Handler) HandleFolderTreeMessage(msg Message, send SendFunc) {
+	var req FolderTreeRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+
+	rootPath := configs.ResolveDriveRoot(req.Drive)
+	tree, err := utils.GetFolderTree(rootPath, "")
+	if err != nil {
+		_ = send(Message{
+			Type:   FolderTreeGet,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: "FOLDER_TREE_FAILED", Message: err.Error()},
+		})
+		return
+	}
+
+	if tree == nil {
+		tree = []*models.FolderNode{}
+	}
+
+	_ = send(Message{
+		Type:   FolderTreeGet,
+		TaskID: msg.TaskID,
+		Result: FolderTreeResult{
+			Data: tree,
+		},
+	})
 }
