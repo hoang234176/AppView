@@ -1,11 +1,27 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import useLayout from '../../../../hooks/useLayout';
 import NavPill from './NavPill';
 
 function HeaderLeft() {
   const { toggleSidebar, isMobile, isHeaderTitleVisible } = useLayout();
   const location = useLocation();
+  const { driveId } = useParams();
   const isSettings = location.pathname === '/settings';
+
+  // Xác định tiêu đề hiển thị bên cạnh nút < >:
+  // - Khi ở Settings: hiển thị "Settings"
+  // - Khi ở ổ đĩa / thư mục: nếu có path con thì chỉ lấy tên thư mục con cuối cùng, ngược lại lấy tên ổ đĩa
+  let displayTitle = driveId || 'SSD';
+  if (!isSettings) {
+    const queryParams = new URLSearchParams(location.search);
+    const currentPath = queryParams.get('path');
+    if (currentPath && currentPath.trim() !== '') {
+      const segments = currentPath.trim().split('/').filter(Boolean);
+      if (segments.length > 0) {
+        displayTitle = segments[segments.length - 1];
+      }
+    }
+  }
 
   return (
     <div className="header-left-zone">
@@ -25,12 +41,19 @@ function HeaderLeft() {
       {/* Viên thuốc điều hướng lùi / tiến */}
       <NavPill />
 
-      {/* Tiêu đề trang trượt mờ sau nút < > (dành cho Settings) */}
-      {isSettings && (
+      {/* Tiêu đề ổ đĩa / thư mục con bên cạnh nút < > */}
+      {isSettings ? (
         <span
           className={`header-left-title ${isHeaderTitleVisible ? 'header-left-title--visible' : ''}`}
         >
           Settings
+        </span>
+      ) : (
+        <span
+          className="header-left-title header-left-title--drive"
+          title={displayTitle}
+        >
+          {displayTitle}
         </span>
       )}
     </div>

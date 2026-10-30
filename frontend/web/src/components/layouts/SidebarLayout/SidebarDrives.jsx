@@ -66,135 +66,71 @@ function SidebarDrives({ activeDriveId = 'SSD', onSelectDrive }) {
 
   return (
     <div className="sidebar-drives">
-      <div className="sidebar-drives-track">
-        {/* Layer 1: 2 khối đứng song song (> 20vw) */}
-        <div className="sidebar-drives-layer sidebar-drives-layer--grid">
-          {displayDrives.map((drive) => {
-            const isAvailable = drive.available !== false && (drive.totalBytes > 0 || drive.usedPercent > 0);
-            const isActive = isAvailable && (resolvedActiveId === drive.id || resolvedActiveId === drive.displayName);
-            const percent = isAvailable ? Math.min(Math.max(drive.usedPercent || 0, 0), 100) : 0;
-            const isHighUsage = percent >= 90;
-            const usedText = formatStorageBytes(drive.usedBytes);
-            const freeText = formatStorageBytes(drive.availableBytes);
-            const totalText = formatStorageBytes(drive.totalBytes);
+      {displayDrives.map((drive) => {
+        const isAvailable = drive.available !== false && (drive.totalBytes > 0 || drive.usedPercent > 0);
+        const isActive = isAvailable && (resolvedActiveId === drive.id || resolvedActiveId === drive.displayName);
+        const percent = isAvailable ? Math.min(Math.max(drive.usedPercent || 0, 0), 100) : 0;
+        const isHighUsage = percent >= 90;
+        const usedText = formatStorageBytes(drive.usedBytes);
+        const freeText = formatStorageBytes(drive.availableBytes);
+        const totalText = formatStorageBytes(drive.totalBytes);
 
-            const isJustMounted = animatingMountIds.has(drive.id);
-            const isJustUnmounted = animatingUnmountIds.has(drive.id);
+        const isJustMounted = animatingMountIds.has(drive.id);
+        const isJustUnmounted = animatingUnmountIds.has(drive.id);
 
-            return (
-              <button
-                key={drive.id}
-                type="button"
-                className={`sidebar-drive-card ${isActive ? 'sidebar-drive-card--active' : ''} ${!isAvailable ? 'sidebar-drive-card--offline' : ''} ${isJustMounted ? 'sidebar-drive-card--just-mounted' : ''} ${isJustUnmounted ? 'sidebar-drive-card--just-unmounted' : ''}`}
-                onClick={() => isAvailable && onSelectDrive?.(drive.id)}
-                aria-label={`Drive ${drive.displayName}, ${isAvailable ? `${Math.round(percent)}% used` : 'Offline'}`}
-              >
-                <div className="sidebar-drive-content sidebar-drive-content--grid">
-                  {/* Cột trái: Khối Icon độc lập */}
-                  <div className="sidebar-drive-icon-col">
-                    <DriveIcon type={drive.displayName || drive.id} className="sidebar-drive-card__icon" />
-                  </div>
+        return (
+          <button
+            key={drive.id}
+            type="button"
+            className={`sidebar-drive-card ${isActive ? 'sidebar-drive-card--active' : ''} ${!isAvailable ? 'sidebar-drive-card--offline' : ''} ${isJustMounted ? 'sidebar-drive-card--just-mounted' : ''} ${isJustUnmounted ? 'sidebar-drive-card--just-unmounted' : ''}`}
+            onClick={() => isAvailable && onSelectDrive?.(drive.id)}
+            title={isAvailable ? `${drive.displayName}: ${freeText} free (${usedText} / ${totalText})` : `${drive.displayName}: Offline`}
+            aria-label={`Drive ${drive.displayName}, ${isAvailable ? `${Math.round(percent)}% used` : 'Offline'}`}
+          >
+            <div className="sidebar-drive-content">
+              {/* Cột trái: Khối Icon độc lập */}
+              <div className="sidebar-drive-icon-col">
+                <DriveIcon type={drive.displayName || drive.id} className="sidebar-drive-card__icon" />
+              </div>
 
-                  {/* Cột phải: Toàn bộ thông tin (Tên + %, Thanh %, Free trước & Đã dùng / Gốc sau) */}
-                  <div className="sidebar-drive-info-col">
-                    {/* Hàng 1: Tên ổ (trái) | % (phải) */}
-                    <div className="sidebar-drive-name-row">
-                      <span className="sidebar-drive-card__name">{drive.displayName}</span>
-                      <span className={`sidebar-drive-card__percent ${isActive ? 'sidebar-drive-card__percent--active' : ''}`}>
-                        {isAvailable ? `${Math.round(percent)}%` : '—'}
-                      </span>
-                    </div>
-
-                    {/* Hàng 2: Thanh tiến trình ngang nằm ngay dưới tên */}
-                    <div className="sidebar-drive-progress-track">
-                      <div
-                        className={`sidebar-drive-progress-fill ${isActive ? 'sidebar-drive-progress-fill--active' : ''} ${isHighUsage ? 'sidebar-drive-progress-fill--warning' : ''}`}
-                        style={{ width: isAvailable ? `${percent}%` : '0%' }}
-                      />
-                    </div>
-
-                    {/* Hàng 3: Free trước | Đã dùng / Dung lượng gốc sau */}
-                    <div className="sidebar-drive-stats-row">
-                      {isAvailable ? (
-                        <>
-                          <span className="sidebar-drive-card__stats sidebar-drive-card__stats--free">{freeText} free</span>
-                          <span className="sidebar-drive-card__stats">{usedText} / {totalText}</span>
-                        </>
-                      ) : (
-                        <span className="sidebar-drive-card__stats sidebar-drive-card__stats--offline">Offline</span>
-                      )}
-                    </div>
-                  </div>
+              {/* Cột phải: Toàn bộ thông tin */}
+              <div className="sidebar-drive-info-col">
+                {/* Hàng 1: Tên ổ (trái) | % (phải) */}
+                <div className="sidebar-drive-name-row">
+                  <span className="sidebar-drive-card__name">{drive.displayName}</span>
+                  <span className={`sidebar-drive-card__percent ${isActive ? 'sidebar-drive-card__percent--active' : ''}`}>
+                    {isAvailable ? `${Math.round(percent)}%` : '—'}
+                  </span>
                 </div>
-              </button>
-            );
-          })}
-        </div>
 
-        {/* Layer 2: 2 thanh ngang xếp chồng (trượt vào khi <= 20vw) */}
-        <div className="sidebar-drives-layer sidebar-drives-layer--stacked">
-          {displayDrives.map((drive) => {
-            const isAvailable = drive.available !== false && (drive.totalBytes > 0 || drive.usedPercent > 0);
-            const isActive = isAvailable && (resolvedActiveId === drive.id || resolvedActiveId === drive.displayName);
-            const percent = isAvailable ? Math.min(Math.max(drive.usedPercent || 0, 0), 100) : 0;
-            const isHighUsage = percent >= 90;
-            const usedText = formatStorageBytes(drive.usedBytes);
-            const freeText = formatStorageBytes(drive.availableBytes);
-            const totalText = formatStorageBytes(drive.totalBytes);
-
-            const isJustMounted = animatingMountIds.has(drive.id);
-            const isJustUnmounted = animatingUnmountIds.has(drive.id);
-
-            return (
-              <button
-                key={drive.id}
-                type="button"
-                className={`sidebar-drive-card sidebar-drive-card--stacked ${isActive ? 'sidebar-drive-card--active' : ''} ${!isAvailable ? 'sidebar-drive-card--offline' : ''} ${isJustMounted ? 'sidebar-drive-card--just-mounted' : ''} ${isJustUnmounted ? 'sidebar-drive-card--just-unmounted' : ''}`}
-                onClick={() => isAvailable && onSelectDrive?.(drive.id)}
-                aria-label={`Drive ${drive.displayName}, ${isAvailable ? `${Math.round(percent)}% used` : 'Offline'}`}
-              >
-                <div className="sidebar-drive-content sidebar-drive-content--stacked">
-                  {/* Cột trái: Khối Icon độc lập */}
-                  <div className="sidebar-drive-icon-col">
-                    <DriveIcon type={drive.displayName || drive.id} className="sidebar-drive-card__icon" />
-                  </div>
-
-                  {/* Cột phải: Toàn bộ thông tin */}
-                  <div className="sidebar-drive-info-col">
-                    {/* Hàng 1: Tên ổ (trái) | % (phải) */}
-                    <div className="sidebar-drive-name-row">
-                      <span className="sidebar-drive-card__name">{drive.displayName}</span>
-                      <span className={`sidebar-drive-card__percent ${isActive ? 'sidebar-drive-card__percent--active' : ''}`}>
-                        {isAvailable ? `${Math.round(percent)}%` : '—'}
-                      </span>
-                    </div>
-
-                    {/* Hàng 2: Thanh tiến trình ngang nằm ngay dưới tên */}
-                    <div className="sidebar-drive-progress-track">
-                      <div
-                        className={`sidebar-drive-progress-fill ${isActive ? 'sidebar-drive-progress-fill--active' : ''} ${isHighUsage ? 'sidebar-drive-progress-fill--warning' : ''}`}
-                        style={{ width: isAvailable ? `${percent}%` : '0%' }}
-                      />
-                    </div>
-
-                    {/* Hàng 3: Free trước | Đã dùng / Dung lượng gốc sau */}
-                    <div className="sidebar-drive-stats-row">
-                      {isAvailable ? (
-                        <>
-                          <span className="sidebar-drive-card__stats sidebar-drive-card__stats--free">{freeText} free</span>
-                          <span className="sidebar-drive-card__stats">{usedText} / {totalText}</span>
-                        </>
-                      ) : (
-                        <span className="sidebar-drive-card__stats sidebar-drive-card__stats--offline">Offline</span>
-                      )}
-                    </div>
-                  </div>
+                {/* Hàng 2: Thanh tiến trình ngang nằm ngay dưới tên */}
+                <div className="sidebar-drive-progress-track">
+                  <div
+                    className={`sidebar-drive-progress-fill ${isActive ? 'sidebar-drive-progress-fill--active' : ''} ${isHighUsage ? 'sidebar-drive-progress-fill--warning' : ''}`}
+                    style={{ width: isAvailable ? `${percent}%` : '0%' }}
+                  />
                 </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+
+                {/* Hàng 3: Đã dùng (trái) | Dung lượng tổng (phải) */}
+                <div className="sidebar-drive-stats-row">
+                  {isAvailable ? (
+                    <>
+                      <span className="sidebar-drive-card__stats sidebar-drive-stat-used">
+                        {usedText}
+                      </span>
+                      <span className="sidebar-drive-card__stats sidebar-drive-stat-total">
+                        {totalText}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="sidebar-drive-card__stats sidebar-drive-card__stats--offline">Offline</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

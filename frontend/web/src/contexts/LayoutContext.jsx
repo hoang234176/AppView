@@ -18,7 +18,7 @@ export function LayoutProvider({ children }) {
       const saved = localStorage.getItem('appview_sidebar_width');
       if (saved) {
         const val = parseFloat(saved);
-        if (!isNaN(val) && val >= 15 && val <= 60) {
+        if (!isNaN(val) && val >= 15 && val <= 40) {
           return val;
         }
       }
@@ -248,7 +248,7 @@ export function LayoutProvider({ children }) {
       let percentage = (currentX / appWidth) * 100;
 
       if (percentage < 15) percentage = 15;
-      if (percentage > 60) percentage = 60;
+      if (percentage > 40) percentage = 40;
 
       return percentage;
     };

@@ -996,3 +996,35 @@ func (c *Coordinator) GetFolderTree(ctx context.Context, drive string) ([]*proto
 	}
 	return res.Data, nil
 }
+
+func (c *Coordinator) GetFolderContents(ctx context.Context, req protocol.FolderContentsRequestPayload) (*protocol.FolderContentsResult, error) {
+	storageWorker, ok := c.workers.AnyFor(string(protocol.DownloadFile))
+	if !ok {
+		return nil, fmt.Errorf("storage worker is unavailable")
+	}
+	payload := mustJSON(req)
+	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
+		Type:    protocol.FolderContentsGet,
+		Payload: payload,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != nil {
+		return nil, fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message)
+	}
+	var res protocol.FolderContentsResult
+	if err := json.Unmarshal(resp.Result, &res); err != nil {
+		return nil, fmt.Errorf("invalid response from storage worker: %w", err)
+	}
+	if res.Folders == nil {
+		res.Folders = []*protocol.FolderItem{}
+	}
+	if res.Pictures == nil {
+		res.Pictures = []*protocol.PictureItem{}
+	}
+	if res.Videos == nil {
+		res.Videos = []*protocol.VideoItem{}
+	}
+	return &res, nil
+}

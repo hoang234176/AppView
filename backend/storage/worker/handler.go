@@ -2001,3 +2001,150 @@ func (h *Handler) HandleFolderTreeMessage(msg Message, send SendFunc) {
 		},
 	})
 }
+
+func (h *Handler) HandleFolderContentsMessage(msg Message, send SendFunc) {
+	var req FolderContentsRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+
+	rootPath := configs.ResolveDriveRoot(req.Drive)
+	targetRelPath := req.Path
+
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := req.Limit
+
+	folderLimit := req.FolderLimit
+	if folderLimit <= 0 {
+		folderLimit = limit
+	}
+	pictureLimit := req.PictureLimit
+	if pictureLimit <= 0 {
+		pictureLimit = limit
+	}
+	videoLimit := req.VideoLimit
+	if videoLimit <= 0 {
+		videoLimit = limit
+	}
+
+	folderPage := req.FolderPage
+	if folderPage < 1 {
+		folderPage = page
+	}
+	picturePage := req.PicturePage
+	if picturePage < 1 {
+		picturePage = page
+	}
+	videoPage := req.VideoPage
+	if videoPage < 1 {
+		videoPage = page
+	}
+
+	folders, err := utils.GetSubFolders(rootPath, targetRelPath)
+	if err != nil {
+		_ = send(Message{
+			Type:   FolderContentsGet,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: "FOLDER_CONTENTS_FAILED", Message: err.Error()},
+		})
+		return
+	}
+
+	pictures, _ := utils.GetPicturesInFolder(rootPath, targetRelPath)
+	videos, _ := utils.GetVideosInFolder(rootPath, targetRelPath)
+
+	totalFolders := len(folders)
+	totalPictures := len(pictures)
+	totalVideos := len(videos)
+
+	if folderLimit > 0 {
+		start := (folderPage - 1) * folderLimit
+		if start < 0 {
+			start = 0
+		}
+		if start >= totalFolders {
+			folders = folders[:0]
+		} else {
+			end := start + folderLimit
+			if end > totalFolders {
+				end = totalFolders
+			}
+			folders = folders[start:end]
+		}
+	}
+
+	if pictureLimit > 0 {
+		start := (picturePage - 1) * pictureLimit
+		if start < 0 {
+			start = 0
+		}
+		if start >= totalPictures {
+			pictures = pictures[:0]
+		} else {
+			end := start + pictureLimit
+			if end > totalPictures {
+				end = totalPictures
+			}
+			pictures = pictures[start:end]
+		}
+	}
+
+	if videoLimit > 0 {
+		start := (videoPage - 1) * videoLimit
+		if start < 0 {
+			start = 0
+		}
+		if start >= totalVideos {
+			videos = videos[:0]
+		} else {
+			end := start + videoLimit
+			if end > totalVideos {
+				end = totalVideos
+			}
+			videos = videos[start:end]
+		}
+	}
+
+	if folders == nil {
+		folders = []*models.FolderItem{}
+	}
+	if pictures == nil {
+		pictures = []*models.PictureItem{}
+	}
+	if videos == nil {
+		videos = []*models.VideoItem{}
+	}
+
+	for i := range pictures {
+		encodedPath := utils.EncodePathSegments(pictures[i].Path)
+		pictures[i].URL = fmt.Sprintf("http://127.0.0.1:8080/api/v1/pictures/%s/%s", req.Drive, encodedPath)
+		pictures[i].ThumbnailURL = fmt.Sprintf("http://127.0.0.1:8080/api/v1/thumbnails/%s/%s", req.Drive, encodedPath)
+	}
+
+	for i := range videos {
+		encodedPath := utils.EncodePathSegments(videos[i].Path)
+		videos[i].URL = fmt.Sprintf("http://127.0.0.1:8080/api/v1/videos/%s/%s", req.Drive, encodedPath)
+		videos[i].ThumbnailURL = fmt.Sprintf("http://127.0.0.1:8080/api/v1/thumbnails/%s/%s", req.Drive, encodedPath)
+	}
+
+	utils.PopulateFolderPreviews(req.Drive, rootPath, folders, "http://127.0.0.1:8080")
+
+	_ = send(Message{
+		Type:   FolderContentsGet,
+		TaskID: msg.TaskID,
+		Result: FolderContentsResult{
+			CurrentPath:   targetRelPath,
+			Folders:       folders,
+			Pictures:      pictures,
+			Videos:        videos,
+			TotalFolders:  totalFolders,
+			TotalPictures: totalPictures,
+			TotalVideos:   totalVideos,
+			Page:          page,
+			Limit:         limit,
+		},
+	})
+}

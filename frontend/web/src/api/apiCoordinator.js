@@ -11,6 +11,7 @@ export const UPDATE_COOKIES_API = '/api/v1/cookies/update';
 export const SAVE_COOKIES_API = '/api/v1/cookies/save';
 export const GET_COOKIE_CONTENT_API = '/api/v1/cookies/content';
 export const GET_TREE_FOLDER_API = '/api/v1/tree-folder';
+export const GET_FOLDER_CONTENTS_API = '/api/v1/folder';
 
 // 2. HTTP METHODS VIẾT HOA
 export const HTTP_METHOD_GET = 'GET';
@@ -20,6 +21,7 @@ export const HTTP_METHOD_POST = 'POST';
 export const DEFAULT_HEALTH_TIMEOUT_MS = 5000;
 export const DEFAULT_VERIFY_TIMEOUT_MS = 65000;
 export const DEFAULT_TREE_FOLDER_TIMEOUT_MS = 10000;
+export const DEFAULT_FOLDER_CONTENTS_TIMEOUT_MS = 15000;
 
 /**
  * Kiểm tra kết nối tới dịch vụ Coordinator qua endpoint GET /health
@@ -478,20 +480,107 @@ export async function getFolderTreeApi(host, port, drive = '', timeoutMs = DEFAU
   }
 }
 
+/**
+ * Lấy danh sách nội dung thư mục (folders, pictures, videos) từ Coordinator
+ * Endpoint: GET /api/v1/folder?drive=...&path=...
+ * @param {string} host - Host hoặc IP của Coordinator từ session
+ * @param {string|number} port - Cổng của Coordinator từ session
+ * @param {object} params - Tham số truy vấn (drive, path, page, limit, v.v.)
+ * @param {number} timeoutMs - Thời gian chờ tối đa (mặc định: 15000ms)
+ * @returns {Promise<{ ok: boolean, data?: object, error?: string }>}
+ */
+export async function getFolderContentsApi(
+  host,
+  port,
+  params = {},
+  timeoutMs = DEFAULT_FOLDER_CONTENTS_TIMEOUT_MS
+) {
+  const targetHost = String(host || '').trim();
+  const targetPort = String(port || '').trim();
+
+  if (!targetHost || !targetPort) {
+    return {
+      ok: false,
+      error: 'Thiếu host hoặc port của Coordinator từ phiên làm việc (Session).',
+    };
+  }
+
+  const queryParams = new URLSearchParams();
+  if (params.drive) queryParams.set('drive', String(params.drive).trim());
+  if (params.path !== undefined && params.path !== null) queryParams.set('path', String(params.path).trim());
+  if (params.page) queryParams.set('page', String(params.page));
+  if (params.limit) queryParams.set('limit', String(params.limit));
+  if (params.folder_limit) queryParams.set('folder_limit', String(params.folder_limit));
+  if (params.picture_limit) queryParams.set('picture_limit', String(params.picture_limit));
+  if (params.video_limit) queryParams.set('video_limit', String(params.video_limit));
+
+  const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
+  const url = `http://${targetHost}:${targetPort}${GET_FOLDER_CONTENTS_API}${query}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: HTTP_METHOD_GET,
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: `Server phản hồi lỗi HTTP ${response.status}`,
+      };
+    }
+
+    const json = await response.json();
+    return {
+      ok: true,
+      data: json?.data || {
+        current_path: '',
+        folders: [],
+        pictures: [],
+        videos: [],
+        total_folders: 0,
+        total_pictures: 0,
+        total_videos: 0,
+      },
+    };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return {
+        ok: false,
+        error: `Hết thời gian tải nội dung thư mục (${Math.round(timeoutMs / 1000)}s).`,
+      };
+    }
+    return {
+      ok: false,
+      error: err.message || 'Không thể lấy nội dung thư mục từ Coordinator.',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default {
   HEALTH_CHECK_API,
   VERIFY_COOKIES_API,
   UPDATE_COOKIES_API,
   GET_COOKIE_CONTENT_API,
   GET_TREE_FOLDER_API,
+  GET_FOLDER_CONTENTS_API,
   HTTP_METHOD_GET,
   HTTP_METHOD_POST,
   DEFAULT_HEALTH_TIMEOUT_MS,
   DEFAULT_VERIFY_TIMEOUT_MS,
   DEFAULT_TREE_FOLDER_TIMEOUT_MS,
+  DEFAULT_FOLDER_CONTENTS_TIMEOUT_MS,
   checkCoordinatorHealth,
   verifyCookiesApi,
   updateCookiesApi,
   getCookieContentApi,
   getFolderTreeApi,
+  getFolderContentsApi,
 };

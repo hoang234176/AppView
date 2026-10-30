@@ -124,7 +124,7 @@ function SidebarLayout() {
     : {
         width: `var(--sidebar-width, ${sidebarWidth}%)`,
         minWidth: '15%',
-        maxWidth: '60%',
+        maxWidth: '40%',
       };
 
   return (

@@ -26,7 +26,7 @@
   height: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
   flex-shrink: 0;
 }
 
@@ -34,7 +34,7 @@
 .header-left-title {
   display: inline-block;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
-  font-size: 0.95rem;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #111827;
@@ -59,6 +59,18 @@
   transform: translateX(0);
   max-width: 150px;
   pointer-events: auto;
+}
+
+/* Tiêu đề ổ đĩa / thư mục con bên cạnh nút < > */
+.header-left-title--drive {
+  font-size: 18px;
+  opacity: 1;
+  transform: translateX(0);
+  max-width: 350px;
+  pointer-events: auto;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 /* Khu vực bên phải (tối đa 60% chiều rộng, dồn sát về bên phải) */

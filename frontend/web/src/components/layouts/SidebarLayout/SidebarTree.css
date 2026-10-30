@@ -52,23 +52,13 @@
   display: inline;
 }
 
-/* Mức 2: Khi bị ép hẹp xuống (<= 220px) -> Folder of ... */
+/* Tự động rút gọn tiền tố: Folder Tree of ... -> Folder of ... khi Sidebar hẹp (<= 220px) */
 @container tree-header (max-width: 220px) {
   .sidebar-tree-header__prefix-full {
     display: none;
   }
   .sidebar-tree-header__prefix-short {
     display: inline;
-  }
-}
-
-/* Mức 3: Khi bị ép hẹp tối đa (<= 155px) -> ... (chỉ hiện tên ổ cứng) */
-@container tree-header (max-width: 155px) {
-  .sidebar-tree-header__prefix-full {
-    display: none;
-  }
-  .sidebar-tree-header__prefix-short {
-    display: none;
   }
 }
 

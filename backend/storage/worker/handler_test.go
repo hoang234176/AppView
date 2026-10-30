@@ -603,3 +603,48 @@ func TestHandlerFolderTreeMessage(t *testing.T) {
 		t.Fatalf("expected folder TestFolder, got %+v", res.Data)
 	}
 }
+
+func TestHandlerFolderContentsMessage(t *testing.T) {
+	tempDir := t.TempDir()
+	subDir := filepath.Join(tempDir, "SubDir")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatalf("failed to create temp test folder: %v", err)
+	}
+
+	testPic := filepath.Join(tempDir, "photo.jpg")
+	if err := os.WriteFile(testPic, []byte("fake-jpeg"), 0644); err != nil {
+		t.Fatalf("failed to create temp test picture: %v", err)
+	}
+
+	oldRoot := configs.DEFAULT_ROOT_PATH
+	configs.DEFAULT_ROOT_PATH = tempDir
+	defer func() { configs.DEFAULT_ROOT_PATH = oldRoot }()
+
+	handler := NewHandler(nil, nil)
+	var sent []Message
+	payload, _ := json.Marshal(FolderContentsRequestPayload{
+		Path: "",
+	})
+	handler.HandleFolderContentsMessage(Message{
+		Type:    FolderContentsGet,
+		TaskID:  "contents-task-1",
+		Payload: payload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Type != FolderContentsGet {
+		t.Fatalf("expected 1 FolderContentsGet message, got %+v", sent)
+	}
+
+	res, ok := sent[0].Result.(FolderContentsResult)
+	if !ok {
+		t.Fatalf("expected FolderContentsResult, got %T", sent[0].Result)
+	}
+
+	if res.TotalFolders != 1 || len(res.Folders) != 1 || res.Folders[0].Name != "SubDir" {
+		t.Fatalf("expected 1 folder SubDir, got %+v", res.Folders)
+	}
+
+	if res.TotalPictures != 1 || len(res.Pictures) != 1 || res.Pictures[0].Name != "photo.jpg" {
+		t.Fatalf("expected 1 picture photo.jpg, got %+v", res.Pictures)
+	}
+}

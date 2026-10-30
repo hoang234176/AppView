@@ -28,6 +28,7 @@ const (
 	SessionSave            MessageType = "session.save"
 	SessionGet             MessageType = "session.get"
 	FolderTreeGet          MessageType = "folder.tree"
+	FolderContentsGet      MessageType = "folder.contents"
 	BatchJobProgressMessage MessageType = "batch_job_progress"
 	Error                  MessageType = "error"
 )
@@ -237,4 +238,66 @@ type FolderNode struct {
 
 type FolderTreeResult struct {
 	Data []*FolderNode `json:"data"`
+}
+
+type FolderContentsRequestPayload struct {
+	Drive        string `json:"drive,omitempty"`
+	Path         string `json:"path,omitempty"`
+	Page         int    `json:"page,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
+	FolderLimit  int    `json:"folder_limit,omitempty"`
+	PictureLimit int    `json:"picture_limit,omitempty"`
+	VideoLimit   int    `json:"video_limit,omitempty"`
+	FolderPage   int    `json:"folder_page,omitempty"`
+	PicturePage  int    `json:"picture_page,omitempty"`
+	VideoPage    int    `json:"video_page,omitempty"`
+}
+
+type FolderItem struct {
+	ID           string   `json:"id,omitempty"`
+	Name         string   `json:"name"`
+	Path         string   `json:"path"`
+	Parent       string   `json:"parent,omitempty"`
+	Drive        string   `json:"drive,omitempty"`
+	Type         string   `json:"type,omitempty"`
+	ItemCount    int      `json:"item_count"`
+	Previews     []string `json:"previews,omitempty"`
+	PictureCount int      `json:"picture_count"`
+	VideoCount   int      `json:"video_count"`
+	ModTime      string   `json:"mod_time,omitempty"`
+}
+
+type PictureItem struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Path         string `json:"path"`
+	Drive        string `json:"drive"`
+	URL          string `json:"url"`
+	ThumbnailURL string `json:"thumbnail_url"`
+	Size         int64  `json:"size"`
+	ModTime      string `json:"mod_time"`
+}
+
+type VideoItem struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Path         string `json:"path"`
+	Drive        string `json:"drive"`
+	URL          string `json:"url"`
+	ThumbnailURL string `json:"thumbnail_url"`
+	Size         int64  `json:"size"`
+	Duration     string `json:"duration,omitempty"`
+	ModTime      string `json:"mod_time"`
+}
+
+type FolderContentsResult struct {
+	CurrentPath   string         `json:"current_path"`
+	Folders       []*FolderItem  `json:"folders"`
+	Pictures      []*PictureItem `json:"pictures"`
+	Videos        []*VideoItem   `json:"videos"`
+	TotalFolders  int            `json:"total_folders"`
+	TotalPictures int            `json:"total_pictures"`
+	TotalVideos   int            `json:"total_videos"`
+	Page          int            `json:"page"`
+	Limit         int            `json:"limit"`
 }

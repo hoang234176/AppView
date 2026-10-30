@@ -35,6 +35,7 @@ func Register(mux *http.ServeMux, coordinator *service.Coordinator) {
 	mux.HandleFunc("POST /api/v1/session/save", sessionHandler.Save)
 	folderHandler := NewFolderHandler(coordinator)
 	mux.HandleFunc("GET /api/v1/tree-folder", folderHandler.GetTreeFolder)
+	mux.HandleFunc("GET /api/v1/folder", folderHandler.GetFolder)
 	mux.HandleFunc("GET /health", Health(coordinator))
 	mux.HandleFunc("GET /docs", DocsHandler())
 	mux.HandleFunc("GET /api/openapi.json", OpenAPISpecHandler())

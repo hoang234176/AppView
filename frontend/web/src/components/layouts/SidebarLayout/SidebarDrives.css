@@ -1,4 +1,4 @@
-/* Khung chứa 2 khối ổ cứng ở đáy Sidebar (Không bọc padding hay margin ngoài) */
+/* Khung chứa 2 khối ổ cứng ở đáy Sidebar (Dạng 2 thanh ngang xếp chồng) */
 .sidebar-drives {
   margin-top: auto;
   padding: 0.75rem 0 0 0;
@@ -8,67 +8,21 @@
   box-sizing: border-box;
   user-select: none;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 :is(.dark, :root.dark) .sidebar-drives {
   border-top-color: #2e2e2e;
 }
 
-/* Track định vị và cắt các chuyển động trượt ra ngoài khung */
-.sidebar-drives-track {
+/* Từng khối ổ cứng thanh ngang xếp chồng (Màu sắc đầm nét, bo góc chuẩn macOS) */
+.sidebar-drive-card {
   position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* Layer dùng chung */
-.sidebar-drives-layer {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* Layer 1: 2 khối đứng nằm ngang song song (> 20vw) */
-.sidebar-drives-layer--grid {
-  flex-direction: row;
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.2s ease;
-}
-
-.sidebar-drives-layer--grid .sidebar-drive-card {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-}
-
-/* Layer 2: 2 thanh ngang xếp chồng (trượt từ trái sang phải vào khi <= 20vw) */
-.sidebar-drives-layer--stacked {
-  flex-direction: column;
-  opacity: 0;
-  transform: translateX(-100%);
-  pointer-events: none;
-  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.2s ease;
-}
-
-.sidebar-drives-layer--stacked .sidebar-drive-card {
   width: 100%;
   flex: 1;
   min-height: 0;
-  height: auto;
-}
-
-/* Từng khối ổ cứng (Màu sắc đầm nét, bo góc chuẩn macOS) */
-.sidebar-drive-card {
-  position: relative;
   border-radius: 10px;
   background-color: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -283,7 +237,7 @@
   color: #0a84ff;
 }
 
-/* Hàng 2: Thanh tiến trình ngang nằm NGAY DƯỚI TÊN (không lấn sang cột icon) */
+/* Hàng 2: Thanh tiến trình ngang nằm NGAY DƯỚI TÊN */
 .sidebar-drive-progress-track {
   width: 100%;
   height: clamp(4px, 0.55dvh, 5px);
@@ -320,7 +274,7 @@
   background-color: #f59e0b !important;
 }
 
-/* Hàng 3: Free trước | Đã dùng / Dung lượng gốc sau */
+/* Hàng 3: Đã dùng (trái) | Dung lượng tổng (phải) */
 .sidebar-drive-stats-row {
   display: flex;
   align-items: center;
@@ -330,27 +284,28 @@
   gap: 4px;
 }
 
-.sidebar-drive-card__stats {
+.sidebar-drive-stat-used {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: clamp(0.58rem, 1.15dvh, 0.72rem);
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+:is(.dark, :root.dark) .sidebar-drive-stat-used {
+  color: #cbd5e1;
+}
+
+.sidebar-drive-stat-total {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-size: clamp(0.58rem, 1.15dvh, 0.72rem);
   font-weight: 500;
   color: #64748b;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-:is(.dark, :root.dark) .sidebar-drive-card__stats {
+:is(.dark, :root.dark) .sidebar-drive-stat-total {
   color: #94a3b8;
-}
-
-.sidebar-drive-card__stats--free {
-  font-weight: 600;
-  color: #475569;
-}
-
-:is(.dark, :root.dark) .sidebar-drive-card__stats--free {
-  color: #cbd5e1;
 }
 
 .sidebar-drive-card__stats--offline {
@@ -360,40 +315,4 @@
 
 :is(.dark, :root.dark) .sidebar-drive-card__stats--offline {
   color: #f87171;
-}
-
-/* ========================================================
-   Dạng thanh ngang xếp chồng (<= 20vw)
-   ======================================================== */
-.sidebar-drive-card--stacked {
-  height: 100%;
-  width: 100%;
-}
-
-.sidebar-drive-content--stacked .sidebar-drive-card__icon {
-  height: 100%;
-  max-height: 100%;
-  width: auto;
-  aspect-ratio: 156 / 184;
-  margin: 0;
-  padding: 0;
-}
-
-/* Container query: Khi Sidebar mở rộng hoặc co hẹp qua ngưỡng 20vw */
-@container sidebar-layout (max-width: 20vw) {
-  .sidebar-drives-layer--grid {
-    opacity: 0;
-    transform: translateY(100%);
-    pointer-events: none;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                opacity 0.18s ease;
-  }
-
-  .sidebar-drives-layer--stacked {
-    opacity: 1;
-    transform: translateX(0);
-    pointer-events: auto;
-    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1) 0.08s,
-                opacity 0.22s ease 0.08s;
-  }
 }

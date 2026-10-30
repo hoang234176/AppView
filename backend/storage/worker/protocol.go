@@ -29,6 +29,7 @@ const (
 	SessionSave        = "session.save"
 	SessionGet         = "session.get"
 	FolderTreeGet      = "folder.tree"
+	FolderContentsGet  = "folder.contents"
 	BatchJobProgressMessage = "batch_job_progress"
 
 	CapabilityDownloadFile = "download_file"
@@ -141,4 +142,29 @@ type FolderTreeRequestPayload struct {
 
 type FolderTreeResult struct {
 	Data []*models.FolderNode `json:"data"`
+}
+
+type FolderContentsRequestPayload struct {
+	Drive        string `json:"drive,omitempty"`
+	Path         string `json:"path,omitempty"`
+	Page         int    `json:"page,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
+	FolderLimit  int    `json:"folder_limit,omitempty"`
+	PictureLimit int    `json:"picture_limit,omitempty"`
+	VideoLimit   int    `json:"video_limit,omitempty"`
+	FolderPage   int    `json:"folder_page,omitempty"`
+	PicturePage  int    `json:"picture_page,omitempty"`
+	VideoPage    int    `json:"video_page,omitempty"`
+}
+
+type FolderContentsResult struct {
+	CurrentPath   string               `json:"current_path"`
+	Folders       []*models.FolderItem `json:"folders"`
+	Pictures      []*models.PictureItem `json:"pictures"`
+	Videos        []*models.VideoItem  `json:"videos"`
+	TotalFolders  int                  `json:"total_folders"`
+	TotalPictures int                  `json:"total_pictures"`
+	TotalVideos   int                  `json:"total_videos"`
+	Page          int                  `json:"page"`
+	Limit         int                  `json:"limit"`
 }

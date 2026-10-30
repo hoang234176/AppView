@@ -1,0 +1,131 @@
+/* Icon Thư mục macOS chứa Thumbnail (Phương án 1) */
+.folder-preview-icon {
+  position: relative;
+  width: 88px;
+  height: 74px;
+  margin-top: 4px;
+  margin-bottom: 0.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.folder-preview-icon__svg-back,
+.folder-preview-icon__svg-front {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.folder-preview-icon__svg-front {
+  z-index: 3;
+}
+
+.folder-preview-icon__pocket {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Khung tấm ảnh thumbnail */
+.folder-preview-icon__sheet {
+  position: absolute;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #0f172a;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  border: 1px solid #ffffff;
+  box-sizing: border-box;
+}
+
+.folder-preview-icon__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* --- DẠNG 1 ẢNH ĐƠN --- */
+/* Ảnh dọc (Portrait) */
+.folder-preview-icon__sheet--single.folder-preview-icon__sheet--portrait {
+  top: -2px;
+  left: 18px;
+  width: 52px;
+  height: 54px;
+  z-index: 2;
+}
+
+/* Ảnh ngang (Landscape) */
+.folder-preview-icon__sheet--single.folder-preview-icon__sheet--landscape {
+  top: 2px;
+  left: 13px;
+  width: 62px;
+  height: 44px;
+  z-index: 2;
+}
+
+/* --- DẠNG 2 ẢNH XẾP LỚP SO LE --- */
+/* Ảnh sau (Dọc) */
+.folder-preview-icon__sheet--back.folder-preview-icon__sheet--portrait {
+  top: -5px;
+  left: 13px;
+  width: 44px;
+  height: 54px;
+  transform: rotate(-5deg);
+  z-index: 2;
+}
+
+/* Ảnh sau (Ngang) */
+.folder-preview-icon__sheet--back.folder-preview-icon__sheet--landscape {
+  top: -2px;
+  left: 8px;
+  width: 54px;
+  height: 42px;
+  transform: rotate(-4deg);
+  z-index: 2;
+}
+
+/* Ảnh trước (Dọc) */
+.folder-preview-icon__sheet--front.folder-preview-icon__sheet--portrait {
+  top: -2px;
+  right: 13px;
+  width: 44px;
+  height: 54px;
+  transform: rotate(4deg);
+  z-index: 3;
+}
+
+/* Ảnh trước (Ngang) */
+.folder-preview-icon__sheet--front.folder-preview-icon__sheet--landscape {
+  top: 2px;
+  right: 8px;
+  width: 54px;
+  height: 42px;
+  transform: rotate(3deg);
+  z-index: 3;
+}
+
+/* Thư mục trống (Không có thumbnail) */
+.folder-preview-icon__empty {
+  position: absolute;
+  top: 36px;
+  left: 0;
+  width: 100%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.folder-preview-icon__empty-glyph {
+  width: 26px;
+  height: 26px;
+}
