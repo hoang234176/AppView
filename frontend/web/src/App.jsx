@@ -1,4 +1,3 @@
-import './App.css';
 import SidebarLayout from './components/layouts/SidebarLayout/SidebarLayout';
 import MainLayout from './components/layouts/MainLayout/MainLayout';
 import NotificationLayout from './components/layouts/NotificationLayout/NotificationLayout';

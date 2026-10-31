@@ -3,6 +3,11 @@ import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import './MoreButton.css';
 import MoreIcon from '../../../../assets/icons/MoreIcon';
+import NewFolderIcon from '../../../../assets/icons/NewFolderIcon';
+import InfoCircleIcon from '../../../../assets/icons/InfoCircleIcon';
+import SortIcon from '../../../../assets/icons/SortIcon';
+import CheckIcon from '../../../../assets/icons/CheckIcon';
+import ChevronRight from '../../../../assets/icons/ChevronRight';
 
 const SORT_OPTIONS = [
   { id: 'none', label: 'None' },
@@ -195,13 +200,7 @@ function MoreButton() {
             onClick={handleNewFolder}
           >
             <span className="header-more-menu__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2 7.5V5a1.5 1.5 0 011.5-1.5h4a1.5 1.5 0 011.2.6L10 6h3" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2 7.5v10A1.5 1.5 0 003.5 19h15a1.5 1.5 0 001.5-1.5v-6.5" />
-                <circle cx="18" cy="7.5" r="3.75" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M18 5.75v3.5" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.25 7.5h3.5" />
-              </svg>
+              <NewFolderIcon />
             </span>
             <span className="header-more-menu__label">New Folder</span>
           </button>
@@ -214,10 +213,7 @@ function MoreButton() {
             onClick={handleGetInfo}
           >
             <span className="header-more-menu__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                <circle cx="12" cy="12" r="9" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v5m0-8h.01" />
-              </svg>
+              <InfoCircleIcon />
             </span>
             <span className="header-more-menu__label">Get Info</span>
           </button>
@@ -236,15 +232,11 @@ function MoreButton() {
             aria-expanded={isSortSubmenuOpen}
           >
             <span className="header-more-menu__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
-              </svg>
+              <SortIcon />
             </span>
             <span className="header-more-menu__label">Sort By</span>
             <span className="header-more-menu__chevron" aria-hidden="true">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-              </svg>
+              <ChevronRight />
             </span>
 
             {/* Submenu của Sort By */}
@@ -272,11 +264,7 @@ function MoreButton() {
                       onClick={() => handleSortClick(item.id)}
                     >
                       <span className="header-more-submenu__check" aria-hidden="true">
-                        {isSelected && (
-                          <svg viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
+                        {isSelected && <CheckIcon />}
                       </span>
                       <span className="header-more-submenu__label">{item.label}</span>
                     </button>

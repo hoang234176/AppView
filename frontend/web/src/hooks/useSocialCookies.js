@@ -8,14 +8,13 @@ import {
 } from '../api/apiCoordinator';
 import {
   SOCIAL_PLATFORMS,
-  SAMPLE_MOCK_COOKIES,
   parseNetscapeCookies,
   resolveCoordinatorHostPort,
   evaluateCookieUpdateResult,
 } from '../utils/cookieUtils';
 
 // Tái xuất (re-export) để đảm bảo 100% tương thích ngược với các component đang import
-export { SOCIAL_PLATFORMS, SAMPLE_MOCK_COOKIES, parseNetscapeCookies };
+export { SOCIAL_PLATFORMS, parseNetscapeCookies };
 
 // Trạng thái lưu trữ Cookies theo phiên làm việc (Session) trong bộ nhớ RAM
 let hasCheckedSessionCookies = false;

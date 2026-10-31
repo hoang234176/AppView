@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useLayout from './useLayout';
-import { checkCoordinatorHealth } from '../api/coordinatorApi';
+import { checkCoordinatorHealth } from '../api/apiCoordinator';
 
 export function validateHostAndPort(targetHost, targetPort) {
   if (!targetHost || !targetPort) {

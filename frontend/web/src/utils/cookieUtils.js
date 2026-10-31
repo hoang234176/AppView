@@ -31,14 +31,6 @@ export const SOCIAL_PLATFORMS = [
   },
 ];
 
-export const SAMPLE_MOCK_COOKIES = {
-  facebook: '',
-  youtube: '',
-  instagram: '',
-  tiktok: '',
-  x: '',
-};
-
 /**
  * Phân tích nội dung Netscape HTTP Cookie và xác định trạng thái (empty, active, expired, invalid)
  * Định dạng chuẩn: domain \t include_sub \t path \t is_secure \t expiry \t name \t value

@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { checkCoordinatorHealth } from '../api/coordinatorApi';
+import { checkCoordinatorHealth } from '../api/apiCoordinator';
 
 export const LayoutContext = createContext(null);
 

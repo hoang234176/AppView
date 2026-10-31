@@ -37,7 +37,7 @@ export async function checkCoordinatorHealth(host, port, timeoutMs = DEFAULT_HEA
   if (!targetHost || !targetPort) {
     return {
       ok: false,
-      error: 'Thiếu host hoặc port của Coordinator từ phiên làm việc (Session).',
+      error: 'Thiếu host hoặc port của Server từ phiên làm việc (Session).',
     };
   }
 
@@ -76,7 +76,7 @@ export async function checkCoordinatorHealth(host, port, timeoutMs = DEFAULT_HEA
 
     return {
       ok: false,
-      error: err.message || 'Không thể kết nối tới Coordinator. Vui lòng đảm bảo server đang chạy.',
+      error: err.message || 'Không thể kết nối tới Server. Vui lòng đảm bảo server đang chạy.',
     };
   } finally {
     clearTimeout(timer);
@@ -107,7 +107,7 @@ export async function verifyCookiesApi(
   if (!targetHost || !targetPort) {
     return {
       ok: false,
-      error: 'Thiếu host hoặc port của Coordinator từ phiên làm việc (Session).',
+      error: 'Thiếu host hoặc port của Server từ phiên làm việc (Session).',
     };
   }
 
@@ -166,7 +166,7 @@ export async function verifyCookiesApi(
     return {
       ok: false,
       valid: false,
-      error: err.message || 'Lỗi khi gửi yêu cầu kiểm tra cookie tới Coordinator.',
+      error: err.message || 'Lỗi khi gửi yêu cầu kiểm tra cookie tới Server.',
     };
   } finally {
     clearTimeout(timer);
@@ -194,7 +194,7 @@ export async function updateCookiesApi(
   if (!targetHost || !targetPort) {
     return {
       ok: false,
-      error: 'Thiếu host hoặc port của Coordinator từ phiên làm việc (Session).',
+      error: 'Thiếu host hoặc port của Server từ phiên làm việc (Session).',
     };
   }
 
@@ -252,7 +252,7 @@ export async function updateCookiesApi(
     return {
       ok: false,
       valid: false,
-      error: err.message || 'Lỗi khi gửi yêu cầu cập nhật cookie tới Coordinator.',
+      error: err.message || 'Lỗi khi gửi yêu cầu cập nhật cookie tới Server.',
     };
   } finally {
     clearTimeout(timer);
@@ -282,7 +282,7 @@ export async function saveCookiesApi(
   if (!targetHost || !targetPort) {
     return {
       ok: false,
-      error: 'Thiếu host hoặc port của Coordinator từ phiên làm việc (Session).',
+      error: 'Thiếu host hoặc port của Server từ phiên làm việc (Session).',
     };
   }
 
@@ -336,7 +336,7 @@ export async function saveCookiesApi(
 
     return {
       ok: false,
-      error: err.message || 'Lỗi khi gửi yêu cầu lưu cookie tới Coordinator.',
+      error: err.message || 'Lỗi khi gửi yêu cầu lưu cookie tới Server.',
     };
   } finally {
     clearTimeout(timer);
@@ -363,7 +363,7 @@ export async function getCookieContentApi(
   if (!targetHost || !targetPort) {
     return {
       ok: false,
-      error: 'Thiếu host hoặc port của Coordinator từ phiên làm việc (Session).',
+      error: 'Thiếu host hoặc port của Server từ phiên làm việc (Session).',
     };
   }
 
@@ -434,7 +434,7 @@ export async function getFolderTreeApi(host, port, drive = '', timeoutMs = DEFAU
   if (!targetHost || !targetPort) {
     return {
       ok: false,
-      error: 'Thiếu host hoặc port của Coordinator.',
+      error: 'Thiếu host hoặc port của Server.',
     };
   }
 
@@ -473,7 +473,7 @@ export async function getFolderTreeApi(host, port, drive = '', timeoutMs = DEFAU
     }
     return {
       ok: false,
-      error: err.message || 'Không thể lấy cây thư mục từ Coordinator.',
+      error: err.message || 'Không thể lấy cây thư mục từ Server.',
     };
   } finally {
     clearTimeout(timer);
@@ -501,7 +501,7 @@ export async function getFolderContentsApi(
   if (!targetHost || !targetPort) {
     return {
       ok: false,
-      error: 'Thiếu host hoặc port của Coordinator từ phiên làm việc (Session).',
+      error: 'Thiếu host hoặc port của Server từ phiên làm việc (Session).',
     };
   }
 
@@ -557,7 +557,7 @@ export async function getFolderContentsApi(
     }
     return {
       ok: false,
-      error: err.message || 'Không thể lấy nội dung thư mục từ Coordinator.',
+      error: err.message || 'Không thể lấy nội dung thư mục từ Server.',
     };
   } finally {
     clearTimeout(timer);

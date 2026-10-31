@@ -112,3 +112,9 @@
   - Dữ liệu Cookie đăng nhập (Netscape Cookie, session token của Facebook, YouTube, TikTok, v.v.) là thông tin định danh nhạy cảm cao, có nguy cơ bị rò rỉ nếu lưu trong `localStorage`.
   - Trên giao diện Frontend Web, dữ liệu Cookie chỉ được lưu tạm thời trong bộ nhớ phiên làm việc (in-memory React state) để phục vụ nhập liệu và kiểm tra hợp lệ.
   - Mọi thao tác lưu trữ vĩnh viễn Cookie chỉ được phép thực hiện trên máy chủ (Backend Storage Worker tại `~/.tmp-appview/cookies/` thông qua RPC Server được bảo vệ).
+
+## 13. Quy tắc Tinh gọn Mã nguồn & Cấm Mã / Dữ liệu Rác (Zero Dead-Code Invariant)
+- **Không lưu trữ dữ liệu Mock rác trong mã nguồn**: Tuyệt đối không để lại các biến, hằng số mock rỗng (như `SAMPLE_MOCK_COOKIES`) hay dữ liệu giả lập không còn sử dụng trong mã nguồn production.
+- **Tập trung hóa cổng giao tiếp API**: Toàn bộ các API calls và hằng số endpoint của Coordinator được quản lý tập trung và duy nhất tại `src/api/apiCoordinator.js`. Không tạo các file proxy/re-export dư thừa (như `coordinatorApi.js`).
+- **Không giữ các file CSS rỗng**: Mọi file `.css` phải gắn liền với component đang hoạt động và có nội dung styling thực tế. Không để lại các file stylesheet rỗng (chỉ chứa comment) trong ứng dụng.
+- **Icon thuần khiết**: 100% icon bắt buộc là component tách biệt trong `src/assets/icons/`, tái sử dụng tối đa các icon đã có (như `XCloseIcon`), nghiêm cấm viết thẻ `<svg>` inline trong JSX.

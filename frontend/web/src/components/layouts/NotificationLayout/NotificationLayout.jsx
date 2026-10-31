@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react
 import useLayout from '../../../hooks/useLayout';
 import CheckCircleIcon from '../../../assets/icons/CheckCircleIcon';
 import AlertCircleIcon from '../../../assets/icons/AlertCircleIcon';
+import XCloseIcon from '../../../assets/icons/XCloseIcon';
 import './NotificationLayout.css';
 
 function NotificationItem({
@@ -93,16 +94,7 @@ function NotificationItem({
         }}
         aria-label="Close notification"
       >
-        <svg
-          viewBox="0 0 16 16"
-          className="notification-card__close-icon"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        >
-          <path d="M4 4l8 8M12 4L4 12" />
-        </svg>
+        <XCloseIcon className="notification-card__close-icon" />
       </button>
 
       {/* Khối bên trái: Icon lỗi, cảnh báo hoặc thành công */}

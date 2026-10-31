@@ -5,6 +5,9 @@ import useFolderTree from '../../../hooks/useFolderTree';
 import Loading from '../../common/Loading/Loading';
 import FolderIcon from '../../../assets/icons/FolderIcon';
 import FolderOpenIcon from '../../../assets/icons/FolderOpenIcon';
+import TreeChevronIcon from '../../../assets/icons/TreeChevronIcon';
+import ArrowUpIcon from '../../../assets/icons/ArrowUpIcon';
+import ArrowDownIcon from '../../../assets/icons/ArrowDownIcon';
 
 // Helper tìm tên của thư mục đang chọn (chỉ trả về tên thư mục được chọn)
 function findFolderName(items, targetId) {
@@ -49,13 +52,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
             onClick={(e) => onToggle(itemId, e)}
             aria-label={isExpanded ? 'Thu gọn' : 'Mở rộng'}
           >
-            <svg viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                clipRule="evenodd"
-              />
-            </svg>
+            <TreeChevronIcon />
           </button>
         ) : (
           <span className="sidebar-tree__chevron-spacer" aria-hidden="true" />
@@ -303,21 +300,9 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
         >
           <span className="sidebar-tree-floating-pill__arrow">
             {floatingDirection === 'above' ? (
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
+              <ArrowUpIcon />
             ) : (
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
+              <ArrowDownIcon />
             )}
           </span>
           <span className="sidebar-tree-floating-pill__text">
