@@ -3,18 +3,8 @@ import useLayout from './useLayout';
 import { getFolderTreeApi } from '../api/apiCoordinator';
 import { resolveCoordinatorHostPort } from '../utils/cookieUtils';
 
-// Bộ nhớ đệm cây thư mục toàn cục dùng chung
-const globalFolderTreeCache = {};
-
-export function setFolderTreeCache(driveId, data) {
-  if (driveId && Array.isArray(data)) {
-    globalFolderTreeCache[driveId] = data;
-  }
-}
-
-export function getFolderTreeCache(driveId) {
-  return globalFolderTreeCache[driveId];
-}
+// Custom Hook quản lý trạng thái, tải dữ liệu và đồng bộ Realtime cho Cây thư mục (Folder Tree)
+// Tuyệt đối không lưu trữ bất kỳ Cache hay biến bộ nhớ dùng chung nào (No Cache)
 
 /**
  * Custom Hook quản lý trạng thái, tải dữ liệu và đồng bộ Realtime cho Cây thư mục (Folder Tree)
@@ -28,9 +18,14 @@ export function getFolderTreeCache(driveId) {
  * }}
  */
 export default function useFolderTree(activeDriveId = 'HDD') {
-  const { serverConfig, hasServerConnection, triggerNotification } = useLayout();
-  const [foldersByDrive, setFoldersByDrive] = useState(globalFolderTreeCache);
-  const [fetchingDrives, setFetchingDrives] = useState(() => new Set());
+  const {
+    serverConfig,
+    hasServerConnection,
+    triggerNotification,
+    isSyncLoading,
+    syncActiveDrive,
+    reportTaskDone,
+  } = useLayout();
   const wsRef = useRef(null);
 
   // Chuẩn hóa tên/ID ổ cứng: hỗ trợ cả HDD/SSD và legacy drive-1/drive-2
@@ -40,66 +35,114 @@ export default function useFolderTree(activeDriveId = 'HDD') {
     return activeDriveId || 'HDD';
   }, [activeDriveId]);
 
-  // Hàm tải dữ liệu cây thư mục với cấu trúc try...catch...finally đầy đủ (Quy tắc 8 & 9)
+  const [prevDriveId, setPrevDriveId] = useState(normalizedDriveId);
+  const activeTreeDriveRef = useRef(normalizedDriveId);
+
+  useEffect(() => {
+    activeTreeDriveRef.current = normalizedDriveId;
+  }, [normalizedDriveId]);
+
+  // Quản lý state gắn chặt theo driveId duy nhất: tuyệt đối không lưu cache của bất kỳ ổ đĩa cũ nào
+  const [treeState, setTreeState] = useState({
+    driveId: normalizedDriveId,
+    folders: [],
+    isLoading: true,
+  });
+
+  // Tính toán store có hiệu lực ngay tức thì (Zero-delay) trong cùng render phase
+  // Xóa trắng ngay lập tức toàn bộ thư mục của ổ cũ khi đổi ổ đĩa
+  const effectiveTreeState = useMemo(() => {
+    return normalizedDriveId !== prevDriveId
+      ? {
+          driveId: normalizedDriveId,
+          folders: [],
+          isLoading: true,
+        }
+      : treeState;
+  }, [normalizedDriveId, prevDriveId, treeState]);
+
+  // Tự động đồng bộ state ngay trong render phase khi đổi ổ đĩa (chuẩn React)
+  // Xóa sạch thư mục của ổ cũ khỏi bộ nhớ ngay lập tức
+  if (normalizedDriveId !== prevDriveId) {
+    setPrevDriveId(normalizedDriveId);
+    setTreeState({
+      driveId: normalizedDriveId,
+      folders: [],
+      isLoading: true,
+    });
+  }
+
+  // Hàm tải dữ liệu cây thư mục từ API với cấu trúc try...catch...finally đầy đủ (Quy tắc 8 & 9)
   const fetchTree = useCallback(async (driveToFetch) => {
     if (!hasServerConnection) return;
     const { host, port } = resolveCoordinatorHostPort(serverConfig);
     if (!host || !port) return;
 
-    setFetchingDrives((prev) => new Set(prev).add(driveToFetch));
+    setTreeState((prev) =>
+      prev.driveId === driveToFetch
+        ? { ...prev, isLoading: true }
+        : { driveId: driveToFetch, folders: [], isLoading: true }
+    );
 
     try {
       const res = await getFolderTreeApi(host, port, driveToFetch);
-      if (res.ok && Array.isArray(res.data)) {
-        globalFolderTreeCache[driveToFetch] = res.data;
-        setFoldersByDrive((prev) => ({
-          ...prev,
-          [driveToFetch]: res.data,
-        }));
-      } else if (!res.ok) {
+      // Chống race condition: chỉ cập nhật nếu người dùng vẫn đang ở đúng ổ đĩa này
+      if (activeTreeDriveRef.current === driveToFetch) {
+        if (res.ok && Array.isArray(res.data)) {
+          setTreeState({
+            driveId: driveToFetch,
+            folders: res.data,
+            isLoading: false,
+          });
+        } else if (!res.ok) {
+          setTreeState({
+            driveId: driveToFetch,
+            folders: [],
+            isLoading: false,
+          });
+          triggerNotification({
+            type: 'error',
+            title: 'Folder Error',
+            message: res.error || `Cannot retrieve folder structure for ${driveToFetch}.`,
+          });
+        }
+      }
+    } catch (err) {
+      if (activeTreeDriveRef.current === driveToFetch) {
+        setTreeState({
+          driveId: driveToFetch,
+          folders: [],
+          isLoading: false,
+        });
         triggerNotification({
           type: 'error',
           title: 'Folder Error',
-          message: res.error || `Cannot retrieve folder structure for ${driveToFetch}.`,
+          message: err.message || `An error occurred while loading folder tree for ${driveToFetch}.`,
         });
       }
-    } catch (err) {
-      triggerNotification({
-        type: 'error',
-        title: 'Folder Error',
-        message: err.message || `An error occurred while loading folder tree for ${driveToFetch}.`,
-      });
     } finally {
-      setFetchingDrives((prev) => {
-        const next = new Set(prev);
-        next.delete(driveToFetch);
-        return next;
-      });
+      reportTaskDone?.(driveToFetch, 'tree');
     }
-  }, [hasServerConnection, serverConfig, triggerNotification]);
+  }, [hasServerConnection, serverConfig, triggerNotification, reportTaskDone]);
 
-  // Tự động tải cây thư mục khi chuyển ổ hoặc khi kết nối server sẵn sàng
+  // Luôn luôn gọi API tải cây thư mục mới khi đổi ổ đĩa hoặc khi chưa có dữ liệu của ổ này
   useEffect(() => {
     if (!hasServerConnection) return;
-    let isMounted = true;
+    if (effectiveTreeState.driveId === normalizedDriveId && effectiveTreeState.folders.length > 0) return;
 
-    // Nếu ổ đĩa này chưa có trong cache: tiến hành tải
-    if (!foldersByDrive[normalizedDriveId]) {
-      // Đưa vào microtask để tránh setState đồng bộ trực tiếp trong effect
-      Promise.resolve().then(() => {
-        if (isMounted) {
-          fetchTree(normalizedDriveId);
-        }
-      });
-    }
+    let isMounted = true;
+    Promise.resolve().then(() => {
+      if (isMounted) {
+        fetchTree(normalizedDriveId);
+      }
+    });
 
     return () => {
       isMounted = false;
     };
-  }, [hasServerConnection, normalizedDriveId, foldersByDrive, fetchTree]);
+  }, [hasServerConnection, normalizedDriveId, effectiveTreeState.driveId, effectiveTreeState.folders.length, fetchTree]);
 
   // Lắng nghe sự kiện WebSocket realtime từ Coordinator (/ws/events)
-  // Khi có filesystem_event (tạo, xóa, đổi tên, di chuyển thư mục) -> tự động refresh cây thư mục
   useEffect(() => {
     if (!hasServerConnection) return;
     let isMounted = true;
@@ -120,18 +163,20 @@ export default function useFolderTree(activeDriveId = 'HDD') {
           if (message?.type === 'filesystem_event') {
             const fsEvent = message?.event;
             const targetDrive = fsEvent?.drive || normalizedDriveId;
-            fetchTree(targetDrive);
+            if (targetDrive === normalizedDriveId) {
+              fetchTree(targetDrive);
+            }
           }
         } catch {
-          // Bỏ qua lỗi parse tin nhắn rác
+          // Bỏ qua lỗi JSON
         }
       };
 
       ws.onerror = () => {
-        // Lỗi kết nối WebSocket sẽ được tái kết nối tự động bởi hook cha
+        ws.close();
       };
     } catch {
-      // Ignored
+      // Bỏ qua lỗi kết nối
     }
 
     return () => {
@@ -143,18 +188,19 @@ export default function useFolderTree(activeDriveId = 'HDD') {
     };
   }, [hasServerConnection, serverConfig, normalizedDriveId, fetchTree]);
 
-  const folders = useMemo(() => {
-    return foldersByDrive[normalizedDriveId] || [];
-  }, [foldersByDrive, normalizedDriveId]);
-
-  const isFetchingTree = fetchingDrives.has(normalizedDriveId) || !foldersByDrive[normalizedDriveId];
-
   const refreshFolderTree = useCallback(() => {
     return fetchTree(normalizedDriveId);
   }, [fetchTree, normalizedDriveId]);
 
+  // KHÓA CHẶT: Chỉ trả về folders khi driveId của store khớp 100% với normalizedDriveId hiện tại
+  // Nếu đang ở HDD mà store là SSD: lập tức trả về [] rỗng, loại bỏ sạch dữ liệu cũ
+  const isDriveMatched = effectiveTreeState.driveId === normalizedDriveId;
+  const effectiveFolders = isDriveMatched ? effectiveTreeState.folders : [];
+  const isSyncing = isSyncLoading && syncActiveDrive === normalizedDriveId;
+  const isFetchingTree = isSyncing || !isDriveMatched || effectiveTreeState.isLoading;
+
   return {
-    folders,
+    folders: effectiveFolders,
     normalizedDriveId,
     isFetchingTree,
     refreshFolderTree,

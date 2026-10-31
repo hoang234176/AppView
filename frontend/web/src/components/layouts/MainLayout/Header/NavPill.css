@@ -1,6 +1,7 @@
 /* Khung viên thuốc chiếm 100% chiều cao của Header, dùng màu của sidebar */
 .header-nav-pill {
   height: 100%;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
@@ -23,6 +24,7 @@
 .header-nav-square {
   height: 100%;
   aspect-ratio: 1 / 1;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;

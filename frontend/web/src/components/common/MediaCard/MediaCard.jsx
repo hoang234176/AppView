@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import useLazyViewport from '../../../hooks/useLazyViewport';
 import FolderPreviewIcon from '../../../assets/icons/FolderPreviewIcon';
 import './MediaCard.css';
 
@@ -73,22 +74,24 @@ function FoldedDocumentIcon({ type }) {
  * Hỗ trợ Khối Icon Dự phòng (Fallback) khi không tải được thumbnail
  */
 function MediaCard({ item, isSelected = false, onClick, onDoubleClick }) {
-  if (!item) return null;
-
+  const [cardRef, isVisible] = useLazyViewport();
   const [imgError, setImgError] = useState(false);
 
-  const isFolder = item.type === 'folder';
-  const isVideo = item.type === 'video';
-  const isPicture = item.type === 'picture';
+  const isFolder = item?.type === 'folder';
+  const isVideo = item?.type === 'video';
+  const isPicture = item?.type === 'picture';
 
-  const hasThumb = Boolean(item.thumbnail_url || item.url) && !imgError;
+  const hasThumb = Boolean(item?.thumbnail_url || item?.url) && !imgError;
 
   const displayName = useMemo(() => {
-    return formatDisplayName(item.name, isFolder);
-  }, [item.name, isFolder]);
+    return formatDisplayName(item?.name, isFolder);
+  }, [item?.name, isFolder]);
+
+  if (!item) return null;
 
   return (
     <div
+      ref={cardRef}
       className={`media-card media-card--${item.type} ${isSelected ? 'media-card--selected' : ''}`}
       onClick={(e) => onClick && onClick(item, e)}
       onDoubleClick={(e) => onDoubleClick && onDoubleClick(item, e)}
@@ -97,19 +100,23 @@ function MediaCard({ item, isSelected = false, onClick, onDoubleClick }) {
       <div className="media-card__body">
         {isFolder && (
           <div className="media-card__folder-wrapper">
-            <FolderPreviewIcon previews={item.previews} />
+            <FolderPreviewIcon previews={item.previews} isVisible={isVisible} />
           </div>
         )}
 
         {isPicture && (
           hasThumb ? (
-            <img
-              src={item.thumbnail_url || item.url}
-              alt={item.name}
-              loading="lazy"
-              className="media-card__img"
-              onError={() => setImgError(true)}
-            />
+            isVisible ? (
+              <img
+                src={item.thumbnail_url || item.url}
+                alt={item.name}
+                loading="lazy"
+                className="media-card__img"
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <div className="media-card__img-placeholder" aria-hidden="true" />
+            )
           ) : (
             <FoldedDocumentIcon type="picture" />
           )
@@ -117,20 +124,24 @@ function MediaCard({ item, isSelected = false, onClick, onDoubleClick }) {
 
         {isVideo && (
           hasThumb ? (
-            <div className="media-card__video-wrapper">
-              <img
-                src={item.thumbnail_url}
-                alt={item.name}
-                loading="lazy"
-                className="media-card__img"
-                onError={() => setImgError(true)}
-              />
-              <div className="media-card__play-badge">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+            isVisible ? (
+              <div className="media-card__video-wrapper">
+                <img
+                  src={item.thumbnail_url}
+                  alt={item.name}
+                  loading="lazy"
+                  className="media-card__img"
+                  onError={() => setImgError(true)}
+                />
+                <div className="media-card__play-badge">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="media-card__img-placeholder" aria-hidden="true" />
+            )
           ) : (
             <FoldedDocumentIcon type="video" />
           )

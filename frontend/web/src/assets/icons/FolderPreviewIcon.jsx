@@ -38,7 +38,7 @@ function SheetPhoto({ src, slotType = 'single', alt = '' }) {
  * @param {Array<string>} previews - Danh sách link ảnh thumbnail
  * @param {string} className - Class CSS mở rộng
  */
-export function FolderPreviewIcon({ previews = [], className = '' }) {
+export function FolderPreviewIcon({ previews = [], className = '', isVisible = true }) {
   const hasPreviews = Array.isArray(previews) && previews.length > 0;
 
   return (
@@ -83,17 +83,19 @@ export function FolderPreviewIcon({ previews = [], className = '' }) {
         />
       </svg>
 
-      {/* Khối thumbnail kẹp bên trong folder (chỉ hiện khi có preview) */}
+      {/* Khối thumbnail kẹp bên trong folder (chỉ mount ảnh khi nằm trong khung nhìn/vùng đệm overscan) */}
       {hasPreviews && (
         <div className="folder-preview-icon__pocket">
-          {previews.length >= 2 ? (
-            <>
-              <SheetPhoto src={previews[1]} slotType="back" />
-              <SheetPhoto src={previews[0]} slotType="front" />
-            </>
-          ) : (
-            <SheetPhoto src={previews[0]} slotType="single" />
-          )}
+          {isVisible ? (
+            previews.length >= 2 ? (
+              <>
+                <SheetPhoto src={previews[1]} slotType="back" />
+                <SheetPhoto src={previews[0]} slotType="front" />
+              </>
+            ) : (
+              <SheetPhoto src={previews[0]} slotType="single" />
+            )
+          ) : null}
         </div>
       )}
 

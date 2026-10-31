@@ -1,0 +1,87 @@
+/* ==========================================================================
+   InitialLoadingOverlay - Lớp phủ khởi động AppView (Splash Screen)
+   ========================================================================== */
+.initial-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  user-select: none;
+  opacity: 1;
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
+}
+
+:is(.dark, :root.dark) .initial-loading-overlay {
+  background-color: #1f1f1f;
+}
+
+.initial-loading-overlay--exiting {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.initial-loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.initial-loading-logo-box {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.initial-loading-logo {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  border-radius: 13px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+:is(.dark, :root.dark) .initial-loading-logo {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.initial-loading-title {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: -0.015em;
+}
+
+:is(.dark, :root.dark) .initial-loading-title {
+  color: #f1f5f9;
+}
+
+/* Thanh tải tiến trình (macOS style loading bar track) */
+.initial-loading-bar-track {
+  width: 160px;
+  height: 3px;
+  background-color: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+  margin-top: 4px;
+}
+
+:is(.dark, :root.dark) .initial-loading-bar-track {
+  background-color: #334155;
+}
+
+.initial-loading-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8 0%, #2563eb 100%);
+  border-radius: 9999px;
+  transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}

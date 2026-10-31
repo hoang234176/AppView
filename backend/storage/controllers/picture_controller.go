@@ -48,6 +48,7 @@ func ServeThumbnail(c *fiber.Ctx) error {
 
 	// EnsureThumbnail handles validation, 0-byte cleanup, in-flight deduplication, and atomic creation
 	if err := utils.EnsureThumbnail(fullPath, thumbPath); err == nil {
+		c.Set("Cache-Control", "public, max-age=259200")
 		return utils.ServeFileSafely(c, thumbPath)
 	}
 
@@ -56,6 +57,7 @@ func ServeThumbnail(c *fiber.Ctx) error {
 			utils.LogEvent("WARN", "thumbnail source file not found", map[string]any{"action": "thumbnail_open", "decodedRelativePath": resolvedRelPath, "error": statErr.Error()})
 			return c.Status(fiber.StatusNotFound).SendString("No thumbnail")
 		}
+		c.Set("Cache-Control", "public, max-age=259200")
 		return utils.ServeFileSafely(c, fullPath)
 	}
 

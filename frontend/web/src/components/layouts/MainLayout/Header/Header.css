@@ -28,6 +28,7 @@
   align-items: center;
   gap: 14px;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 /* Tiêu đề trang trượt mờ sau nút < > (phong cách macOS đồng bộ SidebarBrand) */
@@ -67,6 +68,7 @@
   opacity: 1;
   transform: translateX(0);
   max-width: 350px;
+  min-width: 0;
   pointer-events: auto;
   text-overflow: ellipsis;
   overflow: hidden;

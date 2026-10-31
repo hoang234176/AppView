@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import useFolderContents from '../../../../../hooks/useFolderContents';
 import Loading from '../../../../common/Loading/Loading';
@@ -22,7 +22,15 @@ function ContentsView() {
     error,
   } = useFolderContents(activeDrive, currentPath);
 
+  const currentViewKey = `${activeDrive}:${currentPath}`;
+  const [prevViewKey, setPrevViewKey] = useState(currentViewKey);
   const [selectedKey, setSelectedKey] = useState(null);
+
+  // Tự động bỏ chọn ngay khi chuyển thư mục hoặc chuyển ổ đĩa
+  if (currentViewKey !== prevViewKey) {
+    setPrevViewKey(currentViewKey);
+    setSelectedKey(null);
+  }
 
   // Gộp chung Thư mục, Ảnh, Video vào một khối duy nhất chuẩn Finder
   const allItems = useMemo(() => {
@@ -53,10 +61,7 @@ function ContentsView() {
     return [...sortedFolders, ...sortedFiles];
   }, [rawFolders, pictures, videos]);
 
-  // Khi chuyển thư mục hoặc ổ đĩa thì bỏ chọn
-  useEffect(() => {
-    setSelectedKey(null);
-  }, [activeDrive, currentPath]);
+
 
   const handleItemClick = (item, e) => {
     e.stopPropagation();

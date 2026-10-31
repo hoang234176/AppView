@@ -52,6 +52,58 @@ export function LayoutProvider({ children }) {
   });
   const [notifications, setNotifications] = useState([]);
 
+  // Barrier đồng bộ loading giữa SidebarTree và Main-Content (tối thiểu 400ms, cùng tắt ở đúng 1 frame)
+  const [syncState, setSyncState] = useState({
+    activeDrive: '',
+    isSyncLoading: false,
+  });
+
+  const barrierDriveRef = useRef('');
+  const barrierTimerRef = useRef(null);
+  const taskStatusRef = useRef({ treeDone: true, contentsDone: true, startTime: 0 });
+
+  const startSyncBarrier = useCallback((driveId) => {
+    if (!driveId) return;
+    if (barrierTimerRef.current) {
+      clearTimeout(barrierTimerRef.current);
+      barrierTimerRef.current = null;
+    }
+    const now = Date.now();
+    barrierDriveRef.current = driveId;
+    taskStatusRef.current = { treeDone: false, contentsDone: false, startTime: now };
+    setSyncState({
+      activeDrive: driveId,
+      isSyncLoading: true,
+    });
+  }, []);
+
+  const reportTaskDone = useCallback((driveId, taskType) => {
+    if (!driveId || barrierDriveRef.current !== driveId) return;
+
+    if (taskType === 'tree') {
+      taskStatusRef.current.treeDone = true;
+    } else if (taskType === 'contents') {
+      taskStatusRef.current.contentsDone = true;
+    }
+
+    if (taskStatusRef.current.treeDone && taskStatusRef.current.contentsDone) {
+      const elapsed = Date.now() - taskStatusRef.current.startTime;
+      const remaining = Math.max(0, 400 - elapsed);
+
+      if (barrierTimerRef.current) {
+        clearTimeout(barrierTimerRef.current);
+      }
+
+      barrierTimerRef.current = setTimeout(() => {
+        setSyncState((prev) => ({
+          ...prev,
+          isSyncLoading: false,
+        }));
+        barrierTimerRef.current = null;
+      }, remaining);
+    }
+  }, []);
+
   const dismissNotification = useCallback((id) => {
     setNotifications((prev) =>
       prev.map((item) => (item.id === id ? { ...item, isExiting: true } : item))
@@ -317,6 +369,10 @@ export function LayoutProvider({ children }) {
     isContentLoading,
     showContentLoading,
     hideContentLoading,
+    isSyncLoading: syncState.isSyncLoading,
+    syncActiveDrive: syncState.activeDrive,
+    startSyncBarrier,
+    reportTaskDone,
     isHeaderRightVisible,
     isHeaderRightExiting,
     showHeaderRight,
@@ -351,6 +407,10 @@ export function LayoutProvider({ children }) {
     isContentLoading,
     showContentLoading,
     hideContentLoading,
+    syncState.isSyncLoading,
+    syncState.activeDrive,
+    startSyncBarrier,
+    reportTaskDone,
     isHeaderRightVisible,
     isHeaderRightExiting,
     showHeaderRight,

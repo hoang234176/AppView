@@ -119,21 +119,27 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
       const pathParam = query.get('path');
       if (pathParam && pathParam.trim()) {
         const cleanPath = pathParam.trim();
-        setSelectedId(cleanPath);
+        Promise.resolve().then(() => {
+          setSelectedId(cleanPath);
+        });
         const parts = cleanPath.split('/').filter(Boolean);
         if (parts.length > 1) {
-          setExpandedIds((prev) => {
-            const next = new Set(prev);
-            let acc = '';
-            for (let i = 0; i < parts.length - 1; i++) {
-              acc = acc ? `${acc}/${parts[i]}` : parts[i];
-              next.add(acc);
-            }
-            return next;
+          Promise.resolve().then(() => {
+            setExpandedIds((prev) => {
+              const next = new Set(prev);
+              let acc = '';
+              for (let i = 0; i < parts.length - 1; i++) {
+                acc = acc ? `${acc}/${parts[i]}` : parts[i];
+                next.add(acc);
+              }
+              return next;
+            });
           });
         }
       } else {
-        setSelectedId(null);
+        Promise.resolve().then(() => {
+          setSelectedId(null);
+        });
       }
     } catch {
       // Bỏ qua lỗi URL search parse
@@ -187,11 +193,11 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
     }
   }, [selectedId]);
 
-  // Tự động kiểm tra tức thì khi:
-  // 1. Mục đang chọn thay đổi
-  // 2. Chuyển đổi ổ đĩa
-  // 3. Bất kỳ thư mục nào được mở rộng/thu gọn (expandedIds thay đổi làm đẩy/kéo vị trí mục)
+  // Tự động kiểm tra tức thì khi mục đang chọn thay đổi hoặc thư mục mở rộng
   useEffect(() => {
+    // Chỉ kiểm tra khi cây thư mục đã tải xong và ổn định (chống chập giật layout)
+    if (isLoading || isFetchingTree || !folders || folders.length === 0) return;
+
     checkVisibility();
 
     // Kiểm tra lại sau khi animation mở/đóng hoàn tất (180ms)
@@ -219,7 +225,7 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
       clearTimeout(timer);
       observer.disconnect();
     };
-  }, [selectedId, activeDriveId, expandedIds, checkVisibility]);
+  }, [selectedId, activeDriveId, expandedIds, checkVisibility, isLoading, isFetchingTree, folders]);
 
   // Cuộn mượt đưa thư mục đang chọn quay trở lại giữa màn hình khi bấm nút nổi
   const handleJumpToSelected = () => {

@@ -1,12 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './SidebarLayout.css';
 import useLayout from '../../../hooks/useLayout';
 import useStorageDrives, { getPreferredActiveDriveId } from '../../../hooks/useStorageDrives';
-import { getFolderTreeApi, getFolderContentsApi } from '../../../api/apiCoordinator';
-import { resolveCoordinatorHostPort } from '../../../utils/cookieUtils';
-import { setFolderTreeCache } from '../../../hooks/useFolderTree';
-import { setFolderContentsCache } from '../../../hooks/useFolderContents';
 import Loading from '../../common/Loading/Loading';
 import SidebarBrand from './SidebarBrand';
 import SidebarTree from './SidebarTree';
@@ -32,22 +28,9 @@ function SidebarLayout() {
   const preferredDriveId = getPreferredActiveDriveId(drives) || 'SSD';
   const currentRouteDriveId = routeDriveId || preferredDriveId;
 
-  const [pendingDriveId, setPendingDriveId] = useState(null);
-  const [previousRouteDriveId, setPreviousRouteDriveId] = useState(currentRouteDriveId);
-  const [prevRouteDriveId, setPrevRouteDriveId] = useState(routeDriveId);
-  if (routeDriveId !== prevRouteDriveId) {
-    setPrevRouteDriveId(routeDriveId);
-    if (pendingDriveId) {
-      setPendingDriveId(null);
-    }
-  }
-  const [isTreeLoading, setIsTreeLoading] = useState(false);
-  const driveTimeoutRef = useRef(null);
-
-  // Ổ đĩa active hiển thị viền xanh: ưu tiên pendingDriveId (khi đang chuyển đổi) hoặc currentRouteDriveId
-  const activeDriveId = pendingDriveId || currentRouteDriveId;
-  // Cây thư mục hiển thị: giữ cây cũ trong lúc 400ms loading overlay, sau đó cập nhật theo route mới
-  const treeDriveId = isTreeLoading ? previousRouteDriveId : currentRouteDriveId;
+  // Ổ đĩa active và Cây thư mục hiển thị: đồng bộ trực tiếp theo currentRouteDriveId
+  const activeDriveId = currentRouteDriveId;
+  const treeDriveId = activeDriveId;
 
   const {
     isSidebarOpen,
@@ -58,21 +41,19 @@ function SidebarLayout() {
     isResetting,
     startResizing,
     resetSidebarWidth,
-    showContentLoading,
-    hideContentLoading,
     hasServerConnection,
-    serverConfig,
-    triggerNotification,
+    isSyncLoading,
+    syncActiveDrive,
+    startSyncBarrier,
   } = useLayout();
 
-  // Dọn dẹp timer khi component unmount
+  // Kích hoạt Barrier đồng bộ khi mới vào trang hoặc khi activeDrive thay đổi
   useEffect(() => {
-    return () => {
-      if (driveTimeoutRef.current) {
-        clearTimeout(driveTimeoutRef.current);
-      }
-    };
-  }, []);
+    if (!hasServerConnection || !activeDriveId) return;
+    if (syncActiveDrive !== activeDriveId) {
+      startSyncBarrier(activeDriveId);
+    }
+  }, [hasServerConnection, activeDriveId, syncActiveDrive, startSyncBarrier]);
 
   // Đồng bộ giữa URL Route /drives/:driveId và danh sách ổ đĩa
   // Ưu tiên HDD trước (nếu mount). Nếu HDD không mount thì chọn SSD. Tuyệt đối không chọn ổ offline.
@@ -108,63 +89,26 @@ function SidebarLayout() {
     }
   }, [hasServerConnection, drives, routeDriveId, isSettings, location.pathname, navigate]);
 
-  // Xử lý chuyển đổi ổ đĩa: tải đồng thời Cây thư mục và Danh sách nội dung, chỉ tắt loading trong finally
-  const handleSelectDrive = useCallback(async (newDriveId) => {
+  // Xử lý chuyển đổi ổ đĩa: điều hướng trực tiếp sang route mới (tuyệt đối không lưu cache / preload)
+  const handleSelectDrive = useCallback((newDriveId) => {
+    // Khóa click dồn dập khi đang đồng bộ
+    if (isSyncLoading) return;
+
     // Trường hợp 1: Click vào chính ổ đĩa đang chọn
     if (newDriveId === activeDriveId) {
       // 1A. Nếu đã ở thư mục gốc (không có query path): bỏ qua, không gọi request
       if (location.pathname === `/${newDriveId}` && !location.search) {
         return;
       }
-      // 1B. Nếu đang ở thư mục con: điều hướng ngay về thư mục gốc của ổ mà không cần loading cây thư mục
+      // 1B. Nếu đang ở thư mục con: điều hướng ngay về thư mục gốc của ổ
       navigate(`/${newDriveId}`);
       return;
     }
 
     // Trường hợp 2: Chuyển sang ổ đĩa khác
-    // 1. Nhảy viền xanh active ngay lập tức trên nút ổ đĩa mới
-    setPendingDriveId(newDriveId);
-    setPreviousRouteDriveId(currentRouteDriveId);
-
-    // 2. Bật loading overlay đồng thời phủ lên SidebarTree và main-content
-    setIsTreeLoading(true);
-    showContentLoading();
-
-    const { host, port } = resolveCoordinatorHostPort(serverConfig);
-
-    try {
-      if (hasServerConnection && host && port) {
-        // 3. Tải SONG SONG đồng thời Cây thư mục và Danh sách thư mục gốc
-        const [treeRes, contentsRes] = await Promise.all([
-          getFolderTreeApi(host, port, newDriveId),
-          getFolderContentsApi(host, port, { drive: newDriveId, path: '' }),
-        ]);
-
-        if (treeRes.ok && Array.isArray(treeRes.data)) {
-          setFolderTreeCache(newDriveId, treeRes.data);
-        }
-        if (contentsRes.ok && contentsRes.data) {
-          setFolderContentsCache(`${newDriveId}:`, contentsRes.data);
-        }
-      }
-
-      // 4. Chuyển URL route sang ổ mới
-      navigate(`/${newDriveId}`);
-    } catch (err) {
-      console.error('Error switching drive:', err);
-      triggerNotification?.({
-        type: 'error',
-        title: 'Drive Error',
-        message: err.message || `Không thể tải dữ liệu cho ổ ${newDriveId}`,
-      });
-      navigate(`/${newDriveId}`);
-    } finally {
-      // 5. FINAL: Sau khi CẢ 2 tác vụ đều đã xử lý xong, mới tắt loading đồng thời!
-      setIsTreeLoading(false);
-      hideContentLoading();
-      setPendingDriveId(null);
-    }
-  }, [activeDriveId, location.pathname, location.search, currentRouteDriveId, navigate, showContentLoading, hideContentLoading, hasServerConnection, serverConfig, triggerNotification]);
+    startSyncBarrier(newDriveId);
+    navigate(`/${newDriveId}`);
+  }, [isSyncLoading, activeDriveId, location.pathname, location.search, navigate, startSyncBarrier]);
 
   const sidebarStyle = isMobile
     ? undefined
@@ -214,7 +158,7 @@ function SidebarLayout() {
         ) : (
           <>
             {/* Khối cây thư mục phân cấp */}
-            <SidebarTree activeDriveId={treeDriveId} isLoading={isTreeLoading} />
+            <SidebarTree activeDriveId={treeDriveId} />
 
             {/* Khối ổ cứng ở đáy Sidebar */}
             <SidebarDrives activeDriveId={activeDriveId} onSelectDrive={handleSelectDrive} />

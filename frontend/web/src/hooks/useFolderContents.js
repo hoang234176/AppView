@@ -3,18 +3,8 @@ import useLayout from './useLayout';
 import { getFolderContentsApi } from '../api/apiCoordinator';
 import { resolveCoordinatorHostPort } from '../utils/cookieUtils';
 
-// Bộ nhớ đệm nội dung thư mục toàn cục dùng chung
-const globalFolderContentsCache = {};
-
-export function setFolderContentsCache(key, data) {
-  if (key && data) {
-    globalFolderContentsCache[key] = data;
-  }
-}
-
-export function getFolderContentsCache(key) {
-  return globalFolderContentsCache[key];
-}
+// Custom Hook quản lý nội dung thư mục (folders, pictures, videos) từ Coordinator
+// Tuyệt đối không lưu trữ bất kỳ Cache hay biến bộ nhớ dùng chung nào (No Cache)
 
 /**
  * Custom Hook quản lý nội dung thư mục (folders, pictures, videos) từ Coordinator
@@ -32,11 +22,14 @@ export function getFolderContentsCache(key) {
  * }}
  */
 export default function useFolderContents(driveId = 'SSD', currentPath = '') {
-  const { serverConfig, hasServerConnection, triggerNotification } = useLayout();
-  const [contentsByCacheKey, setContentsByCacheKey] = useState(globalFolderContentsCache);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const wsRef = useRef(null);
+  const {
+    serverConfig,
+    hasServerConnection,
+    triggerNotification,
+    isSyncLoading,
+    syncActiveDrive,
+    reportTaskDone,
+  } = useLayout();
 
   // Chuẩn hóa tên/ID ổ cứng
   const normalizedDriveId = useMemo(() => {
@@ -49,9 +42,50 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
     return String(currentPath || '').trim();
   }, [currentPath]);
 
-  const cacheKey = useMemo(() => {
-    return `${normalizedDriveId}:${cleanPath}`;
-  }, [normalizedDriveId, cleanPath]);
+  const activeKey = `${normalizedDriveId}:${cleanPath}`;
+  const activeKeyRef = useRef(activeKey);
+
+  useEffect(() => {
+    activeKeyRef.current = activeKey;
+  }, [activeKey]);
+
+  // Quản lý state gắn chặt theo activeKey duy nhất
+  // Quản lý state gắn chặt theo activeKey duy nhất: tuyệt đối không lưu cache của bất kỳ thư mục cũ nào
+  const [store, setStore] = useState({
+    key: activeKey,
+    data: null,
+    isLoading: true,
+    error: null,
+  });
+
+  const [prevKey, setPrevKey] = useState(activeKey);
+
+  // Tính toán store có hiệu lực ngay tức thì (Zero-delay) trong cùng render phase
+  // Xóa trắng ngay lập tức toàn bộ nội dung của thư mục cũ khi đổi đường dẫn / ổ đĩa
+  const effectiveStore = useMemo(() => {
+    return activeKey !== prevKey
+      ? {
+          key: activeKey,
+          data: null,
+          isLoading: true,
+          error: null,
+        }
+      : store;
+  }, [activeKey, prevKey, store]);
+
+  // Tự động đồng bộ state ngay trong render phase khi đổi ổ đĩa hoặc đổi thư mục (chuẩn React)
+  // Xóa sạch nội dung thư mục cũ khỏi bộ nhớ ngay lập tức
+  if (activeKey !== prevKey) {
+    setPrevKey(activeKey);
+    setStore({
+      key: activeKey,
+      data: null,
+      isLoading: true,
+      error: null,
+    });
+  }
+
+  const wsRef = useRef(null);
 
   // Hàm tải dữ liệu nội dung thư mục với try...catch...finally đầy đủ (Quy tắc 8 & 9)
   const fetchContents = useCallback(async (targetDrive, targetPath) => {
@@ -59,62 +93,87 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
     const { host, port } = resolveCoordinatorHostPort(serverConfig);
     if (!host || !port) return;
 
-    setIsLoading(true);
-    setError(null);
+    const requestKey = `${targetDrive}:${targetPath}`;
+    setStore((prev) =>
+      prev.key === requestKey
+        ? { ...prev, isLoading: true, error: null }
+        : { key: requestKey, data: null, isLoading: true, error: null }
+    );
 
-    const key = `${targetDrive}:${targetPath}`;
+    // Đảm bảo vòng loading hiển thị tối thiểu 200ms khi mở thư mục để không bị giật/chớp tắt nhanh
+    const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 200));
 
     try {
-      const res = await getFolderContentsApi(host, port, {
-        drive: targetDrive,
-        path: targetPath,
-      });
+      const [res] = await Promise.all([
+        getFolderContentsApi(host, port, {
+          drive: targetDrive,
+          path: targetPath,
+        }),
+        minDelayPromise,
+      ]);
 
-      if (res.ok && res.data) {
-        globalFolderContentsCache[key] = res.data;
-        setContentsByCacheKey((prev) => ({
-          ...prev,
-          [key]: res.data,
-        }));
-      } else {
-        const errMsg = res.error || `Cannot retrieve contents for ${targetDrive}/${targetPath}`;
-        setError(errMsg);
+      // Kiểm tra race condition: chỉ cập nhật nếu người dùng vẫn đang ở đúng thư mục đã gửi request
+      if (activeKeyRef.current === requestKey) {
+        if (res.ok && res.data) {
+          setStore({
+            key: requestKey,
+            data: res.data,
+            isLoading: false,
+            error: null,
+          });
+        } else {
+          const errMsg = res.error || `Cannot retrieve contents for ${targetDrive}/${targetPath}`;
+          setStore({
+            key: requestKey,
+            data: null,
+            isLoading: false,
+            error: errMsg,
+          });
+          triggerNotification({
+            type: 'error',
+            title: 'Folder Content Error',
+            message: errMsg,
+          });
+        }
+      }
+    } catch (err) {
+      if (activeKeyRef.current === requestKey) {
+        const errMsg = err.message || `An error occurred while loading contents for ${targetDrive}/${targetPath}`;
+        setStore({
+          key: requestKey,
+          data: null,
+          isLoading: false,
+          error: errMsg,
+        });
         triggerNotification({
           type: 'error',
           title: 'Folder Content Error',
           message: errMsg,
         });
       }
-    } catch (err) {
-      const errMsg = err.message || `An error occurred while loading contents for ${targetDrive}/${targetPath}`;
-      setError(errMsg);
-      triggerNotification({
-        type: 'error',
-        title: 'Folder Content Error',
-        message: errMsg,
-      });
     } finally {
-      setIsLoading(false);
+      if (targetPath === '') {
+        reportTaskDone?.(targetDrive, 'contents');
+      }
     }
-  }, [hasServerConnection, serverConfig, triggerNotification]);
+  }, [hasServerConnection, serverConfig, triggerNotification, reportTaskDone]);
 
-  // Tự động tải nội dung khi chuyển đổi ổ đĩa hoặc đường dẫn
+  // Luôn luôn gọi API tải nội dung thư mục mới nhất khi đổi ổ đĩa hoặc thư mục
   useEffect(() => {
     if (!hasServerConnection) return;
-    let isMounted = true;
+    if (effectiveStore.key === activeKey && effectiveStore.data !== null) return;
 
-    if (!contentsByCacheKey[cacheKey]) {
-      Promise.resolve().then(() => {
-        if (isMounted) {
-          fetchContents(normalizedDriveId, cleanPath);
-        }
-      });
-    }
+    let isMounted = true;
+    Promise.resolve().then(() => {
+      if (isMounted) {
+        fetchContents(normalizedDriveId, cleanPath);
+      }
+    });
 
     return () => {
       isMounted = false;
     };
-  }, [hasServerConnection, normalizedDriveId, cleanPath, cacheKey, contentsByCacheKey, fetchContents]);
+  }, [hasServerConnection, activeKey, effectiveStore.key, effectiveStore.data, normalizedDriveId, cleanPath, fetchContents]);
 
   // Lắng nghe sự kiện WebSocket realtime từ Coordinator (/ws/events)
   useEffect(() => {
@@ -162,15 +221,20 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
     };
   }, [hasServerConnection, serverConfig, normalizedDriveId, cleanPath, fetchContents]);
 
-  const currentData = contentsByCacheKey[cacheKey] || null;
+  // KHÓA DỮ LIỆU THEO EFFECTIVE STORE
+  const isKeyMatched = effectiveStore.key === activeKey;
+  const currentData = isKeyMatched ? effectiveStore.data : null;
+  const isSyncing = isSyncLoading && syncActiveDrive === normalizedDriveId && cleanPath === '';
+  const isLoading = isSyncing || (isKeyMatched ? effectiveStore.isLoading : true);
+  const error = isKeyMatched ? effectiveStore.error : null;
 
   return {
     data: currentData,
     folders: currentData?.folders || [],
     pictures: currentData?.pictures || [],
     videos: currentData?.videos || [],
-    isLoading: isLoading && !currentData,
-    isRefreshing: isLoading,
+    isLoading,
+    isRefreshing: isLoading && Boolean(currentData),
     error,
     refreshContents: () => fetchContents(normalizedDriveId, cleanPath),
   };

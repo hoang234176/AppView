@@ -5,7 +5,7 @@ import Loading from '../../../common/Loading/Loading';
 import './Content.css';
 
 function Content() {
-  const { isContentLoading, hasServerConnection } = useLayout();
+  const { hasServerConnection } = useLayout();
   const location = useLocation();
   const mainRef = useRef(null);
   const scrollPosRef = useRef(0);
@@ -60,7 +60,7 @@ function Content() {
       onScroll={handleScroll}
       onContextMenu={handleContextMenu}
     >
-      {!hasServerConnection || isContentLoading ? (
+      {!hasServerConnection ? (
         <div className="content-loading-container">
           <Loading text="" size="md" />
         </div>
