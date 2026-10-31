@@ -29,14 +29,8 @@ func TestScanFolderMediaInfo_ShallowDepth1(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(subDir, "nested_photo2.jpg"), []byte("nested"), 0644)
 	_ = os.WriteFile(filepath.Join(subDir, "nested_video.mp4"), []byte("nested"), 0644)
 
-	previews, picCount, vidCount := ScanFolderMediaInfo(tempDir, "test_folder", 2)
+	previews, _, _ := ScanFolderMediaInfo(tempDir, "test_folder", 2)
 
-	if picCount != 2 {
-		t.Errorf("Expected pictureCount=2 (shallow depth=1), got %d", picCount)
-	}
-	if vidCount != 1 {
-		t.Errorf("Expected videoCount=1 (shallow depth=1), got %d", vidCount)
-	}
 	if len(previews) != 2 {
 		t.Errorf("Expected 2 previews, got %d", len(previews))
 	}
@@ -50,6 +44,8 @@ func TestPopulateFolderPreviews_CachesCountsInSQLite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Setup db path inside tempDir
+	metadata.ResetDBForTest()
+	defer metadata.ResetDBForTest()
 	t.Setenv("METADATA_DB_PATH", filepath.Join(tempDir, "test_metadata.db"))
 
 	folderA := filepath.Join(tempDir, "FolderA")
@@ -64,12 +60,6 @@ func TestPopulateFolderPreviews_CachesCountsInSQLite(t *testing.T) {
 
 	PopulateFolderPreviews("TEST_DRIVE", tempDir, folders, "http://localhost:8080")
 
-	if folders[0].PictureCount != 2 {
-		t.Errorf("Expected FolderA PictureCount=2, got %d", folders[0].PictureCount)
-	}
-	if folders[0].VideoCount != 1 {
-		t.Errorf("Expected FolderA VideoCount=1, got %d", folders[0].VideoCount)
-	}
 	if len(folders[0].Previews) != 2 {
 		t.Errorf("Expected FolderA Previews length=2, got %d", len(folders[0].Previews))
 	}
@@ -83,10 +73,7 @@ func TestPopulateFolderPreviews_CachesCountsInSQLite(t *testing.T) {
 	}
 	PopulateFolderPreviews("TEST_DRIVE", tempDir, folders2, "http://localhost:8080")
 
-	if folders2[0].PictureCount != 1 {
-		t.Errorf("Expected updated PictureCount=1 after delete, got %d", folders2[0].PictureCount)
-	}
-	if folders2[0].VideoCount != 1 {
-		t.Errorf("Expected VideoCount=1, got %d", folders2[0].VideoCount)
+	if len(folders2[0].Previews) != 2 {
+		t.Errorf("Expected FolderA Previews length=2 (from remaining img2 + vid1), got %d", len(folders2[0].Previews))
 	}
 }

@@ -583,7 +583,9 @@ func GetSubFolders(baseDir string, targetRelPath string) ([]*models.FolderItem, 
 	return folders, nil
 }
 
-// ScanFolderMediaInfo scans the immediate directory (shallow, depth=1) to count pictures, videos, and retrieve up to maxPreviews preview paths
+// ScanFolderMediaInfo scans the directory to retrieve up to maxPreviews preview paths.
+// It stops early as soon as maxPreviews preview files are found.
+// If the immediate folder has no media files, it checks immediate subdirectories (depth=2) for preview images.
 func ScanFolderMediaInfo(fullDir string, relPrefix string, maxPreviews int) (previews []string, pictureCount int, videoCount int) {
 	entries, err := os.ReadDir(fullDir)
 	if err != nil {
@@ -594,21 +596,46 @@ func ScanFolderMediaInfo(fullDir string, relPrefix string, maxPreviews int) (pre
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || strings.HasPrefix(entry.Name(), "$") {
 			continue
 		}
-		isImg := IsImageFile(entry.Name())
-		isVid := IsVideoFile(entry.Name())
-		if isImg {
-			pictureCount++
-		} else if isVid {
-			videoCount++
-		}
-
-		if (isImg || isVid) && len(previews) < maxPreviews {
+		if IsImageFile(entry.Name()) || IsVideoFile(entry.Name()) {
 			itemRelPath := filepath.ToSlash(filepath.Join(relPrefix, entry.Name()))
 			previews = append(previews, itemRelPath)
+			if len(previews) >= maxPreviews {
+				break
+			}
 		}
 	}
 
-	return previews, pictureCount, videoCount
+	// If no direct media files were found in this directory, check immediate subdirectories for preview images
+	if len(previews) < maxPreviews {
+		for _, entry := range entries {
+			if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || strings.HasPrefix(entry.Name(), "$") {
+				continue
+			}
+			subFullDir := filepath.Join(fullDir, entry.Name())
+			subRelPrefix := filepath.ToSlash(filepath.Join(relPrefix, entry.Name()))
+			subEntries, subErr := os.ReadDir(subFullDir)
+			if subErr != nil {
+				continue
+			}
+			for _, subEntry := range subEntries {
+				if subEntry.IsDir() || strings.HasPrefix(subEntry.Name(), ".") {
+					continue
+				}
+				if IsImageFile(subEntry.Name()) || IsVideoFile(subEntry.Name()) {
+					itemRelPath := filepath.ToSlash(filepath.Join(subRelPrefix, subEntry.Name()))
+					previews = append(previews, itemRelPath)
+					if len(previews) >= maxPreviews {
+						break
+					}
+				}
+			}
+			if len(previews) >= maxPreviews {
+				break
+			}
+		}
+	}
+
+	return previews, 0, 0
 }
 
 // ScanFolderPreviewImages scans the immediate folder directory for up to maxCount media files (images or videos)
@@ -617,7 +644,7 @@ func ScanFolderPreviewImages(fullDir string, relPrefix string, maxCount int) []s
 	return previews
 }
 
-// PopulateFolderPreviews enriches FolderItem list with preview thumbnail URLs and media counts using SQLite cache
+// PopulateFolderPreviews enriches FolderItem list with preview thumbnail URLs using SQLite cache
 func PopulateFolderPreviews(drive, baseDir string, folders []*models.FolderItem, baseURL string) {
 	if len(folders) == 0 {
 		return
@@ -656,34 +683,25 @@ func PopulateFolderPreviews(drive, baseDir string, folders []*models.FolderItem,
 				}
 				if allExist {
 					previewPaths = meta.Previews
-					f.PictureCount = meta.PictureCount
-					f.VideoCount = meta.VideoCount
 					isCacheValid = true
 				}
 			} else if !meta.HasImages {
 				// Empty folder or no media files, valid cached state
 				previewPaths = []string{}
-				f.PictureCount = meta.PictureCount
-				f.VideoCount = meta.VideoCount
 				isCacheValid = true
 			}
 		}
 
 		if !isCacheValid {
-			// Not cached, empty, or cached files were deleted: rescan to find valid previews and counts (shallow, depth=1)
-			var picCount, vidCount int
-			previewPaths, picCount, vidCount = ScanFolderMediaInfo(filepath.Join(baseDir, f.Path), f.Path, 2)
+			// Not cached, empty, or cached files were deleted: rescan to find valid previews
+			previewPaths, _, _ = ScanFolderMediaInfo(filepath.Join(baseDir, f.Path), f.Path, 2)
 			hasImages := len(previewPaths) > 0
-			f.PictureCount = picCount
-			f.VideoCount = vidCount
 
 			_ = metadata.UpsertFolderMeta(&metadata.FolderMeta{
 				Drive:        drive,
 				Folder:       cleanPath,
 				HasImages:    hasImages,
 				Previews:     previewPaths,
-				PictureCount: picCount,
-				VideoCount:   vidCount,
 				UpdatedAt:    time.Now(),
 			})
 		}

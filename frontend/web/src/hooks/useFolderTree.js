@@ -3,6 +3,19 @@ import useLayout from './useLayout';
 import { getFolderTreeApi } from '../api/apiCoordinator';
 import { resolveCoordinatorHostPort } from '../utils/cookieUtils';
 
+// Bộ nhớ đệm cây thư mục toàn cục dùng chung
+const globalFolderTreeCache = {};
+
+export function setFolderTreeCache(driveId, data) {
+  if (driveId && Array.isArray(data)) {
+    globalFolderTreeCache[driveId] = data;
+  }
+}
+
+export function getFolderTreeCache(driveId) {
+  return globalFolderTreeCache[driveId];
+}
+
 /**
  * Custom Hook quản lý trạng thái, tải dữ liệu và đồng bộ Realtime cho Cây thư mục (Folder Tree)
  * Tuân thủ quy tắc 8, 9 và 10 của frontend/web/AGENTS.md
@@ -16,7 +29,7 @@ import { resolveCoordinatorHostPort } from '../utils/cookieUtils';
  */
 export default function useFolderTree(activeDriveId = 'HDD') {
   const { serverConfig, hasServerConnection, triggerNotification } = useLayout();
-  const [foldersByDrive, setFoldersByDrive] = useState({});
+  const [foldersByDrive, setFoldersByDrive] = useState(globalFolderTreeCache);
   const [fetchingDrives, setFetchingDrives] = useState(() => new Set());
   const wsRef = useRef(null);
 
@@ -38,6 +51,7 @@ export default function useFolderTree(activeDriveId = 'HDD') {
     try {
       const res = await getFolderTreeApi(host, port, driveToFetch);
       if (res.ok && Array.isArray(res.data)) {
+        globalFolderTreeCache[driveToFetch] = res.data;
         setFoldersByDrive((prev) => ({
           ...prev,
           [driveToFetch]: res.data,

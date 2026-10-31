@@ -48,18 +48,16 @@
   height: 55%;
 }
 
-/* Menu chính chuẩn phong cách macOS Finder */
+/* Menu chính chuẩn phong cách phẳng đơn giản (Flat, siêu nhẹ) */
 .header-more-menu {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   min-width: 240px;
-  background-color: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
+  background-color: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.06);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
   padding: 6px;
   box-sizing: border-box;
   display: flex;
@@ -83,7 +81,7 @@
   width: 12px;
   height: 12px;
   transform: rotate(45deg);
-  background-color: rgba(255, 255, 255, 0.96);
+  background-color: #ffffff;
   border-top: 1px solid rgba(0, 0, 0, 0.12);
   border-left: 1px solid rgba(0, 0, 0, 0.12);
   border-top-left-radius: 2px;
@@ -92,14 +90,14 @@
 }
 
 :is(.dark, :root.dark) .header-more-menu__caret {
-  background-color: rgba(34, 34, 34, 0.96);
+  background-color: #242424;
   border-color: rgba(255, 255, 255, 0.14);
 }
 
 :is(.dark, :root.dark) .header-more-menu {
-  background-color: rgba(34, 34, 34, 0.85);
+  background-color: #242424;
   border-color: rgba(255, 255, 255, 0.14);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 3px 10px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 @keyframes macMenuFadeIn {
@@ -196,12 +194,10 @@
   position: absolute;
   top: -6px;
   min-width: 220px;
-  background-color: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
+  background-color: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.06);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
   padding: 6px;
   box-sizing: border-box;
   display: flex;
@@ -219,9 +215,9 @@
 }
 
 :is(.dark, :root.dark) .header-more-submenu {
-  background-color: rgba(34, 34, 34, 0.85);
+  background-color: #242424;
   border-color: rgba(255, 255, 255, 0.14);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 3px 10px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 /* Dòng item trong Submenu */

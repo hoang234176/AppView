@@ -103,17 +103,22 @@ function SidebarDrives({ activeDriveId = 'SSD', onSelectDrive }) {
                   </span>
                 </div>
 
-                {/* Hàng 2: Thanh tiến trình ngang nằm ngay dưới tên */}
-                <div className="sidebar-drive-progress-track">
-                  <div
-                    className={`sidebar-drive-progress-fill ${isActive ? 'sidebar-drive-progress-fill--active' : ''} ${isHighUsage ? 'sidebar-drive-progress-fill--warning' : ''}`}
-                    style={{ width: isAvailable ? `${percent}%` : '0%' }}
-                  />
+                {/* Hàng 2: Thanh tiến trình ngang nằm ngay dưới tên (kèm nhãn Offline căn giữa nếu ổ không khả dụng) */}
+                <div className="sidebar-drive-progress-wrapper">
+                  <div className="sidebar-drive-progress-track">
+                    <div
+                      className={`sidebar-drive-progress-fill ${isActive ? 'sidebar-drive-progress-fill--active' : ''} ${isHighUsage ? 'sidebar-drive-progress-fill--warning' : ''}`}
+                      style={{ width: isAvailable ? `${percent}%` : '0%' }}
+                    />
+                  </div>
+                  {!isAvailable && (
+                    <span className="sidebar-drive-card__offline-badge">Offline</span>
+                  )}
                 </div>
 
                 {/* Hàng 3: Đã dùng (trái) | Dung lượng tổng (phải) */}
                 <div className="sidebar-drive-stats-row">
-                  {isAvailable ? (
+                  {isAvailable && (
                     <>
                       <span className="sidebar-drive-card__stats sidebar-drive-stat-used">
                         {usedText}
@@ -122,8 +127,6 @@ function SidebarDrives({ activeDriveId = 'SSD', onSelectDrive }) {
                         {totalText}
                       </span>
                     </>
-                  ) : (
-                    <span className="sidebar-drive-card__stats sidebar-drive-card__stats--offline">Offline</span>
                   )}
                 </div>
               </div>

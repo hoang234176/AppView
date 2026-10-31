@@ -238,6 +238,15 @@
 }
 
 /* Hàng 2: Thanh tiến trình ngang nằm NGAY DƯỚI TÊN */
+.sidebar-drive-progress-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .sidebar-drive-progress-track {
   width: 100%;
   height: clamp(4px, 0.55dvh, 5px);
@@ -282,6 +291,7 @@
   width: 100%;
   min-width: 0;
   gap: 4px;
+  min-height: clamp(0.7rem, 1.4dvh, 0.85rem);
 }
 
 .sidebar-drive-stat-used {
@@ -308,11 +318,27 @@
   color: #94a3b8;
 }
 
-.sidebar-drive-card__stats--offline {
+/* Nhãn Offline đè chính giữa thanh tiến trình với đế vuông che vệt thanh phía sau */
+.sidebar-drive-card__offline-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #f8fafc;
+  padding: 0 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: clamp(0.55rem, 1.05dvh, 0.65rem);
+  font-weight: 600;
   font-style: italic;
   color: #ef4444;
+  line-height: 1.1;
+  white-space: nowrap;
+  border-radius: 2px;
+  z-index: 2;
+  box-sizing: border-box;
 }
 
-:is(.dark, :root.dark) .sidebar-drive-card__stats--offline {
+:is(.dark, :root.dark) .sidebar-drive-card__offline-badge {
+  background-color: #161616;
   color: #f87171;
 }

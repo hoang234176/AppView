@@ -3,6 +3,19 @@ import useLayout from './useLayout';
 import { getFolderContentsApi } from '../api/apiCoordinator';
 import { resolveCoordinatorHostPort } from '../utils/cookieUtils';
 
+// Bộ nhớ đệm nội dung thư mục toàn cục dùng chung
+const globalFolderContentsCache = {};
+
+export function setFolderContentsCache(key, data) {
+  if (key && data) {
+    globalFolderContentsCache[key] = data;
+  }
+}
+
+export function getFolderContentsCache(key) {
+  return globalFolderContentsCache[key];
+}
+
 /**
  * Custom Hook quản lý nội dung thư mục (folders, pictures, videos) từ Coordinator
  * Tuân thủ Quy tắc 8, 9, 10 của frontend/web/AGENTS.md
@@ -13,9 +26,6 @@ import { resolveCoordinatorHostPort } from '../utils/cookieUtils';
  *   folders: Array,
  *   pictures: Array,
  *   videos: Array,
- *   totalFolders: number,
- *   totalPictures: number,
- *   totalVideos: number,
  *   isLoading: boolean,
  *   error: string|null,
  *   refreshContents: () => Promise<void>
@@ -23,7 +33,7 @@ import { resolveCoordinatorHostPort } from '../utils/cookieUtils';
  */
 export default function useFolderContents(driveId = 'SSD', currentPath = '') {
   const { serverConfig, hasServerConnection, triggerNotification } = useLayout();
-  const [contentsByCacheKey, setContentsByCacheKey] = useState({});
+  const [contentsByCacheKey, setContentsByCacheKey] = useState(globalFolderContentsCache);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const wsRef = useRef(null);
@@ -61,6 +71,7 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
       });
 
       if (res.ok && res.data) {
+        globalFolderContentsCache[key] = res.data;
         setContentsByCacheKey((prev) => ({
           ...prev,
           [key]: res.data,
@@ -158,9 +169,6 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
     folders: currentData?.folders || [],
     pictures: currentData?.pictures || [],
     videos: currentData?.videos || [],
-    totalFolders: currentData?.total_folders || 0,
-    totalPictures: currentData?.total_pictures || 0,
-    totalVideos: currentData?.total_videos || 0,
     isLoading: isLoading && !currentData,
     isRefreshing: isLoading,
     error,

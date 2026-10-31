@@ -254,17 +254,15 @@ type FolderContentsRequestPayload struct {
 }
 
 type FolderItem struct {
-	ID           string   `json:"id,omitempty"`
-	Name         string   `json:"name"`
-	Path         string   `json:"path"`
-	Parent       string   `json:"parent,omitempty"`
-	Drive        string   `json:"drive,omitempty"`
-	Type         string   `json:"type,omitempty"`
-	ItemCount    int      `json:"item_count"`
-	Previews     []string `json:"previews,omitempty"`
-	PictureCount int      `json:"picture_count"`
-	VideoCount   int      `json:"video_count"`
-	ModTime      string   `json:"mod_time,omitempty"`
+	ID        string   `json:"id,omitempty"`
+	Name      string   `json:"name"`
+	Path      string   `json:"path"`
+	Parent    string   `json:"parent,omitempty"`
+	Drive     string   `json:"drive,omitempty"`
+	Type      string   `json:"type,omitempty"`
+	ItemCount int      `json:"item_count,omitempty"`
+	Previews  []string `json:"previews,omitempty"`
+	ModTime   string   `json:"mod_time,omitempty"`
 }
 
 type PictureItem struct {

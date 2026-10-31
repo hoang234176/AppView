@@ -46,6 +46,18 @@ var (
 	dbMu   sync.RWMutex
 )
 
+// ResetDBForTest resets the singleton DB instance for unit tests
+func ResetDBForTest() {
+	dbMu.Lock()
+	defer dbMu.Unlock()
+	if db != nil {
+		_ = db.Close()
+		db = nil
+	}
+	dbOnce = sync.Once{}
+	dbErr = nil
+}
+
 // GetDBPath returns the absolute path to the SQLite metadata database
 func GetDBPath() string {
 	if custom := strings.TrimSpace(os.Getenv("METADATA_DB_PATH")); custom != "" {

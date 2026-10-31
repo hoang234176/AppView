@@ -3,6 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import './SidebarLayout.css';
 import useLayout from '../../../hooks/useLayout';
 import useStorageDrives, { getPreferredActiveDriveId } from '../../../hooks/useStorageDrives';
+import { getFolderTreeApi, getFolderContentsApi } from '../../../api/apiCoordinator';
+import { resolveCoordinatorHostPort } from '../../../utils/cookieUtils';
+import { setFolderTreeCache } from '../../../hooks/useFolderTree';
+import { setFolderContentsCache } from '../../../hooks/useFolderContents';
 import Loading from '../../common/Loading/Loading';
 import SidebarBrand from './SidebarBrand';
 import SidebarTree from './SidebarTree';
@@ -13,9 +17,16 @@ function SidebarLayout() {
   const navigate = useNavigate();
   const { drives } = useStorageDrives();
 
-  // Phân tích driveId từ URL /drives/:driveId nếu có
-  const driveMatch = location.pathname.match(/^\/drives\/([^/]+)/);
-  const routeDriveId = driveMatch ? decodeURIComponent(driveMatch[1]) : null;
+  // Phân tích driveId từ URL /:driveId hoặc /drives/:driveId nếu có
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  let routeDriveId = null;
+  if (pathParts.length > 0 && pathParts[0] !== 'settings') {
+    if (pathParts[0] === 'drives' && pathParts.length > 1) {
+      routeDriveId = decodeURIComponent(pathParts[1]);
+    } else {
+      routeDriveId = decodeURIComponent(pathParts[0]);
+    }
+  }
   const isSettings = location.pathname === '/settings';
 
   const preferredDriveId = getPreferredActiveDriveId(drives) || 'SSD';
@@ -44,11 +55,14 @@ function SidebarLayout() {
     closeSidebar,
     sidebarWidth,
     isResizing,
+    isResetting,
     startResizing,
     resetSidebarWidth,
     showContentLoading,
     hideContentLoading,
     hasServerConnection,
+    serverConfig,
+    triggerNotification,
   } = useLayout();
 
   // Dọn dẹp timer khi component unmount
@@ -83,41 +97,74 @@ function SidebarLayout() {
 
       if (!isMatchedAvailable) {
         // Nếu ổ trong URL không tồn tại hoặc đang offline: redirect về ổ khả dụng ưu tiên
-        navigate(`/drives/${preferredId}`, { replace: true });
+        navigate(`/${preferredId}`, { replace: true });
       }
       return;
     }
 
-    // Nếu đang ở trang chủ / hoặc /contents: tự động điều hướng sang URL /drives/:preferredId
+    // Nếu đang ở trang chủ / hoặc /contents: tự động điều hướng sang URL /:preferredId
     if (location.pathname === '/' || location.pathname === '/contents') {
-      navigate(`/drives/${preferredId}`, { replace: true });
+      navigate(`/${preferredId}`, { replace: true });
     }
   }, [hasServerConnection, drives, routeDriveId, isSettings, location.pathname, navigate]);
 
-  // Xử lý chuyển đổi ổ đĩa với hiệu ứng mượt 400ms và cập nhật URL
-  const handleSelectDrive = useCallback((newDriveId) => {
-    // Nếu click vào ổ đang mở: không làm gì
-    if (newDriveId === activeDriveId && location.pathname === `/drives/${newDriveId}`) return;
+  // Xử lý chuyển đổi ổ đĩa: tải đồng thời Cây thư mục và Danh sách nội dung, chỉ tắt loading trong finally
+  const handleSelectDrive = useCallback(async (newDriveId) => {
+    // Trường hợp 1: Click vào chính ổ đĩa đang chọn
+    if (newDriveId === activeDriveId) {
+      // 1A. Nếu đã ở thư mục gốc (không có query path): bỏ qua, không gọi request
+      if (location.pathname === `/${newDriveId}` && !location.search) {
+        return;
+      }
+      // 1B. Nếu đang ở thư mục con: điều hướng ngay về thư mục gốc của ổ mà không cần loading cây thư mục
+      navigate(`/${newDriveId}`);
+      return;
+    }
 
-    // 1. Nhảy viền xanh active ngay lập tức trên nút ổ đĩa
+    // Trường hợp 2: Chuyển sang ổ đĩa khác
+    // 1. Nhảy viền xanh active ngay lập tức trên nút ổ đĩa mới
     setPendingDriveId(newDriveId);
     setPreviousRouteDriveId(currentRouteDriveId);
 
-    // 2. Bật loading overlay phủ lên SidebarTree và main-content
+    // 2. Bật loading overlay đồng thời phủ lên SidebarTree và main-content
     setIsTreeLoading(true);
     showContentLoading();
 
-    if (driveTimeoutRef.current) {
-      clearTimeout(driveTimeoutRef.current);
-    }
+    const { host, port } = resolveCoordinatorHostPort(serverConfig);
 
-    driveTimeoutRef.current = setTimeout(() => {
-      // 3. Sau 400ms: cập nhật dữ liệu cây thư mục sang ổ mới, tắt overlay và chuyển route URL
+    try {
+      if (hasServerConnection && host && port) {
+        // 3. Tải SONG SONG đồng thời Cây thư mục và Danh sách thư mục gốc
+        const [treeRes, contentsRes] = await Promise.all([
+          getFolderTreeApi(host, port, newDriveId),
+          getFolderContentsApi(host, port, { drive: newDriveId, path: '' }),
+        ]);
+
+        if (treeRes.ok && Array.isArray(treeRes.data)) {
+          setFolderTreeCache(newDriveId, treeRes.data);
+        }
+        if (contentsRes.ok && contentsRes.data) {
+          setFolderContentsCache(`${newDriveId}:`, contentsRes.data);
+        }
+      }
+
+      // 4. Chuyển URL route sang ổ mới
+      navigate(`/${newDriveId}`);
+    } catch (err) {
+      console.error('Error switching drive:', err);
+      triggerNotification?.({
+        type: 'error',
+        title: 'Drive Error',
+        message: err.message || `Không thể tải dữ liệu cho ổ ${newDriveId}`,
+      });
+      navigate(`/${newDriveId}`);
+    } finally {
+      // 5. FINAL: Sau khi CẢ 2 tác vụ đều đã xử lý xong, mới tắt loading đồng thời!
       setIsTreeLoading(false);
       hideContentLoading();
-      navigate(`/drives/${newDriveId}`);
-    }, 400);
-  }, [activeDriveId, location.pathname, currentRouteDriveId, navigate, showContentLoading, hideContentLoading]);
+      setPendingDriveId(null);
+    }
+  }, [activeDriveId, location.pathname, location.search, currentRouteDriveId, navigate, showContentLoading, hideContentLoading, hasServerConnection, serverConfig, triggerNotification]);
 
   const sidebarStyle = isMobile
     ? undefined
@@ -140,7 +187,7 @@ function SidebarLayout() {
       <aside
         className={`sidebar-layout ${isMobile && isSidebarOpen ? 'sidebar-layout--open' : ''} ${
           isResizing ? 'sidebar-layout--resizing' : ''
-        }`}
+        } ${isResetting ? 'sidebar-layout--animating' : ''}`}
         style={sidebarStyle}
       >
         <div className="sidebar-header">

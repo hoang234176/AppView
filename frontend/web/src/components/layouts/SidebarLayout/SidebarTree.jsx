@@ -1,4 +1,5 @@
 import { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './SidebarTree.css';
 import useFolderTree from '../../../hooks/useFolderTree';
 import Loading from '../../common/Loading/Loading';
@@ -101,6 +102,8 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
 }
 
 function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { folders, normalizedDriveId, isFetchingTree } = useFolderTree(activeDriveId);
   const scrollContainerRef = useRef(null);
   const [floatingDirection, setFloatingDirection] = useState(null); // 'above' | 'below' | null
@@ -108,6 +111,34 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
   // Trạng thái mở rộng và chọn thư mục
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [selectedId, setSelectedId] = useState(null);
+
+  // Đồng bộ trạng thái chọn và mở rộng thư mục từ URL ?path=...
+  useEffect(() => {
+    try {
+      const query = new URLSearchParams(location.search);
+      const pathParam = query.get('path');
+      if (pathParam && pathParam.trim()) {
+        const cleanPath = pathParam.trim();
+        setSelectedId(cleanPath);
+        const parts = cleanPath.split('/').filter(Boolean);
+        if (parts.length > 1) {
+          setExpandedIds((prev) => {
+            const next = new Set(prev);
+            let acc = '';
+            for (let i = 0; i < parts.length - 1; i++) {
+              acc = acc ? `${acc}/${parts[i]}` : parts[i];
+              next.add(acc);
+            }
+            return next;
+          });
+        }
+      } else {
+        setSelectedId(null);
+      }
+    } catch {
+      // Bỏ qua lỗi URL search parse
+    }
+  }, [location.search]);
 
   // Khi chuyển sang ổ đĩa khác: xóa trắng trạng thái trỏ/mở của ổ cũ và cuộn về đầu
   const isFirstMountRef = useRef(true);
@@ -244,6 +275,7 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
       // Đưa lên trên cùng (không cần đẩy xuống vì chính nó là thư mục đang chọn trong khung nhìn)
       scrollToFolder(id, 0);
     }
+    navigate(`/${normalizedDriveId}?path=${encodeURIComponent(id)}`);
   };
 
   return (

@@ -21,6 +21,10 @@
   transition: none !important;
 }
 
+.sidebar-layout--animating {
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
 :is(.dark, :root.dark) .sidebar-layout {
   background-color: #1c1c1c;
   border-color: #2e2e2e;

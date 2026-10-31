@@ -1,0 +1,212 @@
+/* ==========================================================================
+   MediaCard - macOS Finder Icon View Style
+   Khối hộp đồng nhất (Block) cho Thư mục / Hình ảnh / Video
+   ========================================================================== */
+.media-card {
+  width: 150px;
+  max-width: 150px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  user-select: none;
+  background-color: transparent;
+  border: none;
+  border-radius: 10px;
+  box-sizing: border-box;
+  padding: 6px 4px 8px 4px;
+  position: relative;
+  transition: background-color 0.1s ease;
+}
+
+/* ==========================================================================
+   Khu vực khuôn Thumbnail cố định (Không bao giờ tràn ra ngoài)
+   ========================================================================== */
+.media-card__body {
+  width: 100%;
+  height: 132px;
+  min-height: 132px;
+  max-height: 132px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background-color: transparent;
+  overflow: hidden;
+}
+
+.media-card__folder-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Ảnh & Video luôn co gọn vừa khít khuôn 132px, giữ nguyên tỷ lệ gốc */
+.media-card__img {
+  max-width: 100%;
+  max-height: 132px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 6px;
+  display: block;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+:is(.dark, :root.dark) .media-card__img {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Khối bao quanh Video */
+.media-card__video-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: 132px;
+  height: 100%;
+}
+
+.media-card__video-placeholder {
+  color: #94a3b8;
+  font-size: 1.75rem;
+}
+
+/* ==========================================================================
+   Khối Icon Dự phòng - Tờ tài liệu gấp góc (macOS Dog-Ear Sheet)
+   ========================================================================== */
+.media-card__folded-doc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-card__folded-svg {
+  display: block;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+}
+
+:is(.light, :root:not(.dark)) .media-card__folded-svg {
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.1));
+}
+
+/* Thân tờ giấy */
+.media-card__doc-body {
+  fill: #262626;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 1.2;
+}
+
+:is(.light, :root:not(.dark)) .media-card__doc-body {
+  fill: #ffffff;
+  stroke: rgba(0, 0, 0, 0.14);
+}
+
+/* Nếp gấp lật ở góc trên bên phải */
+.media-card__doc-flap {
+  fill: #3a3a3d;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1.2;
+  filter: drop-shadow(-1px 2px 2px rgba(0, 0, 0, 0.35));
+}
+
+:is(.light, :root:not(.dark)) .media-card__doc-flap {
+  fill: #e2e8f0;
+  stroke: rgba(0, 0, 0, 0.14);
+  filter: drop-shadow(-1px 2px 2px rgba(0, 0, 0, 0.1));
+}
+
+/* Nét vẽ icon bên trong tờ giấy */
+.media-card__doc-icon-stroke {
+  stroke: #94a3b8;
+  fill: none;
+}
+
+:is(.light, :root:not(.dark)) .media-card__doc-icon-stroke {
+  stroke: #64748b;
+}
+
+.media-card__doc-icon-fill {
+  fill: #94a3b8;
+}
+
+:is(.light, :root:not(.dark)) .media-card__doc-icon-fill {
+  fill: #64748b;
+}
+
+/* Nút Play phẳng đơn giản (Flat, siêu nhẹ, không tốn GPU) */
+.media-card__play-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.media-card__play-badge svg {
+  margin-left: 2px;
+}
+
+.media-card--video:hover .media-card__play-badge {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   Khu vực Tên nhãn bên dưới
+   ========================================================================== */
+.media-card__footer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+  background-color: transparent;
+}
+
+.media-card__name {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #f1f5f9;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.25;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  padding: 1px 4px;
+  box-sizing: border-box;
+}
+
+:is(.light, :root:not(.dark)) .media-card__name {
+  color: #1e293b;
+  text-shadow: none;
+}
+
+/* ==========================================================================
+   Trạng thái được chọn (Selected State - Khối chọn mờ)
+   ========================================================================== */
+.media-card--selected {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  border-radius: 10px;
+}
+
+:is(.light, :root:not(.dark)) .media-card--selected {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}

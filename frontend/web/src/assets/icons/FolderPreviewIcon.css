@@ -1,13 +1,12 @@
-/* Icon Thư mục macOS chứa Thumbnail (Phương án 1) */
+/* Icon Thư mục macOS chứa Thumbnail (Chuẩn 1:1 Apple Big Sur / Sonoma) */
 .folder-preview-icon {
   position: relative;
-  width: 88px;
-  height: 74px;
-  margin-top: 4px;
-  margin-bottom: 0.375rem;
+  width: 104px;
+  height: 88px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transform: scale(1.15);
 }
 
 .folder-preview-icon__svg-back,
@@ -37,10 +36,10 @@
 /* Khung tấm ảnh thumbnail */
 .folder-preview-icon__sheet {
   position: absolute;
-  border-radius: 4px;
+  border-radius: 5px;
   overflow: hidden;
   background-color: #0f172a;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.32);
   border: 1px solid #ffffff;
   box-sizing: border-box;
 }
@@ -55,59 +54,59 @@
 /* --- DẠNG 1 ẢNH ĐƠN --- */
 /* Ảnh dọc (Portrait) */
 .folder-preview-icon__sheet--single.folder-preview-icon__sheet--portrait {
-  top: -2px;
-  left: 18px;
-  width: 52px;
-  height: 54px;
+  top: -3px;
+  left: 22px;
+  width: 66px;
+  height: 68px;
   z-index: 2;
 }
 
 /* Ảnh ngang (Landscape) */
 .folder-preview-icon__sheet--single.folder-preview-icon__sheet--landscape {
-  top: 2px;
-  left: 13px;
-  width: 62px;
-  height: 44px;
+  top: 3px;
+  left: 16px;
+  width: 78px;
+  height: 56px;
   z-index: 2;
 }
 
 /* --- DẠNG 2 ẢNH XẾP LỚP SO LE --- */
 /* Ảnh sau (Dọc) */
 .folder-preview-icon__sheet--back.folder-preview-icon__sheet--portrait {
-  top: -5px;
-  left: 13px;
-  width: 44px;
-  height: 54px;
+  top: -7px;
+  left: 16px;
+  width: 56px;
+  height: 68px;
   transform: rotate(-5deg);
   z-index: 2;
 }
 
 /* Ảnh sau (Ngang) */
 .folder-preview-icon__sheet--back.folder-preview-icon__sheet--landscape {
-  top: -2px;
-  left: 8px;
-  width: 54px;
-  height: 42px;
+  top: -3px;
+  left: 10px;
+  width: 68px;
+  height: 54px;
   transform: rotate(-4deg);
   z-index: 2;
 }
 
 /* Ảnh trước (Dọc) */
 .folder-preview-icon__sheet--front.folder-preview-icon__sheet--portrait {
-  top: -2px;
-  right: 13px;
-  width: 44px;
-  height: 54px;
+  top: -3px;
+  right: 16px;
+  width: 56px;
+  height: 68px;
   transform: rotate(4deg);
   z-index: 3;
 }
 
 /* Ảnh trước (Ngang) */
 .folder-preview-icon__sheet--front.folder-preview-icon__sheet--landscape {
-  top: 2px;
-  right: 8px;
-  width: 54px;
-  height: 42px;
+  top: 3px;
+  right: 10px;
+  width: 68px;
+  height: 54px;
   transform: rotate(3deg);
   z-index: 3;
 }
@@ -115,7 +114,7 @@
 /* Thư mục trống (Không có thumbnail) */
 .folder-preview-icon__empty {
   position: absolute;
-  top: 36px;
+  top: 45px;
   left: 0;
   width: 100%;
   z-index: 2;
@@ -126,6 +125,6 @@
 }
 
 .folder-preview-icon__empty-glyph {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
 }

@@ -34,6 +34,7 @@ export function LayoutProvider({ children }) {
   }, [sidebarWidth]);
 
   const [isResizing, setIsResizing] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [activeView, setActiveView] = useState('contents');
   const [isContentLoading, setIsContentLoading] = useState(false);
   const [isHeaderRightVisible, setIsHeaderRightVisible] = useState(true);
@@ -200,11 +201,18 @@ export function LayoutProvider({ children }) {
   }, []);
 
   const resetSidebarWidth = useCallback(() => {
+    if (Math.abs(sidebarWidthRef.current - 25) < 0.1) return;
+
+    setIsResetting(true);
     document.documentElement.style.setProperty('--sidebar-width', '25%');
     setSidebarWidth(25);
     if (typeof window !== 'undefined') {
       localStorage.setItem('appview_sidebar_width', '25');
     }
+
+    setTimeout(() => {
+      setIsResetting(false);
+    }, 350);
   }, []);
 
   const showContentLoading = useCallback(() => setIsContentLoading(true), []);
@@ -301,6 +309,7 @@ export function LayoutProvider({ children }) {
     closeSidebar,
     sidebarWidth,
     isResizing,
+    isResetting,
     startResizing,
     resetSidebarWidth,
     activeView,
@@ -335,6 +344,7 @@ export function LayoutProvider({ children }) {
     closeSidebar,
     sidebarWidth,
     isResizing,
+    isResetting,
     startResizing,
     resetSidebarWidth,
     activeView,
