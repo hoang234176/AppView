@@ -31,18 +31,46 @@
   border: none;
   background: transparent;
   padding: 0;
+  outline: none;
+  transition: color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+}
+
+.header-nav-square--enabled {
+  cursor: pointer;
+  color: #1e293b;
+}
+
+.header-nav-square--enabled:hover {
+  background-color: #f1f5f9;
+}
+
+.header-nav-square--enabled:active {
+  transform: scale(0.92);
+}
+
+:is(.dark, :root.dark) .header-nav-square--enabled {
+  color: #f1f5f9;
+}
+
+:is(.dark, :root.dark) .header-nav-square--enabled:hover {
+  background-color: #27272a;
+}
+
+.header-nav-square--disabled {
   cursor: default;
   color: #9ca3af;
-  outline: none;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+:is(.dark, :root.dark) .header-nav-square--disabled {
+  color: #6b7280;
+  opacity: 0.28;
 }
 
 .header-nav-square svg {
   width: 75%;
   height: 75%;
-}
-
-:is(.dark, :root.dark) .header-nav-square {
-  color: #6b7280;
 }
 
 /* Đường phân cách mảnh SVG giữa 2 nút */

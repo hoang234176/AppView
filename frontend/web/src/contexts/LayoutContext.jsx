@@ -60,13 +60,33 @@ export function LayoutProvider({ children }) {
 
   const barrierDriveRef = useRef('');
   const barrierTimerRef = useRef(null);
+  const fallbackTimerRef = useRef(null);
   const taskStatusRef = useRef({ treeDone: true, contentsDone: true, startTime: 0 });
+
+  const clearSyncBarrier = useCallback(() => {
+    if (barrierTimerRef.current) {
+      clearTimeout(barrierTimerRef.current);
+      barrierTimerRef.current = null;
+    }
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+    setSyncState((prev) => ({
+      ...prev,
+      isSyncLoading: false,
+    }));
+  }, []);
 
   const startSyncBarrier = useCallback((driveId) => {
     if (!driveId) return;
     if (barrierTimerRef.current) {
       clearTimeout(barrierTimerRef.current);
       barrierTimerRef.current = null;
+    }
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
     }
     const now = Date.now();
     barrierDriveRef.current = driveId;
@@ -75,6 +95,15 @@ export function LayoutProvider({ children }) {
       activeDrive: driveId,
       isSyncLoading: true,
     });
+
+    // Safety fallback: giải phóng barrier sau tối đa 3 giây nếu một tác vụ bị hủy hoặc không mount
+    fallbackTimerRef.current = setTimeout(() => {
+      setSyncState((prev) => ({
+        ...prev,
+        isSyncLoading: false,
+      }));
+      fallbackTimerRef.current = null;
+    }, 3000);
   }, []);
 
   const reportTaskDone = useCallback((driveId, taskType) => {
@@ -87,6 +116,10 @@ export function LayoutProvider({ children }) {
     }
 
     if (taskStatusRef.current.treeDone && taskStatusRef.current.contentsDone) {
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
       const elapsed = Date.now() - taskStatusRef.current.startTime;
       const remaining = Math.max(0, 400 - elapsed);
 
@@ -102,6 +135,13 @@ export function LayoutProvider({ children }) {
         barrierTimerRef.current = null;
       }, remaining);
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (barrierTimerRef.current) clearTimeout(barrierTimerRef.current);
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
   }, []);
 
   const dismissNotification = useCallback((id) => {
@@ -372,6 +412,7 @@ export function LayoutProvider({ children }) {
     isSyncLoading: syncState.isSyncLoading,
     syncActiveDrive: syncState.activeDrive,
     startSyncBarrier,
+    clearSyncBarrier,
     reportTaskDone,
     isHeaderRightVisible,
     isHeaderRightExiting,
@@ -410,6 +451,7 @@ export function LayoutProvider({ children }) {
     syncState.isSyncLoading,
     syncState.activeDrive,
     startSyncBarrier,
+    clearSyncBarrier,
     reportTaskDone,
     isHeaderRightVisible,
     isHeaderRightExiting,

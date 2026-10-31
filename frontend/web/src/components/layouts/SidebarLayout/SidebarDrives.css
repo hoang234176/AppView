@@ -31,33 +31,43 @@
   outline: none;
   cursor: pointer;
   overflow: hidden;
-  transition: background-color 0.25s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
+  opacity: 0.55;
+  transition: background-color 0.25s ease, border-color 0.3s ease, opacity 0.25s ease;
 }
 
 .sidebar-drive-card:hover:not(.sidebar-drive-card--offline) {
+  opacity: 0.8;
   background-color: #f1f5f9;
   border-color: #cbd5e1;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card {
+  opacity: 0.52;
   background-color: #161616;
-  border-color: #2a2a2a;
+  border-color: #26262a;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card:hover:not(.sidebar-drive-card--offline) {
+  opacity: 0.75;
   background-color: #1c1c1c;
   border-color: #383838;
 }
 
-/* Trạng thái Active: Viền xanh sắc sảo kèm bóng nhẹ chuẩn Apple */
+/* Trạng thái Active:
+   - Light mode (Phương án 2): Viền xanh Apple 1px sắc nét, nền trắng sạch, không nhồi nhét màu xanh.
+   - Dark mode (Phương án 3): Tương phản khối xám đầm, không viền xanh chói, tuyệt đối không blur. */
 .sidebar-drive-card--active {
+  opacity: 1 !important;
+  background-color: #ffffff !important;
   border-color: #007aff !important;
-  box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.35) !important;
+  box-shadow: none !important;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card--active {
-  border-color: #0a84ff !important;
-  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.4) !important;
+  opacity: 1 !important;
+  background-color: #28282c !important;
+  border-color: #3f3f46 !important;
+  box-shadow: none !important;
 }
 
 /* Trạng thái Offline / Không mount: Viền đỏ nét đứt, icon mờ xám, không có viền xanh active */
@@ -167,15 +177,15 @@
 }
 
 .sidebar-drive-card--active .sidebar-drive-card__icon {
-  color: #007aff;
+  color: #0f172a;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card__icon {
-  color: #94a3b8;
+  color: #71717a;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card--active .sidebar-drive-card__icon {
-  color: #0a84ff;
+  color: #ffffff;
 }
 
 /* Cột phải: Toàn bộ thông tin (Tên + %, Thanh %, Stats) */
@@ -203,7 +213,7 @@
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-size: clamp(0.75rem, 1.5dvh, 0.92rem);
   font-weight: 600;
-  color: #1e293b;
+  color: #64748b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -211,8 +221,16 @@
   line-height: 1.15;
 }
 
+.sidebar-drive-card--active .sidebar-drive-card__name {
+  color: #0f172a;
+}
+
 :is(.dark, :root.dark) .sidebar-drive-card__name {
-  color: #f1f5f9;
+  color: #a1a1aa;
+}
+
+:is(.dark, :root.dark) .sidebar-drive-card--active .sidebar-drive-card__name {
+  color: #ffffff;
 }
 
 /* Con số % góc phải */
@@ -220,21 +238,22 @@
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
   font-size: clamp(0.75rem, 1.6dvh, 0.95rem);
   font-weight: 700;
-  color: #1e293b;
+  color: #64748b;
   letter-spacing: -0.02em;
   flex-shrink: 0;
+  transition: color 0.15s ease;
 }
 
 .sidebar-drive-card__percent--active {
-  color: #007aff;
+  color: #0f172a;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card__percent {
-  color: #f8fafc;
+  color: #71717a;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-card__percent--active {
-  color: #0a84ff;
+  color: #ffffff;
 }
 
 /* Hàng 2: Thanh tiến trình ngang nằm NGAY DƯỚI TÊN */
@@ -249,7 +268,7 @@
 
 .sidebar-drive-progress-track {
   width: 100%;
-  height: clamp(4px, 0.55dvh, 5px);
+  height: clamp(5px, 0.65dvh, 6px);
   background-color: rgba(148, 163, 184, 0.2);
   border-radius: 9999px;
   overflow: hidden;
@@ -257,18 +276,18 @@
 }
 
 :is(.dark, :root.dark) .sidebar-drive-progress-track {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 .sidebar-drive-progress-fill {
   height: 100%;
   border-radius: 9999px;
-  background-color: #64748b;
+  background-color: #cbd5e1;
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-progress-fill {
-  background-color: #94a3b8;
+  background-color: #38383e;
 }
 
 .sidebar-drive-progress-fill--active {
@@ -298,11 +317,19 @@
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-size: clamp(0.58rem, 1.15dvh, 0.72rem);
   font-weight: 600;
-  color: #475569;
+  color: #64748b;
   white-space: nowrap;
 }
 
+.sidebar-drive-card--active .sidebar-drive-stat-used {
+  color: #475569;
+}
+
 :is(.dark, :root.dark) .sidebar-drive-stat-used {
+  color: #71717a;
+}
+
+:is(.dark, :root.dark) .sidebar-drive-card--active .sidebar-drive-stat-used {
   color: #cbd5e1;
 }
 
@@ -310,12 +337,12 @@
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-size: clamp(0.58rem, 1.15dvh, 0.72rem);
   font-weight: 500;
-  color: #64748b;
+  color: #94a3b8;
   white-space: nowrap;
 }
 
 :is(.dark, :root.dark) .sidebar-drive-stat-total {
-  color: #94a3b8;
+  color: #71717a;
 }
 
 /* Nhãn Offline đè chính giữa thanh tiến trình với đế vuông che vệt thanh phía sau */

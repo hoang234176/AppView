@@ -26,13 +26,6 @@ function SidebarLayout() {
   }
   const isSettings = location.pathname === '/settings';
 
-  const preferredDriveId = getPreferredActiveDriveId(drives) || 'SSD';
-  const currentRouteDriveId = routeDriveId || preferredDriveId;
-
-  // Ổ đĩa active và Cây thư mục hiển thị: đồng bộ trực tiếp theo currentRouteDriveId
-  const activeDriveId = currentRouteDriveId;
-  const treeDriveId = activeDriveId;
-
   const {
     isSidebarOpen,
     isMobile,
@@ -46,15 +39,28 @@ function SidebarLayout() {
     isSyncLoading,
     syncActiveDrive,
     startSyncBarrier,
+    clearSyncBarrier,
   } = useLayout();
 
-  // Kích hoạt Barrier đồng bộ khi mới vào trang hoặc khi activeDrive thay đổi
+  const preferredDriveId = getPreferredActiveDriveId(drives) || 'SSD';
+  const currentRouteDriveId = routeDriveId || (isSettings && syncActiveDrive ? syncActiveDrive : preferredDriveId);
+
+  // Ổ đĩa active và Cây thư mục hiển thị: đồng bộ trực tiếp theo currentRouteDriveId
+  const activeDriveId = currentRouteDriveId;
+  const treeDriveId = activeDriveId;
+
+  // Kích hoạt Barrier đồng bộ khi mới vào trang hoặc khi activeDrive thay đổi (không chạy khi ở /settings)
   useEffect(() => {
-    if (!hasServerConnection || !activeDriveId) return;
+    if (!hasServerConnection || !activeDriveId || isSettings) {
+      if (isSettings) {
+        clearSyncBarrier();
+      }
+      return;
+    }
     if (syncActiveDrive !== activeDriveId) {
       startSyncBarrier(activeDriveId);
     }
-  }, [hasServerConnection, activeDriveId, syncActiveDrive, startSyncBarrier]);
+  }, [hasServerConnection, activeDriveId, syncActiveDrive, startSyncBarrier, isSettings, clearSyncBarrier]);
 
   // Đồng bộ giữa URL Route /drives/:driveId và danh sách ổ đĩa
   // Ưu tiên HDD trước (nếu mount). Nếu HDD không mount thì chọn SSD. Tuyệt đối không chọn ổ offline.

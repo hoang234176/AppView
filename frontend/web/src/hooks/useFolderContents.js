@@ -152,9 +152,7 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
         });
       }
     } finally {
-      if (targetPath === '') {
-        reportTaskDone?.(targetDrive, 'contents');
-      }
+      reportTaskDone?.(targetDrive, 'contents');
     }
   }, [hasServerConnection, serverConfig, triggerNotification, reportTaskDone]);
 
@@ -224,7 +222,7 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
   // KHÓA DỮ LIỆU THEO EFFECTIVE STORE
   const isKeyMatched = effectiveStore.key === activeKey;
   const currentData = isKeyMatched ? effectiveStore.data : null;
-  const isSyncing = isSyncLoading && syncActiveDrive === normalizedDriveId && cleanPath === '';
+  const isSyncing = isSyncLoading && syncActiveDrive === normalizedDriveId;
   const isLoading = isSyncing || (isKeyMatched ? effectiveStore.isLoading : true);
   const error = isKeyMatched ? effectiveStore.error : null;
 
