@@ -1,31 +1,17 @@
-import { useState, useRef } from 'react';
 import './SearchPill.css';
 import SearchIcon from '../../../../assets/icons/SearchIcon';
+import useSearchPill from '../../../../hooks/useSearchPill';
 
 function SearchPill() {
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const searchInputRef = useRef(null);
-
-  const handleOpenSearch = () => {
-    if (!isSearchOpen) {
-      setIsSearchOpen(true);
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-    }
-  };
-
-  const handleBlurSearch = (e) => {
-    if (!e.target.value) {
-      setIsSearchOpen(false);
-    }
-  };
-
-  const handleKeyDownSearch = (e) => {
-    if (e.key === 'Escape') {
-      setIsSearchOpen(false);
-    }
-  };
+  const {
+    isSearchOpen,
+    inputValue,
+    searchInputRef,
+    handleOpenSearch,
+    handleInputChange,
+    handleBlurSearch,
+    handleKeyDownSearch,
+  } = useSearchPill();
 
   return (
     <div
@@ -39,10 +25,12 @@ function SearchPill() {
         type="text"
         className="header-search-input"
         placeholder="Search"
+        value={inputValue}
+        onChange={handleInputChange}
         onBlur={handleBlurSearch}
         onKeyDown={handleKeyDownSearch}
         tabIndex={isSearchOpen ? 0 : -1}
-        aria-label="Tìm kiếm"
+        aria-label="Tìm kiếm trong thư mục hiện tại"
       />
     </div>
   );

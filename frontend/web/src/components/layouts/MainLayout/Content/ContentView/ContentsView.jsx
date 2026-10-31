@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import useFolderContents from '../../../../../hooks/useFolderContents';
+import useLayout from '../../../../../hooks/useLayout';
 import Loading from '../../../../common/Loading/Loading';
 import MediaCard from '../../../../common/MediaCard/MediaCard';
 import './ContentsView.css';
@@ -9,6 +10,7 @@ function ContentsView() {
   const { driveId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { searchQuery, clearSearchQuery } = useLayout();
 
   const queryParams = new URLSearchParams(location.search);
   const currentPath = queryParams.get('path') || '';
@@ -31,6 +33,11 @@ function ContentsView() {
     setPrevViewKey(currentViewKey);
     setSelectedKey(null);
   }
+
+  // Tự động xóa từ khóa tìm kiếm khi người dùng chuyển sang thư mục khác
+  useEffect(() => {
+    clearSearchQuery();
+  }, [currentViewKey, clearSearchQuery]);
 
   // Gộp chung Thư mục, Ảnh, Video vào một khối duy nhất chuẩn Finder
   const allItems = useMemo(() => {
@@ -61,7 +68,14 @@ function ContentsView() {
     return [...sortedFolders, ...sortedFiles];
   }, [rawFolders, pictures, videos]);
 
-
+  // Lọc nội dung chỉ trong phạm vi thư mục hiện tại theo searchQuery (đã debounce 250ms)
+  const displayItems = useMemo(() => {
+    if (!searchQuery) return allItems;
+    const q = searchQuery.toLowerCase();
+    return allItems.filter((item) =>
+      (item.name || '').toLowerCase().includes(q)
+    );
+  }, [allItems, searchQuery]);
 
   const handleItemClick = (item, e) => {
     e.stopPropagation();
@@ -98,10 +112,14 @@ function ContentsView() {
         <div className="contents-empty">
           <p>Thư mục trống</p>
         </div>
+      ) : displayItems.length === 0 ? (
+        <div className="contents-empty">
+          <p>Không tìm thấy nội dung phù hợp cho &quot;{searchQuery}&quot;</p>
+        </div>
       ) : (
         <div className="contents-container">
           <div className="contents-grid contents-grid--finder">
-            {allItems.map((item) => (
+            {displayItems.map((item) => (
               <MediaCard
                 key={item.itemKey}
                 item={item}

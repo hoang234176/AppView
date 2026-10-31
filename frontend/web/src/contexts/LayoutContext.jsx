@@ -51,6 +51,11 @@ export function LayoutProvider({ children }) {
     storage: { host: '', port: '' },
   });
   const [notifications, setNotifications] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const clearSearchQuery = useCallback(() => {
+    setSearchQuery('');
+  }, []);
 
   // Barrier đồng bộ loading giữa SidebarTree và Main-Content (tối thiểu 400ms, cùng tắt ở đúng 1 frame)
   const [syncState, setSyncState] = useState({
@@ -433,6 +438,9 @@ export function LayoutProvider({ children }) {
     triggerNotification,
     dismissNotification,
     removeNotification,
+    searchQuery,
+    setSearchQuery,
+    clearSearchQuery,
   }), [
     isSidebarOpen,
     isMobile,
@@ -469,6 +477,8 @@ export function LayoutProvider({ children }) {
     triggerNotification,
     dismissNotification,
     removeNotification,
+    searchQuery,
+    clearSearchQuery,
   ]);
 
   return (
