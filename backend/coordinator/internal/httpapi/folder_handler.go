@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"appview/coordinator/internal/protocol"
 	"appview/coordinator/internal/service"
@@ -19,7 +22,11 @@ func NewFolderHandler(coordinator *service.Coordinator) *FolderHandler {
 
 func (h *FolderHandler) GetTreeFolder(writer http.ResponseWriter, request *http.Request) {
 	drive := strings.TrimSpace(request.URL.Query().Get("drive"))
-	tree, err := h.coordinator.GetFolderTree(request.Context(), drive)
+
+	ctx, cancel := context.WithTimeout(request.Context(), 10*time.Second)
+	defer cancel()
+
+	tree, err := h.coordinator.GetFolderTree(ctx, drive)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
 			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
@@ -62,7 +69,10 @@ func (h *FolderHandler) GetFolder(writer http.ResponseWriter, request *http.Requ
 		VideoPage:    parseInt(query.Get("video_page"), 1),
 	}
 
-	contents, err := h.coordinator.GetFolderContents(request.Context(), req)
+	ctx, cancel := context.WithTimeout(request.Context(), 15*time.Second)
+	defer cancel()
+
+	contents, err := h.coordinator.GetFolderContents(ctx, req)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unavailable") {
 			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
@@ -76,4 +86,47 @@ func (h *FolderHandler) GetFolder(writer http.ResponseWriter, request *http.Requ
 		"message": "Success",
 		"data":    contents,
 	})
+}
+
+func (h *FolderHandler) CreateFolder(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		writeJSON(writer, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	var req protocol.FolderCreateRequestPayload
+	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "invalid request payload"})
+		return
+	}
+
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "Tên thư mục không được để trống"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(request.Context(), 8*time.Second)
+	defer cancel()
+
+	res, err := h.coordinator.CreateFolder(ctx, req)
+	if err != nil {
+		errStr := err.Error()
+		if strings.Contains(strings.ToLower(errStr), "unavailable") {
+			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": errStr})
+			return
+		}
+		if strings.Contains(errStr, "FOLDER_ALREADY_EXISTS") || strings.Contains(errStr, "already exists") || strings.Contains(errStr, "file exists") {
+			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "Thư mục đã tồn tại"})
+			return
+		}
+		if strings.Contains(errStr, "INVALID_FOLDER_NAME") {
+			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": errStr})
+			return
+		}
+		writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": errStr})
+		return
+	}
+
+	writeJSON(writer, http.StatusCreated, res)
 }

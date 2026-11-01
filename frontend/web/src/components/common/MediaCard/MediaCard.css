@@ -216,3 +216,25 @@
 :is(.light, :root:not(.dark)) .media-card--selected {
   background-color: rgba(0, 0, 0, 0.08) !important;
 }
+
+/* ==========================================================================
+   Thư mục vừa tạo trong phiên (Hiệu ứng mờ nhạt -> rõ nét hoàn toàn)
+   ========================================================================== */
+.media-card--just-created {
+  animation: folderCardFadeIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes folderCardFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  30% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

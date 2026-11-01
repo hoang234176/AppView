@@ -12,6 +12,7 @@ export const SAVE_COOKIES_API = '/api/v1/cookies/save';
 export const GET_COOKIE_CONTENT_API = '/api/v1/cookies/content';
 export const GET_TREE_FOLDER_API = '/api/v1/tree-folder';
 export const GET_FOLDER_CONTENTS_API = '/api/v1/folder';
+export const CREATE_FOLDER_API = '/api/v1/folder';
 
 // 2. HTTP METHODS VIẾT HOA
 export const HTTP_METHOD_GET = 'GET';
@@ -22,6 +23,7 @@ export const DEFAULT_HEALTH_TIMEOUT_MS = 5000;
 export const DEFAULT_VERIFY_TIMEOUT_MS = 65000;
 export const DEFAULT_TREE_FOLDER_TIMEOUT_MS = 10000;
 export const DEFAULT_FOLDER_CONTENTS_TIMEOUT_MS = 15000;
+export const DEFAULT_CREATE_FOLDER_TIMEOUT_MS = 10000;
 
 /**
  * Kiểm tra kết nối tới dịch vụ Coordinator qua endpoint GET /health
@@ -564,6 +566,87 @@ export async function getFolderContentsApi(
   }
 }
 
+/**
+ * Tạo thư mục mới trên ổ đĩa qua Coordinator (POST /api/v1/folder)
+ * @param {string} host - Host hoặc IP từ session
+ * @param {string|number} port - Cổng của Coordinator từ session
+ * @param {{ drive: string, path: string, name: string }} payload - Thông tin thư mục
+ * @param {number} timeoutMs - Thời gian chờ tối đa (mặc định: 10000ms)
+ * @returns {Promise<{ ok: boolean, data?: object, message?: string, error?: string }>}
+ */
+export async function createFolderApi(
+  host,
+  port,
+  payload = {},
+  timeoutMs = DEFAULT_CREATE_FOLDER_TIMEOUT_MS
+) {
+  const targetHost = String(host || '').trim();
+  const targetPort = String(port || '').trim();
+
+  if (!targetHost || !targetPort) {
+    return {
+      ok: false,
+      error: 'Thiếu host hoặc port của Server từ phiên làm việc (Session).',
+    };
+  }
+
+  const name = String(payload.name || '').trim();
+  if (!name) {
+    return {
+      ok: false,
+      error: 'Tên thư mục không được để trống.',
+    };
+  }
+
+  const url = `http://${targetHost}:${targetPort}${CREATE_FOLDER_API}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: HTTP_METHOD_POST,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        drive: String(payload.drive || '').trim(),
+        path: String(payload.path || '').trim(),
+        name,
+      }),
+      signal: controller.signal,
+    });
+
+    const json = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: json?.error || `Server phản hồi lỗi HTTP ${response.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      data: json?.data || json,
+      message: json?.message || 'Đã tạo thư mục thành công',
+    };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return {
+        ok: false,
+        error: `Yêu cầu tạo thư mục bị gián đoạn do vượt quá thời gian chờ (${timeoutMs / 1000} giây).`,
+      };
+    }
+    return {
+      ok: false,
+      error: err.message || 'Lỗi kết nối khi gửi yêu cầu tạo thư mục.',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default {
   HEALTH_CHECK_API,
   VERIFY_COOKIES_API,
@@ -571,16 +654,19 @@ export default {
   GET_COOKIE_CONTENT_API,
   GET_TREE_FOLDER_API,
   GET_FOLDER_CONTENTS_API,
+  CREATE_FOLDER_API,
   HTTP_METHOD_GET,
   HTTP_METHOD_POST,
   DEFAULT_HEALTH_TIMEOUT_MS,
   DEFAULT_VERIFY_TIMEOUT_MS,
   DEFAULT_TREE_FOLDER_TIMEOUT_MS,
   DEFAULT_FOLDER_CONTENTS_TIMEOUT_MS,
+  DEFAULT_CREATE_FOLDER_TIMEOUT_MS,
   checkCoordinatorHealth,
   verifyCookiesApi,
   updateCookiesApi,
   getCookieContentApi,
   getFolderTreeApi,
   getFolderContentsApi,
+  createFolderApi,
 };

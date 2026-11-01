@@ -27,11 +27,13 @@ function ContentsView() {
   const currentViewKey = `${activeDrive}:${currentPath}`;
   const [prevViewKey, setPrevViewKey] = useState(currentViewKey);
   const [selectedKey, setSelectedKey] = useState(null);
+  const [sessionCreatedFolders, setSessionCreatedFolders] = useState([]);
 
-  // Tự động bỏ chọn ngay khi chuyển thư mục hoặc chuyển ổ đĩa
+  // Tự động bỏ chọn và xóa danh sách thư mục tạm thời của phiên khi chuyển thư mục hoặc đổi ổ đĩa
   if (currentViewKey !== prevViewKey) {
     setPrevViewKey(currentViewKey);
     setSelectedKey(null);
+    setSessionCreatedFolders([]);
   }
 
   // Tự động xóa từ khóa tìm kiếm khi người dùng chuyển sang thư mục khác
@@ -39,13 +41,48 @@ function ContentsView() {
     clearSearchQuery();
   }, [currentViewKey, clearSearchQuery]);
 
+  // Lắng nghe sự kiện tạo thư mục mới từ NewFolderModal để chèn vào cuối mảng
+  useEffect(() => {
+    const handleFolderCreated = (e) => {
+      const { folder, drive, path } = e.detail || {};
+      const cleanEventPath = String(path || '').trim().replace(/^\/+|\/+$/g, '');
+      const cleanCurrentPath = String(currentPath || '').trim().replace(/^\/+|\/+$/g, '');
+
+      if (drive === activeDrive && cleanEventPath === cleanCurrentPath && folder) {
+        setSessionCreatedFolders((prev) => {
+          const itemKey = `folder-${folder.id || folder.path || folder.name}`;
+          if (prev.some((f) => f.itemKey === itemKey)) return prev;
+          return [
+            ...prev,
+            {
+              ...folder,
+              type: 'folder',
+              itemKey,
+              isJustCreated: true,
+            },
+          ];
+        });
+      }
+    };
+
+    window.addEventListener('folder-created-optimistic', handleFolderCreated);
+    return () => {
+      window.removeEventListener('folder-created-optimistic', handleFolderCreated);
+    };
+  }, [activeDrive, currentPath]);
+
   // Gộp chung Thư mục, Ảnh, Video vào một khối duy nhất chuẩn Finder
   const allItems = useMemo(() => {
-    const folderItems = (Array.isArray(rawFolders) ? rawFolders : []).map((f) => ({
-      ...f,
-      type: 'folder',
-      itemKey: `folder-${f.id || f.path || f.name}`,
-    }));
+    // Tập hợp key của các thư mục vừa tạo trong phiên để tránh lặp khi API/WebSocket cập nhật ngầm
+    const sessionKeys = new Set(sessionCreatedFolders.map((sf) => sf.itemKey));
+
+    const folderItems = (Array.isArray(rawFolders) ? rawFolders : [])
+      .filter((f) => !sessionKeys.has(`folder-${f.id || f.path || f.name}`))
+      .map((f) => ({
+        ...f,
+        type: 'folder',
+        itemKey: `folder-${f.id || f.path || f.name}`,
+      }));
     const picItems = (pictures || []).map((p) => ({
       ...p,
       type: 'picture',
@@ -65,8 +102,9 @@ function ContentsView() {
       (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
     );
 
-    return [...sortedFolders, ...sortedFiles];
-  }, [rawFolders, pictures, videos]);
+    // QUAN TRỌNG: Thư mục vừa tạo trong phiên hiện tại được thêm vào SAU CÙNG của mảng (sau cả file cuối cùng)
+    return [...sortedFolders, ...sortedFiles, ...sessionCreatedFolders];
+  }, [rawFolders, pictures, videos, sessionCreatedFolders]);
 
   // Lọc nội dung chỉ trong phạm vi thư mục hiện tại theo searchQuery (đã debounce 250ms)
   const displayItems = useMemo(() => {
@@ -100,7 +138,7 @@ function ContentsView() {
 
   return (
     <div className="contents-view" onClick={handleBackgroundClick}>
-      {isLoading ? (
+      {isLoading && allItems.length === 0 ? (
         <div className="contents-loading">
           <Loading text="" size="md" />
         </div>

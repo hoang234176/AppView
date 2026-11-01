@@ -3,14 +3,18 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	pythonapi "backend/api/python"
 	"backend/configs"
 	"backend/cookies"
+	"backend/events"
 	"backend/media_download/facebook"
 	"backend/media_download/instagram"
 	"backend/media_download/telegram"
@@ -2145,6 +2149,84 @@ func (h *Handler) HandleFolderContentsMessage(msg Message, send SendFunc) {
 			TotalVideos:   totalVideos,
 			Page:          page,
 			Limit:         limit,
+		},
+	})
+}
+
+func (h *Handler) HandleFolderCreateMessage(msg Message, send SendFunc) {
+	var req FolderCreateRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		_ = send(Message{
+			Type:   FolderCreate,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: "INVALID_FOLDER_NAME", Message: "Tên thư mục không được để trống"},
+		})
+		return
+	}
+
+	if strings.ContainsAny(name, "/\\:*?\"<>|") || name == "." || name == ".." {
+		_ = send(Message{
+			Type:   FolderCreate,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: "INVALID_FOLDER_NAME", Message: "Tên thư mục chứa ký tự không hợp lệ"},
+		})
+		return
+	}
+
+	targetDrive := strings.TrimSpace(req.Drive)
+	if targetDrive == "" {
+		targetDrive = "HDD"
+	}
+	rootPath := configs.ResolveDriveRoot(targetDrive)
+	targetRelPath := filepath.ToSlash(filepath.Clean(req.Path))
+	if targetRelPath == "." || targetRelPath == "/" {
+		targetRelPath = ""
+	}
+
+	folder, err := utils.CreateSubFolder(rootPath, targetRelPath, name)
+	if err != nil {
+		code := "FOLDER_CREATE_FAILED"
+		if errors.Is(err, os.ErrExist) {
+			code = "FOLDER_ALREADY_EXISTS"
+		} else if errors.Is(err, os.ErrPermission) {
+			code = "PERMISSION_DENIED"
+		}
+		_ = send(Message{
+			Type:   FolderCreate,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: code, Message: err.Error()},
+		})
+		return
+	}
+
+	folderParent := func(p string) string {
+		dir := filepath.ToSlash(filepath.Dir(p))
+		if dir == "." || dir == "/" {
+			return ""
+		}
+		return dir
+	}
+
+	_ = events.Publish(events.FilesystemEvent{
+		Type:       "folder_created",
+		Drive:      targetDrive,
+		Path:       folder.Path,
+		NewPath:    folder.Path,
+		ParentPath: folderParent(folder.Path),
+		Item:       folder,
+	})
+
+	_ = send(Message{
+		Type:   FolderCreate,
+		TaskID: msg.TaskID,
+		Result: FolderCreateResult{
+			Message: "Đã tạo thư mục thành công",
+			Data:    folder,
 		},
 	})
 }

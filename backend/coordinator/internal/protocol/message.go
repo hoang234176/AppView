@@ -29,6 +29,7 @@ const (
 	SessionGet             MessageType = "session.get"
 	FolderTreeGet          MessageType = "folder.tree"
 	FolderContentsGet      MessageType = "folder.contents"
+	FolderCreate           MessageType = "folder.create"
 	BatchJobProgressMessage MessageType = "batch_job_progress"
 	Error                  MessageType = "error"
 )
@@ -56,7 +57,6 @@ type Message struct {
 type DriveInfo struct {
 	ID             string  `json:"id"`
 	DisplayName    string  `json:"displayName"`
-	Path           string  `json:"path,omitempty"`
 	Available      bool    `json:"available"`
 	TotalBytes     int64   `json:"totalBytes"`
 	UsedBytes      int64   `json:"usedBytes"`
@@ -238,6 +238,17 @@ type FolderNode struct {
 
 type FolderTreeResult struct {
 	Data []*FolderNode `json:"data"`
+}
+
+type FolderCreateRequestPayload struct {
+	Drive string `json:"drive,omitempty"`
+	Path  string `json:"path"`
+	Name  string `json:"name"`
+}
+
+type FolderCreateResult struct {
+	Message string      `json:"message"`
+	Data    *FolderItem `json:"data,omitempty"`
 }
 
 type FolderContentsRequestPayload struct {

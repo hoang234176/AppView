@@ -1,5 +1,4 @@
 import useLayout from '../../../../hooks/useLayout';
-import FilterButton from './FilterButton';
 import MoreButton from './MoreButton';
 import DownloadButton from './DownloadButton';
 import SearchPill from './SearchPill';
@@ -9,7 +8,6 @@ function HeaderRight() {
 
   return (
     <div className={`header-right-zone ${isHeaderRightExiting ? 'header-right-zone--exiting' : ''}`}>
-      <FilterButton />
       <MoreButton />
       <DownloadButton />
       <SearchPill />

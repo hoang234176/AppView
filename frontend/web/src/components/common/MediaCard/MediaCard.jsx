@@ -48,7 +48,7 @@ function MediaCard({ item, isSelected = false, onClick, onDoubleClick }) {
   return (
     <div
       ref={cardRef}
-      className={`media-card media-card--${item.type} ${isSelected ? 'media-card--selected' : ''}`}
+      className={`media-card media-card--${item.type} ${isSelected ? 'media-card--selected' : ''} ${item?.isJustCreated ? 'media-card--just-created' : ''}`}
       onClick={(e) => onClick && onClick(item, e)}
       onDoubleClick={(e) => onDoubleClick && onDoubleClick(item, e)}
       title={item.name}

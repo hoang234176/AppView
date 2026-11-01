@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import './MoreButton.css';
+import useLayout from '../../../../hooks/useLayout';
 import MoreIcon from '../../../../assets/icons/MoreIcon';
 import NewFolderIcon from '../../../../assets/icons/NewFolderIcon';
 import InfoCircleIcon from '../../../../assets/icons/InfoCircleIcon';
@@ -22,6 +23,7 @@ const SORT_OPTIONS = [
 ];
 
 function MoreButton() {
+  const { openNewFolder } = useLayout();
   const [isOpen, setIsOpen] = useState(false);
   const [menuPos, setMenuPos] = useState(null);
   const [triggerType, setTriggerType] = useState('button'); // 'button' | 'contextmenu'
@@ -154,6 +156,7 @@ function MoreButton() {
   const handleNewFolder = () => {
     setIsOpen(false);
     setIsSortSubmenuOpen(false);
+    openNewFolder();
   };
 
   const handleGetInfo = () => {

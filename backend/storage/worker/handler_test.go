@@ -648,3 +648,72 @@ func TestHandlerFolderContentsMessage(t *testing.T) {
 		t.Fatalf("expected 1 picture photo.jpg, got %+v", res.Pictures)
 	}
 }
+
+func TestHandlerFolderCreateMessage(t *testing.T) {
+	tempRoot := t.TempDir()
+	origRoot := configs.DEFAULT_ROOT_PATH
+	origDrives := configs.STORAGE_DRIVES
+	configs.DEFAULT_ROOT_PATH = tempRoot
+	configs.STORAGE_DRIVES = []configs.StorageDrive{
+		{ID: "HDD", Name: "HDD", Path: tempRoot, Available: true},
+	}
+	defer func() {
+		configs.DEFAULT_ROOT_PATH = origRoot
+		configs.STORAGE_DRIVES = origDrives
+	}()
+
+	h := &Handler{}
+	var sent []Message
+
+	// 1. Success create folder
+	payload, _ := json.Marshal(FolderCreateRequestPayload{
+		Drive: "HDD",
+		Path:  "",
+		Name:  "TestNewFolder",
+	})
+	h.HandleFolderCreateMessage(Message{
+		Type:    FolderCreate,
+		TaskID:  "create-task-1",
+		Payload: payload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Type != FolderCreate {
+		t.Fatalf("expected 1 FolderCreate message, got %+v", sent)
+	}
+	if sent[0].Error != nil {
+		t.Fatalf("unexpected error: %+v", sent[0].Error)
+	}
+	res, ok := sent[0].Result.(FolderCreateResult)
+	if !ok || res.Data == nil || res.Data.Name != "TestNewFolder" {
+		t.Fatalf("expected FolderCreateResult with Name 'TestNewFolder', got %+v", sent[0].Result)
+	}
+
+	// 2. Duplicate folder error
+	sent = nil
+	h.HandleFolderCreateMessage(Message{
+		Type:    FolderCreate,
+		TaskID:  "create-task-2",
+		Payload: payload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Error == nil || sent[0].Error.Code != "FOLDER_ALREADY_EXISTS" {
+		t.Fatalf("expected FOLDER_ALREADY_EXISTS, got %+v", sent)
+	}
+
+	// 3. Empty name error
+	sent = nil
+	emptyPayload, _ := json.Marshal(FolderCreateRequestPayload{
+		Drive: "HDD",
+		Path:  "",
+		Name:  "   ",
+	})
+	h.HandleFolderCreateMessage(Message{
+		Type:    FolderCreate,
+		TaskID:  "create-task-3",
+		Payload: emptyPayload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Error == nil || sent[0].Error.Code != "INVALID_FOLDER_NAME" {
+		t.Fatalf("expected INVALID_FOLDER_NAME, got %+v", sent)
+	}
+}

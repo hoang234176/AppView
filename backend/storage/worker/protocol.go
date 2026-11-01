@@ -30,6 +30,7 @@ const (
 	SessionGet         = "session.get"
 	FolderTreeGet      = "folder.tree"
 	FolderContentsGet  = "folder.contents"
+	FolderCreate       = "folder.create"
 	BatchJobProgressMessage = "batch_job_progress"
 
 	CapabilityDownloadFile = "download_file"
@@ -142,6 +143,17 @@ type FolderTreeRequestPayload struct {
 
 type FolderTreeResult struct {
 	Data []*models.FolderNode `json:"data"`
+}
+
+type FolderCreateRequestPayload struct {
+	Drive string `json:"drive,omitempty"`
+	Path  string `json:"path"`
+	Name  string `json:"name"`
+}
+
+type FolderCreateResult struct {
+	Message string             `json:"message"`
+	Data    *models.FolderItem `json:"data,omitempty"`
 }
 
 type FolderContentsRequestPayload struct {

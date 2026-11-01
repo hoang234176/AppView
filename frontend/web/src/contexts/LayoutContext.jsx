@@ -52,6 +52,15 @@ export function LayoutProvider({ children }) {
   });
   const [notifications, setNotifications] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
+
+  const openNewFolder = useCallback(() => {
+    setIsNewFolderOpen(true);
+  }, []);
+
+  const closeNewFolder = useCallback(() => {
+    setIsNewFolderOpen(false);
+  }, []);
 
   const clearSearchQuery = useCallback(() => {
     setSearchQuery('');
@@ -441,6 +450,9 @@ export function LayoutProvider({ children }) {
     searchQuery,
     setSearchQuery,
     clearSearchQuery,
+    isNewFolderOpen,
+    openNewFolder,
+    closeNewFolder,
   }), [
     isSidebarOpen,
     isMobile,
@@ -479,6 +491,9 @@ export function LayoutProvider({ children }) {
     removeNotification,
     searchQuery,
     clearSearchQuery,
+    isNewFolderOpen,
+    openNewFolder,
+    closeNewFolder,
   ]);
 
   return (

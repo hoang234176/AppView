@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"appview/coordinator/internal/protocol"
@@ -60,6 +61,22 @@ func (s *folderRpcMockSender) Send(msg protocol.Message) error {
 			resRaw, _ := json.Marshal(res)
 			s.coordinator.ResolveRPC(taskID, protocol.Message{
 				Type:   protocol.FolderContentsGet,
+				TaskID: taskID,
+				Result: resRaw,
+			})
+		}(msg.TaskID)
+	} else if msg.Type == protocol.FolderCreate {
+		go func(taskID string) {
+			res := protocol.FolderCreateResult{
+				Message: "Đã tạo thư mục thành công",
+				Data: &protocol.FolderItem{
+					Name: "NewSubFolder",
+					Path: "test/NewSubFolder",
+				},
+			}
+			resRaw, _ := json.Marshal(res)
+			s.coordinator.ResolveRPC(taskID, protocol.Message{
+				Type:   protocol.FolderCreate,
 				TaskID: taskID,
 				Result: resRaw,
 			})
@@ -142,5 +159,44 @@ func TestGetFolderSuccess(t *testing.T) {
 	}
 	if body.Data.TotalPictures != 1 || len(body.Data.Pictures) != 1 || body.Data.Pictures[0].Name != "photo.jpg" {
 		t.Fatalf("expected 1 picture photo.jpg, got %+v", body.Data.Pictures)
+	}
+}
+
+func TestCreateFolderSuccess(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	sender := &folderRpcMockSender{coordinator: coordinator}
+	if err := coordinator.RegisterWorker("storage-worker-1", []protocol.Capability{protocol.DownloadFile}, sender); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+
+	payload := `{"drive":"SSD","path":"test","name":"NewSubFolder"}`
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/folder", strings.NewReader(payload)))
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var body protocol.FolderCreateResult
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to parse JSON response: %v", err)
+	}
+	if body.Data == nil || body.Data.Name != "NewSubFolder" {
+		t.Fatalf("expected folder data with Name 'NewSubFolder', got %+v", body.Data)
+	}
+}
+
+func TestCreateFolderEmptyName(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+
+	payload := `{"drive":"SSD","path":"test","name":""}`
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/folder", strings.NewReader(payload)))
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request, got %d: %s", response.Code, response.Body.String())
 	}
 }

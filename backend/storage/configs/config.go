@@ -13,7 +13,7 @@ import (
 type StorageDrive struct {
 	ID             string  `json:"id"`
 	Name           string  `json:"name"`
-	Path           string  `json:"path"`
+	Path           string  `json:"-"`
 	Available      bool    `json:"available"`
 	TotalBytes     int64   `json:"totalBytes"`
 	UsedBytes      int64   `json:"usedBytes"`

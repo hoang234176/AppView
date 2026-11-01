@@ -7,7 +7,6 @@ import (
 type DriveInfo struct {
 	ID             string  `json:"id"`
 	DisplayName    string  `json:"displayName"`
-	Path           string  `json:"path"`
 	Available      bool    `json:"available"`
 	TotalBytes     int64   `json:"totalBytes"`
 	UsedBytes      int64   `json:"usedBytes"`
@@ -27,7 +26,6 @@ func CurrentStorageInfo() (StorageInfo, error) {
 		driveInfos = append(driveInfos, DriveInfo{
 			ID:             d.ID,
 			DisplayName:    d.Name,
-			Path:           d.Path,
 			Available:      d.Available,
 			TotalBytes:     d.TotalBytes,
 			UsedBytes:      d.UsedBytes,

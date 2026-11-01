@@ -88,20 +88,22 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
   const wsRef = useRef(null);
 
   // Hàm tải dữ liệu nội dung thư mục với try...catch...finally đầy đủ (Quy tắc 8 & 9)
-  const fetchContents = useCallback(async (targetDrive, targetPath) => {
+  const fetchContents = useCallback(async (targetDrive, targetPath, isBackground = false) => {
     if (!hasServerConnection) return;
     const { host, port } = resolveCoordinatorHostPort(serverConfig);
     if (!host || !port) return;
 
     const requestKey = `${targetDrive}:${targetPath}`;
-    setStore((prev) =>
-      prev.key === requestKey
-        ? { ...prev, isLoading: true, error: null }
-        : { key: requestKey, data: null, isLoading: true, error: null }
-    );
+    if (!isBackground) {
+      setStore((prev) =>
+        prev.key === requestKey
+          ? { ...prev, isLoading: true, error: null }
+          : { key: requestKey, data: null, isLoading: true, error: null }
+      );
+    }
 
-    // Đảm bảo vòng loading hiển thị tối thiểu 200ms khi mở thư mục để không bị giật/chớp tắt nhanh
-    const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 200));
+    // Đảm bảo vòng loading hiển thị tối thiểu 200ms khi mở thư mục để không bị giật/chớp tắt nhanh (chỉ khi không phải chạy nền)
+    const minDelayPromise = isBackground ? Promise.resolve() : new Promise((resolve) => setTimeout(resolve, 200));
 
     try {
       const [res] = await Promise.all([
@@ -121,7 +123,7 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
             isLoading: false,
             error: null,
           });
-        } else {
+        } else if (!isBackground) {
           const errMsg = res.error || `Cannot retrieve contents for ${targetDrive}/${targetPath}`;
           setStore({
             key: requestKey,
@@ -137,7 +139,7 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
         }
       }
     } catch (err) {
-      if (activeKeyRef.current === requestKey) {
+      if (!isBackground && activeKeyRef.current === requestKey) {
         const errMsg = err.message || `An error occurred while loading contents for ${targetDrive}/${targetPath}`;
         setStore({
           key: requestKey,
@@ -152,7 +154,9 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
         });
       }
     } finally {
-      reportTaskDone?.(targetDrive, 'contents');
+      if (!isBackground) {
+        reportTaskDone?.(targetDrive, 'contents');
+      }
     }
   }, [hasServerConnection, serverConfig, triggerNotification, reportTaskDone]);
 
@@ -195,7 +199,7 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
             const fsEvent = message?.event;
             const targetDrive = fsEvent?.drive || normalizedDriveId;
             if (targetDrive === normalizedDriveId) {
-              fetchContents(normalizedDriveId, cleanPath);
+              fetchContents(normalizedDriveId, cleanPath, true);
             }
           }
         } catch {

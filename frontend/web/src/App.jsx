@@ -2,6 +2,7 @@ import SidebarLayout from './components/layouts/SidebarLayout/SidebarLayout';
 import MainLayout from './components/layouts/MainLayout/MainLayout';
 import NotificationLayout from './components/layouts/NotificationLayout/NotificationLayout';
 import ServerConnectionModal from './components/layouts/ServerConnectionModal/ServerConnectionModal';
+import NewFolderModal from './components/layouts/NewFolderModal/NewFolderModal';
 import InitialLoadingOverlay from './components/common/InitialLoadingOverlay/InitialLoadingOverlay';
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
       <MainLayout />
       <ServerConnectionModal />
       <NotificationLayout />
+      <NewFolderModal />
       <InitialLoadingOverlay />
     </div>
   );
