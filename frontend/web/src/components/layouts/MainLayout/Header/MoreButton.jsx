@@ -23,7 +23,7 @@ const SORT_OPTIONS = [
 ];
 
 function MoreButton() {
-  const { openNewFolder } = useLayout();
+  const { openNewFolder, openGetInfo } = useLayout();
   const [isOpen, setIsOpen] = useState(false);
   const [menuPos, setMenuPos] = useState(null);
   const [triggerType, setTriggerType] = useState('button'); // 'button' | 'contextmenu'
@@ -162,6 +162,7 @@ function MoreButton() {
   const handleGetInfo = () => {
     setIsOpen(false);
     setIsSortSubmenuOpen(false);
+    openGetInfo();
   };
 
   return (

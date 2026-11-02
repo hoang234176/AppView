@@ -36,7 +36,7 @@
 }
 
 .header-nav-square--enabled {
-  cursor: pointer;
+  cursor: default;
   color: #1e293b;
 }
 

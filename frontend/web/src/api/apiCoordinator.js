@@ -12,18 +12,23 @@ export const SAVE_COOKIES_API = '/api/v1/cookies/save';
 export const GET_COOKIE_CONTENT_API = '/api/v1/cookies/content';
 export const GET_TREE_FOLDER_API = '/api/v1/tree-folder';
 export const GET_FOLDER_CONTENTS_API = '/api/v1/folder';
+export const GET_FOLDER_STATS_API = '/api/v1/folder/stats';
 export const CREATE_FOLDER_API = '/api/v1/folder';
+export const RENAME_FOLDER_API = '/api/v1/folder';
 
 // 2. HTTP METHODS VIẾT HOA
 export const HTTP_METHOD_GET = 'GET';
 export const HTTP_METHOD_POST = 'POST';
+export const HTTP_METHOD_PATCH = 'PATCH';
 
 // 3. TIMEOUTS VIẾT HOA (Facebook & MXH timeout dài 65s)
 export const DEFAULT_HEALTH_TIMEOUT_MS = 5000;
 export const DEFAULT_VERIFY_TIMEOUT_MS = 65000;
 export const DEFAULT_TREE_FOLDER_TIMEOUT_MS = 10000;
 export const DEFAULT_FOLDER_CONTENTS_TIMEOUT_MS = 15000;
+export const DEFAULT_FOLDER_STATS_TIMEOUT_MS = 10000;
 export const DEFAULT_CREATE_FOLDER_TIMEOUT_MS = 10000;
+export const DEFAULT_RENAME_FOLDER_TIMEOUT_MS = 10000;
 
 /**
  * Kiểm tra kết nối tới dịch vụ Coordinator qua endpoint GET /health
@@ -567,6 +572,77 @@ export async function getFolderContentsApi(
 }
 
 /**
+ * Lấy số liệu thống kê đệ quy tổng hợp của thư mục từ SQLite qua Coordinator
+ * Endpoint: GET /api/v1/folder/stats?drive=...&path=...
+ * @param {string} host - Host hoặc IP của Coordinator
+ * @param {string|number} port - Cổng của Coordinator
+ * @param {object} params - Tham số truy vấn (drive, path)
+ * @param {number} timeoutMs - Thời gian chờ tối đa (mặc định: 10000ms)
+ * @returns {Promise<{ ok: boolean, data?: object, error?: string }>}
+ */
+export async function getFolderStatsApi(
+  host,
+  port,
+  params = {},
+  timeoutMs = DEFAULT_FOLDER_STATS_TIMEOUT_MS
+) {
+  const targetHost = String(host || '').trim();
+  const targetPort = String(port || '').trim();
+
+  if (!targetHost || !targetPort) {
+    return {
+      ok: false,
+      error: 'Missing server host or port from session.',
+    };
+  }
+
+  const queryParams = new URLSearchParams();
+  if (params.drive) queryParams.set('drive', String(params.drive).trim());
+  if (params.path !== undefined && params.path !== null) queryParams.set('path', String(params.path).trim());
+
+  const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
+  const url = `http://${targetHost}:${targetPort}${GET_FOLDER_STATS_API}${query}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: HTTP_METHOD_GET,
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: `Server responded with HTTP ${response.status}`,
+      };
+    }
+
+    const json = await response.json();
+    return {
+      ok: true,
+      data: json.data || json,
+    };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return {
+        ok: false,
+        error: `Folder stats request timed out (${Math.round(timeoutMs / 1000)}s).`,
+      };
+    }
+    return {
+      ok: false,
+      error: err.message || 'Unable to retrieve folder stats from server.',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Tạo thư mục mới trên ổ đĩa qua Coordinator (POST /api/v1/folder)
  * @param {string} host - Host hoặc IP từ session
  * @param {string|number} port - Cổng của Coordinator từ session
@@ -647,6 +723,87 @@ export async function createFolderApi(
   }
 }
 
+/**
+ * Đổi tên thư mục qua Coordinator (PATCH /api/v1/folder)
+ * @param {string} host - Host hoặc IP từ session
+ * @param {string|number} port - Cổng của Coordinator từ session
+ * @param {{ drive: string, path: string, new_name: string }} payload - Thông tin đổi tên thư mục
+ * @param {number} timeoutMs - Thời gian chờ tối đa (mặc định: 10000ms)
+ * @returns {Promise<{ ok: boolean, data?: object, message?: string, error?: string }>}
+ */
+export async function renameFolderApi(
+  host,
+  port,
+  payload = {},
+  timeoutMs = DEFAULT_RENAME_FOLDER_TIMEOUT_MS
+) {
+  const targetHost = String(host || '').trim();
+  const targetPort = String(port || '').trim();
+
+  if (!targetHost || !targetPort) {
+    return {
+      ok: false,
+      error: 'Missing server host or port from session.',
+    };
+  }
+
+  const newName = String(payload.new_name || '').trim();
+  if (!newName) {
+    return {
+      ok: false,
+      error: 'Folder name cannot be empty.',
+    };
+  }
+
+  const url = `http://${targetHost}:${targetPort}${RENAME_FOLDER_API}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: HTTP_METHOD_PATCH,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        drive: String(payload.drive || '').trim(),
+        path: String(payload.path || '').trim(),
+        new_name: newName,
+      }),
+      signal: controller.signal,
+    });
+
+    const json = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: json?.error || `Server responded with HTTP ${response.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      data: json?.data || json,
+      message: json?.message || 'Folder renamed successfully',
+    };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return {
+        ok: false,
+        error: `Rename request timed out (${timeoutMs / 1000}s).`,
+      };
+    }
+    return {
+      ok: false,
+      error: err.message || 'Error communicating with server.',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default {
   HEALTH_CHECK_API,
   VERIFY_COOKIES_API,
@@ -654,19 +811,26 @@ export default {
   GET_COOKIE_CONTENT_API,
   GET_TREE_FOLDER_API,
   GET_FOLDER_CONTENTS_API,
+  GET_FOLDER_STATS_API,
   CREATE_FOLDER_API,
+  RENAME_FOLDER_API,
   HTTP_METHOD_GET,
   HTTP_METHOD_POST,
+  HTTP_METHOD_PATCH,
   DEFAULT_HEALTH_TIMEOUT_MS,
   DEFAULT_VERIFY_TIMEOUT_MS,
   DEFAULT_TREE_FOLDER_TIMEOUT_MS,
   DEFAULT_FOLDER_CONTENTS_TIMEOUT_MS,
+  DEFAULT_FOLDER_STATS_TIMEOUT_MS,
   DEFAULT_CREATE_FOLDER_TIMEOUT_MS,
+  DEFAULT_RENAME_FOLDER_TIMEOUT_MS,
   checkCoordinatorHealth,
   verifyCookiesApi,
   updateCookiesApi,
   getCookieContentApi,
   getFolderTreeApi,
   getFolderContentsApi,
+  getFolderStatsApi,
   createFolderApi,
+  renameFolderApi,
 };

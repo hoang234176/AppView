@@ -40,7 +40,7 @@ function Content() {
     // Không kích hoạt khi đang ở trang cài đặt
     if (isSettings) return;
     // Không kích hoạt lại nếu click chuột phải vào bên trong menu
-    if (e.target.closest('.header-more-menu')) return;
+    if (e.target.closest('.header-more-menu') || e.target.closest('.folder-context-menu')) return;
 
     // Chặn menu chuột phải mặc định của trình duyệt
     e.preventDefault();

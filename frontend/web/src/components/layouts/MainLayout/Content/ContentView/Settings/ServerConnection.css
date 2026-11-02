@@ -26,7 +26,7 @@
   padding: 0 1rem;
   background: transparent;
   border: none;
-  cursor: pointer;
+  cursor: default;
   user-select: none;
   box-sizing: border-box;
   border-radius: 12px;
@@ -216,7 +216,7 @@
   font-weight: 500;
   color: #1f2937;
   user-select: none;
-  cursor: pointer;
+  cursor: default;
 }
 
 :is(.dark, :root.dark) .server-connection-label {
@@ -286,7 +286,7 @@
   background-color: #2563eb;
   border: 1px solid #1d4ed8;
   color: #ffffff;
-  cursor: pointer;
+  cursor: default;
   outline: none;
   user-select: none;
   display: inline-flex;

@@ -168,7 +168,7 @@ func TestCoordinatorCORS(t *testing.T) {
 
 func assertCORSHeaders(t *testing.T, response *httptest.ResponseRecorder, origin string) {
 	t.Helper()
-	if response.Header().Get("Access-Control-Allow-Origin") != origin || response.Header().Get("Access-Control-Allow-Methods") != "GET, POST, PUT, DELETE, OPTIONS" || response.Header().Get("Access-Control-Allow-Headers") != "Content-Type, Authorization" {
+	if response.Header().Get("Access-Control-Allow-Origin") != origin || response.Header().Get("Access-Control-Allow-Methods") != "GET, POST, PUT, PATCH, DELETE, OPTIONS" || response.Header().Get("Access-Control-Allow-Headers") != "Content-Type, Authorization" {
 		t.Fatalf("missing CORS headers: %#v", response.Header())
 	}
 }

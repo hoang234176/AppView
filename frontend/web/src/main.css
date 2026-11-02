@@ -77,3 +77,23 @@ body {
 :is(.dark, :root.dark) ::-webkit-scrollbar-thumb:hover {
   background: rgba(107, 114, 128, 0.8);
 }
+
+/* Native macOS Desktop Cursor: Không dùng cursor: pointer (bàn tay chỉ ngón) */
+button,
+a,
+select,
+summary,
+[role="button"],
+[role="menuitem"],
+[role="tab"],
+[role="option"] {
+  cursor: default;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}

@@ -1,170 +1,151 @@
-/* Backdrop che toàn màn hình - TUYỆT ĐỐI KHÔNG DÙNG BLUR THEO QUY TẮC 11 */
+/* Backdrop che phủ toàn màn hình - Flat, Zero Blur, z-index cao nhất */
 .new-folder-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(0, 0, 0, 0.42);
+  background-color: rgba(0, 0, 0, 0.72);
   padding: 16px;
   box-sizing: border-box;
   animation: newFolderFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-:is(.dark, :root.dark) .new-folder-backdrop {
-  background-color: rgba(0, 0, 0, 0.65);
-}
-
-/* Hộp thoại dialog chuẩn phong cách macOS Finder */
+/* Hộp thoại dialog chuẩn phong cách macOS Alert (Flat, Zero Blur, Zero Drop-shadow) */
 .new-folder-dialog {
   width: 100%;
-  max-width: 360px;
+  max-width: 284px;
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  padding: 20px;
+  border-radius: 24px;
+  box-shadow: none;
+  padding: 22px 20px 20px 20px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  animation: newFolderPopIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  gap: 14px;
+  animation: newFolderPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   user-select: none;
 }
 
 :is(.dark, :root.dark) .new-folder-dialog {
-  background-color: #242426;
-  border-color: #38383a;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  background-color: #202022;
+  border-color: #343438;
+  box-shadow: none;
 }
 
-/* Header */
+/* Header căn trái chuẩn macOS Alert */
 .new-folder-dialog__header {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 6px;
 }
 
+/* Biểu tượng tròn xám đặc trưng ảnh mẫu macOS Shut Down Alert */
 .new-folder-dialog__icon-box {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background-color: #e0f2fe;
-  color: #0284c7;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: #e4e4e7;
+  color: #18181b;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  margin-bottom: 4px;
 }
 
 :is(.dark, :root.dark) .new-folder-dialog__icon-box {
-  background-color: #1e293b;
-  color: #38bdf8;
+  background-color: #48484a;
+  color: #ffffff;
 }
 
 .new-folder-dialog__icon {
-  width: 22px;
-  height: 22px;
-}
-
-.new-folder-dialog__header-text {
-  min-width: 0;
-  flex: 1;
+  width: 26px;
+  height: 26px;
 }
 
 .new-folder-dialog__title {
-  font-size: 1rem;
-  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: #0f172a;
   margin: 0;
   line-height: 1.3;
+  letter-spacing: -0.01em;
+  text-align: left;
 }
 
 :is(.dark, :root.dark) .new-folder-dialog__title {
-  color: #f8fafc;
+  color: #ffffff;
 }
 
-.new-folder-dialog__location {
-  font-size: 0.75rem;
+.new-folder-dialog__desc {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
   color: #64748b;
-  margin: 3px 0 0 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.2;
+  margin: 0;
+  line-height: 1.35;
+  text-align: left;
 }
 
-:is(.dark, :root.dark) .new-folder-dialog__location {
-  color: #94a3b8;
+:is(.dark, :root.dark) .new-folder-dialog__desc {
+  color: #a1a1aa;
 }
 
-.new-folder-dialog__location-label {
-  font-weight: 500;
-}
-
-.new-folder-dialog__location-val {
-  font-weight: 600;
-  color: #334155;
-}
-
-:is(.dark, :root.dark) .new-folder-dialog__location-val {
-  color: #cbd5e1;
-}
-
-/* Body / Input */
+/* Body / Input nhập tên thư mục */
 .new-folder-dialog__body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.new-folder-dialog__label {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: #475569;
-}
-
-:is(.dark, :root.dark) .new-folder-dialog__label {
-  color: #94a3b8;
+  gap: 4px;
+  width: 100%;
 }
 
 .new-folder-dialog__input {
   width: 100%;
-  height: 36px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 10px;
   box-sizing: border-box;
-  font-size: 0.875rem;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
   color: #0f172a;
-  background-color: #ffffff;
+  background-color: #f4f4f5;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   outline: none;
+  cursor: default;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 :is(.dark, :root.dark) .new-folder-dialog__input {
-  color: #f8fafc;
-  background-color: #1a1a1c;
+  color: #ffffff;
+  background-color: #2c2c2e;
   border-color: #3f3f46;
 }
 
 .new-folder-dialog__input:focus {
   border-color: #007aff;
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.18);
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.35);
 }
 
 :is(.dark, :root.dark) .new-folder-dialog__input:focus {
   border-color: #0a84ff;
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.4);
 }
 
-.new-folder-dialog__input--error {
-  border-color: #ef4444 !important;
-}
-
+.new-folder-dialog__input--error,
 .new-folder-dialog__input--error:focus {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3) !important;
+}
+
+:is(.dark, :root.dark) .new-folder-dialog__input--error,
+:is(.dark, :root.dark) .new-folder-dialog__input--error:focus {
+  border-color: #f87171 !important;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.35) !important;
 }
 
 .new-folder-dialog__error-msg {
@@ -178,62 +159,68 @@
   color: #f87171;
 }
 
-/* Footer / Buttons */
+/* Footer / Cặp nút bấm dạng viên thuốc (Pill shape) chuẩn macOS Shut Down Alert */
 .new-folder-dialog__footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 10px;
+  width: 100%;
+  margin-top: 4px;
 }
 
 .new-folder-dialog__btn {
+  flex: 1;
   height: 34px;
-  padding: 0 14px;
+  padding: 0 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-size: 0.8125rem;
-  font-weight: 500;
-  border-radius: 8px;
+  border-radius: 100px;
   border: 1px solid transparent;
-  cursor: pointer;
+  cursor: default;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   user-select: none;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   box-sizing: border-box;
+  transition: background-color 0.15s ease;
 }
 
 .new-folder-dialog__btn--cancel {
-  background-color: #f1f5f9;
-  border-color: #e2e8f0;
-  color: #334155;
+  background-color: #e4e4e7;
+  border-color: #d4d4d8;
+  color: #27272a;
+  font-weight: 500;
 }
 
 :is(.dark, :root.dark) .new-folder-dialog__btn--cancel {
-  background-color: #2e2e32;
-  border-color: #3f3f46;
-  color: #cbd5e1;
+  background-color: #3a3a3c;
+  border-color: transparent;
+  color: #ffffff;
+  font-weight: 500;
 }
 
 .new-folder-dialog__btn--cancel:hover:not(:disabled) {
-  background-color: #e2e8f0;
+  background-color: #d4d4d8;
 }
 
 :is(.dark, :root.dark) .new-folder-dialog__btn--cancel:hover:not(:disabled) {
-  background-color: #3a3a40;
+  background-color: #48484a;
 }
 
 .new-folder-dialog__btn--create {
   background-color: #007aff;
   color: #ffffff;
+  font-weight: 600;
 }
 
 :is(.dark, :root.dark) .new-folder-dialog__btn--create {
-  background-color: #0a84ff;
+  background-color: #007aff;
   color: #ffffff;
+  font-weight: 600;
 }
 
 .new-folder-dialog__btn--create:hover:not(:disabled) {
-  background-color: #0066d6;
+  background-color: #006fe0;
 }
 
 :is(.dark, :root.dark) .new-folder-dialog__btn--create:hover:not(:disabled) {
@@ -241,8 +228,9 @@
 }
 
 .new-folder-dialog__btn:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Animations */
@@ -258,10 +246,10 @@
 @keyframes newFolderPopIn {
   from {
     opacity: 0;
-    transform: scale(0.96) translateY(-4px);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: scale(1);
   }
 }

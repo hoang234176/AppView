@@ -10,7 +10,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  cursor: pointer;
+  cursor: default;
   user-select: none;
   background-color: transparent;
   border: none;

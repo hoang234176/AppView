@@ -81,7 +81,7 @@
   font-size: 0.75rem;
   font-weight: 500;
   box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35), 0 1px 3px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
+  cursor: default;
   outline: none;
   z-index: 30;
   user-select: none;
@@ -224,7 +224,7 @@
   height: 40px;
   padding: 0 6px;
   border-radius: 8px;
-  cursor: pointer;
+  cursor: default;
   user-select: none;
   box-sizing: border-box;
   transition: background-color 0.15s ease, color 0.15s ease;
@@ -274,7 +274,7 @@
   border: none;
   background: transparent;
   padding: 0;
-  cursor: pointer;
+  cursor: default;
   border-radius: 4px;
   color: #9ca3af;
   flex-shrink: 0;

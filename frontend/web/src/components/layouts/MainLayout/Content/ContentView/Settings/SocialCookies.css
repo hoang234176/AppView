@@ -29,7 +29,7 @@
   justify-content: space-between;
   background: none;
   border: none;
-  cursor: pointer;
+  cursor: default;
   outline: none;
   text-align: left;
   user-select: none;
@@ -500,7 +500,7 @@
   font-size: 0.75rem;
   font-weight: 500;
   border-radius: 7px;
-  cursor: pointer;
+  cursor: default;
   outline: none;
   user-select: none;
   display: inline-flex;
@@ -775,7 +775,7 @@
   font-size: 0.75rem;
   font-weight: 500;
   border-radius: 6px;
-  cursor: pointer;
+  cursor: default;
   outline: none;
   user-select: none;
   display: inline-flex;

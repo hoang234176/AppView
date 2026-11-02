@@ -82,25 +82,25 @@ export default function useNewFolderModal() {
   const handleCreate = useCallback(async () => {
     const trimmed = folderName.trim();
     if (!trimmed) {
-      setError('Tên thư mục không được để trống.');
+      setError('Folder name cannot be empty.');
       inputRef.current?.focus();
       return;
     }
 
     if (/[\\/:*?"<>|]/.test(trimmed)) {
-      setError('Tên thư mục không được chứa các ký tự \\ / : * ? " < > |');
+      setError('Folder name cannot contain characters \\ / : * ? " < > |');
       inputRef.current?.focus();
       return;
     }
 
     if (!hasServerConnection) {
-      setError('Mất kết nối với máy chủ.');
+      setError('Lost connection to server.');
       return;
     }
 
     const { host, port } = resolveCoordinatorHostPort(serverConfig);
     if (!host || !port) {
-      setError('Thiếu thông tin kết nối máy chủ.');
+      setError('Missing server connection information.');
       return;
     }
 
@@ -115,11 +115,11 @@ export default function useNewFolderModal() {
       });
 
       if (!res.ok) {
-        const errorMsg = res.error || 'Không thể tạo thư mục.';
+        const errorMsg = res.error || 'Unable to create folder.';
         setError(errorMsg);
         triggerNotification({
           type: 'error',
-          title: 'Lỗi tạo thư mục',
+          title: 'Folder Error',
           message: errorMsg,
         });
         return;
@@ -127,8 +127,8 @@ export default function useNewFolderModal() {
 
       triggerNotification({
         type: 'success',
-        title: 'Thành công',
-        message: `Đã tạo thư mục "${trimmed}"`,
+        title: 'Success',
+        message: `Folder "${trimmed}" created successfully`,
       });
 
       // Phát sự kiện để ContentsView gắn thư mục mới vào cuối cùng của danh sách hiện tại
@@ -148,11 +148,11 @@ export default function useNewFolderModal() {
 
       closeNewFolder();
     } catch (err) {
-      const errMsg = err.message || 'Lỗi kết nối khi gửi yêu cầu tạo thư mục.';
+      const errMsg = err.message || 'Connection error while creating folder.';
       setError(errMsg);
       triggerNotification({
         type: 'error',
-        title: 'Lỗi tạo thư mục',
+        title: 'Folder Error',
         message: errMsg,
       });
     } finally {

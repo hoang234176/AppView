@@ -79,7 +79,7 @@
   border-radius: 10px;
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
-  cursor: pointer;
+  cursor: default;
   box-sizing: border-box;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
@@ -141,7 +141,7 @@
   border: 1px solid #e2e8f0;
   padding: 0.75rem;
   box-sizing: border-box;
-  cursor: pointer;
+  cursor: default;
   transition: all 0.2s ease;
 }
 

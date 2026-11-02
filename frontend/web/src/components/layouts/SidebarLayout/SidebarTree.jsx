@@ -26,12 +26,35 @@ function findFolderName(items, targetId) {
 }
 
 // Component đệ quy hiển thị từng mục thư mục ở mọi cấp
-function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect }) {
+function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect, onContextMenuFolder }) {
   const hasChildren = item.children && item.children.length > 0;
   const itemId = item.id || item.path;
   const isExpanded = expandedIds.has(itemId);
   const isSelected = selectedId === itemId;
   const itemStyle = level > 1 ? { paddingLeft: `${6 + (level - 1) * 28}px` } : undefined;
+
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onContextMenuFolder) {
+      onContextMenuFolder(itemId);
+    }
+    window.dispatchEvent(new CustomEvent('close-more-menu'));
+    window.dispatchEvent(
+      new CustomEvent('open-folder-context-menu', {
+        detail: {
+          clientX: e.clientX,
+          clientY: e.clientY,
+          target: {
+            id: itemId,
+            name: item.name,
+            path: item.path,
+            type: 'folder',
+          },
+        },
+      })
+    );
+  };
 
   return (
     <div className="sidebar-tree__branch">
@@ -42,6 +65,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
         style={itemStyle}
         data-tree-id={itemId}
         onClick={() => onSelect(itemId, hasChildren)}
+        onContextMenu={handleContextMenu}
         title={item.name}
       >
         {/* Nếu có con: nút chevron xoay; nếu không có con: spacer 18px giữ chỗ để thẳng hàng icon */}
@@ -50,7 +74,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
             type="button"
             className={`sidebar-tree__chevron ${isExpanded ? 'sidebar-tree__chevron--expanded' : ''}`}
             onClick={(e) => onToggle(itemId, e)}
-            aria-label={isExpanded ? 'Thu gọn' : 'Mở rộng'}
+            aria-label={isExpanded ? 'Collapse' : 'Expand'}
           >
             <TreeChevronIcon />
           </button>
@@ -90,6 +114,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
               selectedId={selectedId}
               onToggle={onToggle}
               onSelect={onSelect}
+              onContextMenuFolder={onContextMenuFolder}
             />
           ))}
         </div>
@@ -157,6 +182,24 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
       scrollContainerRef.current.scrollTop = 0;
     }
   }, [normalizedDriveId]);
+
+  // Đồng bộ ID thư mục đang chọn nếu vừa được đổi tên
+  useEffect(() => {
+    const handleFolderRenamed = (e) => {
+      const { oldPath, newPath, drive } = e.detail || {};
+      if (drive && drive !== normalizedDriveId) return;
+
+      if (selectedId === oldPath && newPath) {
+        setSelectedId(newPath);
+        navigate(`/${normalizedDriveId}?path=${encodeURIComponent(newPath)}`, { replace: true });
+      }
+    };
+
+    window.addEventListener('folder-renamed', handleFolderRenamed);
+    return () => {
+      window.removeEventListener('folder-renamed', handleFolderRenamed);
+    };
+  }, [normalizedDriveId, selectedId, navigate]);
 
   // Lấy đúng tên thư mục đang chọn (chỉ tên thư mục con hoặc gốc, không nối >)
   const selectedFolderName = useMemo(() => {
@@ -281,6 +324,11 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
     navigate(`/${normalizedDriveId}?path=${encodeURIComponent(id)}`);
   };
 
+  // Chuột phải chỉ chọn sáng thư mục trong cây (không chuyển trang, không cuộn nhảy)
+  const handleContextMenuFolder = useCallback((id) => {
+    setSelectedId(id);
+  }, []);
+
   return (
     <div className="sidebar-tree-container">
       {/* Tiêu đề cố định ở đỉnh, tự động rút gọn theo độ rộng khung chứa */}
@@ -327,6 +375,7 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
               selectedId={selectedId}
               onToggle={toggleExpand}
               onSelect={handleSelect}
+              onContextMenuFolder={handleContextMenuFolder}
             />
           ))}
         </div>

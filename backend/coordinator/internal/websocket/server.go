@@ -133,7 +133,7 @@ func (s *Server) handleMessage(connection *Connection, currentWorkerID string, m
 		}
 		go s.handleWorkerSessionGet(currentWorkerID, message)
 		return "", nil
-	case protocol.FolderTreeGet, protocol.FolderContentsGet, protocol.FolderCreate:
+	case protocol.FolderTreeGet, protocol.FolderContentsGet, protocol.FolderStatsGet, protocol.FolderCreate, protocol.FolderRename:
 		if s.coordinator.ResolveRPC(message.TaskID, message) {
 			return "", nil
 		}

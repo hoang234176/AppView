@@ -1,82 +1,83 @@
-/* Lớp phủ làm tối mặc định cơ bản cho modal kết nối server */
+/* Backdrop che phủ toàn màn hình - Flat, Zero Blur, z-index cao nhất */
 .server-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(0, 0, 0, 0.5);
-  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.72);
+  padding: 16px;
   box-sizing: border-box;
 }
 
-/* Khung Card modal bo góc chuẩn phong cách macOS */
+/* Khung Card modal nhỏ gọn chuẩn phong cách macOS System Dialog (Flat, Zero Blur, Zero Drop-shadow) */
 .server-modal-card {
   width: 100%;
-  max-width: 400px;
-  background-color: #fafafa;
+  max-width: 284px;
+  background-color: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  padding: 1.5rem;
+  border-radius: 20px;
+  box-shadow: none;
+  padding: 20px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  animation: serverModalZoomIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  gap: 14px;
+  animation: serverModalZoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  user-select: none;
 }
 
 :is(.dark, :root.dark) .server-modal-card {
-  background-color: #1c1c1c;
-  border-color: #2e2e2e;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  background-color: #202022;
+  border-color: #343438;
+  box-shadow: none;
 }
 
-/* Header modal */
+/* Header căn trái chuẩn macOS Security / System Dialog */
 .server-modal-header {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.5rem;
+  align-items: flex-start;
+  text-align: left;
+  gap: 5px;
 }
 
 .server-modal-icon-box {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  border-radius: 11px;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
-  margin-bottom: 0.25rem;
+  background-color: #007aff;
+  border-radius: 13px;
+  margin-bottom: 4px;
 }
 
 :is(.dark, :root.dark) .server-modal-icon-box {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  background-color: #0a84ff;
 }
 
 .server-modal-icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   color: #ffffff;
 }
 
 .server-modal-title {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
-  font-size: 1.15rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: #111827;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   margin: 0;
   padding: 0;
+  text-align: left;
+  line-height: 1.3;
 }
 
 :is(.dark, :root.dark) .server-modal-title {
-  color: #f3f4f6;
+  color: #ffffff;
 }
 
 .server-modal-desc {
@@ -85,50 +86,95 @@
   color: #6b7280;
   margin: 0;
   padding: 0;
-  line-height: 1.4;
+  line-height: 1.35;
+  text-align: left;
 }
 
 :is(.dark, :root.dark) .server-modal-desc {
-  color: #9ca3af;
+  color: #a1a1aa;
 }
 
-/* Form nhập liệu */
+.server-modal-subdesc {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin: 1px 0 0 0;
+  padding: 0;
+  line-height: 1.35;
+  text-align: left;
+}
+
+:is(.dark, :root.dark) .server-modal-subdesc {
+  color: #a1a1aa;
+}
+
+/* Form nhập liệu - Xếp dọc 100% full width */
 .server-modal-form {
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
-}
-
-.server-modal-row {
-  display: flex;
-  gap: 0.75rem;
+  gap: 8px;
   width: 100%;
 }
 
 .server-modal-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
+  width: 100%;
 }
 
-.server-modal-field--host {
-  flex: 2;
+.server-modal-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: #111827;
+  background-color: #f4f4f5;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  box-sizing: border-box;
+  outline: none;
+  cursor: default;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.server-modal-field--port {
-  flex: 1;
+:is(.dark, :root.dark) .server-modal-input {
+  background-color: #2c2c2e;
+  border-color: #3f3f46;
+  color: #ffffff;
 }
 
+.server-modal-input:focus {
+  border-color: #007aff;
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.35);
+}
+
+:is(.dark, :root.dark) .server-modal-input:focus {
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.4);
+}
+
+.server-modal-input--error,
+.server-modal-input--error:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3) !important;
+}
+
+:is(.dark, :root.dark) .server-modal-input--error,
+:is(.dark, :root.dark) .server-modal-input--error:focus {
+  border-color: #f87171 !important;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.35) !important;
+}
+
+/* Checkbox hàng */
 .server-modal-checkbox-row {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
+  gap: 6px;
+  cursor: default;
   user-select: none;
   width: fit-content;
+  margin-top: 1px;
 }
 
-/* Visually hidden native checkbox for accessibility & keyboard navigation */
 .server-modal-checkbox-input {
   position: absolute;
   opacity: 0;
@@ -138,10 +184,9 @@
   pointer-events: none;
 }
 
-/* Custom styled checkbox box */
 .server-modal-checkbox-custom {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -149,13 +194,14 @@
   background-color: #ffffff;
   border: 1px solid #d1d5db;
   box-sizing: border-box;
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
   flex-shrink: 0;
+  cursor: default;
 }
 
 :is(.dark, :root.dark) .server-modal-checkbox-custom {
-  background-color: #262626;
-  border-color: #383838;
+  background-color: #2c2c2e;
+  border-color: #3f3f46;
 }
 
 .server-modal-checkbox-row:hover .server-modal-checkbox-custom {
@@ -166,166 +212,109 @@
   border-color: #525252;
 }
 
-/* Focus ring on keyboard focus */
 .server-modal-checkbox-input:focus-visible + .server-modal-checkbox-custom {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  border-color: #007aff;
 }
 
 :is(.dark, :root.dark) .server-modal-checkbox-input:focus-visible + .server-modal-checkbox-custom {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  border-color: #0a84ff;
 }
 
-/* Checked state */
 .server-modal-checkbox-custom--checked {
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  border-color: #1d4ed8;
+  background-color: #007aff;
+  border-color: #007aff;
 }
 
 :is(.dark, :root.dark) .server-modal-checkbox-custom--checked {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
-  border-color: #2563eb;
-}
-
-.server-modal-checkbox-row:hover .server-modal-checkbox-custom--checked {
-  border-color: #1e40af;
-}
-
-:is(.dark, :root.dark) .server-modal-checkbox-row:hover .server-modal-checkbox-custom--checked {
-  border-color: #3b82f6;
+  background-color: #0a84ff;
+  border-color: #0a84ff;
 }
 
 .server-modal-check-icon {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   color: #ffffff;
 }
 
 .server-modal-checkbox-label {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.8125rem;
-  color: #4b5563;
+  font-size: 0.75rem;
+  color: #6b7280;
   line-height: 1;
+  cursor: default;
 }
 
 :is(.dark, :root.dark) .server-modal-checkbox-label {
-  color: #9ca3af;
+  color: #a1a1aa;
 }
 
-.server-modal-label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: #374151;
-}
-
-:is(.dark, :root.dark) .server-modal-label {
-  color: #d1d5db;
-}
-
-.server-modal-field-icon {
-  width: 14px;
-  height: 14px;
-  color: #6b7280;
-}
-
-:is(.dark, :root.dark) .server-modal-field-icon {
-  color: #9ca3af;
-}
-
-.server-modal-input {
-  width: 100%;
-  height: 36px;
-  padding: 0 12px;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
-  font-size: 0.875rem;
-  color: #111827;
-  background-color: #ffffff;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  box-sizing: border-box;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-:is(.dark, :root.dark) .server-modal-input {
-  background-color: #262626;
-  border-color: #383838;
-  color: #f3f4f6;
-}
-
-.server-modal-input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
-}
-
-:is(.dark, :root.dark) .server-modal-input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
-}
-
-.server-modal-input--error,
-.server-modal-input--error:focus {
-  border-color: #ef4444 !important;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2) !important;
-}
-
-:is(.dark, :root.dark) .server-modal-input--error,
-:is(.dark, :root.dark) .server-modal-input--error:focus {
-  border-color: #f87171 !important;
-  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25) !important;
-}
-
-/* Nút Connect */
+/* Nút hành động xếp chồng dọc chuẩn macOS (Vertical Stack) */
 .server-modal-actions {
   display: flex;
-  margin-top: 0.25rem;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 2px;
 }
 
 .server-modal-btn {
   width: 100%;
-  height: 36px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background-color: #2563eb;
-  border: 1px solid #1d4ed8;
-  color: #ffffff;
+  border: 1px solid transparent;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 0.875rem;
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
-  cursor: pointer;
+  font-size: 0.8125rem;
+  cursor: default;
   outline: none;
   user-select: none;
-  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease;
 }
 
-.server-modal-btn:hover {
-  background-color: #1d4ed8;
-  border-color: #1e40af;
+.server-modal-btn--primary {
+  background-color: #007aff;
+  color: #ffffff;
+  font-weight: 600;
 }
 
-.server-modal-btn:active {
-  transform: translateY(1px);
+:is(.dark, :root.dark) .server-modal-btn--primary {
+  background-color: #0a84ff;
 }
 
-:is(.dark, :root.dark) .server-modal-btn {
-  background-color: #3b82f6;
-  border-color: #2563eb;
+.server-modal-btn--primary:hover:not(:disabled) {
+  background-color: #006fe0;
 }
 
-:is(.dark, :root.dark) .server-modal-btn:hover {
-  background-color: #2563eb;
+:is(.dark, :root.dark) .server-modal-btn--primary:hover:not(:disabled) {
+  background-color: #0071e3;
+}
+
+.server-modal-btn--secondary {
+  background-color: #e4e4e7;
+  border-color: #d4d4d8;
+  color: #27272a;
+  font-weight: 500;
+}
+
+:is(.dark, :root.dark) .server-modal-btn--secondary {
+  background-color: #323234;
+  border-color: transparent;
+  color: #f4f4f5;
+}
+
+.server-modal-btn--secondary:hover:not(:disabled) {
+  background-color: #d4d4d8;
+}
+
+:is(.dark, :root.dark) .server-modal-btn--secondary:hover:not(:disabled) {
+  background-color: #3e3e42;
 }
 
 .server-modal-btn:disabled {
-  opacity: 0.65;
+  opacity: 0.55;
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -337,29 +326,21 @@
   pointer-events: none;
 }
 
-.server-modal-btn__icon {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-  display: inline-block;
-  margin-right: 6px;
-}
-
 .server-modal-loading {
   padding: 0 !important;
   gap: 0 !important;
 }
 
 .server-modal-loading .common-loading__spinner {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   color: #ffffff !important;
 }
 
 @keyframes serverModalZoomIn {
   from {
     opacity: 0;
-    transform: scale(0.85);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;

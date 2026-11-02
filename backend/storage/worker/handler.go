@@ -22,6 +22,7 @@ import (
 	"backend/media_download/x"
 	"backend/media_download/youtube"
 	"backend/models"
+	"backend/metadata"
 	"backend/session"
 	"backend/utils"
 )
@@ -1977,6 +1978,16 @@ func (h *Handler) HandleSessionMessage(msg Message, send SendFunc) {
 }
 
 func (h *Handler) HandleFolderTreeMessage(msg Message, send SendFunc) {
+	defer func() {
+		if r := recover(); r != nil {
+			_ = send(Message{
+				Type:   FolderTreeGet,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "INTERNAL_PANIC", Message: fmt.Sprintf("panic recovered: %v", r)},
+			})
+		}
+	}()
+
 	var req FolderTreeRequestPayload
 	if len(msg.Payload) > 0 {
 		_ = json.Unmarshal(msg.Payload, &req)
@@ -2007,6 +2018,16 @@ func (h *Handler) HandleFolderTreeMessage(msg Message, send SendFunc) {
 }
 
 func (h *Handler) HandleFolderContentsMessage(msg Message, send SendFunc) {
+	defer func() {
+		if r := recover(); r != nil {
+			_ = send(Message{
+				Type:   FolderContentsGet,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "INTERNAL_PANIC", Message: fmt.Sprintf("panic recovered: %v", r)},
+			})
+		}
+	}()
+
 	var req FolderContentsRequestPayload
 	if len(msg.Payload) > 0 {
 		_ = json.Unmarshal(msg.Payload, &req)
@@ -2153,7 +2174,122 @@ func (h *Handler) HandleFolderContentsMessage(msg Message, send SendFunc) {
 	})
 }
 
+func (h *Handler) HandleFolderStatsMessage(msg Message, send SendFunc) {
+	defer func() {
+		if r := recover(); r != nil {
+			_ = send(Message{
+				Type:   FolderStatsGet,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "INTERNAL_PANIC", Message: fmt.Sprintf("panic recovered: %v", r)},
+			})
+		}
+	}()
+
+	var req FolderStatsRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+
+	rootPath := configs.ResolveDriveRoot(req.Drive)
+	targetRelPath := filepath.ToSlash(filepath.Clean(req.Path))
+	if targetRelPath == "." {
+		targetRelPath = ""
+	}
+
+	stats, err := metadata.GetFolderRecursiveStats(req.Drive, targetRelPath)
+	if err != nil {
+		stats = &metadata.FolderRecursiveStats{}
+	}
+
+	// If SQLite has no media records for this folder tree yet, check if folder exists on disk and cache media files
+	if stats.TotalFiles == 0 {
+		fullDir := filepath.Join(rootPath, filepath.FromSlash(targetRelPath))
+		if fi, statErr := os.Stat(fullDir); statErr == nil && fi.IsDir() {
+			_ = filepath.WalkDir(fullDir, func(p string, d os.DirEntry, err error) error {
+				if err != nil || d == nil {
+					return nil
+				}
+				if d.IsDir() {
+					if strings.HasPrefix(d.Name(), ".") || strings.HasPrefix(d.Name(), "$") {
+						return filepath.SkipDir
+					}
+					rel, _ := filepath.Rel(rootPath, p)
+					relSlash := filepath.ToSlash(rel)
+					if relSlash != "." && relSlash != "" {
+						_ = metadata.UpsertFolderMeta(&metadata.FolderMeta{
+							Drive:     req.Drive,
+							Folder:    relSlash,
+							UpdatedAt: time.Now(),
+						})
+					}
+					return nil
+				}
+				if strings.HasPrefix(d.Name(), ".") {
+					return nil
+				}
+				info, err := d.Info()
+				if err != nil {
+					return nil
+				}
+				rel, _ := filepath.Rel(rootPath, p)
+				relSlash := filepath.ToSlash(rel)
+				folderRel := filepath.ToSlash(filepath.Dir(relSlash))
+				if folderRel == "." {
+					folderRel = ""
+				}
+				mType := ""
+				if utils.IsImageFile(d.Name()) {
+					mType = "picture"
+				} else if utils.IsVideoFile(d.Name()) {
+					mType = "video"
+				}
+				if mType != "" {
+					_ = metadata.UpsertMetadata(&metadata.MediaMeta{
+						Drive:     req.Drive,
+						Path:      relSlash,
+						Folder:    folderRel,
+						MediaType: mType,
+						Size:      info.Size(),
+						ModTime:   info.ModTime().Unix(),
+					})
+				}
+				return nil
+			})
+			stats, _ = metadata.GetFolderRecursiveStats(req.Drive, targetRelPath)
+		}
+	}
+
+	if stats == nil {
+		stats = &metadata.FolderRecursiveStats{}
+	}
+
+	_ = send(Message{
+		Type:   FolderStatsGet,
+		TaskID: msg.TaskID,
+		Result: FolderStatsResult{
+			Drive:         req.Drive,
+			Path:          targetRelPath,
+			TotalSize:     stats.TotalSize,
+			TotalFiles:    stats.TotalFiles,
+			TotalPictures: stats.TotalPictures,
+			TotalVideos:   stats.TotalVideos,
+			TotalFolders:  stats.TotalFolders,
+			LatestMod:     stats.LatestMod,
+		},
+	})
+}
+
 func (h *Handler) HandleFolderCreateMessage(msg Message, send SendFunc) {
+	defer func() {
+		if r := recover(); r != nil {
+			_ = send(Message{
+				Type:   FolderCreate,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "INTERNAL_PANIC", Message: fmt.Sprintf("panic recovered: %v", r)},
+			})
+		}
+	}()
+
 	var req FolderCreateRequestPayload
 	if len(msg.Payload) > 0 {
 		_ = json.Unmarshal(msg.Payload, &req)
@@ -2164,7 +2300,7 @@ func (h *Handler) HandleFolderCreateMessage(msg Message, send SendFunc) {
 		_ = send(Message{
 			Type:   FolderCreate,
 			TaskID: msg.TaskID,
-			Error:  &ErrorPayload{Code: "INVALID_FOLDER_NAME", Message: "Tên thư mục không được để trống"},
+			Error:  &ErrorPayload{Code: "INVALID_FOLDER_NAME", Message: "Folder name cannot be empty"},
 		})
 		return
 	}
@@ -2173,7 +2309,7 @@ func (h *Handler) HandleFolderCreateMessage(msg Message, send SendFunc) {
 		_ = send(Message{
 			Type:   FolderCreate,
 			TaskID: msg.TaskID,
-			Error:  &ErrorPayload{Code: "INVALID_FOLDER_NAME", Message: "Tên thư mục chứa ký tự không hợp lệ"},
+			Error:  &ErrorPayload{Code: "INVALID_FOLDER_NAME", Message: "Folder name contains invalid characters"},
 		})
 		return
 	}
@@ -2225,7 +2361,104 @@ func (h *Handler) HandleFolderCreateMessage(msg Message, send SendFunc) {
 		Type:   FolderCreate,
 		TaskID: msg.TaskID,
 		Result: FolderCreateResult{
-			Message: "Đã tạo thư mục thành công",
+			Message: "Folder created successfully",
+			Data:    folder,
+		},
+	})
+}
+
+func (h *Handler) HandleFolderRenameMessage(msg Message, send SendFunc) {
+	defer func() {
+		if r := recover(); r != nil {
+			_ = send(Message{
+				Type:   FolderRename,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "INTERNAL_PANIC", Message: fmt.Sprintf("panic recovered: %v", r)},
+			})
+		}
+	}()
+
+	var req FolderRenameRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+
+	newName := strings.TrimSpace(req.NewName)
+	if newName == "" {
+		_ = send(Message{
+			Type:   FolderRename,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: "INVALID_FOLDER_NAME", Message: "Folder name cannot be empty"},
+		})
+		return
+	}
+
+	if strings.ContainsAny(newName, "/\\:*?\"<>|") || newName == "." || newName == ".." {
+		_ = send(Message{
+			Type:   FolderRename,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: "INVALID_FOLDER_NAME", Message: "Folder name contains invalid characters"},
+		})
+		return
+	}
+
+	targetRelPath := filepath.ToSlash(filepath.Clean(req.Path))
+	if targetRelPath == "." || targetRelPath == "/" || targetRelPath == "" {
+		_ = send(Message{
+			Type:   FolderRename,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: "INVALID_PATH", Message: "Cannot rename root drive folder"},
+		})
+		return
+	}
+
+	targetDrive := strings.TrimSpace(req.Drive)
+	if targetDrive == "" {
+		targetDrive = "HDD"
+	}
+	rootPath := configs.ResolveDriveRoot(targetDrive)
+
+	folder, err := utils.RenameSubFolder(rootPath, targetRelPath, newName)
+	if err != nil {
+		code := "FOLDER_RENAME_FAILED"
+		if errors.Is(err, os.ErrExist) {
+			code = "FOLDER_ALREADY_EXISTS"
+		} else if errors.Is(err, os.ErrPermission) {
+			code = "PERMISSION_DENIED"
+		} else if errors.Is(err, os.ErrNotExist) {
+			code = "FOLDER_NOT_FOUND"
+		}
+		_ = send(Message{
+			Type:   FolderRename,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: code, Message: err.Error()},
+		})
+		return
+	}
+
+	folderParent := func(p string) string {
+		dir := filepath.ToSlash(filepath.Dir(p))
+		if dir == "." || dir == "/" {
+			return ""
+		}
+		return dir
+	}
+
+	_ = events.Publish(events.FilesystemEvent{
+		Type:       "folder_renamed",
+		Drive:      targetDrive,
+		Path:       targetRelPath,
+		OldPath:    targetRelPath,
+		NewPath:    folder.Path,
+		ParentPath: folderParent(folder.Path),
+		Item:       folder,
+	})
+
+	_ = send(Message{
+		Type:   FolderRename,
+		TaskID: msg.TaskID,
+		Result: FolderRenameResult{
+			Message: "Folder renamed successfully",
 			Data:    folder,
 		},
 	})

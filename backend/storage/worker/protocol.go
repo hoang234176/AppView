@@ -30,7 +30,9 @@ const (
 	SessionGet         = "session.get"
 	FolderTreeGet      = "folder.tree"
 	FolderContentsGet  = "folder.contents"
+	FolderStatsGet     = "folder.stats"
 	FolderCreate       = "folder.create"
+	FolderRename       = "folder.rename"
 	BatchJobProgressMessage = "batch_job_progress"
 
 	CapabilityDownloadFile = "download_file"
@@ -156,6 +158,17 @@ type FolderCreateResult struct {
 	Data    *models.FolderItem `json:"data,omitempty"`
 }
 
+type FolderRenameRequestPayload struct {
+	Drive   string `json:"drive,omitempty"`
+	Path    string `json:"path"`
+	NewName string `json:"new_name"`
+}
+
+type FolderRenameResult struct {
+	Message string             `json:"message"`
+	Data    *models.FolderItem `json:"data,omitempty"`
+}
+
 type FolderContentsRequestPayload struct {
 	Drive        string `json:"drive,omitempty"`
 	Path         string `json:"path,omitempty"`
@@ -179,4 +192,20 @@ type FolderContentsResult struct {
 	TotalVideos   int                  `json:"total_videos"`
 	Page          int                  `json:"page"`
 	Limit         int                  `json:"limit"`
+}
+
+type FolderStatsRequestPayload struct {
+	Drive string `json:"drive,omitempty"`
+	Path  string `json:"path,omitempty"`
+}
+
+type FolderStatsResult struct {
+	Drive         string `json:"drive"`
+	Path          string `json:"path"`
+	TotalSize     int64  `json:"total_size"`
+	TotalFiles    int    `json:"total_files"`
+	TotalPictures int    `json:"total_pictures"`
+	TotalVideos   int    `json:"total_videos"`
+	TotalFolders  int    `json:"total_folders"`
+	LatestMod     int64  `json:"latest_mod"`
 }

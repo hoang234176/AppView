@@ -68,7 +68,7 @@ func (s *folderRpcMockSender) Send(msg protocol.Message) error {
 	} else if msg.Type == protocol.FolderCreate {
 		go func(taskID string) {
 			res := protocol.FolderCreateResult{
-				Message: "Đã tạo thư mục thành công",
+				Message: "Folder created successfully",
 				Data: &protocol.FolderItem{
 					Name: "NewSubFolder",
 					Path: "test/NewSubFolder",
@@ -77,6 +77,41 @@ func (s *folderRpcMockSender) Send(msg protocol.Message) error {
 			resRaw, _ := json.Marshal(res)
 			s.coordinator.ResolveRPC(taskID, protocol.Message{
 				Type:   protocol.FolderCreate,
+				TaskID: taskID,
+				Result: resRaw,
+			})
+		}(msg.TaskID)
+	} else if msg.Type == protocol.FolderRename {
+		go func(taskID string) {
+			res := protocol.FolderRenameResult{
+				Message: "Folder renamed successfully",
+				Data: &protocol.FolderItem{
+					Name: "RenamedFolder",
+					Path: "test/RenamedFolder",
+				},
+			}
+			resRaw, _ := json.Marshal(res)
+			s.coordinator.ResolveRPC(taskID, protocol.Message{
+				Type:   protocol.FolderRename,
+				TaskID: taskID,
+				Result: resRaw,
+			})
+		}(msg.TaskID)
+	} else if msg.Type == protocol.FolderStatsGet {
+		go func(taskID string) {
+			res := protocol.FolderStatsResult{
+				Drive:         "SSD",
+				Path:          "test/sub",
+				TotalSize:     1048576,
+				TotalFiles:    10,
+				TotalPictures: 8,
+				TotalVideos:   2,
+				TotalFolders:  3,
+				LatestMod:     1700000000,
+			}
+			resRaw, _ := json.Marshal(res)
+			s.coordinator.ResolveRPC(taskID, protocol.Message{
+				Type:   protocol.FolderStatsGet,
 				TaskID: taskID,
 				Result: resRaw,
 			})
@@ -196,6 +231,73 @@ func TestCreateFolderEmptyName(t *testing.T) {
 	payload := `{"drive":"SSD","path":"test","name":""}`
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/folder", strings.NewReader(payload)))
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestGetFolderStatsSuccess(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	sender := &folderRpcMockSender{coordinator: coordinator}
+	if err := coordinator.RegisterWorker("storage-worker-1", []protocol.Capability{protocol.DownloadFile}, sender); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/folder/stats?drive=SSD&path=test/sub", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var body struct {
+		Message string                     `json:"message"`
+		Data    protocol.FolderStatsResult `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to parse JSON response: %v", err)
+	}
+	if body.Data.TotalSize != 1048576 || body.Data.TotalFiles != 10 {
+		t.Fatalf("expected total_size 1048576, got %+v", body.Data)
+	}
+}
+
+func TestRenameFolderSuccess(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	sender := &folderRpcMockSender{coordinator: coordinator}
+	if err := coordinator.RegisterWorker("storage-worker-1", []protocol.Capability{protocol.DownloadFile}, sender); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+
+	payload := `{"drive":"SSD","path":"test/OldFolder","new_name":"RenamedFolder"}`
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPatch, "/api/v1/folder", strings.NewReader(payload)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var body protocol.FolderRenameResult
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to parse JSON response: %v", err)
+	}
+	if body.Data == nil || body.Data.Name != "RenamedFolder" {
+		t.Fatalf("expected folder data with Name 'RenamedFolder', got %+v", body.Data)
+	}
+}
+
+func TestRenameFolderEmptyName(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+
+	payload := `{"drive":"SSD","path":"test/OldFolder","new_name":""}`
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPatch, "/api/v1/folder", strings.NewReader(payload)))
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 Bad Request, got %d: %s", response.Code, response.Body.String())
 	}

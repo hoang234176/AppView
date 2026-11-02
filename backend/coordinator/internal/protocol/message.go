@@ -29,7 +29,9 @@ const (
 	SessionGet             MessageType = "session.get"
 	FolderTreeGet          MessageType = "folder.tree"
 	FolderContentsGet      MessageType = "folder.contents"
+	FolderStatsGet         MessageType = "folder.stats"
 	FolderCreate           MessageType = "folder.create"
+	FolderRename           MessageType = "folder.rename"
 	BatchJobProgressMessage MessageType = "batch_job_progress"
 	Error                  MessageType = "error"
 )
@@ -251,6 +253,17 @@ type FolderCreateResult struct {
 	Data    *FolderItem `json:"data,omitempty"`
 }
 
+type FolderRenameRequestPayload struct {
+	Drive   string `json:"drive,omitempty"`
+	Path    string `json:"path"`
+	NewName string `json:"new_name"`
+}
+
+type FolderRenameResult struct {
+	Message string      `json:"message"`
+	Data    *FolderItem `json:"data,omitempty"`
+}
+
 type FolderContentsRequestPayload struct {
 	Drive        string `json:"drive,omitempty"`
 	Path         string `json:"path,omitempty"`
@@ -309,4 +322,20 @@ type FolderContentsResult struct {
 	TotalVideos   int            `json:"total_videos"`
 	Page          int            `json:"page"`
 	Limit         int            `json:"limit"`
+}
+
+type FolderStatsRequestPayload struct {
+	Drive string `json:"drive,omitempty"`
+	Path  string `json:"path,omitempty"`
+}
+
+type FolderStatsResult struct {
+	Drive         string `json:"drive"`
+	Path          string `json:"path"`
+	TotalSize     int64  `json:"total_size"`
+	TotalFiles    int    `json:"total_files"`
+	TotalPictures int    `json:"total_pictures"`
+	TotalVideos   int    `json:"total_videos"`
+	TotalFolders  int    `json:"total_folders"`
+	LatestMod     int64  `json:"latest_mod"`
 }

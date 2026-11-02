@@ -179,8 +179,12 @@ func (c *Client) connectOnce(ctx context.Context) error {
 			go c.handler.HandleFolderTreeMessage(incoming, safeConn.Send)
 		case FolderContentsGet:
 			go c.handler.HandleFolderContentsMessage(incoming, safeConn.Send)
+		case FolderStatsGet:
+			go c.handler.HandleFolderStatsMessage(incoming, safeConn.Send)
 		case FolderCreate:
 			go c.handler.HandleFolderCreateMessage(incoming, safeConn.Send)
+		case FolderRename:
+			go c.handler.HandleFolderRenameMessage(incoming, safeConn.Send)
 		case ProtocolError:
 			if incoming.Error != nil {
 				utils.LogEvent("WARN", "storage worker coordinator protocol error", map[string]any{"workerId": c.config.WorkerID, "error": incoming.Error.Message})

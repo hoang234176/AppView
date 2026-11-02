@@ -29,7 +29,7 @@ function formatDisplayName(name, isFolder) {
  * MediaCard - Component hiển thị Thư mục / Hình ảnh / Video
  * Hỗ trợ Khối Icon Dự phòng (Fallback) khi không tải được thumbnail
  */
-function MediaCard({ item, isSelected = false, onClick, onDoubleClick }) {
+function MediaCard({ item, isSelected = false, onClick, onDoubleClick, onSelect }) {
   const [cardRef, isVisible] = useLazyViewport();
   const [imgError, setImgError] = useState(false);
 
@@ -45,18 +45,53 @@ function MediaCard({ item, isSelected = false, onClick, onDoubleClick }) {
 
   if (!item) return null;
 
+  const handleFolderContextMenu = (e) => {
+    if (isFolder) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (onSelect) {
+        onSelect(item, e);
+      }
+      window.dispatchEvent(new CustomEvent('close-more-menu'));
+      window.dispatchEvent(
+        new CustomEvent('open-folder-context-menu', {
+          detail: {
+            clientX: e.clientX,
+            clientY: e.clientY,
+            target: {
+              name: item.name,
+              path: item.path,
+              type: 'folder',
+            },
+          },
+        })
+      );
+    }
+  };
+
+  const handleCardContextMenu = (e) => {
+    if (isFolder && isSelected) {
+      handleFolderContextMenu(e);
+    }
+  };
+
   return (
     <div
       ref={cardRef}
       className={`media-card media-card--${item.type} ${isSelected ? 'media-card--selected' : ''} ${item?.isJustCreated ? 'media-card--just-created' : ''}`}
       onClick={(e) => onClick && onClick(item, e)}
       onDoubleClick={(e) => onDoubleClick && onDoubleClick(item, e)}
+      onContextMenu={handleCardContextMenu}
       title={item.name}
     >
       <div className="media-card__body">
         {isFolder && (
           <div className="media-card__folder-wrapper">
-            <FolderPreviewIcon previews={item.previews} isVisible={isVisible} />
+            <FolderPreviewIcon
+              previews={item.previews}
+              isVisible={isVisible}
+              onContextMenu={handleFolderContextMenu}
+            />
           </div>
         )}
 
@@ -103,7 +138,11 @@ function MediaCard({ item, isSelected = false, onClick, onDoubleClick }) {
       </div>
 
       <div className="media-card__footer">
-        <span className="media-card__name" title={item.name}>
+        <span
+          className="media-card__name"
+          title={item.name}
+          onContextMenu={isFolder ? handleFolderContextMenu : undefined}
+        >
           {displayName}
         </span>
       </div>

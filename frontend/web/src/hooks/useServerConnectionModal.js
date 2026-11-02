@@ -21,6 +21,11 @@ export default function useServerConnectionModal() {
   const [portError, setPortError] = useState(Boolean(initialConnectionError));
   const [rememberConnection, setRememberConnection] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  const handleCancel = () => {
+    setIsDismissed(true);
+  };
 
   const handleConnect = async () => {
     const targetHost = host.trim();
@@ -162,6 +167,8 @@ export default function useServerConnectionModal() {
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       handleConnect();
+    } else if (e.key === 'Escape') {
+      handleCancel();
     }
   };
 
@@ -177,7 +184,9 @@ export default function useServerConnectionModal() {
     rememberConnection,
     setRememberConnection,
     isConnecting,
+    isDismissed,
     handleConnect,
+    handleCancel,
     handleKeyDown,
   };
 }

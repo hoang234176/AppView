@@ -71,6 +71,33 @@ function ContentsView() {
     };
   }, [activeDrive, currentPath]);
 
+  // Lắng nghe sự kiện đổi tên thư mục để cập nhật ngay lập tức
+  useEffect(() => {
+    const handleFolderRenamed = (e) => {
+      const { oldPath, newPath, newName, drive } = e.detail || {};
+      if (drive && drive !== activeDrive) return;
+
+      setSessionCreatedFolders((prev) =>
+        prev.map((f) => {
+          if (f.path === oldPath) {
+            return {
+              ...f,
+              name: newName,
+              path: newPath,
+              itemKey: `folder-${f.id || newPath || newName}`,
+            };
+          }
+          return f;
+        })
+      );
+    };
+
+    window.addEventListener('folder-renamed', handleFolderRenamed);
+    return () => {
+      window.removeEventListener('folder-renamed', handleFolderRenamed);
+    };
+  }, [activeDrive]);
+
   // Gộp chung Thư mục, Ảnh, Video vào một khối duy nhất chuẩn Finder
   const allItems = useMemo(() => {
     // Tập hợp key của các thư mục vừa tạo trong phiên để tránh lặp khi API/WebSocket cập nhật ngầm
@@ -132,6 +159,10 @@ function ContentsView() {
     }
   };
 
+  const handleSelect = (item) => {
+    setSelectedKey(item.itemKey);
+  };
+
   const handleBackgroundClick = () => {
     setSelectedKey(null);
   };
@@ -148,11 +179,11 @@ function ContentsView() {
         </div>
       ) : allItems.length === 0 ? (
         <div className="contents-empty">
-          <p>Thư mục trống</p>
+          <p>Folder is empty</p>
         </div>
       ) : displayItems.length === 0 ? (
         <div className="contents-empty">
-          <p>Không tìm thấy nội dung phù hợp cho &quot;{searchQuery}&quot;</p>
+          <p>No matching items found for &quot;{searchQuery}&quot;</p>
         </div>
       ) : (
         <div className="contents-container">
@@ -164,6 +195,7 @@ function ContentsView() {
                 isSelected={selectedKey === item.itemKey}
                 onClick={handleItemClick}
                 onDoubleClick={handleItemDoubleClick}
+                onSelect={handleSelect}
               />
             ))}
           </div>

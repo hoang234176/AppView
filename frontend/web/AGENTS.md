@@ -118,3 +118,12 @@
 - **Tập trung hóa cổng giao tiếp API**: Toàn bộ các API calls và hằng số endpoint của Coordinator được quản lý tập trung và duy nhất tại `src/api/apiCoordinator.js`. Không tạo các file proxy/re-export dư thừa (như `coordinatorApi.js`).
 - **Không giữ các file CSS rỗng**: Mọi file `.css` phải gắn liền với component đang hoạt động và có nội dung styling thực tế. Không để lại các file stylesheet rỗng (chỉ chứa comment) trong ứng dụng.
 - **Icon thuần khiết**: 100% icon bắt buộc là component tách biệt trong `src/assets/icons/`, tái sử dụng tối đa các icon đã có (như `XCloseIcon`), nghiêm cấm viết thẻ `<svg>` inline trong JSX.
+
+## 14. Quy tắc Ngôn ngữ Giao diện 100% Tiếng Anh (100% English UI Invariant)
+- **Hiển thị 100% Tiếng Anh**: Toàn bộ nhãn UI (labels), các thẻ thông báo nổi (toast notifications: title, message), cửa sổ hộp thoại (modals/dialogs), placeholder, tiêu đề trợ năng (`title`, `aria-label`), thông báo lỗi và trạng thái rỗng (empty states) trên giao diện người dùng bắt buộc hiển thị hoàn toàn bằng Tiếng Anh chuẩn (chuẩn hóa ngữ pháp, súc tích, chuyên nghiệp như macOS).
+- **Tuyệt đối không pha trộn Tiếng Việt trên UI**: Nghiêm cấm hiển thị chuỗi văn bản Tiếng Việt trong các component giao diện người dùng, thông báo hệ thống và phản hồi lỗi từ backend trả về client.
+
+## 15. Quy tắc Con trỏ Chuột Desktop macOS (No-Pointer Cursor / Native Desktop Invariant)
+- **Tuyệt đối không sử dụng `cursor: pointer`**: Nghiêm cấm đặt `cursor: pointer` (hình bàn tay chỉ ngón 👆) trên bất kỳ thành phần nào của ứng dụng (nút bấm, card thư mục, mục cây thư mục, thẻ ảnh/video, context menu items, icon tabs...).
+- **Luôn dùng con trỏ mặc định hệ thống (`cursor: default`)**: Toàn bộ các tương tác nhấp chọn trên giao diện phải sử dụng con trỏ mũi tên mặc định (`cursor: default` ↖️) nhằm đảm bảo trải nghiệm ứng dụng desktop macOS nguyên bản.
+- **Ngoại lệ chuẩn**: Chỉ sử dụng `cursor: text` cho các ô nhập văn bản (`input`, `textarea`) và `cursor: not-allowed` cho các phần tử ở trạng thái bị vô hiệu hóa (`disabled`).

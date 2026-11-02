@@ -40,11 +40,11 @@ function InitialLoadingOverlay() {
   }, []);
 
   useEffect(() => {
-    // Chỉ kích hoạt bước kết thúc khi server check hoàn tất
-    if (!isInitialCheckDone) return;
+    // Chỉ kích hoạt bước kết thúc khi server check hoàn tất và đã kết nối server
+    if (!isInitialCheckDone || !hasServerConnection) return;
 
-    // Nếu có kết nối server, đợi danh sách ổ đĩa nạp xong để không bị giật layout
-    const isDataReady = !hasServerConnection || (Array.isArray(drives) && drives.length > 0);
+    // Đợi danh sách ổ đĩa nạp xong để không bị giật layout
+    const isDataReady = Array.isArray(drives) && drives.length > 0;
     if (!isDataReady) return;
 
     // Đảm bảo thời gian hiển thị đệm tối thiểu 900ms để chuyển cảnh đầm chắc, mượt mà
@@ -76,8 +76,8 @@ function InitialLoadingOverlay() {
     };
   }, [isInitialCheckDone, hasServerConnection, drives]);
 
-  // Sau khi hoàn tất và mờ dần, unmount hoàn toàn để giải phóng RAM
-  if (isDone) return null;
+  // Sau khi hoàn tất và mờ dần, hoặc nếu không có kết nối server, unmount hoàn toàn để hiện bảng Connect lên đầu tiên
+  if (isDone || (isInitialCheckDone && !hasServerConnection)) return null;
 
   return (
     <div

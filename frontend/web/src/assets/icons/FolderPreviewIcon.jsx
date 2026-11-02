@@ -38,11 +38,21 @@ function SheetPhoto({ src, slotType = 'single', alt = '' }) {
  * @param {Array<string>} previews - Danh sách link ảnh thumbnail
  * @param {string} className - Class CSS mở rộng
  */
-export function FolderPreviewIcon({ previews = [], className = '', isVisible = true }) {
+export function FolderPreviewIcon({
+  previews = [],
+  className = '',
+  isVisible = true,
+  onContextMenu,
+  ...props
+}) {
   const hasPreviews = Array.isArray(previews) && previews.length > 0;
 
   return (
-    <div className={`folder-preview-icon ${className}`.trim()}>
+    <div
+      className={`folder-preview-icon ${className}`.trim()}
+      onContextMenu={onContextMenu}
+      {...props}
+    >
       {/* Định nghĩa Gradient ánh sáng macOS */}
       <svg width="0" height="0" style={{ position: 'absolute' }}>
         <defs>

@@ -717,3 +717,82 @@ func TestHandlerFolderCreateMessage(t *testing.T) {
 		t.Fatalf("expected INVALID_FOLDER_NAME, got %+v", sent)
 	}
 }
+
+func TestHandlerFolderRenameMessage(t *testing.T) {
+	tempRoot := t.TempDir()
+	origRoot := configs.DEFAULT_ROOT_PATH
+	origDrives := configs.STORAGE_DRIVES
+	configs.DEFAULT_ROOT_PATH = tempRoot
+	configs.STORAGE_DRIVES = []configs.StorageDrive{
+		{ID: "HDD", Name: "HDD", Path: tempRoot, Available: true},
+	}
+	defer func() {
+		configs.DEFAULT_ROOT_PATH = origRoot
+		configs.STORAGE_DRIVES = origDrives
+	}()
+
+	subDir := filepath.Join(tempRoot, "OldFolder")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	h := &Handler{}
+	var sent []Message
+
+	// 1. Success rename
+	payload, _ := json.Marshal(FolderRenameRequestPayload{
+		Drive:   "HDD",
+		Path:    "OldFolder",
+		NewName: "NewFolder",
+	})
+	h.HandleFolderRenameMessage(Message{
+		Type:    FolderRename,
+		TaskID:  "rename-task-1",
+		Payload: payload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Type != FolderRename {
+		t.Fatalf("expected 1 FolderRename message, got %+v", sent)
+	}
+	if sent[0].Error != nil {
+		t.Fatalf("unexpected error: %+v", sent[0].Error)
+	}
+	res, ok := sent[0].Result.(FolderRenameResult)
+	if !ok || res.Data == nil || res.Data.Name != "NewFolder" {
+		t.Fatalf("expected FolderRenameResult with Name 'NewFolder', got %+v", sent[0].Result)
+	}
+
+	// 2. Empty new name
+	sent = nil
+	emptyPayload, _ := json.Marshal(FolderRenameRequestPayload{
+		Drive:   "HDD",
+		Path:    "NewFolder",
+		NewName: "   ",
+	})
+	h.HandleFolderRenameMessage(Message{
+		Type:    FolderRename,
+		TaskID:  "rename-task-2",
+		Payload: emptyPayload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Error == nil || sent[0].Error.Code != "INVALID_FOLDER_NAME" {
+		t.Fatalf("expected INVALID_FOLDER_NAME, got %+v", sent)
+	}
+
+	// 3. Rename root path (not allowed)
+	sent = nil
+	rootPayload, _ := json.Marshal(FolderRenameRequestPayload{
+		Drive:   "HDD",
+		Path:    "",
+		NewName: "ShouldFail",
+	})
+	h.HandleFolderRenameMessage(Message{
+		Type:    FolderRename,
+		TaskID:  "rename-task-3",
+		Payload: rootPayload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Error == nil || sent[0].Error.Code != "INVALID_PATH" {
+		t.Fatalf("expected INVALID_PATH, got %+v", sent)
+	}
+}

@@ -2,8 +2,6 @@ import useLayout from '../../../hooks/useLayout';
 import useServerConnectionModal from '../../../hooks/useServerConnectionModal';
 import Loading from '../../common/Loading/Loading';
 import ServerIcon from '../../../assets/icons/ServerIcon';
-import GlobeIcon from '../../../assets/icons/GlobeIcon';
-import PlugIcon from '../../../assets/icons/PlugIcon';
 import CheckIcon from '../../../assets/icons/CheckIcon';
 import './ServerConnectionModal.css';
 
@@ -20,9 +18,15 @@ function ServerConnectionModalContent() {
     rememberConnection,
     setRememberConnection,
     isConnecting,
+    isDismissed,
     handleConnect,
+    handleCancel,
     handleKeyDown,
   } = useServerConnectionModal();
+
+  if (isDismissed) {
+    return null;
+  }
 
   return (
     <div
@@ -32,69 +36,64 @@ function ServerConnectionModalContent() {
       aria-labelledby="server-modal-title"
     >
       <div className="server-modal-card">
-        {/* Header */}
+        {/* Header căn trái theo chuẩn macOS Dialog */}
         <div className="server-modal-header">
           <div className="server-modal-icon-box">
             <ServerIcon className="server-modal-icon" />
           </div>
           <h2 id="server-modal-title" className="server-modal-title">
-            Connect Server
+            Connect to Server
           </h2>
           <p className="server-modal-desc">
-            Enter Host and Port to connect to the server.
+            AppView requires a connection to the Coordinator server.
+          </p>
+          <p className="server-modal-subdesc">
+            Enter Host and Port to connect.
           </p>
         </div>
 
-        {/* Form fields */}
+        {/* Form fields - Xếp chồng dọc 100% full width */}
         <div className="server-modal-form">
-          <div className="server-modal-row">
-            <div className="server-modal-field server-modal-field--host">
-              <label htmlFor="modal-server-host" className="server-modal-label">
-                <GlobeIcon className="server-modal-field-icon" />
-                <span>Host</span>
-              </label>
-              <input
-                id="modal-server-host"
-                type="text"
-                className={`server-modal-input ${hostError ? 'server-modal-input--error' : ''}`}
-                placeholder="127.0.0.1"
-                value={host}
-                onChange={(e) => {
-                  setHost(e.target.value);
-                  if (hostError || portError) {
-                    setHostError(false);
-                    setPortError(false);
-                  }
-                }}
-                onKeyDown={handleKeyDown}
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </div>
+          <div className="server-modal-field">
+            <input
+              id="modal-server-host"
+              type="text"
+              className={`server-modal-input ${hostError ? 'server-modal-input--error' : ''}`}
+              placeholder="Host (e.g. 127.0.0.1)"
+              value={host}
+              onChange={(e) => {
+                setHost(e.target.value);
+                if (hostError || portError) {
+                  setHostError(false);
+                  setPortError(false);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              spellCheck={false}
+              autoComplete="off"
+              aria-label="Server Host"
+            />
+          </div>
 
-            <div className="server-modal-field server-modal-field--port">
-              <label htmlFor="modal-server-port" className="server-modal-label">
-                <PlugIcon className="server-modal-field-icon" />
-                <span>Port</span>
-              </label>
-              <input
-                id="modal-server-port"
-                type="text"
-                className={`server-modal-input ${portError ? 'server-modal-input--error' : ''}`}
-                placeholder="8090"
-                value={port}
-                onChange={(e) => {
-                  setPort(e.target.value);
-                  if (hostError || portError) {
-                    setHostError(false);
-                    setPortError(false);
-                  }
-                }}
-                onKeyDown={handleKeyDown}
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </div>
+          <div className="server-modal-field">
+            <input
+              id="modal-server-port"
+              type="text"
+              className={`server-modal-input ${portError ? 'server-modal-input--error' : ''}`}
+              placeholder="Port (e.g. 8090)"
+              value={port}
+              onChange={(e) => {
+                setPort(e.target.value);
+                if (hostError || portError) {
+                  setHostError(false);
+                  setPortError(false);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              spellCheck={false}
+              autoComplete="off"
+              aria-label="Server Port"
+            />
           </div>
 
           {/* Checkbox: Remember this connection */}
@@ -115,11 +114,11 @@ function ServerConnectionModalContent() {
           </label>
         </div>
 
-        {/* Connect Action Button */}
+        {/* Nút bấm xếp chồng dọc: Connect ở trên, Cancel ở dưới */}
         <div className="server-modal-actions">
           <button
             type="button"
-            className="server-modal-btn"
+            className="server-modal-btn server-modal-btn--primary"
             onClick={handleConnect}
             disabled={isConnecting}
           >
@@ -127,12 +126,17 @@ function ServerConnectionModalContent() {
               {isConnecting ? (
                 <Loading text="" size="sm" className="server-modal-loading" />
               ) : (
-                <>
-                  <PlugIcon className="server-modal-btn__icon" />
-                  Connect
-                </>
+                'Connect'
               )}
             </span>
+          </button>
+          <button
+            type="button"
+            className="server-modal-btn server-modal-btn--secondary"
+            onClick={handleCancel}
+            disabled={isConnecting}
+          >
+            Cancel
           </button>
         </div>
       </div>

@@ -1,0 +1,262 @@
+/* Backdrop che phủ toàn màn hình - Flat, Zero Blur, z-index cao nhất */
+.get-info-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.72);
+  padding: 16px;
+  box-sizing: border-box;
+  animation: getInfoFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  outline: none;
+}
+
+/* Hộp thoại dialog chuẩn phong cách macOS Alert (Flat, Zero Blur, Zero Drop-shadow) */
+.get-info-dialog {
+  width: 100%;
+  max-width: 360px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  box-shadow: none;
+  padding: 22px 20px 20px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: getInfoPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  user-select: none;
+}
+
+:is(.dark, :root.dark) .get-info-dialog {
+  background-color: #202022;
+  border-color: #343438;
+  box-shadow: none;
+}
+
+/* Header căn trái chuẩn macOS Alert */
+.get-info-dialog__header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 6px;
+}
+
+/* Biểu tượng tròn xám đặc trưng ảnh mẫu macOS Alert */
+.get-info-dialog__icon-box {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: #e4e4e7;
+  color: #18181b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+:is(.dark, :root.dark) .get-info-dialog__icon-box {
+  background-color: #48484a;
+  color: #ffffff;
+}
+
+.get-info-dialog__icon {
+  width: 28px;
+  height: 28px;
+}
+
+.get-info-dialog__header-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+}
+
+.get-info-dialog__title {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+:is(.dark, :root.dark) .get-info-dialog__title {
+  color: #ffffff;
+}
+
+/* Body / Danh sách chi tiết thông số */
+.get-info-dialog__body {
+  width: 100%;
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+:is(.dark, :root.dark) .get-info-dialog__body {
+  background-color: #262628;
+  border-color: #38383a;
+}
+
+.get-info-dialog__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 146px;
+  box-sizing: border-box;
+}
+
+.get-info-dialog__specs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.get-info-dialog__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.get-info-dialog__row--clickable {
+  cursor: default;
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background-color 0.15s ease;
+}
+
+.get-info-dialog__row--clickable:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+:is(.dark, :root.dark) .get-info-dialog__row--clickable:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.get-info-dialog__label {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  width: 62px;
+  flex-shrink: 0;
+  cursor: default;
+}
+
+:is(.dark, :root.dark) .get-info-dialog__label {
+  color: #a1a1aa;
+}
+
+.get-info-dialog__val {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #0f172a;
+  min-width: 0;
+  flex: 1;
+  word-break: break-word;
+  cursor: default;
+}
+
+:is(.dark, :root.dark) .get-info-dialog__val {
+  color: #f4f4f5;
+}
+
+.get-info-dialog__val-sub {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #94a3b8;
+}
+
+:is(.dark, :root.dark) .get-info-dialog__val-sub {
+  color: #71717a;
+}
+
+.get-info-dialog__val--path {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: ltr;
+  text-align: left;
+}
+
+/* Footer / Nút đóng dạng viên thuốc (Pill Button) chuẩn macOS */
+.get-info-dialog__footer {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.get-info-dialog__btn {
+  width: 100%;
+  height: 34px;
+  border-radius: 100px;
+  background-color: #007aff;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  box-sizing: border-box;
+  outline: none;
+  transition: background-color 0.15s ease;
+}
+
+.get-info-dialog__btn:hover {
+  background-color: #006fe0;
+}
+
+:is(.dark, :root.dark) .get-info-dialog__btn:hover {
+  background-color: #0071e3;
+}
+
+/* Animations */
+@keyframes getInfoFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes getInfoPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

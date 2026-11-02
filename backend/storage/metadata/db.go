@@ -556,3 +556,76 @@ func MoveItemMetadata(drive, oldPath, newPath, newFolder string) error {
 	_, err := db.Exec(query, newClean, folderClean, now, drive, oldClean)
 	return err
 }
+
+// FolderRecursiveStats holds recursive aggregated stats for a folder and its subdirectories
+type FolderRecursiveStats struct {
+	TotalSize     int64 `json:"total_size"`
+	TotalFiles    int   `json:"total_files"`
+	TotalPictures int   `json:"total_pictures"`
+	TotalVideos   int   `json:"total_videos"`
+	TotalFolders  int   `json:"total_folders"`
+	LatestMod     int64 `json:"latest_mod"`
+}
+
+// GetFolderRecursiveStats calculates total size, files count, and latest mod time from SQLite
+// matching the target folder and all nested subfolders using prefix matching.
+func GetFolderRecursiveStats(drive, folder string) (*FolderRecursiveStats, error) {
+	if err := InitDB(); err != nil {
+		return nil, err
+	}
+	cleanFolder := filepath.ToSlash(filepath.Clean(folder))
+	if cleanFolder == "." {
+		cleanFolder = ""
+	}
+
+	stats := &FolderRecursiveStats{}
+
+	// Query media_meta for media files (direct and nested)
+	var mediaQuery string
+	var mediaArgs []any
+	if cleanFolder == "" {
+		mediaQuery = `SELECT
+			COALESCE(SUM(size), 0),
+			COUNT(*),
+			COALESCE(SUM(CASE WHEN media_type = 'picture' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN media_type = 'video' THEN 1 ELSE 0 END), 0),
+			COALESCE(MAX(mod_time), 0)
+		FROM media_meta WHERE drive = ?`
+		mediaArgs = []any{drive}
+	} else {
+		mediaQuery = `SELECT
+			COALESCE(SUM(size), 0),
+			COUNT(*),
+			COALESCE(SUM(CASE WHEN media_type = 'picture' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN media_type = 'video' THEN 1 ELSE 0 END), 0),
+			COALESCE(MAX(mod_time), 0)
+		FROM media_meta WHERE drive = ? AND (folder = ? OR folder LIKE ?)`
+		mediaArgs = []any{drive, cleanFolder, cleanFolder + "/%"}
+	}
+
+	err := db.QueryRow(mediaQuery, mediaArgs...).Scan(
+		&stats.TotalSize,
+		&stats.TotalFiles,
+		&stats.TotalPictures,
+		&stats.TotalVideos,
+		&stats.LatestMod,
+	)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	// Query folder_meta to count subfolders
+	var folderQuery string
+	var folderArgs []any
+	if cleanFolder == "" {
+		folderQuery = `SELECT COUNT(*) FROM folder_meta WHERE drive = ? AND folder != ''`
+		folderArgs = []any{drive}
+	} else {
+		folderQuery = `SELECT COUNT(*) FROM folder_meta WHERE drive = ? AND folder LIKE ?`
+		folderArgs = []any{drive, cleanFolder + "/%"}
+	}
+
+	_ = db.QueryRow(folderQuery, folderArgs...).Scan(&stats.TotalFolders)
+
+	return stats, nil
+}

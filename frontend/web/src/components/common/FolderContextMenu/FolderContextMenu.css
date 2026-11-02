@@ -1,0 +1,109 @@
+/* Folder Context Menu — macOS Flat Finder Style (Zero Blur, Zero Unnecessary Padding) */
+.folder-context-menu {
+  position: fixed;
+  min-width: 180px;
+  background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  z-index: 99999;
+  user-select: none;
+  animation: folderMenuFadeIn 0.1s ease-out;
+}
+
+:is(.dark, :root.dark) .folder-context-menu {
+  background-color: #242424;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes folderMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Từng dòng hành động trong Context Menu */
+.folder-context-menu__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #1e293b;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 450;
+  line-height: 1.2;
+  text-align: left;
+  cursor: default;
+  box-sizing: border-box;
+  outline: none;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+:is(.dark, :root.dark) .folder-context-menu__item {
+  color: #f1f5f9;
+}
+
+.folder-context-menu__item:hover {
+  background-color: #007aff;
+  color: #ffffff !important;
+}
+
+.folder-context-menu__icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.folder-context-menu__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.folder-context-menu__label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+/* Đường kẻ phân cách */
+.folder-context-menu__divider {
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.08);
+  margin: 4px 6px;
+}
+
+:is(.dark, :root.dark) .folder-context-menu__divider {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Hành động xóa (Delete danger) */
+.folder-context-menu__item--danger {
+  color: #ef4444;
+}
+
+:is(.dark, :root.dark) .folder-context-menu__item--danger {
+  color: #f87171;
+}
+
+.folder-context-menu__item--danger:hover {
+  background-color: #ef4444;
+  color: #ffffff !important;
+}

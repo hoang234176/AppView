@@ -5,7 +5,7 @@ import './NewFolderModal.css';
 
 /**
  * Component hiển thị Modal nhập tên tạo thư mục mới (New Folder)
- * Tuân thủ Quy tắc 10 (Pure presentational component) & Quy tắc 11 (Zero blur/drop-shadow)
+ * Tuân thủ Quy tắc 10 (Pure presentational component), Quy tắc 11 (Zero blur/shadow) và Quy tắc 14 (100% English)
  */
 function NewFolderModal() {
   const {
@@ -15,7 +15,6 @@ function NewFolderModal() {
     error,
     isSubmitting,
     inputRef,
-    displayLocationPath,
     handleClose,
     handleCreate,
     handleKeyDown,
@@ -36,27 +35,21 @@ function NewFolderModal() {
         aria-labelledby="new-folder-dialog-title"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header với icon thư mục macOS và vị trí tạo */}
+        {/* Header với icon tròn và căn trái chuẩn macOS Alert */}
         <div className="new-folder-dialog__header">
           <div className="new-folder-dialog__icon-box">
             <NewFolderIcon className="new-folder-dialog__icon" />
           </div>
-          <div className="new-folder-dialog__header-text">
-            <h2 id="new-folder-dialog-title" className="new-folder-dialog__title">
-              New Folder
-            </h2>
-            <p className="new-folder-dialog__location" title={`Vị trí: ${displayLocationPath}`}>
-              <span className="new-folder-dialog__location-label">Where: </span>
-              <span className="new-folder-dialog__location-val">{displayLocationPath}</span>
-            </p>
-          </div>
+          <h2 id="new-folder-dialog-title" className="new-folder-dialog__title">
+            New Folder
+          </h2>
+          <p className="new-folder-dialog__desc">
+            Enter a name for this new folder.
+          </p>
         </div>
 
         {/* Khối nhập tên thư mục */}
         <div className="new-folder-dialog__body">
-          <label htmlFor="new-folder-name-input" className="new-folder-dialog__label">
-            Folder Name
-          </label>
           <input
             ref={inputRef}
             id="new-folder-name-input"
@@ -70,12 +63,12 @@ function NewFolderModal() {
             maxLength={255}
             autoComplete="off"
             spellCheck="false"
-            aria-label="Tên thư mục mới"
+            aria-label="New folder name"
           />
           {error && <p className="new-folder-dialog__error-msg">{error}</p>}
         </div>
 
-        {/* Nút hành động Cancel / Create */}
+        {/* Cặp nút bấm dạng viên thuốc (Pill Buttons) song song chuẩn macOS Shut Down Alert */}
         <div className="new-folder-dialog__footer">
           <button
             type="button"

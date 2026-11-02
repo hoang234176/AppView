@@ -53,6 +53,10 @@ export function LayoutProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
+  const [isRenameFolderOpen, setIsRenameFolderOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState(null);
+  const [isGetInfoOpen, setIsGetInfoOpen] = useState(false);
+  const [getInfoTarget, setGetInfoTarget] = useState(null);
 
   const openNewFolder = useCallback(() => {
     setIsNewFolderOpen(true);
@@ -60,6 +64,26 @@ export function LayoutProvider({ children }) {
 
   const closeNewFolder = useCallback(() => {
     setIsNewFolderOpen(false);
+  }, []);
+
+  const openRenameFolder = useCallback((target) => {
+    setRenameTarget(target || null);
+    setIsRenameFolderOpen(true);
+  }, []);
+
+  const closeRenameFolder = useCallback(() => {
+    setIsRenameFolderOpen(false);
+    setRenameTarget(null);
+  }, []);
+
+  const openGetInfo = useCallback((target = null) => {
+    setGetInfoTarget(target || null);
+    setIsGetInfoOpen(true);
+  }, []);
+
+  const closeGetInfo = useCallback(() => {
+    setIsGetInfoOpen(false);
+    setGetInfoTarget(null);
   }, []);
 
   const clearSearchQuery = useCallback(() => {
@@ -453,6 +477,14 @@ export function LayoutProvider({ children }) {
     isNewFolderOpen,
     openNewFolder,
     closeNewFolder,
+    isRenameFolderOpen,
+    renameTarget,
+    openRenameFolder,
+    closeRenameFolder,
+    isGetInfoOpen,
+    getInfoTarget,
+    openGetInfo,
+    closeGetInfo,
   }), [
     isSidebarOpen,
     isMobile,
@@ -494,6 +526,14 @@ export function LayoutProvider({ children }) {
     isNewFolderOpen,
     openNewFolder,
     closeNewFolder,
+    isRenameFolderOpen,
+    renameTarget,
+    openRenameFolder,
+    closeRenameFolder,
+    isGetInfoOpen,
+    getInfoTarget,
+    openGetInfo,
+    closeGetInfo,
   ]);
 
   return (
