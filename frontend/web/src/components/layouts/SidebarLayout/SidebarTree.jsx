@@ -26,11 +26,12 @@ function findFolderName(items, targetId) {
 }
 
 // Component đệ quy hiển thị từng mục thư mục ở mọi cấp
-function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect, onContextMenuFolder }) {
+function TreeItem({ item, level = 1, expandedIds, selectedId, contextFolderId, onToggle, onSelect, onContextMenuFolder }) {
   const hasChildren = item.children && item.children.length > 0;
   const itemId = item.id || item.path;
   const isExpanded = expandedIds.has(itemId);
   const isSelected = selectedId === itemId;
+  const isContextActive = contextFolderId === itemId && !isSelected;
   const itemStyle = level > 1 ? { paddingLeft: `${6 + (level - 1) * 28}px` } : undefined;
 
   const handleContextMenu = (e) => {
@@ -61,7 +62,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
       <div
         className={`sidebar-tree__item ${level > 1 ? 'sidebar-tree__item--sub' : ''} ${
           isSelected ? 'sidebar-tree__item--selected' : ''
-        }`}
+        } ${isContextActive ? 'sidebar-tree__item--context-active' : ''}`}
         style={itemStyle}
         data-tree-id={itemId}
         onClick={() => onSelect(itemId, hasChildren)}
@@ -112,6 +113,7 @@ function TreeItem({ item, level = 1, expandedIds, selectedId, onToggle, onSelect
               level={level + 1}
               expandedIds={expandedIds}
               selectedId={selectedId}
+              contextFolderId={contextFolderId}
               onToggle={onToggle}
               onSelect={onSelect}
               onContextMenuFolder={onContextMenuFolder}
@@ -324,9 +326,43 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
     navigate(`/${normalizedDriveId}?path=${encodeURIComponent(id)}`);
   };
 
-  // Chuột phải chỉ chọn sáng thư mục trong cây (không chuyển trang, không cuộn nhảy)
+  const [contextFolderId, setContextFolderId] = useState(null);
+
+  // Chuột phải chỉ highlight tạm thời kiểu hover cho thư mục mục tiêu (không làm đổi thư mục được chọn)
   const handleContextMenuFolder = useCallback((id) => {
-    setSelectedId(id);
+    setContextFolderId(id);
+  }, []);
+
+  // Lắng nghe sự kiện mở và đóng context menu để duy trì highlight hover chuẩn xác
+  useEffect(() => {
+    const handleContextMenuOpen = (e) => {
+      const targetId = e.detail?.target?.id || e.detail?.target?.path;
+      if (targetId) {
+        setContextFolderId(targetId);
+      }
+    };
+
+    const handleContextMenuClose = () => {
+      setContextFolderId(null);
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setContextFolderId(null);
+      }
+    };
+
+    window.addEventListener('open-folder-context-menu', handleContextMenuOpen);
+    window.addEventListener('folder-context-menu-closed', handleContextMenuClose);
+    window.addEventListener('close-folder-context-menu', handleContextMenuClose);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('open-folder-context-menu', handleContextMenuOpen);
+      window.removeEventListener('folder-context-menu-closed', handleContextMenuClose);
+      window.removeEventListener('close-folder-context-menu', handleContextMenuClose);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   return (
@@ -361,7 +397,7 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
 
       {/* Vùng cuộn danh sách cây thư mục của ổ cứng tương ứng */}
       <div
-        className="sidebar-tree"
+        className={`sidebar-tree ${contextFolderId ? 'sidebar-tree--menu-open' : ''}`}
         ref={scrollContainerRef}
         onScroll={checkVisibility}
       >
@@ -373,6 +409,7 @@ function SidebarTree({ activeDriveId = 'drive-1', isLoading = false }) {
               level={1}
               expandedIds={expandedIds}
               selectedId={selectedId}
+              contextFolderId={contextFolderId}
               onToggle={toggleExpand}
               onSelect={handleSelect}
               onContextMenuFolder={handleContextMenuFolder}

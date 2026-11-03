@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"backend/configs"
 )
 
 func TestXSafeFilename(t *testing.T) {
@@ -117,6 +119,13 @@ func TestXJobSnapshots(t *testing.T) {
 }
 
 func TestXCommitMediaFile(t *testing.T) {
+	tempRoot := t.TempDir()
+	origRoot := configs.DEFAULT_ROOT_PATH
+	configs.DEFAULT_ROOT_PATH = tempRoot
+	defer func() {
+		configs.DEFAULT_ROOT_PATH = origRoot
+	}()
+
 	tmpDir, err := os.MkdirTemp("", "x-commit-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)

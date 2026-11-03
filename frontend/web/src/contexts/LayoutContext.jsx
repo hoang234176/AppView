@@ -57,6 +57,9 @@ export function LayoutProvider({ children }) {
   const [renameTarget, setRenameTarget] = useState(null);
   const [isGetInfoOpen, setIsGetInfoOpen] = useState(false);
   const [getInfoTarget, setGetInfoTarget] = useState(null);
+  const [isDeleteFolderOpen, setIsDeleteFolderOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [sortBy, setSortBy] = useState('name');
 
   const openNewFolder = useCallback(() => {
     setIsNewFolderOpen(true);
@@ -84,6 +87,16 @@ export function LayoutProvider({ children }) {
   const closeGetInfo = useCallback(() => {
     setIsGetInfoOpen(false);
     setGetInfoTarget(null);
+  }, []);
+
+  const openDeleteFolder = useCallback((target = null) => {
+    setDeleteTarget(target || null);
+    setIsDeleteFolderOpen(true);
+  }, []);
+
+  const closeDeleteFolder = useCallback(() => {
+    setIsDeleteFolderOpen(false);
+    setDeleteTarget(null);
   }, []);
 
   const clearSearchQuery = useCallback(() => {
@@ -485,6 +498,12 @@ export function LayoutProvider({ children }) {
     getInfoTarget,
     openGetInfo,
     closeGetInfo,
+    isDeleteFolderOpen,
+    deleteTarget,
+    openDeleteFolder,
+    closeDeleteFolder,
+    sortBy,
+    setSortBy,
   }), [
     isSidebarOpen,
     isMobile,
@@ -534,6 +553,12 @@ export function LayoutProvider({ children }) {
     getInfoTarget,
     openGetInfo,
     closeGetInfo,
+    isDeleteFolderOpen,
+    deleteTarget,
+    openDeleteFolder,
+    closeDeleteFolder,
+    sortBy,
+    setSortBy,
   ]);
 
   return (

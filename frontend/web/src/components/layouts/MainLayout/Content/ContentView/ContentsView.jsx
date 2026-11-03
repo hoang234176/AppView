@@ -1,16 +1,18 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import useFolderContents from '../../../../../hooks/useFolderContents';
+import useFolderGrouping from '../../../../../hooks/useFolderGrouping';
 import useLayout from '../../../../../hooks/useLayout';
 import Loading from '../../../../common/Loading/Loading';
 import MediaCard from '../../../../common/MediaCard/MediaCard';
+import TreeChevronIcon from '../../../../../assets/icons/TreeChevronIcon';
 import './ContentsView.css';
 
 function ContentsView() {
   const { driveId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { searchQuery, clearSearchQuery } = useLayout();
+  const { searchQuery, clearSearchQuery, sortBy = 'name' } = useLayout();
 
   const queryParams = new URLSearchParams(location.search);
   const currentPath = queryParams.get('path') || '';
@@ -142,6 +144,13 @@ function ContentsView() {
     );
   }, [allItems, searchQuery]);
 
+  // Quản lý logic phân nhóm (Kind) và hiệu ứng chuyển trạng thái qua Custom Hook (Quy tắc 10)
+  const { kindGroups, collapsedGroups, toggleGroupCollapse, isSwitchingSort } = useFolderGrouping({
+    displayItems,
+    sortBy,
+    currentViewKey,
+  });
+
   const handleItemClick = (item, e) => {
     e.stopPropagation();
     if (selectedKey === item.itemKey && item.type === 'folder') {
@@ -169,7 +178,7 @@ function ContentsView() {
 
   return (
     <div className="contents-view" onClick={handleBackgroundClick}>
-      {isLoading && allItems.length === 0 ? (
+      {(isLoading && allItems.length === 0) || isSwitchingSort ? (
         <div className="contents-loading">
           <Loading text="" size="md" />
         </div>
@@ -187,18 +196,66 @@ function ContentsView() {
         </div>
       ) : (
         <div className="contents-container">
-          <div className="contents-grid contents-grid--finder">
-            {displayItems.map((item) => (
-              <MediaCard
-                key={item.itemKey}
-                item={item}
-                isSelected={selectedKey === item.itemKey}
-                onClick={handleItemClick}
-                onDoubleClick={handleItemDoubleClick}
-                onSelect={handleSelect}
-              />
-            ))}
-          </div>
+          {sortBy === 'kind' && kindGroups ? (
+            kindGroups.map((group) => {
+              const isCollapsed = collapsedGroups.has(group.id);
+              return (
+                <div key={group.id} className="contents-group">
+                  <button
+                    type="button"
+                    className="contents-group__header"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleGroupCollapse(group.id);
+                    }}
+                    aria-expanded={!isCollapsed}
+                  >
+                    <span
+                      className={`contents-group__chevron ${
+                        isCollapsed ? '' : 'contents-group__chevron--expanded'
+                      }`}
+                      aria-hidden="true"
+                    >
+                      <TreeChevronIcon />
+                    </span>
+                    <span className="contents-group__title">
+                      {group.title}{' '}
+                      <span className="contents-group__count">({group.count})</span>
+                    </span>
+                    <div className="contents-group__divider" aria-hidden="true" />
+                  </button>
+
+                  {!isCollapsed && (
+                    <div className="contents-grid contents-grid--finder">
+                      {group.items.map((item) => (
+                        <MediaCard
+                          key={item.itemKey}
+                          item={item}
+                          isSelected={selectedKey === item.itemKey}
+                          onClick={handleItemClick}
+                          onDoubleClick={handleItemDoubleClick}
+                          onSelect={handleSelect}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="contents-grid contents-grid--finder">
+              {displayItems.map((item) => (
+                <MediaCard
+                  key={item.itemKey}
+                  item={item}
+                  isSelected={selectedKey === item.itemKey}
+                  onClick={handleItemClick}
+                  onDoubleClick={handleItemDoubleClick}
+                  onSelect={handleSelect}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

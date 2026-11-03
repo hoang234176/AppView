@@ -2201,9 +2201,10 @@ func (h *Handler) HandleFolderStatsMessage(msg Message, send SendFunc) {
 		stats = &metadata.FolderRecursiveStats{}
 	}
 
+	fullDir := filepath.Join(rootPath, filepath.FromSlash(targetRelPath))
+
 	// If SQLite has no media records for this folder tree yet, check if folder exists on disk and cache media files
 	if stats.TotalFiles == 0 {
-		fullDir := filepath.Join(rootPath, filepath.FromSlash(targetRelPath))
 		if fi, statErr := os.Stat(fullDir); statErr == nil && fi.IsDir() {
 			_ = filepath.WalkDir(fullDir, func(p string, d os.DirEntry, err error) error {
 				if err != nil || d == nil {
@@ -2263,18 +2264,48 @@ func (h *Handler) HandleFolderStatsMessage(msg Message, send SendFunc) {
 		stats = &metadata.FolderRecursiveStats{}
 	}
 
+	// Đếm chính xác số lượng thư mục, ảnh và video trực tiếp nằm trong thư mục này (không đệ quy)
+	var directFolders, directPictures, directVideos int
+	if entries, readErr := os.ReadDir(fullDir); readErr == nil {
+		for _, entry := range entries {
+			name := entry.Name()
+			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "$") {
+				continue
+			}
+			if entry.IsDir() {
+				directFolders++
+			} else if utils.IsImageFile(name) {
+				directPictures++
+			} else if utils.IsVideoFile(name) {
+				directVideos++
+			}
+		}
+	}
+	directTotal := directFolders + directPictures + directVideos
+
+	latestMod := stats.LatestMod
+	if latestMod == 0 {
+		if fi, statErr := os.Stat(fullDir); statErr == nil {
+			latestMod = fi.ModTime().Unix()
+		}
+	}
+
 	_ = send(Message{
 		Type:   FolderStatsGet,
 		TaskID: msg.TaskID,
 		Result: FolderStatsResult{
-			Drive:         req.Drive,
-			Path:          targetRelPath,
-			TotalSize:     stats.TotalSize,
-			TotalFiles:    stats.TotalFiles,
-			TotalPictures: stats.TotalPictures,
-			TotalVideos:   stats.TotalVideos,
-			TotalFolders:  stats.TotalFolders,
-			LatestMod:     stats.LatestMod,
+			Drive:          req.Drive,
+			Path:           targetRelPath,
+			TotalSize:      stats.TotalSize,
+			TotalFiles:     stats.TotalFiles,
+			TotalPictures:  stats.TotalPictures,
+			TotalVideos:    stats.TotalVideos,
+			TotalFolders:   stats.TotalFolders,
+			LatestMod:      latestMod,
+			DirectFolders:  directFolders,
+			DirectPictures: directPictures,
+			DirectVideos:   directVideos,
+			DirectTotal:    directTotal,
 		},
 	})
 }
@@ -2460,6 +2491,81 @@ func (h *Handler) HandleFolderRenameMessage(msg Message, send SendFunc) {
 		Result: FolderRenameResult{
 			Message: "Folder renamed successfully",
 			Data:    folder,
+		},
+	})
+}
+
+func (h *Handler) HandleFolderDeleteMessage(msg Message, send SendFunc) {
+	defer func() {
+		if r := recover(); r != nil {
+			_ = send(Message{
+				Type:   FolderDelete,
+				TaskID: msg.TaskID,
+				Error:  &ErrorPayload{Code: "INTERNAL_PANIC", Message: fmt.Sprintf("panic recovered: %v", r)},
+			})
+		}
+	}()
+
+	var req FolderDeleteRequestPayload
+	if len(msg.Payload) > 0 {
+		_ = json.Unmarshal(msg.Payload, &req)
+	}
+
+	targetRelPath := filepath.ToSlash(filepath.Clean(strings.TrimSpace(req.Path)))
+	if targetRelPath == "." || targetRelPath == "/" || targetRelPath == "" {
+		_ = send(Message{
+			Type:   FolderDelete,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: "INVALID_PATH", Message: "Cannot delete root drive folder"},
+		})
+		return
+	}
+
+	targetDrive := strings.TrimSpace(req.Drive)
+	if targetDrive == "" {
+		targetDrive = "HDD"
+	}
+	rootPath := configs.ResolveDriveRoot(targetDrive)
+
+	err := utils.DeleteSubFolder(rootPath, targetRelPath)
+	if err != nil {
+		code := "FOLDER_DELETE_FAILED"
+		if errors.Is(err, os.ErrPermission) {
+			code = "PERMISSION_DENIED"
+		} else if errors.Is(err, os.ErrNotExist) {
+			code = "FOLDER_NOT_FOUND"
+		}
+		_ = send(Message{
+			Type:   FolderDelete,
+			TaskID: msg.TaskID,
+			Error:  &ErrorPayload{Code: code, Message: err.Error()},
+		})
+		return
+	}
+
+	folderParent := func(p string) string {
+		dir := filepath.ToSlash(filepath.Dir(p))
+		if dir == "." || dir == "/" {
+			return ""
+		}
+		return dir
+	}
+
+	_ = events.Publish(events.FilesystemEvent{
+		Type:       "folder_deleted",
+		Drive:      targetDrive,
+		Path:       targetRelPath,
+		OldPath:    targetRelPath,
+		ParentPath: folderParent(targetRelPath),
+	})
+
+	_ = send(Message{
+		Type:   FolderDelete,
+		TaskID: msg.TaskID,
+		Result: FolderDeleteResult{
+			Drive:   targetDrive,
+			Path:    targetRelPath,
+			Deleted: true,
 		},
 	})
 }

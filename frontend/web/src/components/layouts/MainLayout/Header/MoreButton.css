@@ -207,11 +207,11 @@
 }
 
 .header-more-submenu--right {
-  left: calc(100% + 4px);
+  left: calc(100% + 7px);
 }
 
 .header-more-submenu--left {
-  right: calc(100% + 4px);
+  right: calc(100% + 7px);
 }
 
 :is(.dark, :root.dark) .header-more-submenu {

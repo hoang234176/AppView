@@ -54,6 +54,115 @@
   width: 100%;
 }
 
+/* ==========================================================================
+   WINDOWS EXPLORER STYLE GROUPING (SORT BY KIND)
+   ========================================================================== */
+.contents-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.contents-group__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: default;
+  user-select: none;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.contents-group__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #64748b;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+}
+
+.contents-group__chevron svg {
+  width: 16px;
+  height: 16px;
+}
+
+.contents-group__chevron--expanded {
+  transform: rotate(90deg);
+}
+
+.contents-group__header:hover .contents-group__chevron {
+  color: #007aff;
+}
+
+:is(.dark, :root.dark) .contents-group__chevron {
+  color: #94a3b8;
+}
+
+:is(.dark, :root.dark) .contents-group__header:hover .contents-group__chevron {
+  color: #0a84ff;
+}
+
+.contents-group__title {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: -0.01em;
+  transition: color 0.15s ease;
+}
+
+:is(.dark, :root.dark) .contents-group__title {
+  color: #f1f5f9;
+}
+
+.contents-group__header:hover .contents-group__title {
+  color: #007aff;
+}
+
+:is(.dark, :root.dark) .contents-group__header:hover .contents-group__title {
+  color: #0a84ff;
+}
+
+.contents-group__count {
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: #64748b;
+}
+
+:is(.dark, :root.dark) .contents-group__count {
+  color: #94a3b8;
+}
+
+.contents-group__divider {
+  flex: 1;
+  height: 1px;
+  background-color: #e2e8f0;
+  transition: background-color 0.15s ease;
+}
+
+:is(.dark, :root.dark) .contents-group__divider {
+  background-color: #2e2e2e;
+}
+
+.contents-group__header:hover .contents-group__divider {
+  background-color: rgba(0, 122, 255, 0.25);
+}
+
+:is(.dark, :root.dark) .contents-group__header:hover .contents-group__divider {
+  background-color: rgba(10, 132, 255, 0.3);
+}
+
 .contents-grid--folders {
   grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
 }

@@ -6,7 +6,7 @@ import useLayout from './useLayout';
  * Tuân thủ Quy tắc 8, 9, 10, 14 và 15 của frontend/web/AGENTS.md
  */
 export default function useFolderContextMenu() {
-  const { openRenameFolder, openGetInfo } = useLayout();
+  const { openRenameFolder, openGetInfo, openDeleteFolder } = useLayout();
   const [isOpen, setIsOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const [targetFolder, setTargetFolder] = useState(null);
@@ -15,6 +15,7 @@ export default function useFolderContextMenu() {
   const handleClose = useCallback(() => {
     setIsOpen(false);
     setTargetFolder(null);
+    window.dispatchEvent(new CustomEvent('folder-context-menu-closed'));
   }, []);
 
   // Lắng nghe sự kiện mở menu từ click chuột phải vào thư mục
@@ -97,9 +98,11 @@ export default function useFolderContextMenu() {
         openRenameFolder(folder);
       } else if (actionKey === 'info' && folder) {
         openGetInfo(folder);
+      } else if (actionKey === 'delete' && folder) {
+        openDeleteFolder(folder);
       }
     },
-    [handleClose, openRenameFolder, openGetInfo]
+    [handleClose, openRenameFolder, openGetInfo, openDeleteFolder]
   );
 
   return {

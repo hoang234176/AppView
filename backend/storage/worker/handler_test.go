@@ -796,3 +796,82 @@ func TestHandlerFolderRenameMessage(t *testing.T) {
 		t.Fatalf("expected INVALID_PATH, got %+v", sent)
 	}
 }
+
+func TestHandlerFolderDeleteMessage(t *testing.T) {
+	tempRoot := t.TempDir()
+	origRoot := configs.DEFAULT_ROOT_PATH
+	origDrives := configs.STORAGE_DRIVES
+	configs.DEFAULT_ROOT_PATH = tempRoot
+	configs.STORAGE_DRIVES = []configs.StorageDrive{
+		{ID: "HDD", Name: "HDD", Path: tempRoot, Available: true},
+	}
+	defer func() {
+		configs.DEFAULT_ROOT_PATH = origRoot
+		configs.STORAGE_DRIVES = origDrives
+	}()
+
+	subDir := filepath.Join(tempRoot, "ToDelete")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	h := &Handler{}
+	var sent []Message
+
+	// 1. Success delete
+	payload, _ := json.Marshal(FolderDeleteRequestPayload{
+		Drive: "HDD",
+		Path:  "ToDelete",
+	})
+	h.HandleFolderDeleteMessage(Message{
+		Type:    FolderDelete,
+		TaskID:  "delete-task-1",
+		Payload: payload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Type != FolderDelete {
+		t.Fatalf("expected 1 FolderDelete message, got %+v", sent)
+	}
+	if sent[0].Error != nil {
+		t.Fatalf("unexpected error: %+v", sent[0].Error)
+	}
+	res, ok := sent[0].Result.(FolderDeleteResult)
+	if !ok || !res.Deleted || res.Path != "ToDelete" {
+		t.Fatalf("expected FolderDeleteResult with Deleted true, got %+v", sent[0].Result)
+	}
+	if _, err := os.Stat(subDir); !os.IsNotExist(err) {
+		t.Fatalf("expected folder on disk to be removed, but stat was: %v", err)
+	}
+
+	// 2. Delete root path (not allowed)
+	sent = nil
+	rootPayload, _ := json.Marshal(FolderDeleteRequestPayload{
+		Drive: "HDD",
+		Path:  "",
+	})
+	h.HandleFolderDeleteMessage(Message{
+		Type:    FolderDelete,
+		TaskID:  "delete-task-2",
+		Payload: rootPayload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Error == nil || sent[0].Error.Code != "INVALID_PATH" {
+		t.Fatalf("expected INVALID_PATH, got %+v", sent)
+	}
+
+	// 3. Delete non-existent folder
+	sent = nil
+	notFoundPayload, _ := json.Marshal(FolderDeleteRequestPayload{
+		Drive: "HDD",
+		Path:  "NoSuchFolder",
+	})
+	h.HandleFolderDeleteMessage(Message{
+		Type:    FolderDelete,
+		TaskID:  "delete-task-3",
+		Payload: notFoundPayload,
+	}, collect(&sent))
+
+	if len(sent) != 1 || sent[0].Error == nil || sent[0].Error.Code != "FOLDER_NOT_FOUND" {
+		t.Fatalf("expected FOLDER_NOT_FOUND, got %+v", sent)
+	}
+}

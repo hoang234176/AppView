@@ -13,7 +13,9 @@ function GetInfoModal() {
     isLoading,
     infoData,
     showBytes,
+    showDetailContains,
     toggleSizeFormat,
+    toggleContainsFormat,
     handleClose,
     handleKeyDown,
   } = useGetInfoModal();
@@ -77,9 +79,15 @@ function GetInfoModal() {
                   {infoData.whereText || '—'}
                 </span>
               </div>
-              <div className="get-info-dialog__row">
+              <div
+                className="get-info-dialog__row get-info-dialog__row--clickable"
+                onClick={toggleContainsFormat}
+                title="Click to toggle between total items and detailed breakdown"
+              >
                 <span className="get-info-dialog__label">Contains</span>
-                <span className="get-info-dialog__val">{infoData.containsText}</span>
+                <span className="get-info-dialog__val">
+                  {showDetailContains ? infoData.containsDetail : infoData.containsSummary}
+                </span>
               </div>
               <div className="get-info-dialog__row">
                 <span className="get-info-dialog__label">Modified</span>

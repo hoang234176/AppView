@@ -223,6 +223,19 @@ export default function useFolderContents(driveId = 'SSD', currentPath = '') {
     };
   }, [hasServerConnection, serverConfig, normalizedDriveId, cleanPath, fetchContents]);
 
+  // Lắng nghe sự kiện nội bộ folder-deleted / refresh-contents để cập nhật nội dung tức thì
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchContents(normalizedDriveId, cleanPath, true);
+    };
+    window.addEventListener('folder-deleted', handleRefresh);
+    window.addEventListener('refresh-contents', handleRefresh);
+    return () => {
+      window.removeEventListener('folder-deleted', handleRefresh);
+      window.removeEventListener('refresh-contents', handleRefresh);
+    };
+  }, [fetchContents, normalizedDriveId, cleanPath]);
+
   // KHÓA DỮ LIỆU THEO EFFECTIVE STORE
   const isKeyMatched = effectiveStore.key === activeKey;
   const currentData = isKeyMatched ? effectiveStore.data : null;

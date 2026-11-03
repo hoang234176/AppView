@@ -7,6 +7,7 @@ import ServerConnectionModal from './components/layouts/ServerConnectionModal/Se
 import NewFolderModal from './components/layouts/NewFolderModal/NewFolderModal';
 import RenameModal from './components/layouts/RenameModal/RenameModal';
 import GetInfoModal from './components/layouts/GetInfoModal/GetInfoModal';
+import DeleteFolderModal from './components/layouts/DeleteFolderModal/DeleteFolderModal';
 import FolderContextMenu from './components/common/FolderContextMenu/FolderContextMenu';
 import InitialLoadingOverlay from './components/common/InitialLoadingOverlay/InitialLoadingOverlay';
 
@@ -50,6 +51,7 @@ function App() {
       <NewFolderModal />
       <RenameModal />
       <GetInfoModal />
+      <DeleteFolderModal />
       <FolderContextMenu />
       <InitialLoadingOverlay />
     </div>

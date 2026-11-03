@@ -100,18 +100,36 @@ func (s *folderRpcMockSender) Send(msg protocol.Message) error {
 	} else if msg.Type == protocol.FolderStatsGet {
 		go func(taskID string) {
 			res := protocol.FolderStatsResult{
-				Drive:         "SSD",
-				Path:          "test/sub",
-				TotalSize:     1048576,
-				TotalFiles:    10,
-				TotalPictures: 8,
-				TotalVideos:   2,
-				TotalFolders:  3,
-				LatestMod:     1700000000,
+				Drive:          "SSD",
+				Path:           "test/sub",
+				TotalSize:      1048576,
+				TotalFiles:     10,
+				TotalPictures:  8,
+				TotalVideos:    2,
+				TotalFolders:   3,
+				LatestMod:      1700000000,
+				DirectFolders:  1,
+				DirectPictures: 0,
+				DirectVideos:   0,
+				DirectTotal:    1,
 			}
 			resRaw, _ := json.Marshal(res)
 			s.coordinator.ResolveRPC(taskID, protocol.Message{
 				Type:   protocol.FolderStatsGet,
+				TaskID: taskID,
+				Result: resRaw,
+			})
+		}(msg.TaskID)
+	} else if msg.Type == protocol.FolderDelete {
+		go func(taskID string) {
+			res := protocol.FolderDeleteResult{
+				Drive:   "SSD",
+				Path:    "test/sub",
+				Deleted: true,
+			}
+			resRaw, _ := json.Marshal(res)
+			s.coordinator.ResolveRPC(taskID, protocol.Message{
+				Type:   protocol.FolderDelete,
 				TaskID: taskID,
 				Result: resRaw,
 			})
@@ -259,8 +277,8 @@ func TestGetFolderStatsSuccess(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("failed to parse JSON response: %v", err)
 	}
-	if body.Data.TotalSize != 1048576 || body.Data.TotalFiles != 10 {
-		t.Fatalf("expected total_size 1048576, got %+v", body.Data)
+	if body.Data.TotalSize != 1048576 || body.Data.TotalFiles != 10 || body.Data.DirectFolders != 1 || body.Data.DirectTotal != 1 {
+		t.Fatalf("expected valid folder stats, got %+v", body.Data)
 	}
 }
 
@@ -298,6 +316,54 @@ func TestRenameFolderEmptyName(t *testing.T) {
 	payload := `{"drive":"SSD","path":"test/OldFolder","new_name":""}`
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPatch, "/api/v1/folder", strings.NewReader(payload)))
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestDeleteFolderSuccess(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	sender := &folderRpcMockSender{coordinator: coordinator}
+	if err := coordinator.RegisterWorker("storage-worker-1", []protocol.Capability{protocol.DownloadFile}, sender); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+
+	// 1. Test DELETE /api/v1/folder?drive=SSD&path=test/sub
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodDelete, "/api/v1/folder?drive=SSD&path=test/sub", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var body struct {
+		Message string                      `json:"message"`
+		Data    protocol.FolderDeleteResult `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to parse JSON response: %v", err)
+	}
+	if !body.Data.Deleted || body.Data.Path != "test/sub" {
+		t.Fatalf("expected valid folder delete result, got %+v", body.Data)
+	}
+
+	// 2. Test POST /api/v1/folder/delete
+	postResponse := httptest.NewRecorder()
+	mux.ServeHTTP(postResponse, httptest.NewRequest(http.MethodPost, "/api/v1/folder/delete?drive=SSD&path=test/sub", nil))
+	if postResponse.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", postResponse.Code, postResponse.Body.String())
+	}
+}
+
+func TestDeleteFolderRootRejected(t *testing.T) {
+	coordinator := service.New(worker.NewRegistry(), task.NewRegistry(), scheduler.New(), 2)
+	mux := http.NewServeMux()
+	Register(mux, coordinator)
+
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodDelete, "/api/v1/folder?drive=SSD&path=", nil))
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 Bad Request, got %d: %s", response.Code, response.Body.String())
 	}

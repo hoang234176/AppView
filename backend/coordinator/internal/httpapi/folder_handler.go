@@ -253,3 +253,71 @@ func (h *FolderHandler) RenameFolder(writer http.ResponseWriter, request *http.R
 
 	writeJSON(writer, http.StatusOK, res)
 }
+
+func (h *FolderHandler) DeleteFolder(writer http.ResponseWriter, request *http.Request) {
+	defer func() {
+		if r := recover(); r != nil {
+			writeJSON(writer, http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Internal server error: %v", r),
+			})
+		}
+	}()
+
+	if request.Method != http.MethodDelete && request.Method != http.MethodPost {
+		writeJSON(writer, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	var req protocol.FolderDeleteRequestPayload
+	query := request.URL.Query()
+	req.Drive = strings.TrimSpace(query.Get("drive"))
+	req.Path = strings.TrimSpace(query.Get("path"))
+
+	if request.Body != nil && request.ContentLength > 0 {
+		var bodyReq protocol.FolderDeleteRequestPayload
+		if err := json.NewDecoder(request.Body).Decode(&bodyReq); err == nil {
+			if bodyReq.Drive != "" {
+				req.Drive = strings.TrimSpace(bodyReq.Drive)
+			}
+			if bodyReq.Path != "" {
+				req.Path = strings.TrimSpace(bodyReq.Path)
+			}
+		}
+	}
+
+	if req.Drive == "" {
+		req.Drive = "HDD"
+	}
+	req.Path = strings.TrimSpace(req.Path)
+	if req.Path == "" || req.Path == "/" || req.Path == "." {
+		writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "Cannot delete root drive folder"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(request.Context(), 10*time.Second)
+	defer cancel()
+
+	res, err := h.coordinator.DeleteFolder(ctx, req)
+	if err != nil {
+		errStr := err.Error()
+		if strings.Contains(strings.ToLower(errStr), "unavailable") {
+			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{"error": errStr})
+			return
+		}
+		if strings.Contains(errStr, "PERMISSION_DENIED") || strings.Contains(errStr, "permission") {
+			writeJSON(writer, http.StatusForbidden, map[string]string{"error": "Permission denied"})
+			return
+		}
+		if strings.Contains(errStr, "FOLDER_NOT_FOUND") || strings.Contains(errStr, "not exist") {
+			writeJSON(writer, http.StatusNotFound, map[string]string{"error": "Folder not found"})
+			return
+		}
+		writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": errStr})
+		return
+	}
+
+	writeJSON(writer, http.StatusOK, map[string]any{
+		"message": "Folder deleted successfully",
+		"data":    res,
+	})
+}

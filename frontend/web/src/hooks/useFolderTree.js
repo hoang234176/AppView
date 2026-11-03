@@ -188,6 +188,19 @@ export default function useFolderTree(activeDriveId = 'HDD') {
     };
   }, [hasServerConnection, serverConfig, normalizedDriveId, fetchTree]);
 
+  // Lắng nghe sự kiện nội bộ refresh-tree / folder-deleted để cập nhật cây ngay lập tức
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchTree(normalizedDriveId);
+    };
+    window.addEventListener('refresh-tree', handleRefresh);
+    window.addEventListener('folder-deleted', handleRefresh);
+    return () => {
+      window.removeEventListener('refresh-tree', handleRefresh);
+      window.removeEventListener('folder-deleted', handleRefresh);
+    };
+  }, [fetchTree, normalizedDriveId]);
+
   const refreshFolderTree = useCallback(() => {
     return fetchTree(normalizedDriveId);
   }, [fetchTree, normalizedDriveId]);

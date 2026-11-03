@@ -23,12 +23,12 @@ const SORT_OPTIONS = [
 ];
 
 function MoreButton() {
-  const { openNewFolder, openGetInfo } = useLayout();
+  const { openNewFolder, openGetInfo, sortBy = 'name', setSortBy } = useLayout();
   const [isOpen, setIsOpen] = useState(false);
   const [menuPos, setMenuPos] = useState(null);
   const [triggerType, setTriggerType] = useState('button'); // 'button' | 'contextmenu'
   const [isSortSubmenuOpen, setIsSortSubmenuOpen] = useState(false);
-  const [activeSort, setActiveSort] = useState('name');
+  const [isSortSubmenuPinned, setIsSortSubmenuPinned] = useState(false);
   const [submenuSide, setSubmenuSide] = useState('right'); // 'right' | 'left'
 
   const location = useLocation();
@@ -37,6 +37,7 @@ function MoreButton() {
     setPrevPathname(location.pathname);
     setIsOpen(false);
     setIsSortSubmenuOpen(false);
+    setIsSortSubmenuPinned(false);
   }
 
   const buttonRef = useRef(null);
@@ -57,11 +58,13 @@ function MoreButton() {
       setMenuPos({ x: Math.max(12, x), y: Math.max(12, y) });
       setIsOpen(true);
       setIsSortSubmenuOpen(false);
+      setIsSortSubmenuPinned(false);
     };
 
     const handleCloseContextMenu = () => {
       setIsOpen(false);
       setIsSortSubmenuOpen(false);
+      setIsSortSubmenuPinned(false);
     };
 
     window.addEventListener('open-more-menu', handleOpenContextMenu);
@@ -82,18 +85,21 @@ function MoreButton() {
 
       setIsOpen(false);
       setIsSortSubmenuOpen(false);
+      setIsSortSubmenuPinned(false);
     };
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         setIsOpen(false);
         setIsSortSubmenuOpen(false);
+        setIsSortSubmenuPinned(false);
       }
     };
 
     const handleScroll = () => {
       setIsOpen(false);
       setIsSortSubmenuOpen(false);
+      setIsSortSubmenuPinned(false);
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -125,9 +131,11 @@ function MoreButton() {
         }
         setTriggerType('button');
         setIsSortSubmenuOpen(false);
+        setIsSortSubmenuPinned(false);
         return true;
       }
       setIsSortSubmenuOpen(false);
+      setIsSortSubmenuPinned(false);
       return false;
     });
   };
@@ -147,21 +155,41 @@ function MoreButton() {
     setIsSortSubmenuOpen(true);
   }, []);
 
+  const handleSortMouseLeave = useCallback(() => {
+    if (!isSortSubmenuPinned) {
+      setIsSortSubmenuOpen(false);
+    }
+  }, [isSortSubmenuPinned]);
+
+  const handleSortItemClick = (e) => {
+    e.stopPropagation();
+    setIsSortSubmenuPinned((prev) => {
+      const next = !prev;
+      setIsSortSubmenuOpen(next);
+      return next;
+    });
+  };
+
   const handleSortClick = (sortId) => {
-    setActiveSort(sortId);
+    if (setSortBy) {
+      setSortBy(sortId);
+    }
     setIsOpen(false);
     setIsSortSubmenuOpen(false);
+    setIsSortSubmenuPinned(false);
   };
 
   const handleNewFolder = () => {
     setIsOpen(false);
     setIsSortSubmenuOpen(false);
+    setIsSortSubmenuPinned(false);
     openNewFolder();
   };
 
   const handleGetInfo = () => {
     setIsOpen(false);
     setIsSortSubmenuOpen(false);
+    setIsSortSubmenuPinned(false);
     openGetInfo();
   };
 
@@ -229,8 +257,8 @@ function MoreButton() {
               isSortSubmenuOpen ? 'header-more-menu__item--submenu-active' : ''
             }`}
             onMouseEnter={handleSortMouseEnter}
-            onMouseLeave={() => setIsSortSubmenuOpen(false)}
-            onClick={() => setIsSortSubmenuOpen(prev => !prev)}
+            onMouseLeave={handleSortMouseLeave}
+            onClick={handleSortItemClick}
             role="menuitem"
             aria-haspopup="true"
             aria-expanded={isSortSubmenuOpen}
@@ -255,7 +283,7 @@ function MoreButton() {
                     return <div key={`divider-${idx}`} className="header-more-menu__divider" />;
                   }
 
-                  const isSelected = activeSort === item.id;
+                  const isSelected = (sortBy || 'name') === item.id;
                   return (
                     <button
                       key={item.id}

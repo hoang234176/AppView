@@ -40,6 +40,8 @@ func Register(mux *http.ServeMux, coordinator *service.Coordinator) {
 	mux.HandleFunc("POST /api/v1/folder", folderHandler.CreateFolder)
 	mux.HandleFunc("PATCH /api/v1/folder", folderHandler.RenameFolder)
 	mux.HandleFunc("POST /api/v1/folder/rename", folderHandler.RenameFolder)
+	mux.HandleFunc("DELETE /api/v1/folder", folderHandler.DeleteFolder)
+	mux.HandleFunc("POST /api/v1/folder/delete", folderHandler.DeleteFolder)
 	mux.HandleFunc("GET /health", Health(coordinator))
 	mux.HandleFunc("GET /docs", DocsHandler())
 	mux.HandleFunc("GET /api/openapi.json", OpenAPISpecHandler())

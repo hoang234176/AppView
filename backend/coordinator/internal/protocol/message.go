@@ -32,6 +32,7 @@ const (
 	FolderStatsGet         MessageType = "folder.stats"
 	FolderCreate           MessageType = "folder.create"
 	FolderRename           MessageType = "folder.rename"
+	FolderDelete           MessageType = "folder.delete"
 	BatchJobProgressMessage MessageType = "batch_job_progress"
 	Error                  MessageType = "error"
 )
@@ -330,12 +331,27 @@ type FolderStatsRequestPayload struct {
 }
 
 type FolderStatsResult struct {
-	Drive         string `json:"drive"`
-	Path          string `json:"path"`
-	TotalSize     int64  `json:"total_size"`
-	TotalFiles    int    `json:"total_files"`
-	TotalPictures int    `json:"total_pictures"`
-	TotalVideos   int    `json:"total_videos"`
-	TotalFolders  int    `json:"total_folders"`
-	LatestMod     int64  `json:"latest_mod"`
+	Drive          string `json:"drive"`
+	Path           string `json:"path"`
+	TotalSize      int64  `json:"total_size"`
+	TotalFiles     int    `json:"total_files"`
+	TotalPictures  int    `json:"total_pictures"`
+	TotalVideos    int    `json:"total_videos"`
+	TotalFolders   int    `json:"total_folders"`
+	LatestMod      int64  `json:"latest_mod"`
+	DirectFolders  int    `json:"direct_folders"`
+	DirectPictures int    `json:"direct_pictures"`
+	DirectVideos   int    `json:"direct_videos"`
+	DirectTotal    int    `json:"direct_total"`
+}
+
+type FolderDeleteRequestPayload struct {
+	Drive string `json:"drive,omitempty"`
+	Path  string `json:"path,omitempty"`
+}
+
+type FolderDeleteResult struct {
+	Drive   string `json:"drive"`
+	Path    string `json:"path"`
+	Deleted bool   `json:"deleted"`
 }

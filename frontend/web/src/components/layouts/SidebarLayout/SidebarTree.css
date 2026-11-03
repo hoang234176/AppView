@@ -230,12 +230,21 @@
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.sidebar-tree__item:hover {
+.sidebar-tree:not(.sidebar-tree--menu-open) .sidebar-tree__item:hover {
   background-color: rgba(0, 0, 0, 0.04);
 }
 
-:is(.dark, :root.dark) .sidebar-tree__item:hover {
+:is(.dark, :root.dark) .sidebar-tree:not(.sidebar-tree--menu-open) .sidebar-tree__item:hover {
   background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Thư mục đang được click chuột phải mở Context Menu (giữ sáng kiểu hover chuẩn macOS) */
+.sidebar-tree__item--context-active {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+:is(.dark, :root.dark) .sidebar-tree__item--context-active {
+  background-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 /* Thư mục được chọn */
@@ -281,12 +290,12 @@
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
 }
 
-.sidebar-tree__chevron:hover {
+.sidebar-tree:not(.sidebar-tree--menu-open) .sidebar-tree__chevron:hover {
   color: #4b5563;
   background-color: rgba(0, 0, 0, 0.05);
 }
 
-:is(.dark, :root.dark) .sidebar-tree__chevron:hover {
+:is(.dark, :root.dark) .sidebar-tree:not(.sidebar-tree--menu-open) .sidebar-tree__chevron:hover {
   color: #d1d5db;
   background-color: rgba(255, 255, 255, 0.08);
 }

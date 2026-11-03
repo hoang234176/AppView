@@ -785,6 +785,19 @@ func DeleteSubFolder(baseDir string, targetRelPath string) error {
 		return os.ErrPermission
 	}
 
+	fi, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			LogError("[STORAGE SERVICE] Thư mục không tồn tại: %s", fullPath)
+			return os.ErrNotExist
+		}
+		return err
+	}
+	if !fi.IsDir() {
+		LogError("[STORAGE SERVICE] Đường dẫn không phải là thư mục: %s", fullPath)
+		return os.ErrInvalid
+	}
+
 	LogInfo("[STORAGE SERVICE] Đang xóa thư mục: %s (Đường dẫn tuyệt đối: %s)", targetRelPath, fullPath)
 	if err := os.RemoveAll(fullPath); err != nil {
 		LogError("[STORAGE SERVICE] Lỗi xóa thư mục %s: %v", fullPath, err)

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import useLayout from './useLayout';
-import { getFolderContentsApi, getFolderStatsApi } from '../api/apiCoordinator';
+import { getFolderStatsApi } from '../api/apiCoordinator';
 import { formatStorageBytes } from './useStorageDrives';
 
 /**
@@ -21,6 +21,7 @@ export default function useGetInfoModal() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [showBytes, setShowBytes] = useState(false);
+  const [showDetailContains, setShowDetailContains] = useState(false);
   const [infoData, setInfoData] = useState({
     name: '',
     path: '',
@@ -28,7 +29,9 @@ export default function useGetInfoModal() {
     kind: 'Folder',
     sizeFormatted: '0 B',
     sizeBytes: '0 bytes',
-    containsText: '0 items',
+    containsSummary: 'Zero items',
+    containsDetail: 'Zero items',
+    containsText: 'Zero items',
     whereText: '',
     modifiedText: '—',
   });
@@ -91,68 +94,33 @@ export default function useGetInfoModal() {
         // Thời gian loading tối thiểu 200ms để chống chớp giật khung hình
         const MIN_LOADING_TIME_MS = 200;
 
-        // Gọi đồng thời cả nội dung thư mục, số liệu tổng hợp đệ quy từ SQLite và timer tối thiểu
-        const [contentsRes, statsRes] = await Promise.all([
-          getFolderContentsApi(host, port, { drive: driveName, path: pathName }),
+        // Gọi API thống kê thư mục từ Coordinator (Storage worker xử lý)
+        const [statsRes] = await Promise.all([
           getFolderStatsApi(host, port, { drive: driveName, path: pathName }),
           new Promise((resolve) => setTimeout(resolve, MIN_LOADING_TIME_MS)),
         ]);
 
         if (!isMounted) return;
 
-        let totalFolders = 0;
-        let totalPictures = 0;
-        let totalVideos = 0;
         let totalBytes = 0;
+        let directFolders = 0;
+        let directPictures = 0;
+        let directVideos = 0;
+        let directTotal = 0;
         let latestModTime = null;
 
-        // Ưu tiên đọc số liệu tổng hợp đệ quy từ SQLite (statsRes)
         if (statsRes && statsRes.ok && statsRes.data) {
-          totalBytes = statsRes.data.total_size || 0;
-          totalPictures = statsRes.data.total_pictures || 0;
-          totalVideos = statsRes.data.total_videos || 0;
-          totalFolders = statsRes.data.total_folders || 0;
-          if (statsRes.data.latest_mod) {
-            latestModTime = statsRes.data.latest_mod * 1000;
+          const data = statsRes.data;
+          totalBytes = data.total_size || 0;
+          directFolders = data.direct_folders || 0;
+          directPictures = data.direct_pictures || 0;
+          directVideos = data.direct_videos || 0;
+          directTotal = data.direct_total ?? (directFolders + directPictures + directVideos);
+
+          if (data.latest_mod) {
+            latestModTime = data.latest_mod * 1000;
           }
         }
-
-        // Bổ sung hoặc dự phòng từ contentsRes (dữ liệu trực tiếp cấp này)
-        if (contentsRes && contentsRes.ok && contentsRes.data) {
-          const folders = Array.isArray(contentsRes.data.folders) ? contentsRes.data.folders : [];
-          const pictures = Array.isArray(contentsRes.data.pictures) ? contentsRes.data.pictures : [];
-          const videos = Array.isArray(contentsRes.data.videos) ? contentsRes.data.videos : [];
-
-          if (totalFolders === 0) totalFolders = contentsRes.data.total_folders ?? folders.length;
-          if (totalPictures === 0) totalPictures = contentsRes.data.total_pictures ?? pictures.length;
-          if (totalVideos === 0) totalVideos = contentsRes.data.total_videos ?? videos.length;
-
-          if (totalBytes === 0) {
-            pictures.forEach((p) => {
-              if (p.size && typeof p.size === 'number') totalBytes += p.size;
-            });
-            videos.forEach((v) => {
-              if (v.size && typeof v.size === 'number') totalBytes += v.size;
-            });
-          }
-
-          if (!latestModTime) {
-            pictures.forEach((p) => {
-              if (p.mod_time) {
-                const t = new Date(p.mod_time).getTime();
-                if (!latestModTime || t > latestModTime) latestModTime = t;
-              }
-            });
-            videos.forEach((v) => {
-              if (v.mod_time) {
-                const t = new Date(v.mod_time).getTime();
-                if (!latestModTime || t > latestModTime) latestModTime = t;
-              }
-            });
-          }
-        }
-
-        const totalItems = totalFolders + totalPictures + totalVideos;
 
         // Định dạng ngày sửa đổi
         let modFormatted = '—';
@@ -167,15 +135,18 @@ export default function useGetInfoModal() {
           });
         }
 
-        // Chuỗi hiển thị thành phần bên trong
+        // Chuỗi hiển thị thành phần trực tiếp bên trong (Contains - 100% English)
         const parts = [];
-        if (totalFolders > 0) parts.push(`${totalFolders} ${totalFolders === 1 ? 'folder' : 'folders'}`);
-        if (totalPictures > 0) parts.push(`${totalPictures} ${totalPictures === 1 ? 'photo' : 'photos'}`);
-        if (totalVideos > 0) parts.push(`${totalVideos} ${totalVideos === 1 ? 'video' : 'videos'}`);
+        if (directFolders > 0) parts.push(`${directFolders} ${directFolders === 1 ? 'folder' : 'folders'}`);
+        if (directPictures > 0) parts.push(`${directPictures} ${directPictures === 1 ? 'photo' : 'photos'}`);
+        if (directVideos > 0) parts.push(`${directVideos} ${directVideos === 1 ? 'video' : 'videos'}`);
 
-        const containsStr = totalItems === 0
+        const summaryStr = directTotal === 0
           ? 'Zero items'
-          : `${totalItems} ${totalItems === 1 ? 'item' : 'items'}${parts.length > 0 ? ` (${parts.join(', ')})` : ''}`;
+          : `${directTotal} ${directTotal === 1 ? 'item' : 'items'}`;
+        const detailStr = parts.length > 0
+          ? parts.join(', ')
+          : summaryStr;
 
         setInfoData({
           name: folderName,
@@ -184,7 +155,9 @@ export default function useGetInfoModal() {
           kind: 'Folder',
           sizeFormatted: formatStorageBytes(totalBytes),
           sizeBytes: `${totalBytes.toLocaleString()} bytes`,
-          containsText: containsStr,
+          containsSummary: summaryStr,
+          containsDetail: detailStr,
+          containsText: summaryStr,
           whereText: displayWhere,
           modifiedText: modFormatted,
         });
@@ -197,6 +170,8 @@ export default function useGetInfoModal() {
             kind: 'Folder',
             sizeFormatted: '0 B',
             sizeBytes: '0 bytes',
+            containsSummary: 'Zero items',
+            containsDetail: 'Zero items',
             containsText: 'Zero items',
             whereText: displayWhere,
             modifiedText: '—',
@@ -221,9 +196,15 @@ export default function useGetInfoModal() {
     setShowBytes((prev) => !prev);
   }, []);
 
-  // Xử lý đóng modal và đặt lại định dạng bytes
+  // Chuyển đổi định dạng tổng items và chi tiết khi click vào Contains
+  const toggleContainsFormat = useCallback(() => {
+    setShowDetailContains((prev) => !prev);
+  }, []);
+
+  // Xử lý đóng modal và đặt lại định dạng bytes, contains
   const handleClose = useCallback(() => {
     setShowBytes(false);
+    setShowDetailContains(false);
     closeGetInfo();
   }, [closeGetInfo]);
 
@@ -231,6 +212,7 @@ export default function useGetInfoModal() {
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape' || e.key === 'Enter') {
       setShowBytes(false);
+      setShowDetailContains(false);
       closeGetInfo();
     }
   }, [closeGetInfo]);
@@ -240,7 +222,9 @@ export default function useGetInfoModal() {
     isLoading,
     infoData,
     showBytes,
+    showDetailContains,
     toggleSizeFormat,
+    toggleContainsFormat,
     handleClose,
     handleKeyDown,
   };

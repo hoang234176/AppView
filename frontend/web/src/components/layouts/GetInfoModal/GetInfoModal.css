@@ -16,7 +16,7 @@
 /* Hộp thoại dialog chuẩn phong cách macOS Alert (Flat, Zero Blur, Zero Drop-shadow) */
 .get-info-dialog {
   width: 100%;
-  max-width: 360px;
+  max-width: 350px;
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 24px;

@@ -1097,3 +1097,26 @@ func (c *Coordinator) RenameFolder(ctx context.Context, req protocol.FolderRenam
 	}
 	return &res, nil
 }
+
+func (c *Coordinator) DeleteFolder(ctx context.Context, req protocol.FolderDeleteRequestPayload) (*protocol.FolderDeleteResult, error) {
+	storageWorker, ok := c.workers.AnyFor(string(protocol.DownloadFile))
+	if !ok {
+		return nil, fmt.Errorf("storage worker is unavailable")
+	}
+	payload := mustJSON(req)
+	resp, err := c.CallWorkerRPC(ctx, storageWorker.ID, protocol.Message{
+		Type:    protocol.FolderDelete,
+		Payload: payload,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != nil {
+		return nil, fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Message)
+	}
+	var res protocol.FolderDeleteResult
+	if err := json.Unmarshal(resp.Result, &res); err != nil {
+		return nil, fmt.Errorf("invalid response from storage worker: %w", err)
+	}
+	return &res, nil
+}

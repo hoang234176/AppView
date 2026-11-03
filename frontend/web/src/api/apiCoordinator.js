@@ -15,11 +15,13 @@ export const GET_FOLDER_CONTENTS_API = '/api/v1/folder';
 export const GET_FOLDER_STATS_API = '/api/v1/folder/stats';
 export const CREATE_FOLDER_API = '/api/v1/folder';
 export const RENAME_FOLDER_API = '/api/v1/folder';
+export const DELETE_FOLDER_API = '/api/v1/folder';
 
 // 2. HTTP METHODS VIẾT HOA
 export const HTTP_METHOD_GET = 'GET';
 export const HTTP_METHOD_POST = 'POST';
 export const HTTP_METHOD_PATCH = 'PATCH';
+export const HTTP_METHOD_DELETE = 'DELETE';
 
 // 3. TIMEOUTS VIẾT HOA (Facebook & MXH timeout dài 65s)
 export const DEFAULT_HEALTH_TIMEOUT_MS = 5000;
@@ -29,6 +31,7 @@ export const DEFAULT_FOLDER_CONTENTS_TIMEOUT_MS = 15000;
 export const DEFAULT_FOLDER_STATS_TIMEOUT_MS = 10000;
 export const DEFAULT_CREATE_FOLDER_TIMEOUT_MS = 10000;
 export const DEFAULT_RENAME_FOLDER_TIMEOUT_MS = 10000;
+export const DEFAULT_DELETE_FOLDER_TIMEOUT_MS = 10000;
 
 /**
  * Kiểm tra kết nối tới dịch vụ Coordinator qua endpoint GET /health
@@ -804,6 +807,79 @@ export async function renameFolderApi(
   }
 }
 
+/**
+ * Xóa thư mục qua Coordinator API
+ * Endpoint: DELETE /api/v1/folder?drive=...&path=...
+ * @param {string} host - Host hoặc IP của Coordinator từ session
+ * @param {string|number} port - Cổng của Coordinator từ session
+ * @param {{ drive: string, path: string }} params - Thông tin thư mục cần xóa
+ * @param {number} timeoutMs - Thời gian chờ tối đa (mặc định: 10000ms)
+ * @returns {Promise<{ ok: boolean, data?: object, message?: string, error?: string }>}
+ */
+export async function deleteFolderApi(
+  host,
+  port,
+  params = {},
+  timeoutMs = DEFAULT_DELETE_FOLDER_TIMEOUT_MS
+) {
+  const targetHost = String(host || '').trim();
+  const targetPort = String(port || '').trim();
+
+  if (!targetHost || !targetPort) {
+    return {
+      ok: false,
+      error: 'Missing server host or port from session.',
+    };
+  }
+
+  const queryParams = new URLSearchParams();
+  if (params.drive) queryParams.set('drive', String(params.drive).trim());
+  if (params.path !== undefined && params.path !== null) queryParams.set('path', String(params.path).trim());
+
+  const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
+  const url = `http://${targetHost}:${targetPort}${DELETE_FOLDER_API}${query}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: HTTP_METHOD_DELETE,
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+    });
+
+    const json = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: json?.error || `Server responded with HTTP ${response.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      data: json?.data || json,
+      message: json?.message || 'Folder deleted successfully',
+    };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return {
+        ok: false,
+        error: `Delete request timed out (${timeoutMs / 1000}s).`,
+      };
+    }
+    return {
+      ok: false,
+      error: err.message || 'Error communicating with server.',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default {
   HEALTH_CHECK_API,
   VERIFY_COOKIES_API,
@@ -814,9 +890,11 @@ export default {
   GET_FOLDER_STATS_API,
   CREATE_FOLDER_API,
   RENAME_FOLDER_API,
+  DELETE_FOLDER_API,
   HTTP_METHOD_GET,
   HTTP_METHOD_POST,
   HTTP_METHOD_PATCH,
+  HTTP_METHOD_DELETE,
   DEFAULT_HEALTH_TIMEOUT_MS,
   DEFAULT_VERIFY_TIMEOUT_MS,
   DEFAULT_TREE_FOLDER_TIMEOUT_MS,
@@ -824,6 +902,7 @@ export default {
   DEFAULT_FOLDER_STATS_TIMEOUT_MS,
   DEFAULT_CREATE_FOLDER_TIMEOUT_MS,
   DEFAULT_RENAME_FOLDER_TIMEOUT_MS,
+  DEFAULT_DELETE_FOLDER_TIMEOUT_MS,
   checkCoordinatorHealth,
   verifyCookiesApi,
   updateCookiesApi,
@@ -833,4 +912,5 @@ export default {
   getFolderStatsApi,
   createFolderApi,
   renameFolderApi,
+  deleteFolderApi,
 };
